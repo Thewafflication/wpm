@@ -12,16 +12,20 @@ endif()
 project (wpm C)
 
 # Miniz library
+include(GenerateExportHeader)
+
 add_library(miniz
     third_party/miniz/miniz.c
+    third_party/miniz/miniz_zip.c
+    third_party/miniz/miniz_tinfl.c
+    third_party/miniz/miniz_tdef.c
 )
+
+generate_export_header(miniz)
 
 target_include_directories(miniz PUBLIC
     third_party/miniz
-)
-
-target_compile_definitions(miniz PRIVATE
-    MINIZ_EXPORT=
+    ${CMAKE_CURRENT_BINARY_DIR}
 )
 
 # Include sub-projects.

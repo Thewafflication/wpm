@@ -3,7 +3,15 @@
 #
 
 # Add source to this project's executable.
-add_executable (wpm "wpm.c" "init.c" "init.h" "helpers.h" "helpers.c")
+add_executable (wpm
+  "wpm.c"
+  "archive.c"
+  "archive.h"
+  "init.c"
+  "init.h"
+  "helpers.c"
+  "helpers.h"
+)
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET wpm PROPERTY C_STANDARD 11)

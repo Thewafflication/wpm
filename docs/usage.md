@@ -4,9 +4,8 @@ WPM (Waughtal Package Manager) is a command-line tool for creating, building,
 installing, removing, updating, and upgrading packages.
 
 > [!NOTE]
-> WPM is under development. The `init` command creates package metadata and
-> support files. The other commands currently accept and display their
-> arguments, but their package-management behavior is not implemented yet.
+> WPM is under development. Package removal, upgrades, and index management
+> are not implemented yet.
 
 ## Command syntax
 
@@ -35,9 +34,13 @@ It does not overwrite existing files.
 wpm build <source_dir> [output_dir] [--no-index]
 ```
 
-Builds a package from `source_dir`. When supplied, `output_dir` selects the
-output location. Use `--no-index` to skip updating the package index during the
-build.
+Recursively compresses the contents of `source_dir` into a ZIP package. The
+package is named after the source directory. It is written to the current
+directory unless `output_dir` is supplied.
+
+Use `--no-index` to skip updating the package index during the build. Index
+management is not implemented yet, so this option currently only records the
+requested behavior.
 
 Examples:
 
@@ -55,8 +58,13 @@ wpm install <package...>
 Installs one or more packages:
 
 ```text
-wpm install pkg1 pkg2
+wpm install ./dist/my_project.zip
+wpm install ./dist/pkg1.zip ./dist/pkg2.zip
 ```
+
+Each ZIP package is extracted to `C:\TEMP\<package-name>`. Existing files in
+that directory may be overwritten. This temporary installation location is
+expected to change as installation support develops.
 
 ### Remove packages
 

@@ -2,6 +2,7 @@
 //
 
 #include "wpm.h"
+#include "archive.h"
 #include "helpers.h"
 #include "init.h"
 
@@ -34,14 +35,23 @@ int main(int argc, char *argv[])
                 }
             }
 
-            printf("BUILD\n");
-            printf("source: %s\n", source);
-            printf("output: %s\n", output ? output : "(default)");
-            printf("no_index: %d\n", no_index);
+            if (!wpm_archive_build(source, output ? output : ".")) return 1;
+            if (no_index) printf("Skipped package index update.\n");
             break;
         }
 
-        case CMD_INSTALL:
+        case CMD_INSTALL: {
+            if (argc < 3) {
+                printf("No packages specified.\n");
+                return 1;
+            }
+
+            for (int i = 2; i < argc; i++) {
+                if (!wpm_archive_install(argv[i])) return 1;
+            }
+            break;
+        }
+
         case CMD_REMOVE:
         case CMD_UPGRADE: {
             if (argc < 3) {
