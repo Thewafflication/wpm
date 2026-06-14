@@ -15,6 +15,19 @@ wpm <command> [options]
 
 Running `wpm` without a command displays the version and command summary.
 
+Display WPM's version:
+
+```text
+wpm --version
+```
+
+Display detailed version and dependency information:
+
+```text
+wpm --verbose
+wpm --version --verbose
+```
+
 ## Commands
 
 ### Initialize a package

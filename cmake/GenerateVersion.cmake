@@ -34,7 +34,47 @@ if(NOT tag_result EQUAL 0)
     endif()
 endif()
 
-set(version_header "#ifndef WPM_VERSION_H\n#define WPM_VERSION_H\n\n#define WPM_VERSION \"${version}\"\n\n#endif\n")
+execute_process(
+    COMMAND git describe --tags --exact-match
+    WORKING_DIRECTORY "${WPM_SOURCE_DIR}/third_party/miniz"
+    RESULT_VARIABLE miniz_tag_result
+    OUTPUT_VARIABLE miniz_version
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+)
+
+if(NOT miniz_tag_result EQUAL 0)
+    set(miniz_version "unknown")
+endif()
+
+execute_process(
+    COMMAND git rev-parse --short HEAD
+    WORKING_DIRECTORY "${WPM_SOURCE_DIR}/third_party/miniz"
+    RESULT_VARIABLE miniz_commit_result
+    OUTPUT_VARIABLE miniz_commit
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+)
+
+if(NOT miniz_commit_result EQUAL 0)
+    set(miniz_commit "unknown")
+endif()
+
+execute_process(
+    COMMAND git status --porcelain --untracked-files=no
+    WORKING_DIRECTORY "${WPM_SOURCE_DIR}/third_party/miniz"
+    OUTPUT_VARIABLE miniz_dirty_files
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+)
+
+if(miniz_dirty_files STREQUAL "")
+    set(miniz_dirty 0)
+else()
+    set(miniz_dirty 1)
+endif()
+
+set(version_header "#ifndef WPM_VERSION_H\n#define WPM_VERSION_H\n\n#define WPM_VERSION \"${version}\"\n#define WPM_MINIZ_VERSION \"${miniz_version}\"\n#define WPM_MINIZ_COMMIT \"${miniz_commit}\"\n#define WPM_MINIZ_DIRTY ${miniz_dirty}\n\n#endif\n")
 
 if(EXISTS "${WPM_VERSION_HEADER}")
     file(READ "${WPM_VERSION_HEADER}" existing_version_header)

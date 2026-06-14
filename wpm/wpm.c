@@ -13,6 +13,21 @@ int main(int argc, char *argv[])
         print_usage(0);
         return 1;
 	}
+
+    if (strcmp(argv[1], "--version") == 0) {
+        if (argc > 2 && strcmp(argv[2], "--verbose") == 0) {
+            print_verbose_version();
+        }
+        else {
+            print_version();
+        }
+        return 0;
+    }
+
+    if (strcmp(argv[1], "--verbose") == 0) {
+        print_verbose_version();
+        return 0;
+    }
 	
     Command cmd = parse_command(argv[1]);
     switch (cmd) {
@@ -105,6 +120,16 @@ void print_version()
     printf("=================================================================\n");
 }
 
+void print_verbose_version()
+{
+    print_version();
+    printf("Dependencies:\n");
+    printf("  miniz %s (commit %s%s)\n",
+        WPM_MINIZ_VERSION,
+        WPM_MINIZ_COMMIT,
+        WPM_MINIZ_DIRTY ? ", dirty" : "");
+}
+
 void print_usage(Command c) {
     printf("Usage:\n");
     printf("  wpm <command> [options]\n\n");
@@ -129,6 +154,12 @@ void print_usage(Command c) {
     printf("      Upgrade one or more packages\n\n");
 
     printf("Options:\n");
+    printf("  --version [--verbose]\n");
+    printf("      Display WPM version and optional dependency details\n\n");
+
+    printf("  --verbose\n");
+    printf("      Display detailed WPM and dependency version information\n\n");
+
     printf("  --no-index\n");
     printf("      Skip updating index during build\n\n");
 
