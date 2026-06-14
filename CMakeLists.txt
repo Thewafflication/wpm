@@ -11,5 +11,18 @@ endif()
 
 project (wpm C)
 
+# Miniz library
+add_library(miniz
+    third_party/miniz/miniz.c
+)
+
+target_include_directories(miniz PUBLIC
+    third_party/miniz
+)
+
+target_compile_definitions(miniz PRIVATE
+    MINIZ_EXPORT=
+)
+
 # Include sub-projects.
 add_subdirectory ("wpm")
