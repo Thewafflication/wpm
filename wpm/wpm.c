@@ -80,27 +80,39 @@ int main(int argc, char *argv[])
             }
             break;
         }
-        case CMD_INIT:
+        case CMD_INIT: {
             char name[128] = { 0 };
             printf("Initializing WPM package...\n\n");
 
-            if (!file_exists(".wpm")) {
-                printf("Error: .wpm directory not found.\n");
-                printf("Please create it manually and rerun wpm init.\n");
+            if (argc > 3) {
+                printf("Usage: wpm init [package_name]\n");
                 return 1;
             }
-            get_input("Package name: ", name, sizeof(name));
 
-            if (strlen(name) == 0) {
-                printf("Invalid package name. Aborting.\n");
+            if (argc == 3) {
+                if (strlen(argv[2]) >= sizeof(name)) {
+                    printf("Invalid package name. Maximum length is %zu characters.\n",
+                        sizeof(name) - 1);
+                    return 1;
+                }
+                strcpy_s(name, sizeof(name), argv[2]);
+            }
+            else {
+                get_input("Package name: ", name, sizeof(name));
+            }
+
+            if (!wpm_package_name_is_valid(name)) {
+                printf("Invalid package name. Use letters, numbers, '.', '-', or '_'.\n");
                 return 1;
             }
 
             printf("\n");
 
-            wpm_init_run(name);
+            if (!wpm_init_run(name)) return 1;
 
             printf("\nDone.\n");
+            break;
+        }
 
         case CMD_UPDATE:
             printf("Updating...\n");
@@ -141,7 +153,7 @@ void print_usage(Command c) {
     printf("  install <package...>\n");
     printf("      Install one or more packages\n\n");
 
-    printf("  init\n");
+    printf("  init [package_name]\n");
     printf("      Initialize new package\n\n");
 
     printf("  remove <package...>\n");
@@ -166,7 +178,7 @@ void print_usage(Command c) {
     printf("Examples:\n");
     printf("  wpm build ./my_project\n");
     printf("  wpm build ./my_project ./dist --no-index\n");
-    printf("  wpm init\n");
+    printf("  wpm init my-package\n");
     printf("  wpm install pkg1 pkg2\n");
     printf("  wpm update\n\n");
 }

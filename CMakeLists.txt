@@ -11,6 +11,8 @@ endif()
 
 project (wpm C)
 
+include(CTest)
+
 # Miniz library
 include(GenerateExportHeader)
 

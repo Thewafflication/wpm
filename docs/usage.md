@@ -33,13 +33,21 @@ wpm --version --verbose
 ### Initialize a package
 
 ```text
-wpm init
+wpm init [package_name]
 ```
 
-Initializes a package in the current directory.
+Initializes a package in the current directory and creates the `.wpm`
+directory when needed.
 
-WPM prompts for the package name and creates any missing package-support files.
-It does not overwrite existing files.
+Provide a package name on the command line, or omit it and WPM will prompt for
+one. Package names may contain letters, numbers, `.`, `-`, and `_`.
+
+```text
+wpm init my-package
+```
+
+WPM creates any missing package-support files. It is safe to rerun and does
+not overwrite existing files.
 
 ### Build a package
 
@@ -173,3 +181,16 @@ The resulting executable is located under `out/build/x64-debug/wpm/`.
 WPM's displayed version is generated from Git during each build. An exact Git
 tag, such as `1.0.0`, becomes the version. Otherwise, WPM displays the short
 commit hash and appends `-dirty` when tracked files have uncommitted changes.
+
+## Running tests
+
+The checked-in smoke-test suite exercises version reporting, package
+initialization, ZIP builds, and ZIP installation against the freshly built
+executable:
+
+```powershell
+cmake --build out/build/x64-debug --target check
+```
+
+The suite creates uniquely named temporary files and removes them when it
+finishes.
