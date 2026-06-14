@@ -68,7 +68,7 @@ try {
             throw 'invalid init unexpectedly created .wpm.'
         }
 
-        $initOutput = Invoke-Wpm @('init', $packageName)
+        $initOutput = Invoke-Wpm @('init')
         if ($initOutput -match 'Updating') {
             throw 'init unexpectedly ran the update command.'
         }

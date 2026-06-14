@@ -119,6 +119,40 @@ static int create_remove_cmd(void) {
 
 /* ---------- Public ---------- */
 
+int wpm_current_directory_name(char* name, size_t size) {
+    char path[MAX_PATH];
+    char* directory_name;
+    DWORD length;
+
+    if (!name || size == 0) return 0;
+
+    length = GetCurrentDirectoryA(sizeof(path), path);
+    if (length == 0 || length >= sizeof(path)) {
+        printf("Error: could not determine the current directory.\n");
+        return 0;
+    }
+
+    while (length > 3 && (path[length - 1] == '\\' || path[length - 1] == '/')) {
+        path[--length] = '\0';
+    }
+
+    directory_name = strrchr(path, '\\');
+    if (!directory_name) directory_name = strrchr(path, '/');
+    directory_name = directory_name ? directory_name + 1 : path;
+
+    if (!directory_name[0]) {
+        printf("Error: the current directory does not have a package name.\n");
+        return 0;
+    }
+    if (strlen(directory_name) >= size) {
+        printf("Error: current directory name exceeds the package name limit.\n");
+        return 0;
+    }
+
+    strcpy_s(name, size, directory_name);
+    return 1;
+}
+
 int wpm_package_name_is_valid(const char* name) {
     if (!name || !name[0] || strcmp(name, ".") == 0 || strcmp(name, "..") == 0) return 0;
 

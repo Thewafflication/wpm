@@ -98,7 +98,7 @@ int main(int argc, char *argv[])
                 strcpy_s(name, sizeof(name), argv[2]);
             }
             else {
-                get_input("Package name: ", name, sizeof(name));
+                if (!wpm_current_directory_name(name, sizeof(name))) return 1;
             }
 
             if (!wpm_package_name_is_valid(name)) {

@@ -39,10 +39,12 @@ wpm init [package_name]
 Initializes a package in the current directory and creates the `.wpm`
 directory when needed.
 
-Provide a package name on the command line, or omit it and WPM will prompt for
-one. Package names may contain letters, numbers, `.`, `-`, and `_`.
+When no package name is supplied, WPM uses the current directory name. Provide
+a package name to override it. Package names may contain letters, numbers,
+`.`, `-`, and `_`.
 
 ```text
+wpm init
 wpm init my-package
 ```
 
