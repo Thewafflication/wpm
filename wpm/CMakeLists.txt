@@ -3,6 +3,18 @@
 #
 
 # Add source to this project's executable.
+set(WPM_VERSION_HEADER "${CMAKE_CURRENT_BINARY_DIR}/version.h")
+
+add_custom_target(wpm_version_header ALL
+  COMMAND ${CMAKE_COMMAND}
+    -DWPM_SOURCE_DIR=${CMAKE_SOURCE_DIR}
+    -DWPM_VERSION_HEADER=${WPM_VERSION_HEADER}
+    -P ${CMAKE_SOURCE_DIR}/cmake/GenerateVersion.cmake
+  BYPRODUCTS ${WPM_VERSION_HEADER}
+  COMMENT "Generating WPM version from Git"
+  VERBATIM
+)
+
 add_executable (wpm
   "wpm.c"
   "archive.c"
@@ -11,6 +23,12 @@ add_executable (wpm
   "init.h"
   "helpers.c"
   "helpers.h"
+)
+
+add_dependencies(wpm wpm_version_header)
+
+target_include_directories(wpm PRIVATE
+  ${CMAKE_CURRENT_BINARY_DIR}
 )
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)

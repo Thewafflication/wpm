@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define VERSION "1.0.0"
+#include "version.h"
 
 typedef enum {
     CMD_UNKNOWN,

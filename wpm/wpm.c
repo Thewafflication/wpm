@@ -101,7 +101,7 @@ int main(int argc, char *argv[])
 void print_version() 
 {
     printf("=================================================================\n");
-	printf("Waughtal Package Manager (wpm) Version %s \n", VERSION);
+	printf("Waughtal Package Manager (wpm) Version %s \n", WPM_VERSION);
     printf("=================================================================\n");
 }
 

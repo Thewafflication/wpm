@@ -156,3 +156,7 @@ cmake --build out/build/x64-debug
 ```
 
 The resulting executable is located under `out/build/x64-debug/wpm/`.
+
+WPM's displayed version is generated from Git during each build. An exact Git
+tag, such as `1.0.0`, becomes the version. Otherwise, WPM displays the short
+commit hash and appends `-dirty` when tracked files have uncommitted changes.
