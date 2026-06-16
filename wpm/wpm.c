@@ -140,6 +140,10 @@ void print_verbose_version()
         WPM_MINIZ_VERSION,
         WPM_MINIZ_COMMIT,
         WPM_MINIZ_DIRTY ? ", dirty" : "");
+    printf("  libsodium %s (commit %s%s)\n",
+        WPM_SODIUM_VERSION,
+        WPM_SODIUM_COMMIT,
+        WPM_SODIUM_DIRTY ? ", dirty" : "");
 }
 
 void print_usage(Command c) {

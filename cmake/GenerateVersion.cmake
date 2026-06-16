@@ -74,7 +74,55 @@ else()
     set(miniz_dirty 1)
 endif()
 
-set(version_header "#ifndef WPM_VERSION_H\n#define WPM_VERSION_H\n\n#define WPM_VERSION \"${version}\"\n#define WPM_MINIZ_VERSION \"${miniz_version}\"\n#define WPM_MINIZ_COMMIT \"${miniz_commit}\"\n#define WPM_MINIZ_DIRTY ${miniz_dirty}\n\n#endif\n")
+execute_process(
+    COMMAND git describe --tags --exact-match
+    WORKING_DIRECTORY "${WPM_SOURCE_DIR}/third_party/libsodium"
+    RESULT_VARIABLE sodium_tag_result
+    OUTPUT_VARIABLE sodium_version
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+)
+
+if(NOT sodium_tag_result EQUAL 0)
+    set(sodium_version "unknown")
+endif()
+
+execute_process(
+	COMMAND git rev-parse --short HEAD
+	WORKING_DIRECTORY "${WPM_SOURCE_DIR}/third_party/libsodium"
+        RESULT_VARIABLE sodium_commit_result
+        OUTPUT_VARIABLE sodium_commit
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+	ERROR_QUIET
+)
+
+if(NOT sodium_commit_result EQUAL 0)
+	set(sodium_commit "unknown")
+endif()
+
+execute_process(
+	COMMAND git status --porcelain --untracked-files=no
+        WORKING_DIRECTORY "${WPM_SOURCE_DIR}/third_party/libsodium"
+        OUTPUT_VARIABLE sodium_dirty_files
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+	ERROR_QUIET
+)
+
+if(sodium_dirty_files STREQUAL "")
+        set(sodium_dirty 0)
+else()
+	set(sodium_dirty 1)
+endif()
+
+set(version_header "#ifndef WPM_VERSION_H\n#define WPM_VERSION_H\n\n
+#define WPM_VERSION \"${version}\"\n
+#define WPM_MINIZ_VERSION \"${miniz_version}\"\n
+#define WPM_MINIZ_COMMIT \"${miniz_commit}\"\n
+#define WPM_MINIZ_DIRTY ${miniz_dirty}\n
+#define WPM_SODIUM_VERSION \"${sodium_version}\"\n
+#define WPM_SODIUM_COMMIT \"${sodium_commit}\"\n
+#define WPM_SODIUM_DIRTY ${sodium_dirty}\n
+\n#endif\n")
 
 if(EXISTS "${WPM_VERSION_HEADER}")
     file(READ "${WPM_VERSION_HEADER}" existing_version_header)
