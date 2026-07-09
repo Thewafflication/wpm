@@ -1,0 +1,175 @@
+% ==============================================================================
+% Test Case Reference Library
+% Based on ISO/IEC/IEEE 29119-3
+% ==============================================================================
+
+% Test Case Attributes
+\def\TCID{TC-XXX}
+\def\TCTitle{}
+\def\TCPurpose{}
+\def\TCPriority{}
+
+% Traceability
+\def\TCRequirementRef{}
+\def\TCDesignRef{}
+\def\TCFeatureRef{}
+
+% Preconditions
+\def\TCPreconditions{}
+\def\TCEnvironment{}
+\def\TCAssumptions{}
+
+% Test Data
+\def\TCInputData{}
+\def\TCInitialState{}
+
+% Execution
+\def\TCProcedure{}
+\def\TCExpectedResult{}
+\def\TCPostConditions{}
+
+% Common Status Values
+\def\TCStatusNotRun{Not Executed}
+\def\TCStatusPass{Pass}
+\def\TCStatusFail{Fail}
+\def\TCStatusBlocked{Blocked}
+\def\TCStatusInconclusive{Inconclusive}
+
+% Common Priorities
+\def\TCPriorityLow{Low}
+\def\TCPriorityMedium{Medium}
+\def\TCPriorityHigh{High}
+\def\TCPriorityCritical{Critical}
+
+% ==============================================================================
+% Test Case Template
+% ==============================================================================
+
+\newcommand{\TCTemplate}{
+	\subsection*{\TCID\ - \TCTitle}
+	
+	\begin{description}
+		
+		\item[Purpose]
+		\TCPurpose
+		
+		\item[Priority]
+		\TCPriority
+		
+		\item[Requirement Reference]
+		\TCRequirementRef
+		
+		\item[Design Reference]
+		\TCDesignRef
+		
+		\item[Feature Reference]
+		\TCFeatureRef
+		
+		\item[Preconditions]
+		\TCPreconditions
+		
+		\item[Environment]
+		\TCEnvironment
+		
+		\item[Assumptions]
+		\TCAssumptions
+		
+		\item[Input Data]
+		\TCInputData
+		
+		\item[Initial State]
+		\TCInitialState
+		
+		\item[Procedure] \mbox{}
+		\vspace*{-1.5em}
+		\TCProcedure
+		
+		\item[Expected Result]
+		\TCExpectedResult
+		
+		\item[Post Conditions]
+		\TCPostConditions
+		
+	\end{description}
+	
+	\hrule
+	\vspace{1em}
+}
+
+% ==============================================================================
+% Notes
+% ==============================================================================
+\ifx\StandaloneLibrary\undefined
+
+\documentclass[letterpaper]{article}
+
+\usepackage[
+letterpaper,
+margin=1in
+]{geometry}
+
+\usepackage[]{embedfile}
+\embedfile[
+	desc={LaTeX Source}, 
+	mimetype=text/plain
+]{iso_iec_ieee29119-3_2021.tex}
+
+\pagestyle{empty}
+
+\begin{document}
+	{\LARGE\bfseries Jordan's ISO/IEC/IEEE 29119-3 Notes}
+	
+	\vspace{0.25em}
+	
+	{\small \today}
+	
+	\hrule 
+	
+	% ==============================================================================
+	% Section 8.3 Test Case w/ Example
+	% ==============================================================================
+	\def\TCID{TC-001}
+
+	\def\TCTitle{Power-On Self Test}
+
+	\def\TCPurpose{
+		Verify the device successfully completes boot.
+	}
+
+	\def\TCPriority{\TCPriorityHigh}
+
+	\def\TCRequirementRef{REQ-001}
+
+	\def\TCPreconditions{
+		Device connected to nominal power source.
+	}
+
+	\def\TCEnvironment{
+		Laboratory ambient conditions.
+	}
+	
+	\def\TCInputData{
+		No operator input required.
+	}
+
+	\def\TCProcedure{
+		\newline
+		\begin{enumerate}
+			\item Apply power.
+			\item Observe startup sequence.
+			\item Wait for initialization to complete.
+		\end{enumerate}
+	}
+
+	\def\TCExpectedResult{
+		Device reaches operational state with no errors.
+	}
+
+	\def\TCPostConditions{
+		Device remains operational.
+	}
+	\section*{8.3 Test case specification}
+	Annex I gives examples of test cases. Here is an example using this library:
+	\TCTemplate
+\end{document}
+
