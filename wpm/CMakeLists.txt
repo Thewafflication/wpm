@@ -27,6 +27,27 @@ add_executable (wpm
 
 add_dependencies(wpm wpm_version_header)
 
+if(CMAKE_CONFIGURATION_TYPES)
+  set(wpm_output_dir "${WPM_BIN_DIR}")
+elseif(CMAKE_BUILD_TYPE)
+  set(wpm_output_dir "${WPM_BIN_DIR}/${CMAKE_BUILD_TYPE}")
+else()
+  set(wpm_output_dir "${WPM_BIN_DIR}")
+endif()
+
+set_target_properties(wpm PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${wpm_output_dir}"
+  PDB_OUTPUT_DIRECTORY "${wpm_output_dir}"
+)
+
+foreach(config Debug Release RelWithDebInfo MinSizeRel)
+  string(TOUPPER "${config}" config_upper)
+  set_target_properties(wpm PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY_${config_upper} "${WPM_BIN_DIR}/${config}"
+    PDB_OUTPUT_DIRECTORY_${config_upper} "${WPM_BIN_DIR}/${config}"
+  )
+endforeach()
+
 target_include_directories(wpm PRIVATE
   ${CMAKE_CURRENT_BINARY_DIR}
 )

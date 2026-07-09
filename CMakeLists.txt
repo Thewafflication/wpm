@@ -13,22 +13,42 @@ project (wpm C)
 
 include(CTest)
 
-# Miniz library
-include(GenerateExportHeader)
+if(DEFINED WPM_ARCH)
+  set(wpm_arch "${WPM_ARCH}")
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^[Aa][Rr][Mm]64|^[Aa][Aa][Rr][Cc][Hh]64")
+  set(wpm_arch "arm64")
+elseif(CMAKE_GENERATOR_PLATFORM MATCHES "^[Ww][Ii][Nn]32|^[Xx]86$")
+  set(wpm_arch "x86")
+elseif(CMAKE_GENERATOR_PLATFORM MATCHES "^[Aa][Rr][Mm]64")
+  set(wpm_arch "arm64")
+elseif(CMAKE_SIZEOF_VOID_P EQUAL 8)
+  set(wpm_arch "x64")
+elseif(CMAKE_SIZEOF_VOID_P EQUAL 4)
+  set(wpm_arch "x86")
+else()
+  set(wpm_arch "${CMAKE_SYSTEM_PROCESSOR}")
+endif()
 
-add_library(miniz
-    third_party/miniz/miniz.c
-    third_party/miniz/miniz_zip.c
-    third_party/miniz/miniz_tinfl.c
-    third_party/miniz/miniz_tdef.c
+set(WPM_BIN_DIR
+  "${CMAKE_SOURCE_DIR}/bin/${wpm_arch}"
+  CACHE PATH "Output directory for final WPM build artifacts"
 )
 
-generate_export_header(miniz)
+find_package(Git QUIET)
+if(GIT_FOUND)
+  execute_process(
+    COMMAND ${GIT_EXECUTABLE} status --porcelain
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    OUTPUT_VARIABLE WPM_GIT_STATUS
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+  )
 
-target_include_directories(miniz PUBLIC
-    third_party/miniz
-    ${CMAKE_CURRENT_BINARY_DIR}
-)
+  if(WPM_GIT_STATUS)
+    message(WARNING "Git working tree is dirty; build outputs may not be reproducible.")
+  endif()
+endif()
 
 # Include sub-projects.
+add_subdirectory ("third_party")
 add_subdirectory ("wpm")

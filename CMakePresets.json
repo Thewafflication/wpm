@@ -4,13 +4,9 @@
         {
             "name": "windows-base",
             "hidden": true,
-            "generator": "Ninja",
+            "generator": "Visual Studio 17 2022",
             "binaryDir": "${sourceDir}/out/build/${presetName}",
             "installDir": "${sourceDir}/out/install/${presetName}",
-            "cacheVariables": {
-                "CMAKE_C_COMPILER": "cl.exe",
-                "CMAKE_CXX_COMPILER": "cl.exe"
-            },
             "condition": {
                 "type": "equals",
                 "lhs": "${hostSystemName}",
@@ -22,40 +18,51 @@
             "displayName": "x64 Debug",
             "inherits": "windows-base",
             "architecture": {
-                "value": "x64",
-                "strategy": "external"
+                "value": "x64"
             },
             "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Debug"
+                "WPM_ARCH": "x64",
+                "WPM_THIRD_PARTY_ARCH": "x64"
             }
         },
         {
             "name": "x64-release",
             "displayName": "x64 Release",
-            "inherits": "x64-debug",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Release"
-            }
+            "inherits": "x64-debug"
         },
         {
             "name": "x86-debug",
             "displayName": "x86 Debug",
             "inherits": "windows-base",
             "architecture": {
-                "value": "x86",
-                "strategy": "external"
+                "value": "Win32"
             },
             "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Debug"
+                "WPM_ARCH": "x86",
+                "WPM_THIRD_PARTY_ARCH": "x86"
             }
         },
         {
             "name": "x86-release",
             "displayName": "x86 Release",
-            "inherits": "x86-debug",
+            "inherits": "x86-debug"
+        },
+        {
+            "name": "arm64-debug",
+            "displayName": "ARM64 Debug",
+            "inherits": "windows-base",
+            "architecture": {
+                "value": "ARM64"
+            },
             "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Release"
+                "WPM_ARCH": "arm64",
+                "WPM_THIRD_PARTY_ARCH": "arm64"
             }
+        },
+        {
+            "name": "arm64-release",
+            "displayName": "ARM64 Release",
+            "inherits": "arm64-debug"
         },
         {
             "name": "linux-debug",
@@ -96,6 +103,44 @@
                     "sourceDir": "$env{HOME}/.vs/$ms{projectDirName}"
                 }
             }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "build-x64-debug",
+            "displayName": "Build x64 Debug",
+            "configurePreset": "x64-debug",
+            "configuration": "Debug"
+        },
+        {
+            "name": "build-x64-release",
+            "displayName": "Build x64 Release",
+            "configurePreset": "x64-release",
+            "configuration": "Release"
+        },
+        {
+            "name": "build-x86-debug",
+            "displayName": "Build x86 Debug",
+            "configurePreset": "x86-debug",
+            "configuration": "Debug"
+        },
+        {
+            "name": "build-x86-release",
+            "displayName": "Build x86 Release",
+            "configurePreset": "x86-release",
+            "configuration": "Release"
+        },
+        {
+            "name": "build-arm64-debug",
+            "displayName": "Build ARM64 Debug",
+            "configurePreset": "arm64-debug",
+            "configuration": "Debug"
+        },
+        {
+            "name": "build-arm64-release",
+            "displayName": "Build ARM64 Release",
+            "configurePreset": "arm64-release",
+            "configuration": "Release"
         }
     ]
 }
