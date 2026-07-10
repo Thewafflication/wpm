@@ -58,7 +58,7 @@ static int create_index_csv(void) {
     FILE* f = fopen(path, "w");
     if (!f) return 0;
 
-    int result = fprintf(f, "filename,crc\n");
+    int result = fprintf(f, "filename,size,hash,algorithm\n");
     int close_result = fclose(f);
     return result >= 0 && close_result == 0;
 }

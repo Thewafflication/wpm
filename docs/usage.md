@@ -4,8 +4,8 @@ WPM (Waughtal Package Manager) is a command-line tool for creating, building,
 installing, removing, updating, and upgrading packages.
 
 > [!NOTE]
-> WPM is under development. Package removal, upgrades, and index management
-> are not implemented yet.
+> WPM is under development. Package removal and upgrades are not implemented
+> yet.
 
 ## Command syntax
 
@@ -61,9 +61,9 @@ Recursively compresses the contents of `source_dir` into a ZIP package. The
 package is named after the source directory. It is written to the current
 directory unless `output_dir` is supplied.
 
-Use `--no-index` to skip updating the package index during the build. Index
-management is not implemented yet, so this option currently only records the
-requested behavior.
+By default, WPM updates `.wpm/index.csv` with file sizes and BLAKE2b file
+signatures before creating the ZIP archive. Use `--no-index` to skip updating
+the package index during the build.
 
 Examples:
 
@@ -85,9 +85,12 @@ wpm install ./dist/my_project.zip
 wpm install ./dist/pkg1.zip ./dist/pkg2.zip
 ```
 
-Each ZIP package is extracted to `C:\TEMP\<package-name>`. Existing files in
-that directory may be overwritten. This temporary installation location is
-expected to change as installation support develops.
+Each ZIP package is extracted to `C:\TEMP\<package-name>`. When the package
+contains `.wpm/index.csv`, WPM verifies each indexed file's size and BLAKE2b
+signature after extraction and fails installation if any indexed file does not
+match.
+Existing files in that directory may be overwritten. This temporary
+installation location is expected to change as installation support develops.
 
 ### Remove packages
 
@@ -155,13 +158,13 @@ maintainer=
 Tracks packaged files and their checksums:
 
 ```csv
-filename,crc
+filename,size,hash,algorithm
 ```
 
 ### `wpmignore.txt`
 
-Lists files and directories that should be excluded when building a package.
-The generated file initially excludes `.wpm/`, `*.log`, and `build/`.
+Lists files and directories that should not be indexed when building a
+package. The generated file initially excludes `.wpm/`, `*.log`, and `build/`.
 
 ### `install.cmd` and `remove.cmd`
 
@@ -187,7 +190,8 @@ commit hash and appends `-dirty` when tracked files have uncommitted changes.
 ## Running tests
 
 The checked-in test cases exercise version reporting, package initialization,
-ZIP builds, and ZIP installation against the freshly built executable:
+ZIP builds, ZIP installation, and package index signature verification against
+the freshly built executable:
 
 ```powershell
 cmake --build out/build/x64-debug --target check
@@ -214,4 +218,4 @@ Useful local presets:
 - Run tests and build LaTeX/PDF reports: `verify-x86-debug`
 - Test all cases through CTest: `test-x86-debug`
 - Test one case through CTest: `test-tc-0001-x86-debug` through
-  `test-tc-0004-x86-debug`
+  `test-tc-0005-x86-debug`

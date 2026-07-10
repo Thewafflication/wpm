@@ -1,0 +1,70 @@
+\def\StandaloneLibrary{}
+\input{iso_iec_ieee29119-3_2021.tex}
+
+\documentclass[letterpaper]{article}
+
+\usepackage[
+letterpaper,
+margin=1in
+]{geometry}
+
+\begin{document}
+\def\TCID{TC-0005}
+
+\def\TCTitle{Package index signature verification}
+
+\def\TCPurpose{
+	Verify that \texttt{wpm build} writes package index file sizes and BLAKE2b
+	signatures, and that \texttt{wpm install} rejects tampered indexed files.
+}
+
+\def\TCPriority{\TCPriorityHigh}
+
+\def\TCRequirementRef{REQ-0005}
+
+\def\TCPreconditions{
+	A writable temporary source directory, output directory, and installation
+	root are available.
+}
+
+\def\TCEnvironment{
+	Local Windows developer workstation. Future target: Windows Container.
+}
+
+\def\TCInputData{
+	A source package containing indexed files, ignored files, and a
+	\texttt{.wpm/wpmignore.txt} file.
+}
+
+\def\TCProcedure{
+	\par
+	\begin{enumerate}
+		\item Create a temporary source package directory.
+		\item Add package files and a \texttt{.wpm/wpmignore.txt} file.
+		\item Run \texttt{wpm.exe build <source-dir> <output-dir>}.
+		\item Inspect the generated \texttt{.wpm/index.csv}.
+		\item Install the generated archive.
+		\item Create a tampered copy of the archive by changing an indexed file.
+		\item Attempt to install the tampered archive.
+	\end{enumerate}
+}
+
+\def\TCExpectedResult{
+	\par
+	\begin{enumerate}
+		\item Build command exits 0.
+		\item \texttt{index.csv} contains \texttt{filename,size,hash,algorithm}.
+		\item Indexed files have byte sizes, 64-character hexadecimal BLAKE2b
+		hashes, and \texttt{blake2b} algorithm values.
+		\item Files matched by \texttt{.wpm/wpmignore.txt} are not indexed.
+		\item Untampered install exits 0.
+		\item Tampered install exits non-zero and reports signature verification failure.
+	\end{enumerate}
+}
+
+\def\TCPostConditions{
+	Temporary source, package output, inspection, and installation directories are
+	removed.
+}
+\TCTemplate
+\end{document}

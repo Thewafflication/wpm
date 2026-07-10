@@ -84,7 +84,7 @@ try {
                     throw 'init did not write the current directory package name.'
                 }
 
-                Assert-FileContent '.wpm\index.csv' 'filename,crc'
+                Assert-FileContent '.wpm\index.csv' 'filename,size,hash,algorithm'
             }
 
         Set-Content -LiteralPath '.wpm\package.txt' -Value 'preserve=this'

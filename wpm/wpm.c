@@ -50,7 +50,7 @@ int main(int argc, char *argv[])
                 }
             }
 
-            if (!wpm_archive_build(source, output ? output : ".")) return 1;
+            if (!wpm_archive_build(source, output ? output : ".", !no_index)) return 1;
             if (no_index) printf("Skipped package index update.\n");
             break;
         }
