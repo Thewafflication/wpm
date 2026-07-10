@@ -62,8 +62,17 @@ target_link_libraries(wpm PRIVATE miniz)
 if(BUILD_TESTING)
   find_program(WPM_POWERSHELL_EXECUTABLE NAMES pwsh powershell)
   if(NOT WPM_POWERSHELL_EXECUTABLE)
-    message(FATAL_ERROR "PowerShell is required to run the WPM smoke tests")
+    message(FATAL_ERROR "PowerShell is required to run the WPM tests")
   endif()
+
+  add_test(
+    NAME TC-0001
+    COMMAND ${WPM_POWERSHELL_EXECUTABLE}
+      -NoProfile
+      -ExecutionPolicy Bypass
+      -File ${CMAKE_SOURCE_DIR}/tests/tc-0001-usage-version-check.ps1
+      -WpmExe $<TARGET_FILE:wpm>
+  )
 
   add_test(
     NAME wpm_smoke
@@ -75,9 +84,82 @@ if(BUILD_TESTING)
   )
 
   add_custom_target(check
-    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
+    COMMAND ${CMAKE_CTEST_COMMAND} --build-config $<CONFIG> --output-on-failure
     DEPENDS wpm
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     COMMENT "Running WPM tests"
   )
+
+  option(WPM_BUILD_TEST_REPORTS "Generate local LaTeX test reports from automated test execution" OFF)
+  if(WPM_BUILD_TEST_REPORTS)
+    set(WPM_TEST_REPORT_DIR "${CMAKE_BINARY_DIR}/test-reports")
+    set(WPM_TC0001_EVIDENCE_TEX "${WPM_TEST_REPORT_DIR}/tc-0001-execution-evidence.tex")
+    set(WPM_TC0001_REPORT_TEX "${WPM_TEST_REPORT_DIR}/tc-0001-usage-version-check-report.tex")
+
+    add_custom_command(
+      OUTPUT "${WPM_TC0001_EVIDENCE_TEX}"
+      COMMAND ${WPM_POWERSHELL_EXECUTABLE}
+        -NoProfile
+        -ExecutionPolicy Bypass
+        -File ${CMAKE_SOURCE_DIR}/tests/tc-0001-usage-version-check.ps1
+        -WpmExe $<TARGET_FILE:wpm>
+        -EvidenceTex "${WPM_TC0001_EVIDENCE_TEX}"
+      DEPENDS wpm ${CMAKE_SOURCE_DIR}/tests/tc-0001-usage-version-check.ps1
+      COMMENT "Running TC-0001 and collecting LaTeX execution evidence"
+      VERBATIM
+    )
+
+    add_custom_command(
+      OUTPUT "${WPM_TC0001_REPORT_TEX}"
+      COMMAND ${WPM_POWERSHELL_EXECUTABLE}
+        -NoProfile
+        -ExecutionPolicy Bypass
+        -File ${CMAKE_SOURCE_DIR}/tests/generate-test-report.ps1
+        -TestCaseTex ${CMAKE_SOURCE_DIR}/docs/tc-0001-usage-version-check.tex
+        -EvidenceTex "${WPM_TC0001_EVIDENCE_TEX}"
+        -OutputTex "${WPM_TC0001_REPORT_TEX}"
+      DEPENDS
+        "${WPM_TC0001_EVIDENCE_TEX}"
+        ${CMAKE_SOURCE_DIR}/tests/generate-test-report.ps1
+        ${CMAKE_SOURCE_DIR}/docs/tc-0001-usage-version-check.tex
+        ${CMAKE_SOURCE_DIR}/docs/iso_iec_ieee29119-3_2021.tex
+      COMMENT "Generating TC-0001 LaTeX test report"
+      VERBATIM
+    )
+
+    add_custom_target(test-reports DEPENDS "${WPM_TC0001_REPORT_TEX}")
+
+    find_program(WPM_PDFLATEX_EXECUTABLE
+      NAMES pdflatex pdflatex.exe
+      HINTS
+        "$ENV{LOCALAPPDATA}/Programs/MiKTeX/miktex/bin/x64"
+        "$ENV{LOCALAPPDATA}/Programs/MiKTeX/miktex/bin"
+        "$ENV{APPDATA}/MiKTeX/miktex/bin/x64"
+        "$ENV{APPDATA}/MiKTeX/miktex/bin"
+    )
+    if(WPM_PDFLATEX_EXECUTABLE)
+      set(WPM_TC0001_REPORT_PDF "${WPM_TEST_REPORT_DIR}/tc-0001-usage-version-check-report.pdf")
+      add_custom_command(
+        OUTPUT "${WPM_TC0001_REPORT_PDF}"
+        COMMAND ${WPM_POWERSHELL_EXECUTABLE}
+          -NoProfile
+          -ExecutionPolicy Bypass
+          -File ${CMAKE_SOURCE_DIR}/tests/generate-test-report.ps1
+          -TestCaseTex ${CMAKE_SOURCE_DIR}/docs/tc-0001-usage-version-check.tex
+          -EvidenceTex "${WPM_TC0001_EVIDENCE_TEX}"
+          -OutputTex "${WPM_TC0001_REPORT_TEX}"
+          -PdfLatex "${WPM_PDFLATEX_EXECUTABLE}"
+        DEPENDS
+          "${WPM_TC0001_EVIDENCE_TEX}"
+          ${CMAKE_SOURCE_DIR}/tests/generate-test-report.ps1
+          ${CMAKE_SOURCE_DIR}/docs/tc-0001-usage-version-check.tex
+          ${CMAKE_SOURCE_DIR}/docs/iso_iec_ieee29119-3_2021.tex
+        COMMENT "Generating TC-0001 PDF test report"
+        VERBATIM
+      )
+      add_custom_target(test-report-pdfs DEPENDS "${WPM_TC0001_REPORT_PDF}")
+    else()
+      message(STATUS "pdflatex was not found; WPM_BUILD_TEST_REPORTS will generate LaTeX .tex reports only.")
+    endif()
+  endif()
 endif()

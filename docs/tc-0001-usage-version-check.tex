@@ -1,0 +1,56 @@
+\def\StandaloneLibrary{}
+\input{iso_iec_ieee29119-3_2021.tex}
+
+\documentclass[letterpaper]{article}
+
+\usepackage[
+letterpaper,
+margin=1in
+]{geometry}
+
+\begin{document}
+\def\TCID{TC-0001}
+
+\def\TCTitle{Usage/version check}
+
+\def\TCPurpose{
+	Verify that wpm executes and exits cleanly.
+}
+
+\def\TCPriority{\TCPriorityHigh}
+
+\def\TCRequirementRef{REQ-0001}
+
+\def\TCPreconditions{
+	None.
+}
+
+\def\TCEnvironment{
+	Local Windows developer workstation. Future target: Windows Container.
+}
+
+\def\TCInputData{
+	No input required.
+}
+
+\def\TCProcedure{
+	\par
+	\begin{enumerate}
+		\item Run \texttt{wpm.exe}
+		\item Run \texttt{wpm.exe --version --verbose}
+	\end{enumerate}
+}
+
+\def\TCExpectedResult{
+	\par
+	\begin{enumerate}
+		\item Exit code 0 and version or usage information is displayed.
+		\item Exit code 0 and verbose dependency version information is displayed.
+	\end{enumerate}
+}
+
+\def\TCPostConditions{
+	Test environment remains operational.
+}
+\TCTemplate
+\end{document}

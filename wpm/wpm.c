@@ -11,7 +11,7 @@ int main(int argc, char *argv[])
 	if (argc == 1) {
 		print_version();
         print_usage(0);
-        return 1;
+        return 0;
 	}
 
     if (strcmp(argv[1], "--version") == 0) {
