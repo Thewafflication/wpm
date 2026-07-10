@@ -11,7 +11,10 @@ When building a package, the application shall:
 - recursively index package files using archive-relative paths,
 - record each indexed file's size in bytes,
 - record each indexed file's BLAKE2b hash with `blake2b` as the algorithm,
-- omit files matched by `.wpm/wpmignore.txt`, and
+- omit files matched by `.wpm/wpmignore.txt`,
+- always index package support files `.wpm/package.txt`, `.wpm/install.cmd`,
+  `.wpm/remove.cmd`, and `.wpm/wpmignore.txt` using relative archive paths,
+- avoid indexing `.wpm/index.csv` itself, and
 - include the populated index in the generated archive.
 
 The `wpm install` command shall verify indexed files during installation.

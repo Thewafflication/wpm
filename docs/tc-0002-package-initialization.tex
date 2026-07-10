@@ -52,7 +52,8 @@ margin=1in
 		\item Invalid package name exits non-zero and does not create metadata.
 		\item Valid initialization exits 0 and creates \texttt{package.txt}, \texttt{index.csv}, \texttt{wpmignore.txt}, \texttt{install.cmd}, and \texttt{remove.cmd}.
 		\item \texttt{index.csv} uses the \texttt{filename,size,hash,algorithm} header.
-		\item The generated package name matches the current directory name.
+		\item The generated package metadata includes the current directory name,
+		default version, architecture, and debug values.
 		\item Existing package files are not overwritten.
 	\end{enumerate}
 }

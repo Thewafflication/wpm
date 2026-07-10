@@ -168,6 +168,7 @@ if(BUILD_TESTING)
   wpm_add_test_case(TC-0003 tc-0003 tc-0003-package-archive-build.ps1 tc-0003-package-archive-build.tex)
   wpm_add_test_case(TC-0004 tc-0004 tc-0004-package-archive-installation.ps1 tc-0004-package-archive-installation.tex)
   wpm_add_test_case(TC-0005 tc-0005 tc-0005-package-index-signature-verification.ps1 tc-0005-package-index-signature-verification.tex)
+  wpm_add_test_case(TC-0006 tc-0006 tc-0006-package-metadata-archive-naming.ps1 tc-0006-package-metadata-archive-naming.tex)
 
   add_custom_target(check
     COMMAND ${CMAKE_CTEST_COMMAND} --build-config $<CONFIG> --output-on-failure

@@ -57,6 +57,8 @@ margin=1in
 		\item Indexed files have byte sizes, 64-character hexadecimal BLAKE2b
 		hashes, and \texttt{blake2b} algorithm values.
 		\item Files matched by \texttt{.wpm/wpmignore.txt} are not indexed.
+		\item Package support files are indexed with relative archive paths.
+		\item \texttt{.wpm/index.csv} is not indexed.
 		\item Untampered install exits 0.
 		\item Tampered install exits non-zero and reports signature verification failure.
 	\end{enumerate}

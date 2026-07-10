@@ -83,6 +83,11 @@ try {
                 if ($packageMetadata -notmatch "(?m)^name=$([Regex]::Escape($packageName))`r?$") {
                     throw 'init did not write the current directory package name.'
                 }
+                if ($packageMetadata -notmatch '(?m)^version=0\.1\.0\r?$' -or
+                    $packageMetadata -notmatch '(?m)^arch=any\r?$' -or
+                    $packageMetadata -notmatch '(?m)^debug=false\r?$') {
+                    throw 'init did not write default version, arch, and debug metadata.'
+                }
 
                 Assert-FileContent '.wpm\index.csv' 'filename,size,hash,algorithm'
             }

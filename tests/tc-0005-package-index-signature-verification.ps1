@@ -19,9 +19,10 @@ $sourceDir = Join-Path $testRoot $packageName
 $outputDir = Join-Path $testRoot 'packages'
 $inspectDir = Join-Path $testRoot 'inspect'
 $tamperDir = Join-Path $testRoot 'tamper'
-$archivePath = Join-Path $outputDir "$packageName.zip"
+$archivePackageName = "$packageName-1.2.3-any"
+$archivePath = Join-Path $outputDir "$archivePackageName.zip"
 $tamperedArchivePath = Join-Path $outputDir "$tamperedPackageName.zip"
-$installDir = Join-Path 'C:\TEMP' $packageName
+$installDir = Join-Path 'C:\TEMP' $archivePackageName
 $tamperedInstallDir = Join-Path 'C:\TEMP' $tamperedPackageName
 
 $started = Get-Date
@@ -35,7 +36,16 @@ try {
     Set-Content -LiteralPath (Join-Path $sourceDir 'nested\data.txt') -Value 'nested package data'
     Set-Content -LiteralPath (Join-Path $sourceDir 'ignored.txt') -Value 'ignored package data'
     Set-Content -LiteralPath (Join-Path $sourceDir 'trace.log') -Value 'ignored log data'
+    Set-Content -LiteralPath (Join-Path $sourceDir '.wpm\package.txt') -Value @(
+        "name=$packageName"
+        'version=1.2.3'
+        'arch=any'
+        'debug=false'
+    )
+    Set-Content -LiteralPath (Join-Path $sourceDir '.wpm\install.cmd') -Value '@echo off'
+    Set-Content -LiteralPath (Join-Path $sourceDir '.wpm\remove.cmd') -Value '@echo off'
     Set-Content -LiteralPath (Join-Path $sourceDir '.wpm\wpmignore.txt') -Value @(
+        '.wpm/'
         'ignored.txt'
         '*.log'
     )
@@ -67,6 +77,19 @@ try {
             }
             if (($index -join "`n") -notmatch '(?m)^nested/data\.txt,\d+,[0-9a-f]{64},blake2b$') {
                 throw 'index does not contain a BLAKE2b signature for nested/data.txt'
+            }
+            foreach ($supportFile in @(
+                '\.wpm/package\.txt',
+                '\.wpm/install\.cmd',
+                '\.wpm/remove\.cmd',
+                '\.wpm/wpmignore\.txt'
+            )) {
+                if (($index -join "`n") -notmatch "(?m)^$supportFile,\d+,[0-9a-f]{64},blake2b$") {
+                    throw "index does not contain a relative-path signature for $supportFile"
+                }
+            }
+            if (($index -join "`n") -match '(?m)^\.wpm/index\.csv,') {
+                throw 'index.csv should not index itself'
             }
             if (($index -join "`n") -match '(?m)^(ignored\.txt|trace\.log),') {
                 throw '.wpmignore entries were unexpectedly indexed'

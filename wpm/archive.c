@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <ctype.h>
 #include <windows.h>
 
 #include "archive.h"
@@ -16,6 +17,13 @@ typedef struct wpm_ignore_list {
     char patterns[WPM_MAX_IGNORE_PATTERNS][WPM_PATH_SIZE];
     size_t count;
 } wpm_ignore_list;
+
+typedef struct wpm_package_metadata {
+    char name[128];
+    char version[64];
+    char arch[64];
+    int debug;
+} wpm_package_metadata;
 
 static const char* path_basename(const char* path);
 static int normalized_full_path(const char* path, char* result, size_t result_size);
@@ -156,6 +164,126 @@ static int is_ignored_by_list(const wpm_ignore_list* ignore_list, const char* ar
     return 0;
 }
 
+static int is_tracked_package_support_file(const char* archive_path) {
+    return _stricmp(archive_path, ".wpm/package.txt") == 0 ||
+        _stricmp(archive_path, ".wpm/install.cmd") == 0 ||
+        _stricmp(archive_path, ".wpm/remove.cmd") == 0 ||
+        _stricmp(archive_path, ".wpm/wpmignore.txt") == 0;
+}
+
+static int is_safe_metadata_value(const char* value) {
+    if (!value || !value[0] || strcmp(value, ".") == 0 || strcmp(value, "..") == 0) return 0;
+
+    for (const unsigned char* current = (const unsigned char*)value; *current; current++) {
+        if (!isalnum(*current) && *current != '-' && *current != '_' && *current != '.') {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+static int parse_bool_metadata_value(const char* value, int* result) {
+    if (_stricmp(value, "true") == 0 || _stricmp(value, "yes") == 0 ||
+        _stricmp(value, "on") == 0 || strcmp(value, "1") == 0) {
+        *result = 1;
+        return 1;
+    }
+    if (_stricmp(value, "false") == 0 || _stricmp(value, "no") == 0 ||
+        _stricmp(value, "off") == 0 || strcmp(value, "0") == 0) {
+        *result = 0;
+        return 1;
+    }
+
+    return 0;
+}
+
+static int read_package_metadata(const char* source_dir, wpm_package_metadata* metadata) {
+    char package_path[WPM_PATH_SIZE];
+    char line[WPM_PATH_SIZE];
+    FILE* file;
+
+    metadata->name[0] = '\0';
+    metadata->version[0] = '\0';
+    metadata->arch[0] = '\0';
+    metadata->debug = 0;
+
+    if (!join_path(package_path, sizeof(package_path), source_dir, ".wpm\\package.txt")) {
+        printf("Error: package metadata path is too long.\n");
+        return 0;
+    }
+
+    file = fopen(package_path, "r");
+    if (!file) {
+        printf("Error: could not open package metadata: %s\n", package_path);
+        return 0;
+    }
+
+    while (fgets(line, sizeof(line), file)) {
+        char* equals;
+        char* key;
+        char* value;
+
+        trim_line(line);
+        if (line[0] == '\0' || line[0] == '#') continue;
+
+        equals = strchr(line, '=');
+        if (!equals) continue;
+
+        *equals = '\0';
+        key = line;
+        value = equals + 1;
+        trim_line(key);
+        trim_line(value);
+
+        if (_stricmp(key, "name") == 0) {
+            if (strlen(value) >= sizeof(metadata->name)) {
+                printf("Error: package name metadata is too long.\n");
+                fclose(file);
+                return 0;
+            }
+            strcpy_s(metadata->name, sizeof(metadata->name), value);
+        }
+        else if (_stricmp(key, "version") == 0) {
+            if (strlen(value) >= sizeof(metadata->version)) {
+                printf("Error: package version metadata is too long.\n");
+                fclose(file);
+                return 0;
+            }
+            strcpy_s(metadata->version, sizeof(metadata->version), value);
+        }
+        else if (_stricmp(key, "arch") == 0) {
+            if (strlen(value) >= sizeof(metadata->arch)) {
+                printf("Error: package arch metadata is too long.\n");
+                fclose(file);
+                return 0;
+            }
+            strcpy_s(metadata->arch, sizeof(metadata->arch), value);
+        }
+        else if (_stricmp(key, "debug") == 0 && !parse_bool_metadata_value(value, &metadata->debug)) {
+            printf("Error: package metadata debug must be true or false.\n");
+            fclose(file);
+            return 0;
+        }
+    }
+
+    if (ferror(file)) {
+        printf("Error: could not read package metadata.\n");
+        fclose(file);
+        return 0;
+    }
+    fclose(file);
+
+    if (!is_safe_metadata_value(metadata->name) ||
+        !is_safe_metadata_value(metadata->version) ||
+        !is_safe_metadata_value(metadata->arch)) {
+        printf("Error: package metadata requires safe name, version, and arch values.\n");
+        return 0;
+    }
+
+    return 1;
+}
+
 static int ensure_sodium_ready(void) {
     static int initialized = 0;
 
@@ -278,7 +406,8 @@ static int write_index_entries(
 
         normalize_archive_separators(archive_path);
         if (_stricmp(archive_path, ".wpm/index.csv") == 0 ||
-            is_ignored_by_list(ignore_list, archive_path)) {
+            (!is_tracked_package_support_file(archive_path) &&
+                is_ignored_by_list(ignore_list, archive_path))) {
             continue;
         }
 
@@ -467,7 +596,7 @@ int wpm_archive_build(const char* source_dir, const char* output_dir, int update
     char output_full_path[WPM_PATH_SIZE];
     char output_path[WPM_PATH_SIZE];
     char archive_name[WPM_PATH_SIZE];
-    const char* source_name;
+    wpm_package_metadata metadata;
     mz_zip_archive zip;
     int success = 0;
 
@@ -487,13 +616,17 @@ int wpm_archive_build(const char* source_dir, const char* output_dir, int update
     trim_trailing_separators(source_full_path);
     trim_trailing_separators(output_full_path);
 
-    source_name = path_basename(source_full_path);
-    if (!source_name[0]) {
-        printf("Error: source directory must have a package name.\n");
-        return 0;
-    }
+    if (!read_package_metadata(source_full_path, &metadata)) return 0;
     {
-        int written = snprintf(archive_name, sizeof(archive_name), "%s.zip", source_name);
+        int written = snprintf(
+            archive_name,
+            sizeof(archive_name),
+            "%s-%s-%s%s.zip",
+            metadata.name,
+            metadata.version,
+            metadata.arch,
+            metadata.debug ? "-debug" : ""
+        );
         if (written < 0 || (size_t)written >= sizeof(archive_name) ||
             !join_path(output_path, sizeof(output_path), output_full_path, archive_name)) {
             printf("Error: output path is too long.\n");

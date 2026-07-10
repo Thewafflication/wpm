@@ -9,17 +9,18 @@ margin=1in
 ]{geometry}
 
 \begin{document}
-\def\TCID{TC-0003}
+\def\TCID{TC-0006}
 
-\def\TCTitle{Package archive build}
+\def\TCTitle{Package metadata archive naming}
 
 \def\TCPurpose{
-	Verify that \texttt{wpm build} creates a ZIP package from a source directory.
+	Verify that \texttt{wpm build} names release and debug archives from
+	\texttt{.wpm/package.txt} metadata.
 }
 
 \def\TCPriority{\TCPriorityHigh}
 
-\def\TCRequirementRef{REQ-0003}
+\def\TCRequirementRef{REQ-0006}
 
 \def\TCPreconditions{
 	A writable temporary source directory and output directory are available.
@@ -30,27 +31,28 @@ margin=1in
 }
 
 \def\TCInputData{
-	A source package containing package metadata, a root file, and a nested file.
+	A source package with \texttt{name}, \texttt{version}, \texttt{arch}, and
+	\texttt{debug} metadata.
 }
 
 \def\TCProcedure{
 	\par
 	\begin{enumerate}
 		\item Create a temporary source package directory.
-		\item Add \texttt{.wpm/package.txt} metadata.
-		\item Add \texttt{hello.txt} and \texttt{nested/data.txt}.
+		\item Write package metadata with \texttt{debug=false}.
 		\item Run \texttt{wpm.exe build <source-dir> <output-dir> --no-index}.
-		\item Inspect the generated archive.
+		\item Write package metadata with \texttt{debug=true}.
+		\item Run \texttt{wpm.exe build <source-dir> <output-dir> --no-index}.
 	\end{enumerate}
 }
 
 \def\TCExpectedResult{
 	\par
 	\begin{enumerate}
-		\item Command exits 0.
-		\item Archive is written to the requested output directory.
-		\item Archive name matches package metadata.
-		\item Archive contains both root and nested files.
+		\item Release build exits 0 and writes
+		\texttt{<name>-<version>-<arch>.zip}.
+		\item Debug build exits 0 and writes
+		\texttt{<name>-<version>-<arch>-debug.zip}.
 	\end{enumerate}
 }
 

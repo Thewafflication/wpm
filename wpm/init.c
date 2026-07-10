@@ -37,6 +37,8 @@ static int create_package_txt(const char* name) {
     int result = fprintf(f,
         "name=%s\n"
         "version=0.1.0\n"
+        "arch=any\n"
+        "debug=false\n"
         "description=\n"
         "license=\n"
         "build_date=\n"

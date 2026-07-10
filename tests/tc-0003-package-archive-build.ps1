@@ -17,7 +17,7 @@ $testRoot = Join-Path ([IO.Path]::GetTempPath()) "wpm-tests-$testId"
 $sourceDir = Join-Path $testRoot $packageName
 $outputDir = Join-Path $testRoot 'packages'
 $extractDir = Join-Path $testRoot 'inspect'
-$archivePath = Join-Path $outputDir "$packageName.zip"
+$archivePath = Join-Path $outputDir "$packageName-1.2.3-any.zip"
 
 function Assert-FileContent {
     param(
@@ -40,7 +40,14 @@ $results = @()
 
 try {
     New-Item -ItemType Directory -Force -Path $sourceDir, $outputDir | Out-Null
+    New-Item -ItemType Directory -Force -Path (Join-Path $sourceDir '.wpm') | Out-Null
     New-Item -ItemType Directory -Force -Path (Join-Path $sourceDir 'nested') | Out-Null
+    Set-Content -LiteralPath (Join-Path $sourceDir '.wpm\package.txt') -Value @(
+        "name=$packageName"
+        'version=1.2.3'
+        'arch=any'
+        'debug=false'
+    )
     Set-Content -LiteralPath (Join-Path $sourceDir 'hello.txt') -Value 'hello from wpm'
     Set-Content -LiteralPath (Join-Path $sourceDir 'nested\data.txt') -Value 'nested package data'
 

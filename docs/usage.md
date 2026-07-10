@@ -58,8 +58,10 @@ wpm build <source_dir> [output_dir] [--no-index]
 ```
 
 Recursively compresses the contents of `source_dir` into a ZIP package. The
-package is named after the source directory. It is written to the current
-directory unless `output_dir` is supplied.
+package is named from `.wpm/package.txt` metadata:
+`<name>-<version>-<arch>.zip` for release packages and
+`<name>-<version>-<arch>-debug.zip` when `debug=true`. It is written to the
+current directory unless `output_dir` is supplied.
 
 By default, WPM updates `.wpm/index.csv` with file sizes and BLAKE2b file
 signatures before creating the ZIP archive. Use `--no-index` to skip updating
@@ -145,6 +147,8 @@ Contains package metadata:
 ```ini
 name=my-package
 version=0.1.0
+arch=any
+debug=false
 description=
 license=
 build_date=
@@ -165,6 +169,8 @@ filename,size,hash,algorithm
 
 Lists files and directories that should not be indexed when building a
 package. The generated file initially excludes `.wpm/`, `*.log`, and `build/`.
+WPM still indexes `.wpm/package.txt`, `.wpm/install.cmd`, `.wpm/remove.cmd`,
+and `.wpm/wpmignore.txt`; `.wpm/index.csv` is not indexed.
 
 ### `install.cmd` and `remove.cmd`
 

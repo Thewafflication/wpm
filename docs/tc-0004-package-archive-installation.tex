@@ -30,13 +30,15 @@ margin=1in
 }
 
 \def\TCInputData{
-	A package archive containing \texttt{hello.txt} and \texttt{nested/data.txt}.
+	A package archive containing package metadata, \texttt{hello.txt}, and
+	\texttt{nested/data.txt}.
 }
 
 \def\TCProcedure{
 	\par
 	\begin{enumerate}
 		\item Create a temporary source package directory.
+		\item Add \texttt{.wpm/package.txt} metadata.
 		\item Build a package archive with \texttt{wpm.exe build}.
 		\item Run \texttt{wpm.exe install <archive>}.
 		\item Inspect the extracted installation directory.
@@ -47,7 +49,7 @@ margin=1in
 	\par
 	\begin{enumerate}
 		\item Install command exits 0.
-		\item Package is extracted under \texttt{C:/TEMP/<package-name>}.
+		\item Package is extracted under \texttt{C:/TEMP/<package-name>-<version>-<arch>}.
 		\item Root and nested files are present with expected content.
 	\end{enumerate}
 }
