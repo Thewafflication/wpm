@@ -69,7 +69,11 @@ if(BUILD_TESTING)
   option(WPM_RUN_TESTS_AFTER_BUILD "Run WPM tests as part of the default build" OFF)
   option(WPM_BUILD_TEST_REPORTS "Generate local LaTeX test reports from automated test execution" OFF)
   if(WPM_BUILD_TEST_REPORTS)
-    set(WPM_TEST_REPORT_DIR "${CMAKE_BINARY_DIR}/test-reports")
+    if(CMAKE_CONFIGURATION_TYPES)
+      set(WPM_TEST_REPORT_DIR "${WPM_BIN_DIR}/${CMAKE_CFG_INTDIR}")
+    else()
+      set(WPM_TEST_REPORT_DIR "${wpm_output_dir}")
+    endif()
     find_program(WPM_PDFLATEX_EXECUTABLE
       NAMES pdflatex pdflatex.exe
       HINTS
@@ -170,6 +174,7 @@ if(BUILD_TESTING)
     DEPENDS
       wpm
       wpm-third-party
+      ${WPM_TEST_REPORT_TEX_OUTPUTS}
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     COMMENT "Running WPM tests"
   )
@@ -184,11 +189,7 @@ if(BUILD_TESTING)
   add_custom_target(verify)
   add_dependencies(verify check)
   if(WPM_BUILD_TEST_REPORTS)
-    if(WPM_PDFLATEX_EXECUTABLE)
-      add_dependencies(verify test-report-pdfs)
-    else()
-      add_dependencies(verify test-reports)
-    endif()
+    add_dependencies(verify test-reports)
   endif()
 
   if(WPM_RUN_TESTS_AFTER_BUILD)

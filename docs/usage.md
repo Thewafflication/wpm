@@ -174,14 +174,14 @@ The generated scripts are templates for package authors to customize.
 ## Building WPM from source
 
 WPM is a C11 project built with CMake. On Windows, the included presets use
-Ninja and the Microsoft C compiler.
+Visual Studio 2022 and the Microsoft C compiler.
 
 ```powershell
-cmake --preset x64-debug
-cmake --build out/build/x64-debug
+cmake --preset x86-debug
+cmake --build out/build/x86-debug --config Debug
 ```
 
-The resulting executable is located under `out/build/x64-debug/wpm/`.
+The resulting executable is located under `bin/x86/Debug/`.
 
 WPM's displayed version is generated from Git during each build. An exact Git
 tag, such as `1.0.0`, becomes the version. Otherwise, WPM displays the short
@@ -194,16 +194,22 @@ ZIP builds, ZIP installation, and package index signature verification against
 the freshly built executable:
 
 ```powershell
-cmake --build out/build/x64-debug --target check
+cmake --build out/build/x86-debug --config Debug --target check
 ```
 
 The suite creates uniquely named temporary files and removes them when it
-finishes. When configured with `-DWPM_BUILD_TEST_REPORTS=ON`, the build can
-also generate LaTeX and PDF test reports:
+finishes. The x86 debug preset also writes LaTeX execution evidence and test
+reports to `bin/x86/Debug/`, so the executable, debug symbols, and reports can
+be uploaded as one build artifact.
+
+Generate only the LaTeX reports without running the final CTest pass:
 
 ```powershell
-cmake --build out/build/x64-debug --target test-report-pdfs
+cmake --build out/build/x86-debug --config Debug --target test-reports
 ```
+
+The optional `test-report-pdfs` target requires a local `pdflatex`
+installation and is not required for the standard test artifact.
 
 ### Visual Studio CMake presets
 
