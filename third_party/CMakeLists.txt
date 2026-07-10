@@ -111,10 +111,24 @@ if(NOT libsodium_sources)
 endif()
 
 if(NOT TARGET libsodium)
+  set(LIBSODIUM_GENERATED_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/libsodium/include")
+  file(MAKE_DIRECTORY "${LIBSODIUM_GENERATED_INCLUDE_DIR}/sodium")
+  configure_file(
+    "${LIBSODIUM_SOURCE_DIR}/builds/msvc/version.h"
+    "${LIBSODIUM_GENERATED_INCLUDE_DIR}/sodium/version.h"
+    COPYONLY
+  )
+  configure_file(
+    "${LIBSODIUM_SOURCE_DIR}/src/libsodium/include/sodium/export.h"
+    "${LIBSODIUM_GENERATED_INCLUDE_DIR}/sodium/export.h"
+    COPYONLY
+  )
+
   add_library(libsodium STATIC ${libsodium_sources})
 
   target_include_directories(libsodium PUBLIC
-    "${LIBSODIUM_SOURCE_DIR}/builds/msvc"
+    "${LIBSODIUM_GENERATED_INCLUDE_DIR}"
+    "${LIBSODIUM_GENERATED_INCLUDE_DIR}/sodium"
     "${LIBSODIUM_SOURCE_DIR}/src/libsodium/include"
     "${LIBSODIUM_SOURCE_DIR}/src/libsodium/include/sodium"
   )
