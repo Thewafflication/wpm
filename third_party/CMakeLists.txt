@@ -138,3 +138,9 @@ endif()
 
 set_target_properties(libsodium PROPERTIES OUTPUT_NAME libsodium)
 wpm_third_party_set_archive_output(libsodium)
+
+add_custom_target(wpm-third-party
+  DEPENDS
+    miniz
+    libsodium
+)

@@ -42,8 +42,8 @@ jobs:
           path: |
             out/build/x86-debug-reports/test-reports/*.tex
             out/build/x86-debug-reports/test-reports/*.log
-            out/build/x86-debug-reports/**/*.exe
-            out/build/x86-debug-reports/**/*.pdb
+            bin/x86/Debug/wpm.exe
+            bin/x86/Debug/wpm.pdb
           if-no-files-found: error
 
       - name: Publish GitHub summary

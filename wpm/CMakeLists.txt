@@ -65,6 +65,7 @@ if(BUILD_TESTING)
     message(FATAL_ERROR "PowerShell is required to run the WPM tests")
   endif()
 
+  option(WPM_RUN_TESTS_AFTER_BUILD "Run WPM tests as part of the default build" OFF)
   option(WPM_BUILD_TEST_REPORTS "Generate local LaTeX test reports from automated test execution" OFF)
   if(WPM_BUILD_TEST_REPORTS)
     set(WPM_TEST_REPORT_DIR "${CMAKE_BINARY_DIR}/test-reports")
@@ -164,7 +165,9 @@ if(BUILD_TESTING)
 
   add_custom_target(check
     COMMAND ${CMAKE_CTEST_COMMAND} --build-config $<CONFIG> --output-on-failure
-    DEPENDS wpm
+    DEPENDS
+      wpm
+      wpm-third-party
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     COMMENT "Running WPM tests"
   )
@@ -184,5 +187,11 @@ if(BUILD_TESTING)
     else()
       add_dependencies(verify test-reports)
     endif()
+  endif()
+
+  if(WPM_RUN_TESTS_AFTER_BUILD)
+    add_custom_target(wpm-run-tests-after-build ALL
+      DEPENDS check
+    )
   endif()
 endif()

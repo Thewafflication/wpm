@@ -39,7 +39,8 @@
             },
             "cacheVariables": {
                 "WPM_ARCH": "x86",
-                "WPM_THIRD_PARTY_ARCH": "x86"
+                "WPM_THIRD_PARTY_ARCH": "x86",
+                "WPM_RUN_TESTS_AFTER_BUILD": "ON"
             }
         },
         {
