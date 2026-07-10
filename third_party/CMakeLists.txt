@@ -114,6 +114,7 @@ if(NOT TARGET libsodium)
   add_library(libsodium STATIC ${libsodium_sources})
 
   target_include_directories(libsodium PUBLIC
+    "${LIBSODIUM_SOURCE_DIR}/builds/msvc"
     "${LIBSODIUM_SOURCE_DIR}/src/libsodium/include"
     "${LIBSODIUM_SOURCE_DIR}/src/libsodium/include/sodium"
   )

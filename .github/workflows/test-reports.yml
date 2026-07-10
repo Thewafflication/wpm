@@ -30,8 +30,13 @@ jobs:
         shell: pwsh
         continue-on-error: true
         run: |
+          New-Item -ItemType Directory -Force -Path bin/x86/Debug | Out-Null
           cmake --build --preset verify-x86-debug
           "exit_code=$LASTEXITCODE" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          if ($LASTEXITCODE -ne 0) {
+            "The x86 Debug build failed before all expected artifacts were generated. See the workflow log for compiler or test output." |
+              Set-Content -Path bin/x86/Debug/build-failed.txt
+          }
           exit 0
 
       - name: Upload test report artifact
