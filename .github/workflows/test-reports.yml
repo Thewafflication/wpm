@@ -13,7 +13,7 @@ permissions:
 jobs:
   windows-x86-debug:
     name: Windows x86 Debug
-    runs-on: windows-latest
+    runs-on: windows-2022
 
     steps:
       - name: Check out source
@@ -31,23 +31,14 @@ jobs:
         shell: pwsh
         run: cmake --preset x86-debug-reports
 
-      - name: Build
-        shell: pwsh
-        run: cmake --build --preset build-x86-debug
-
-      - name: Run automated tests
-        id: ctest
+      - name: Run tests and generate PDF reports
+        id: verify
         shell: pwsh
         continue-on-error: true
         run: |
-          ctest --test-dir out/build/x86-debug -C Debug --output-on-failure
+          cmake --build --preset verify-x86-debug
           "exit_code=$LASTEXITCODE" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           exit 0
-
-      - name: Generate PDF test report
-        if: always()
-        shell: pwsh
-        run: cmake --build out/build/x86-debug --config Debug --target test-report-pdfs
 
       - name: Upload test report artifact
         if: always()
@@ -55,20 +46,20 @@ jobs:
         with:
           name: wpm-test-report-windows-x86-debug
           path: |
-            out/build/x86-debug/test-reports/*.tex
-            out/build/x86-debug/test-reports/*.pdf
-            out/build/x86-debug/test-reports/*.log
+            out/build/x86-debug-reports/test-reports/*.tex
+            out/build/x86-debug-reports/test-reports/*.pdf
+            out/build/x86-debug-reports/test-reports/*.log
           if-no-files-found: error
 
       - name: Publish GitHub summary
         shell: pwsh
         run: |
-          $overallStatus = if ('${{ steps.ctest.outputs.exit_code }}' -eq '0') { 'PASS' } else { 'FAIL' }
+          $overallStatus = if ('${{ steps.verify.outputs.exit_code }}' -eq '0') { 'PASS' } else { 'FAIL' }
           $rows = @(
-            @('TC-0001 Usage/version check', 'out/build/x86-debug/test-reports/tc-0001-report.pdf', 'out/build/x86-debug/test-reports/tc-0001-execution-evidence.tex'),
-            @('TC-0002 Package initialization', 'out/build/x86-debug/test-reports/tc-0002-report.pdf', 'out/build/x86-debug/test-reports/tc-0002-execution-evidence.tex'),
-            @('TC-0003 Package archive build', 'out/build/x86-debug/test-reports/tc-0003-report.pdf', 'out/build/x86-debug/test-reports/tc-0003-execution-evidence.tex'),
-            @('TC-0004 Package archive installation', 'out/build/x86-debug/test-reports/tc-0004-report.pdf', 'out/build/x86-debug/test-reports/tc-0004-execution-evidence.tex')
+            @('TC-0001 Usage/version check', 'out/build/x86-debug-reports/test-reports/tc-0001-report.pdf', 'out/build/x86-debug-reports/test-reports/tc-0001-execution-evidence.tex'),
+            @('TC-0002 Package initialization', 'out/build/x86-debug-reports/test-reports/tc-0002-report.pdf', 'out/build/x86-debug-reports/test-reports/tc-0002-execution-evidence.tex'),
+            @('TC-0003 Package archive build', 'out/build/x86-debug-reports/test-reports/tc-0003-report.pdf', 'out/build/x86-debug-reports/test-reports/tc-0003-execution-evidence.tex'),
+            @('TC-0004 Package archive installation', 'out/build/x86-debug-reports/test-reports/tc-0004-report.pdf', 'out/build/x86-debug-reports/test-reports/tc-0004-execution-evidence.tex')
           )
 
           @"
