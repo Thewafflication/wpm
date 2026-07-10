@@ -43,6 +43,14 @@
             }
         },
         {
+            "name": "x86-debug-reports",
+            "displayName": "x86 Debug + Test Reports",
+            "inherits": "x86-debug",
+            "cacheVariables": {
+                "WPM_BUILD_TEST_REPORTS": "ON"
+            }
+        },
+        {
             "name": "x86-release",
             "displayName": "x86 Release",
             "inherits": "x86-debug"
@@ -125,6 +133,15 @@
             "configuration": "Debug"
         },
         {
+            "name": "verify-x86-debug",
+            "displayName": "Run Tests and Build Reports x86 Debug",
+            "configurePreset": "x86-debug-reports",
+            "configuration": "Debug",
+            "targets": [
+                "verify"
+            ]
+        },
+        {
             "name": "build-x86-release",
             "displayName": "Build x86 Release",
             "configurePreset": "x86-release",
@@ -141,6 +158,88 @@
             "displayName": "Build ARM64 Release",
             "configurePreset": "arm64-release",
             "configuration": "Release"
+        }
+    ],
+    "testPresets": [
+        {
+            "name": "test-x86-debug",
+            "displayName": "Test x86 Debug",
+            "configurePreset": "x86-debug",
+            "configuration": "Debug",
+            "output": {
+                "outputOnFailure": true
+            },
+            "execution": {
+                "noTestsAction": "error"
+            }
+        },
+        {
+            "name": "test-tc-0001-x86-debug",
+            "displayName": "Test TC-0001 x86 Debug",
+            "configurePreset": "x86-debug",
+            "configuration": "Debug",
+            "filter": {
+                "include": {
+                    "name": "TC-0001"
+                }
+            },
+            "output": {
+                "outputOnFailure": true
+            },
+            "execution": {
+                "noTestsAction": "error"
+            }
+        },
+        {
+            "name": "test-tc-0002-x86-debug",
+            "displayName": "Test TC-0002 x86 Debug",
+            "configurePreset": "x86-debug",
+            "configuration": "Debug",
+            "filter": {
+                "include": {
+                    "name": "TC-0002"
+                }
+            },
+            "output": {
+                "outputOnFailure": true
+            },
+            "execution": {
+                "noTestsAction": "error"
+            }
+        },
+        {
+            "name": "test-tc-0003-x86-debug",
+            "displayName": "Test TC-0003 x86 Debug",
+            "configurePreset": "x86-debug",
+            "configuration": "Debug",
+            "filter": {
+                "include": {
+                    "name": "TC-0003"
+                }
+            },
+            "output": {
+                "outputOnFailure": true
+            },
+            "execution": {
+                "noTestsAction": "error"
+            }
+        },
+        {
+            "name": "test-tc-0004-x86-debug",
+            "displayName": "Test TC-0004 x86 Debug",
+            "configurePreset": "x86-debug",
+            "configuration": "Debug",
+            "filter": {
+                "include": {
+                    "name": "TC-0004"
+                }
+            },
+            "output": {
+                "outputOnFailure": true
+            },
+            "execution": {
+                "noTestsAction": "error"
+            }
         }
     ]
 }

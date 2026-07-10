@@ -1,0 +1,63 @@
+\def\StandaloneLibrary{}
+\input{iso_iec_ieee29119-3_2021.tex}
+
+\documentclass[letterpaper]{article}
+
+\usepackage[
+letterpaper,
+margin=1in
+]{geometry}
+
+\begin{document}
+\def\TCID{TC-0002}
+
+\def\TCTitle{Package initialization}
+
+\def\TCPurpose{
+	Verify that \texttt{wpm init} creates package metadata, rejects invalid package names, and preserves existing files.
+}
+
+\def\TCPriority{\TCPriorityHigh}
+
+\def\TCRequirementRef{REQ-0002}
+
+\def\TCPreconditions{
+	A writable temporary package directory is available.
+}
+
+\def\TCEnvironment{
+	Local Windows developer workstation. Future target: Windows Container.
+}
+
+\def\TCInputData{
+	A unique temporary package directory name and invalid package name \texttt{bad name}.
+}
+
+\def\TCProcedure{
+	\par
+	\begin{enumerate}
+		\item Run \texttt{wpm.exe init bad name}.
+		\item Confirm no \texttt{.wpm} directory is created.
+		\item Run \texttt{wpm.exe init} from the package directory.
+		\item Confirm required package support files are created.
+		\item Modify \texttt{.wpm/package.txt}.
+		\item Run \texttt{wpm.exe init <package-name>}.
+		\item Confirm the existing \texttt{package.txt} content is preserved.
+	\end{enumerate}
+}
+
+\def\TCExpectedResult{
+	\par
+	\begin{enumerate}
+		\item Invalid package name exits non-zero and does not create metadata.
+		\item Valid initialization exits 0 and creates \texttt{package.txt}, \texttt{index.csv}, \texttt{wpmignore.txt}, \texttt{install.cmd}, and \texttt{remove.cmd}.
+		\item The generated package name matches the current directory name.
+		\item Existing package files are not overwritten.
+	\end{enumerate}
+}
+
+\def\TCPostConditions{
+	Temporary package directory is removed.
+}
+\TCTemplate
+\end{document}

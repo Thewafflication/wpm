@@ -1,0 +1,59 @@
+\def\StandaloneLibrary{}
+\input{iso_iec_ieee29119-3_2021.tex}
+
+\documentclass[letterpaper]{article}
+
+\usepackage[
+letterpaper,
+margin=1in
+]{geometry}
+
+\begin{document}
+\def\TCID{TC-0004}
+
+\def\TCTitle{Package archive installation}
+
+\def\TCPurpose{
+	Verify that \texttt{wpm install} extracts a ZIP package to the installation root.
+}
+
+\def\TCPriority{\TCPriorityHigh}
+
+\def\TCRequirementRef{REQ-0004}
+
+\def\TCPreconditions{
+	A valid package archive exists and the installation root is writable.
+}
+
+\def\TCEnvironment{
+	Local Windows developer workstation. Future target: Windows Container.
+}
+
+\def\TCInputData{
+	A package archive containing \texttt{hello.txt} and \texttt{nested/data.txt}.
+}
+
+\def\TCProcedure{
+	\par
+	\begin{enumerate}
+		\item Create a temporary source package directory.
+		\item Build a package archive with \texttt{wpm.exe build}.
+		\item Run \texttt{wpm.exe install <archive>}.
+		\item Inspect the extracted installation directory.
+	\end{enumerate}
+}
+
+\def\TCExpectedResult{
+	\par
+	\begin{enumerate}
+		\item Install command exits 0.
+		\item Package is extracted under \texttt{C:/TEMP/<package-name>}.
+		\item Root and nested files are present with expected content.
+	\end{enumerate}
+}
+
+\def\TCPostConditions{
+	Temporary source, package output, and installation directories are removed.
+}
+\TCTemplate
+\end{document}

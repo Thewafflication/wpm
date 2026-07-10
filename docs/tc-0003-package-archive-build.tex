@@ -1,0 +1,60 @@
+\def\StandaloneLibrary{}
+\input{iso_iec_ieee29119-3_2021.tex}
+
+\documentclass[letterpaper]{article}
+
+\usepackage[
+letterpaper,
+margin=1in
+]{geometry}
+
+\begin{document}
+\def\TCID{TC-0003}
+
+\def\TCTitle{Package archive build}
+
+\def\TCPurpose{
+	Verify that \texttt{wpm build} creates a ZIP package from a source directory.
+}
+
+\def\TCPriority{\TCPriorityHigh}
+
+\def\TCRequirementRef{REQ-0003}
+
+\def\TCPreconditions{
+	A writable temporary source directory and output directory are available.
+}
+
+\def\TCEnvironment{
+	Local Windows developer workstation. Future target: Windows Container.
+}
+
+\def\TCInputData{
+	A source package containing a root file and a nested file.
+}
+
+\def\TCProcedure{
+	\par
+	\begin{enumerate}
+		\item Create a temporary source package directory.
+		\item Add \texttt{hello.txt} and \texttt{nested/data.txt}.
+		\item Run \texttt{wpm.exe build <source-dir> <output-dir> --no-index}.
+		\item Inspect the generated archive.
+	\end{enumerate}
+}
+
+\def\TCExpectedResult{
+	\par
+	\begin{enumerate}
+		\item Command exits 0.
+		\item Archive is written to the requested output directory.
+		\item Archive name matches the source directory name.
+		\item Archive contains both root and nested files.
+	\end{enumerate}
+}
+
+\def\TCPostConditions{
+	Temporary source and output directories are removed.
+}
+\TCTemplate
+\end{document}

@@ -186,13 +186,32 @@ commit hash and appends `-dirty` when tracked files have uncommitted changes.
 
 ## Running tests
 
-The checked-in smoke-test suite exercises version reporting, package
-initialization, ZIP builds, and ZIP installation against the freshly built
-executable:
+The checked-in test cases exercise version reporting, package initialization,
+ZIP builds, and ZIP installation against the freshly built executable:
 
 ```powershell
 cmake --build out/build/x64-debug --target check
 ```
 
 The suite creates uniquely named temporary files and removes them when it
-finishes.
+finishes. When configured with `-DWPM_BUILD_TEST_REPORTS=ON`, the build can
+also generate LaTeX and PDF test reports:
+
+```powershell
+cmake --build out/build/x64-debug --target test-report-pdfs
+```
+
+### Visual Studio CMake presets
+
+Visual Studio exposes the checked-in CMake presets in its configure, build,
+and test dropdowns.
+
+Useful local presets:
+
+- Configure: `x86-debug`
+- Configure with report targets enabled: `x86-debug-reports`
+- Build executable: `build-x86-debug`
+- Run tests and build LaTeX/PDF reports: `verify-x86-debug`
+- Test all cases through CTest: `test-x86-debug`
+- Test one case through CTest: `test-tc-0001-x86-debug` through
+  `test-tc-0004-x86-debug`
