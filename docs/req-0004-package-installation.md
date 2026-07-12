@@ -1,4 +1,4 @@
-# REQ-0004 - Package Installation
+# REQ-0004: Package Installation
 
 ## Description
 

@@ -1,4 +1,4 @@
-# REQ-0005 - Package Index Signature Verification
+# REQ-0005: Package Index Signature Verification
 
 ## Description
 

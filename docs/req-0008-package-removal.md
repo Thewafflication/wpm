@@ -1,4 +1,4 @@
-# REQ-0008 - Package Removal
+# REQ-0008: Package Removal
 
 ## Description
 

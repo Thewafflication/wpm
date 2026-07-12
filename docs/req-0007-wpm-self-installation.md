@@ -1,4 +1,4 @@
-# REQ-0007 - WPM Self-Installation
+# REQ-0007: WPM Self-Installation
 
 ## Description
 

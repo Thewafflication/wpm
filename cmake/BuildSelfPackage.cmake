@@ -68,6 +68,7 @@ file(WRITE "${WPM_PACKAGE_STAGING_DIR}/.wpm/package.txt"
   "arch=${WPM_PACKAGE_ARCH}\n"
   "debug=true\n"
   "description=Waughtal Package Manager\n"
+  "repository=https://github.com/Thewafflication/wpm\n"
   "license=GPL-3.0-or-later\n"
 )
 file(WRITE "${WPM_PACKAGE_STAGING_DIR}/.wpm/wpmignore.txt" ".wpm/\n")

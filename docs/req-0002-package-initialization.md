@@ -1,4 +1,4 @@
-# REQ-0002 - Package Initialization
+# REQ-0002: Package Initialization
 
 ## Description
 

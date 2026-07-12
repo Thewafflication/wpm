@@ -39,7 +39,7 @@ jobs:
           }
           exit 0
 
-      - name: Upload test report artifact
+      - name: Upload complete test report artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -71,7 +71,8 @@ jobs:
             @('TC-0004 Package archive installation', 'bin/x86/Debug/tc-0004-report.tex', 'bin/x86/Debug/tc-0004-execution-evidence.tex'),
             @('TC-0005 Package index signature verification', 'bin/x86/Debug/tc-0005-report.tex', 'bin/x86/Debug/tc-0005-execution-evidence.tex'),
             @('TC-0006 Package metadata archive naming', 'bin/x86/Debug/tc-0006-report.tex', 'bin/x86/Debug/tc-0006-execution-evidence.tex'),
-            @('TC-0007 WPM self-installation', 'bin/x86/Debug/tc-0007-report.tex', 'bin/x86/Debug/tc-0007-execution-evidence.tex')
+            @('TC-0007 WPM self-installation', 'bin/x86/Debug/tc-0007-report.tex', 'bin/x86/Debug/tc-0007-execution-evidence.tex'),
+            @('TC-0008 Package removal', 'bin/x86/Debug/tc-0008-report.tex', 'bin/x86/Debug/tc-0008-execution-evidence.tex')
           )
 
           @"

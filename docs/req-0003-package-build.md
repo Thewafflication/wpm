@@ -1,4 +1,4 @@
-# REQ-0003 - Package Build
+# REQ-0003: Package Build
 
 ## Description
 

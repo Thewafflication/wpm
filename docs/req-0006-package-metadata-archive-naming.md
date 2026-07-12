@@ -1,4 +1,4 @@
-# REQ-0006 - Package Metadata Archive Naming
+# REQ-0006: Package Metadata Archive Naming
 
 ## Description
 

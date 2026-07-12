@@ -1,4 +1,4 @@
-# REQ-0001 - Command-Line Invocation
+# REQ-0001: Command-Line Invocation
 
 ## Description
 
