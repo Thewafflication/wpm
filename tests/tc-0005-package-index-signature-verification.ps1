@@ -15,6 +15,7 @@ $testId = [Guid]::NewGuid().ToString('N')
 $packageName = "wpm-index-$testId"
 $tamperedPackageName = "$packageName-tampered"
 $testRoot = Join-Path ([IO.Path]::GetTempPath()) "wpm-tests-$testId"
+$wpmDataDir = Join-Path $testRoot 'wpm-data'
 $sourceDir = Join-Path $testRoot $packageName
 $outputDir = Join-Path $testRoot 'packages'
 $inspectDir = Join-Path $testRoot 'inspect'
@@ -22,13 +23,16 @@ $tamperDir = Join-Path $testRoot 'tamper'
 $archivePackageName = "$packageName-1.2.3-any"
 $archivePath = Join-Path $outputDir "$archivePackageName.zip"
 $tamperedArchivePath = Join-Path $outputDir "$tamperedPackageName.zip"
-$installDir = Join-Path 'C:\TEMP' $archivePackageName
-$tamperedInstallDir = Join-Path 'C:\TEMP' $tamperedPackageName
+$stagingDir = Join-Path $wpmDataDir "temp\$archivePackageName"
+$tamperedStagingDir = Join-Path $wpmDataDir "temp\$tamperedPackageName"
+$storedArchivePath = Join-Path $wpmDataDir "packages\$archivePackageName.zip"
+$previousWpmDataDir = $env:WPM_DATA_DIR
 
 $started = Get-Date
 $results = @()
 
 try {
+    $env:WPM_DATA_DIR = $wpmDataDir
     New-Item -ItemType Directory -Force -Path $sourceDir, $outputDir | Out-Null
     New-Item -ItemType Directory -Force -Path (Join-Path $sourceDir '.wpm') | Out-Null
     New-Item -ItemType Directory -Force -Path (Join-Path $sourceDir 'nested') | Out-Null
@@ -120,8 +124,11 @@ try {
             if ($ExitCode -ne 0) {
                 throw "Expected exit code 0, got $ExitCode."
             }
-            if (-not (Test-Path -LiteralPath (Join-Path $installDir 'hello.txt') -PathType Leaf)) {
-                throw 'valid install did not extract hello.txt'
+            if (-not (Test-Path -LiteralPath $storedArchivePath -PathType Leaf)) {
+                throw 'valid install did not retain the archive'
+            }
+            if (Test-Path -LiteralPath $stagingDir) {
+                throw 'valid install did not remove its staging directory'
             }
         }
 
@@ -149,6 +156,9 @@ try {
             if ($Output -notmatch 'signature verification failed') {
                 throw 'Tampered install did not report signature verification failure.'
             }
+            if (Test-Path -LiteralPath $tamperedStagingDir) {
+                throw 'tampered install did not remove its staging directory'
+            }
         }
 }
 finally {
@@ -159,11 +169,11 @@ finally {
     if (Test-Path -LiteralPath $testRoot) {
         Remove-Item -LiteralPath $testRoot -Recurse -Force
     }
-    if (Test-Path -LiteralPath $installDir) {
-        Remove-Item -LiteralPath $installDir -Recurse -Force
+    if ($null -eq $previousWpmDataDir) {
+        Remove-Item Env:WPM_DATA_DIR -ErrorAction SilentlyContinue
     }
-    if (Test-Path -LiteralPath $tamperedInstallDir) {
-        Remove-Item -LiteralPath $tamperedInstallDir -Recurse -Force
+    else {
+        $env:WPM_DATA_DIR = $previousWpmDataDir
     }
 }
 

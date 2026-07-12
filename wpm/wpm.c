@@ -67,7 +67,18 @@ int main(int argc, char *argv[])
             break;
         }
 
-        case CMD_REMOVE:
+        case CMD_REMOVE: {
+            if (argc < 3) {
+                printf("No packages specified.\n");
+                return 1;
+            }
+
+            for (int i = 2; i < argc; i++) {
+                if (!wpm_archive_remove(argv[i])) return 1;
+            }
+            break;
+        }
+
         case CMD_UPGRADE: {
             if (argc < 3) {
                 printf("No packages specified.\n");

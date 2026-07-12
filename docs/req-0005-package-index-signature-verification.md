@@ -17,7 +17,8 @@ When building a package, the application shall:
 - avoid indexing `.wpm/index.csv` itself, and
 - include the populated index in the generated archive.
 
-The `wpm install` command shall verify indexed files during installation.
+The `wpm install` command shall verify indexed files after staging and before
+executing `.wpm/install.cmd`.
 
 When installing a package that contains `.wpm/index.csv`, the application
 shall:

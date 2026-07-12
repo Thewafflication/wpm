@@ -38,22 +38,32 @@ Untrusted until verified:
 - Package indexes
 - Downloaded metadata
 
-## Installation Root
+## Installation Staging and Package Store
 
-All packages SHALL be installed beneath:
+WPM SHALL extract each package only to its staging directory:
 
 ```text
-C:\Program Files\WPM\packages\
+%ProgramData%\WPM\temp\<archive-name>\
 ```
 
-Package files SHALL NOT be extracted outside this directory.
+Package files SHALL NOT be extracted outside this directory. WPM SHALL verify
+the package index before executing package installation logic and shall remove
+the staging directory when the attempt completes.
 
-## Manifest Verification
+After a successful installation, WPM SHALL retain the original archive beneath:
+
+```text
+%ProgramData%\WPM\packages\
+```
+
+The package store is an archive store, not a software deployment directory.
+
+## Package Index Verification
 
 Every package SHALL contain:
 
 ```text
-.wpm/manifest.csv
+.wpm/index.csv
 ```
 
 Format:
@@ -137,7 +147,7 @@ WPM SHALL validate:
 
 - TLS certificates
 - Package signatures
-- Manifest integrity
+- Package-index integrity
 
 HTTPS alone SHALL NOT be considered sufficient proof of authenticity.
 
@@ -146,7 +156,7 @@ HTTPS alone SHALL NOT be considered sufficient proof of authenticity.
 Upgrades SHALL verify:
 
 - Package signature
-- Manifest integrity
+- Package-index integrity
 - Version progression
 
 Downgrades SHALL be rejected unless explicitly forced.
@@ -158,7 +168,7 @@ WPM SHALL maintain records containing:
 - Package name
 - Package version
 - Installation timestamp
-- Manifest hash
+- Package-index hash
 - Signing key identifier
 
 ## Future Work

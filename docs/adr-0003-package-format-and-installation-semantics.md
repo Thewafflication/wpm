@@ -37,7 +37,7 @@ Every package SHALL be distributed as a ZIP archive.
 Every package SHALL contain:
 
 .wpm/package.txt
-.wpm/manifest.csv
+.wpm/index.csv
 
 Optional:
 
@@ -62,6 +62,19 @@ Recommended:
 
 ## Installation Behavior
 
+WPM SHALL stage each package at:
+
+C:\ProgramData\WPM\temp\<archive-name>\
+
+WPM SHALL verify the staged package index before invoking `install.cmd`.
+After a successful installation, WPM SHALL retain the original ZIP archive
+beneath:
+
+C:\ProgramData\WPM\packages\
+
+The staging directory is temporary and SHALL be removed when the installation
+attempt completes.
+
 Packages MAY install software anywhere permitted by the operating system.
 
 Examples:
@@ -73,7 +86,7 @@ Examples:
 - MSI packages
 - Driver packages
 
-WPM SHALL NOT require a specific installation location.
+WPM SHALL NOT require a specific software deployment location.
 
 ## Deployment Packages
 
@@ -112,7 +125,10 @@ Including:
 
 ## Removal
 
-WPM SHALL invoke package removal logic through remove.cmd when present.
+WPM SHALL stage and verify the retained package archive before invoking
+`remove.cmd` when present. WPM SHALL delete the retained archive only after
+successful package removal and SHALL remove the staging directory after every
+removal attempt.
 
 Package maintainers are responsible for removing deployed software.
 

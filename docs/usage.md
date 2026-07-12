@@ -87,12 +87,17 @@ wpm install ./dist/my_project.zip
 wpm install ./dist/pkg1.zip ./dist/pkg2.zip
 ```
 
-Each ZIP package is extracted to `C:\TEMP\<package-name>`. When the package
-contains `.wpm/index.csv`, WPM verifies each indexed file's size and BLAKE2b
-signature after extraction and fails installation if any indexed file does not
-match.
-Existing files in that directory may be overwritten. This temporary
-installation location is expected to change as installation support develops.
+For each ZIP package, WPM extracts into
+`%ProgramData%\WPM\temp\<archive-name>`, where `<archive-name>` is the ZIP
+file name without `.zip`. When the package contains `.wpm/index.csv`, WPM
+verifies each indexed file's size and BLAKE2b signature before it runs the
+package's `.wpm\install.cmd`. Installation fails if extraction, verification,
+or the install script fails.
+
+After a successful installation, WPM saves a copy of the ZIP archive as
+`%ProgramData%\WPM\packages\<archive-name>.zip`. The staging directory is
+removed after every installation attempt. The install script controls where
+the package deploys software; WPM does not impose a deployment location.
 
 ### Remove packages
 
@@ -103,8 +108,15 @@ wpm remove <package...>
 Removes one or more packages:
 
 ```text
-wpm remove pkg1 pkg2
+wpm remove my-project-1.2.3-any
+wpm remove my-project-1.2.3-any.zip
 ```
+
+The argument identifies a retained archive in
+`%ProgramData%\WPM\packages`; use the archive name to remove one exact package
+version. WPM stages and verifies that archive, runs `.wpm\remove.cmd`, then
+deletes the retained archive only if removal succeeds. The staging directory
+is removed after every attempt.
 
 ### Update the package index
 

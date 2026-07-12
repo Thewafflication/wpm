@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
+#include <stdlib.h>
 #include <windows.h>
 
 #include "archive.h"
@@ -8,7 +9,7 @@
 #include "sodium.h"
 
 #define WPM_PATH_SIZE 4096
-#define WPM_INSTALL_ROOT "C:\\TEMP"
+#define WPM_DEFAULT_DATA_ROOT "C:\\ProgramData\\WPM"
 #define WPM_MAX_IGNORE_PATTERNS 128
 #define WPM_BLAKE2B_BYTES crypto_generichash_BYTES
 #define WPM_BLAKE2B_HEX_SIZE (WPM_BLAKE2B_BYTES * 2 + 1)
@@ -27,6 +28,20 @@ typedef struct wpm_package_metadata {
 
 static const char* path_basename(const char* path);
 static int normalized_full_path(const char* path, char* result, size_t result_size);
+static int join_path(char* result, size_t result_size, const char* left, const char* right);
+
+static int wpm_data_root(char* result, size_t result_size) {
+    const char* configured_root = getenv("WPM_DATA_DIR");
+    const char* program_data = getenv("ProgramData");
+
+    if (configured_root && configured_root[0]) {
+        return strcpy_s(result, result_size, configured_root) == 0;
+    }
+    if (program_data && program_data[0]) {
+        return join_path(result, result_size, program_data, "WPM");
+    }
+    return strcpy_s(result, result_size, WPM_DEFAULT_DATA_ROOT) == 0;
+}
 
 static int is_directory(const char* path) {
     DWORD attributes = GetFileAttributesA(path);
@@ -62,6 +77,47 @@ static int create_directories(const char* path) {
     }
 
     return ensure_directory(partial);
+}
+
+static int remove_directory_tree(const char* path) {
+    char search_path[WPM_PATH_SIZE];
+    WIN32_FIND_DATAA entry;
+    HANDLE search;
+
+    if (!is_directory(path)) return GetFileAttributesA(path) == INVALID_FILE_ATTRIBUTES;
+    if (!join_path(search_path, sizeof(search_path), path, "*")) return 0;
+
+    search = FindFirstFileA(search_path, &entry);
+    if (search == INVALID_HANDLE_VALUE) return 0;
+
+    do {
+        char entry_path[WPM_PATH_SIZE];
+
+        if (strcmp(entry.cFileName, ".") == 0 || strcmp(entry.cFileName, "..") == 0) continue;
+        if (!join_path(entry_path, sizeof(entry_path), path, entry.cFileName)) {
+            FindClose(search);
+            return 0;
+        }
+        if ((entry.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0 &&
+            (entry.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) == 0) {
+            if (!remove_directory_tree(entry_path)) {
+                FindClose(search);
+                return 0;
+            }
+        }
+        else if ((entry.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0
+            ? !RemoveDirectoryA(entry_path)
+            : !DeleteFileA(entry_path)) {
+            FindClose(search);
+            return 0;
+        }
+    } while (FindNextFileA(search, &entry));
+
+    {
+        DWORD error = GetLastError();
+        FindClose(search);
+        return error == ERROR_NO_MORE_FILES && RemoveDirectoryA(path);
+    }
 }
 
 static int join_path(char* result, size_t result_size, const char* left, const char* right) {
@@ -862,11 +918,88 @@ static int verify_package_index(const char* destination_dir) {
     return 1;
 }
 
+static int is_valid_package_name(const char* package_name) {
+    if (!package_name[0] || strcmp(package_name, ".") == 0 || strcmp(package_name, "..") == 0) {
+        return 0;
+    }
+
+    for (const char* current = package_name; *current; current++) {
+        if (*current == '\\' || *current == '/' || *current == ':') return 0;
+    }
+
+    return 1;
+}
+
+static int run_package_script(
+    const char* staging_dir,
+    const char* script_name,
+    const char* action_name
+) {
+    char script_path[WPM_PATH_SIZE];
+    char command_line[WPM_PATH_SIZE + 64];
+    STARTUPINFOA startup_info;
+    PROCESS_INFORMATION process_info;
+    DWORD exit_code;
+    int written;
+
+    if (!join_path(script_path, sizeof(script_path), staging_dir, script_name)) {
+        printf("Error: %s script path is too long.\n", action_name);
+        return 0;
+    }
+    if (!file_exists_at_path(script_path)) return 1;
+
+    written = snprintf(
+            command_line,
+            sizeof(command_line),
+            "cmd.exe /d /s /c call \"%s\"",
+            script_path
+        );
+    if (written < 0 || (size_t)written >= sizeof(command_line)) {
+        printf("Error: %s command is too long.\n", action_name);
+        return 0;
+    }
+
+    memset(&startup_info, 0, sizeof(startup_info));
+    memset(&process_info, 0, sizeof(process_info));
+    startup_info.cb = sizeof(startup_info);
+    if (!CreateProcessA(
+            NULL,
+            command_line,
+            NULL,
+            NULL,
+            FALSE,
+            0,
+            NULL,
+            staging_dir,
+            &startup_info,
+            &process_info
+        )) {
+        printf("Error: could not start %s script: %s\n", action_name, script_path);
+        return 0;
+    }
+
+    WaitForSingleObject(process_info.hProcess, INFINITE);
+    if (!GetExitCodeProcess(process_info.hProcess, &exit_code)) exit_code = 1;
+    CloseHandle(process_info.hThread);
+    CloseHandle(process_info.hProcess);
+    if (exit_code != 0) {
+        printf("Error: %s script failed with exit code %lu.\n", action_name, (unsigned long)exit_code);
+        return 0;
+    }
+
+    return 1;
+}
+
 int wpm_archive_install(const char* archive_path) {
     char archive_full_path[WPM_PATH_SIZE];
     char package_name[WPM_PATH_SIZE];
-    char destination_path[WPM_PATH_SIZE];
+    char data_root[WPM_PATH_SIZE];
+    char temp_root[WPM_PATH_SIZE];
+    char package_store[WPM_PATH_SIZE];
+    char staging_path[WPM_PATH_SIZE];
+    char stored_archive_path[WPM_PATH_SIZE];
     char* extension;
+    int success = 0;
 
     if (!normalized_full_path(archive_path, archive_full_path, sizeof(archive_full_path))) {
         printf("Error: package path is too long: %s\n", archive_path);
@@ -876,19 +1009,111 @@ int wpm_archive_install(const char* archive_path) {
     strcpy_s(package_name, sizeof(package_name), path_basename(archive_full_path));
     extension = strrchr(package_name, '.');
     if (extension && _stricmp(extension, ".zip") == 0) *extension = '\0';
-    if (!package_name[0]) {
+    if (!is_valid_package_name(package_name)) {
         printf("Error: package archive must have a name.\n");
         return 0;
     }
 
-    if (!join_path(destination_path, sizeof(destination_path), WPM_INSTALL_ROOT, package_name)) {
+    if (!wpm_data_root(data_root, sizeof(data_root)) ||
+        !join_path(temp_root, sizeof(temp_root), data_root, "temp") ||
+        !join_path(package_store, sizeof(package_store), data_root, "packages") ||
+        !join_path(staging_path, sizeof(staging_path), temp_root, package_name) ||
+        !join_path(stored_archive_path, sizeof(stored_archive_path), package_store, path_basename(archive_full_path))) {
         printf("Error: installation path is too long.\n");
         return 0;
     }
 
-    if (!wpm_archive_extract(archive_full_path, destination_path)) return 0;
-    if (!verify_package_index(destination_path)) return 0;
+    if (!create_directories(temp_root) || !create_directories(package_store)) {
+        printf("Error: could not create WPM data directories.\n");
+        return 0;
+    }
+    if (!remove_directory_tree(staging_path)) {
+        printf("Error: could not clear staging directory: %s\n", staging_path);
+        return 0;
+    }
 
-    printf("Installed package to: %s\n", destination_path);
+    if (!wpm_archive_extract(archive_full_path, staging_path)) goto cleanup;
+    if (!verify_package_index(staging_path)) goto cleanup;
+    if (!run_package_script(staging_path, ".wpm\\install.cmd", "install")) goto cleanup;
+    if (_stricmp(archive_full_path, stored_archive_path) != 0 &&
+        !CopyFileA(archive_full_path, stored_archive_path, FALSE)) {
+        printf("Error: could not store package archive: %s\n", stored_archive_path);
+        goto cleanup;
+    }
+
+    success = 1;
+
+cleanup:
+    if (!remove_directory_tree(staging_path)) {
+        printf("Error: could not remove staging directory: %s\n", staging_path);
+        success = 0;
+    }
+    if (!success) return 0;
+
+    printf("Installed package; archive stored at: %s\n", stored_archive_path);
+    return 1;
+}
+
+int wpm_archive_remove(const char* package_name) {
+    char archive_name[WPM_PATH_SIZE];
+    char data_root[WPM_PATH_SIZE];
+    char temp_root[WPM_PATH_SIZE];
+    char package_store[WPM_PATH_SIZE];
+    char staging_path[WPM_PATH_SIZE];
+    char stored_archive_name[WPM_PATH_SIZE];
+    char stored_archive_path[WPM_PATH_SIZE];
+    char* extension;
+    int written;
+    int success = 0;
+
+    if (strlen(package_name) >= sizeof(archive_name)) {
+        printf("Error: package name is too long.\n");
+        return 0;
+    }
+    strcpy_s(archive_name, sizeof(archive_name), package_name);
+    extension = strrchr(archive_name, '.');
+    if (extension && _stricmp(extension, ".zip") == 0) *extension = '\0';
+    if (!is_valid_package_name(archive_name)) {
+        printf("Error: package name must be a stored archive name.\n");
+        return 0;
+    }
+
+    written = snprintf(stored_archive_name, sizeof(stored_archive_name), "%s.zip", archive_name);
+    if (!wpm_data_root(data_root, sizeof(data_root)) ||
+        !join_path(temp_root, sizeof(temp_root), data_root, "temp") ||
+        !join_path(package_store, sizeof(package_store), data_root, "packages") ||
+        !join_path(staging_path, sizeof(staging_path), temp_root, archive_name) ||
+        written < 0 || (size_t)written >= sizeof(stored_archive_name) ||
+        !join_path(stored_archive_path, sizeof(stored_archive_path), package_store, stored_archive_name)) {
+        printf("Error: removal path is too long.\n");
+        return 0;
+    }
+    if (!file_exists_at_path(stored_archive_path)) {
+        printf("Error: stored package archive not found: %s\n", stored_archive_path);
+        return 0;
+    }
+    if (!create_directories(temp_root) || !remove_directory_tree(staging_path)) {
+        printf("Error: could not prepare removal staging directory.\n");
+        return 0;
+    }
+
+    if (!wpm_archive_extract(stored_archive_path, staging_path)) goto cleanup;
+    if (!verify_package_index(staging_path)) goto cleanup;
+    if (!run_package_script(staging_path, ".wpm\\remove.cmd", "removal")) goto cleanup;
+    if (!DeleteFileA(stored_archive_path)) {
+        printf("Error: could not remove stored package archive: %s\n", stored_archive_path);
+        goto cleanup;
+    }
+
+    success = 1;
+
+cleanup:
+    if (!remove_directory_tree(staging_path)) {
+        printf("Error: could not remove staging directory: %s\n", staging_path);
+        success = 0;
+    }
+    if (!success) return 0;
+
+    printf("Removed package: %s\n", archive_name);
     return 1;
 }

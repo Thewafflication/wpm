@@ -1,0 +1,59 @@
+\def\StandaloneLibrary{}
+\input{iso_iec_ieee29119-3_2021.tex}
+
+\documentclass[letterpaper]{article}
+
+\usepackage[
+letterpaper,
+margin=1in
+]{geometry}
+
+\begin{document}
+\def\TCID{TC-0008}
+
+\def\TCTitle{Package removal}
+
+\def\TCPurpose{
+	Verify that \texttt{wpm remove} executes a retained package's removal script and removes the retained archive.
+}
+
+\def\TCPriority{\TCPriorityHigh}
+
+\def\TCRequirementRef{REQ-0008}
+
+\def\TCPreconditions{
+	A valid package archive with installation and removal scripts can be installed into a writable WPM data directory.
+}
+
+\def\TCEnvironment{
+	Local Windows developer workstation. Future target: Windows Container.
+}
+
+\def\TCInputData{
+	A ZIP package containing package metadata, a deployment file, \texttt{.wpm/install.cmd}, and \texttt{.wpm/remove.cmd}.
+}
+
+\def\TCProcedure{
+	\par
+	\begin{enumerate}
+		\item Build and install the package.
+		\item Confirm the deployment result and retained ZIP archive exist.
+		\item Run \texttt{wpm.exe remove <archive-name>.zip}.
+	\end{enumerate}
+}
+
+\def\TCExpectedResult{
+	\par
+	\begin{enumerate}
+		\item The removal command exits 0.
+		\item The deployment result is removed by \texttt{.wpm/remove.cmd}.
+		\item The retained ZIP archive is deleted.
+		\item The removal staging directory is removed.
+	\end{enumerate}
+}
+
+\def\TCPostConditions{
+	Temporary source, output, and data directories are removed.
+}
+\TCTemplate
+\end{document}

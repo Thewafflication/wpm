@@ -11,10 +11,10 @@ margin=1in
 \begin{document}
 \def\TCID{TC-0004}
 
-\def\TCTitle{Package archive installation}
+\def\TCTitle{Package archive installation lifecycle}
 
 \def\TCPurpose{
-	Verify that \texttt{wpm install} extracts a ZIP package to the installation root.
+	Verify that \texttt{wpm install} stages, verifies, installs, and stores a ZIP package.
 }
 
 \def\TCPriority{\TCPriorityHigh}
@@ -22,7 +22,7 @@ margin=1in
 \def\TCRequirementRef{REQ-0004}
 
 \def\TCPreconditions{
-	A valid package archive exists and the installation root is writable.
+	A valid package archive exists and the WPM data directory is writable.
 }
 
 \def\TCEnvironment{
@@ -41,7 +41,7 @@ margin=1in
 		\item Add \texttt{.wpm/package.txt} metadata.
 		\item Build a package archive with \texttt{wpm.exe build}.
 		\item Run \texttt{wpm.exe install <archive>}.
-		\item Inspect the extracted installation directory.
+		\item Inspect the staged package behavior, package deployment result, and local archive store.
 	\end{enumerate}
 }
 
@@ -49,13 +49,17 @@ margin=1in
 	\par
 	\begin{enumerate}
 		\item Install command exits 0.
-		\item Package is extracted under \texttt{C:/TEMP/<package-name>-<version>-<arch>}.
-		\item Root and nested files are present with expected content.
+		\item Package is staged beneath \texttt{\%ProgramData\%/WPM/temp}.
+		\item The package index is verified before \texttt{.wpm/install.cmd} executes.
+		\item The install script's expected deployment result is present.
+		\item The ZIP archive is retained beneath \texttt{\%ProgramData\%/WPM/packages}.
+		\item The staging directory is removed.
 	\end{enumerate}
 }
 
 \def\TCPostConditions{
-	Temporary source, package output, and installation directories are removed.
+	Temporary source, package output, and staging directories are removed; the
+	stored package archive remains for package-management operations.
 }
 \TCTemplate
 \end{document}
