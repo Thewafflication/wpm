@@ -47,6 +47,19 @@ jobs:
           path: bin/x86/Debug/
           if-no-files-found: error
 
+      - name: Build WPM package with test reports
+        if: steps.verify.outputs.exit_code == '0'
+        shell: pwsh
+        run: cmake --build --preset package-x86-debug
+
+      - name: Upload WPM package artifact
+        if: steps.verify.outputs.exit_code == '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: wpm-package-windows-x86-debug
+          path: bin/x86/Debug/packages/*.zip
+          if-no-files-found: error
+
       - name: Publish GitHub summary
         shell: pwsh
         run: |
@@ -56,7 +69,9 @@ jobs:
             @('TC-0002 Package initialization', 'bin/x86/Debug/tc-0002-report.tex', 'bin/x86/Debug/tc-0002-execution-evidence.tex'),
             @('TC-0003 Package archive build', 'bin/x86/Debug/tc-0003-report.tex', 'bin/x86/Debug/tc-0003-execution-evidence.tex'),
             @('TC-0004 Package archive installation', 'bin/x86/Debug/tc-0004-report.tex', 'bin/x86/Debug/tc-0004-execution-evidence.tex'),
-            @('TC-0005 Package index signature verification', 'bin/x86/Debug/tc-0005-report.tex', 'bin/x86/Debug/tc-0005-execution-evidence.tex')
+            @('TC-0005 Package index signature verification', 'bin/x86/Debug/tc-0005-report.tex', 'bin/x86/Debug/tc-0005-execution-evidence.tex'),
+            @('TC-0006 Package metadata archive naming', 'bin/x86/Debug/tc-0006-report.tex', 'bin/x86/Debug/tc-0006-execution-evidence.tex'),
+            @('TC-0007 WPM self-installation', 'bin/x86/Debug/tc-0007-report.tex', 'bin/x86/Debug/tc-0007-execution-evidence.tex')
           )
 
           @"
@@ -82,7 +97,7 @@ jobs:
           }
 
           @"
-          The generated executable, debug symbols, and TeX reports are attached to this workflow run as the `wpm-test-report-windows-x86-debug` artifact.
+          The generated executable, debug symbols, and TeX reports are attached to this workflow run as the `wpm-test-report-windows-x86-debug` artifact. When verification passes, the `wpm-package-windows-x86-debug` artifact contains the indexed WPM ZIP package with the executable, deployment scripts, and generated TeX test reports.
           "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
 
           if ($overallStatus -ne 'PASS') {

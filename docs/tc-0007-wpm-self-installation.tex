@@ -1,0 +1,69 @@
+\def\StandaloneLibrary{}
+\input{iso_iec_ieee29119-3_2021.tex}
+
+\documentclass[letterpaper]{article}
+
+\usepackage[
+letterpaper,
+margin=1in
+]{geometry}
+
+\begin{document}
+\def\TCID{TC-0007}
+
+\def\TCTitle{WPM self-installation}
+
+\def\TCPurpose{
+	Verify that WPM's package-maintainer scripts deploy and remove the WPM
+	executable.
+}
+
+\def\TCPriority{\TCPriorityHigh}
+
+\def\TCRequirementRef{REQ-0007}
+
+\def\TCPreconditions{
+	A built \texttt{wpm.exe} is available and temporary installation and data
+	directories are writable.
+}
+
+\def\TCEnvironment{
+	Local Windows developer workstation. Future target: Windows Container.
+}
+
+\def\TCInputData{
+	A built \texttt{wpm.exe} and unique temporary installation and data
+	directories supplied through \texttt{WPM\_INSTALL\_DIR} and
+	\texttt{WPM\_DATA\_DIR}.
+}
+
+\def\TCProcedure{
+	\par
+	\begin{enumerate}
+		\item Set \texttt{WPM\_INSTALL\_DIR} and \texttt{WPM\_DATA\_DIR} to
+		unique temporary directories.
+		\item Run \texttt{setup.cmd} with the built \texttt{wpm.exe}.
+		\item Verify the installed executable reports its version successfully.
+		\item Run \texttt{remove.cmd}.
+		\item Verify the installation and data directories no longer exist.
+	\end{enumerate}
+}
+
+\def\TCExpectedResult{
+	\par
+	\begin{enumerate}
+		\item \texttt{setup.cmd} exits 0, creates \texttt{wpm.exe} in the
+		configured installation directory, and creates the configured data
+		directory.
+		\item The installed executable exits 0 when invoked with
+		\texttt{--version}.
+		\item \texttt{remove.cmd} exits 0 and removes the installation and data
+		directories.
+	\end{enumerate}
+}
+
+\def\TCPostConditions{
+	The temporary installation and data directories are removed.
+}
+\TCTemplate
+\end{document}

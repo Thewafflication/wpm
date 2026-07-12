@@ -169,6 +169,7 @@ if(BUILD_TESTING)
   wpm_add_test_case(TC-0004 tc-0004 tc-0004-package-archive-installation.ps1 tc-0004-package-archive-installation.tex)
   wpm_add_test_case(TC-0005 tc-0005 tc-0005-package-index-signature-verification.ps1 tc-0005-package-index-signature-verification.tex)
   wpm_add_test_case(TC-0006 tc-0006 tc-0006-package-metadata-archive-naming.ps1 tc-0006-package-metadata-archive-naming.tex)
+  wpm_add_test_case(TC-0007 tc-0007 tc-0007-wpm-self-installation.ps1 tc-0007-wpm-self-installation.tex)
 
   add_custom_target(check
     COMMAND ${CMAKE_CTEST_COMMAND} --build-config $<CONFIG> --output-on-failure
@@ -185,6 +186,43 @@ if(BUILD_TESTING)
     if(WPM_PDFLATEX_EXECUTABLE)
       add_custom_target(test-report-pdfs DEPENDS ${WPM_TEST_REPORT_PDF_OUTPUTS})
     endif()
+
+    if(CMAKE_CONFIGURATION_TYPES)
+      set(WPM_PACKAGE_REPORT_DIR "${WPM_BIN_DIR}/${CMAKE_CFG_INTDIR}")
+      set(WPM_PACKAGE_OUTPUT_DIR "${WPM_BIN_DIR}/${CMAKE_CFG_INTDIR}/packages")
+      set(WPM_PACKAGE_STAGING_DIR "${CMAKE_BINARY_DIR}/wpm-package/${CMAKE_CFG_INTDIR}")
+    else()
+      set(WPM_PACKAGE_REPORT_DIR "${wpm_output_dir}")
+      set(WPM_PACKAGE_OUTPUT_DIR "${wpm_output_dir}/packages")
+      set(WPM_PACKAGE_STAGING_DIR "${CMAKE_BINARY_DIR}/wpm-package")
+    endif()
+
+    add_custom_target(wpm-package
+      COMMAND ${CMAKE_COMMAND}
+        -DWPM_EXECUTABLE=$<TARGET_FILE:wpm>
+        -DWPM_PACKAGE_STAGING_DIR=${WPM_PACKAGE_STAGING_DIR}
+        -DWPM_PACKAGE_OUTPUT_DIR=${WPM_PACKAGE_OUTPUT_DIR}
+        -DWPM_PACKAGE_ARCH=${wpm_arch}
+        -DWPM_SETUP_SCRIPT=${CMAKE_SOURCE_DIR}/setup.cmd
+        -DWPM_REMOVE_SCRIPT=${CMAKE_SOURCE_DIR}/remove.cmd
+        -DWPM_REPORT_DIR=${WPM_PACKAGE_REPORT_DIR}
+        -DWPM_DOCS_DIR=${CMAKE_SOURCE_DIR}/docs
+        -DWPM_README_FILE=${CMAKE_SOURCE_DIR}/README.md
+        -DWPM_LICENSE_FILE=${CMAKE_SOURCE_DIR}/LICENSE.txt
+        -DWPM_THIRD_PARTY_NOTICES_FILE=${CMAKE_SOURCE_DIR}/THIRD_PARTY_NOTICES.md
+        -P ${CMAKE_SOURCE_DIR}/cmake/BuildSelfPackage.cmake
+      DEPENDS
+        wpm
+        test-reports
+        ${CMAKE_SOURCE_DIR}/setup.cmd
+        ${CMAKE_SOURCE_DIR}/remove.cmd
+        ${CMAKE_SOURCE_DIR}/cmake/BuildSelfPackage.cmake
+        ${CMAKE_SOURCE_DIR}/README.md
+        ${CMAKE_SOURCE_DIR}/LICENSE.txt
+        ${CMAKE_SOURCE_DIR}/THIRD_PARTY_NOTICES.md
+      COMMENT "Building a WPM package with test reports"
+      VERBATIM
+    )
   endif()
 
   add_custom_target(verify)

@@ -177,6 +177,19 @@ and `.wpm/wpmignore.txt`; `.wpm/index.csv` is not indexed.
 Windows command scripts that define how the package is installed and removed.
 The generated scripts are templates for package authors to customize.
 
+## Installing WPM itself
+
+`setup.cmd` installs a built `wpm.exe` into `%ProgramFiles%\WPM` and creates
+WPM's mutable data directory at `%ProgramData%\WPM` by default:
+
+```text
+setup.cmd bin\x86\Debug\wpm.exe
+```
+
+`remove.cmd` removes that installation. Both scripts accept the
+`WPM_INSTALL_DIR` and `WPM_DATA_DIR` environment variables as explicit
+directory overrides for automation and testing.
+
 ## Building WPM from source
 
 WPM is a C11 project built with CMake. On Windows, the included presets use
@@ -214,6 +227,18 @@ Generate only the LaTeX reports without running the final CTest pass:
 cmake --build out/build/x86-debug --config Debug --target test-reports
 ```
 
+Build WPM's distributable ZIP package after generating the reports:
+
+```powershell
+cmake --build --preset package-x86-debug
+```
+
+The package is written to `bin/x86/Debug/packages/`. It contains
+`wpm.exe`, `setup.cmd`, `remove.cmd`, WPM package metadata, and the
+generated TeX reports with their execution evidence. It also includes the
+checked-in Markdown documentation, `README.md`, `LICENSE.txt`, and
+`THIRD_PARTY_NOTICES.md`.
+
 The optional `test-report-pdfs` target requires a local `pdflatex`
 installation and is not required for the standard test artifact.
 
@@ -230,4 +255,4 @@ Useful local presets:
 - Run tests and build LaTeX/PDF reports: `verify-x86-debug`
 - Test all cases through CTest: `test-x86-debug`
 - Test one case through CTest: `test-tc-0001-x86-debug` through
-  `test-tc-0005-x86-debug`
+  `test-tc-0007-x86-debug`
