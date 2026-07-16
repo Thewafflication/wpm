@@ -16,6 +16,11 @@ Release for the pushed tag and attach these assets:
 - `wpm-x86-<version>.zip`
 - `wpm-x64-<version>.zip`
 - `wpm-arm64-<version>.zip`
+- `index.json`, containing each published WPM package's name, version,
+  architecture, and release-asset URL
+
+The index shall be available through GitHub's stable latest-release asset URL:
+`https://github.com/Thewafflication/wpm/releases/latest/download/index.json`.
 
 No release assets shall be published when verification or any architecture
 build fails.

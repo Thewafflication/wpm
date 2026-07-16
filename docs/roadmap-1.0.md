@@ -21,7 +21,7 @@ verification evidence.
   the shell path.
 - WPM reports managed or portable runtime mode when verbose output is enabled.
 
-## Milestone 1: Installation and Portable Runtime Modes
+## 🟡 Milestone 1: Installation and Portable Runtime Modes — In progress
 
 Make WPM aware of how it is being run while keeping the executable portable
 and its mutable state centralized.
@@ -55,7 +55,9 @@ Completion criteria:
 - No command writes mutable state beside a portable executable or into the
   managed executable directory.
 
-## Milestone 2: Command-Line Installation
+<details>
+<summary><strong>✅ Milestone 2: Command-Line Installation — Complete</strong></summary>
+
 
 Make WPM available as a normal command after self-installation.
 
@@ -73,7 +75,9 @@ Completion criteria:
   discovery in a new shell, and removal.
 - The installed `wpm.exe` can be invoked by name without its full path.
 
-## Milestone 3: Remote Package Repositories
+</details>
+
+## 🟡 Milestone 3: Remote Package Repositories — In progress
 
 Enable named sources of packages instead of requiring a local ZIP path.
 
@@ -92,7 +96,10 @@ Completion criteria:
   retrieval, cache behavior, unavailable repositories, and precedence.
 - CI tests repository installation against a controlled test repository.
 
-## Milestone 4: Package Signing and Validation
+Implementation contract: REQ-0011 defines the HTTPS-only first release,
+repository index schema, cache behavior, offline behavior, and precedence.
+
+## ⏳ Milestone 4: Package Signing and Validation — Planned
 
 Define and implement a signed package format.
 
@@ -111,7 +118,7 @@ Completion criteria:
 - CI produces execution evidence for each signature test.
 - The WPM self-package is signed in the release build process.
 
-## Milestone 5: Version-Aware Upgrades
+## ⏳ Milestone 5: Version-Aware Upgrades — Planned
 
 Implement `wpm upgrade <package...>` as a real package lifecycle operation.
 
@@ -131,7 +138,7 @@ Completion criteria:
   behavior.
 - All upgrade test reports are included in the GitHub artifact.
 
-## Milestone 6: Release Hardening
+## ⏳ Milestone 6: Release Hardening — Planned
 
 - Complete requirements-to-test traceability for all 1.0 commands.
 - Run the full verification suite on every supported Windows architecture.

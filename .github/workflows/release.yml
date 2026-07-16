@@ -153,8 +153,29 @@ jobs:
           name: wpm-release-packages
           path: release
 
+      - name: Create release package index
+        shell: pwsh
+        run: |
+          $packages = Get-ChildItem -LiteralPath release -Filter 'wpm-*.zip' | ForEach-Object {
+            if ($_.Name -notmatch '^wpm-(x86|x64|arm64)-(.+)\.zip$') {
+              throw "Unexpected release package name: $($_.Name)"
+            }
+            [ordered]@{
+              name = 'wpm'
+              version = $Matches[2]
+              arch = $Matches[1]
+              url = $_.Name
+            }
+          }
+          if ($packages.Count -ne 3) { throw "Expected three release packages, found $($packages.Count)." }
+          [ordered]@{ version = 1; packages = @($packages) } |
+            ConvertTo-Json -Depth 3 |
+            Set-Content -LiteralPath release/index.json -Encoding utf8
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
-          files: release/wpm-*.zip
+          files: |
+            release/wpm-*.zip
+            release/index.json

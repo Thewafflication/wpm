@@ -23,6 +23,8 @@ add_executable (wpm
   "init.h"
   "helpers.c"
   "helpers.h"
+  "repository.c"
+  "repository.h"
 )
 
 add_dependencies(wpm wpm_version_header)
@@ -57,8 +59,8 @@ if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET wpm PROPERTY C_STANDARD_REQUIRED ON)
 endif()
 
-target_compile_definitions(wpm PRIVATE SODIUM_STATIC)
-target_link_libraries(wpm PRIVATE miniz libsodium)
+target_compile_definitions(wpm PRIVATE SODIUM_STATIC WPM_TARGET_ARCH="${wpm_arch}")
+target_link_libraries(wpm PRIVATE miniz libsodium urlmon)
 
 if(BUILD_TESTING)
   find_program(WPM_POWERSHELL_EXECUTABLE NAMES pwsh powershell)
@@ -173,6 +175,7 @@ if(BUILD_TESTING)
   wpm_add_test_case(TC-0008 tc-0008 tc-0008-package-removal.ps1 tc-0008-package-removal.tex)
   wpm_add_test_case(TC-0009 tc-0009 tc-0009-github-release-artifacts.ps1 tc-0009-github-release-artifacts.tex)
   wpm_add_test_case(TC-0010 tc-0010 tc-0010-runtime-mode-detection.ps1 tc-0010-runtime-mode-detection.tex)
+  wpm_add_test_case(TC-0011 tc-0011 tc-0011-https-repositories.ps1 tc-0011-https-repositories.tex)
 
   add_custom_target(check
     COMMAND ${CMAKE_CTEST_COMMAND} --build-config $<CONFIG> --output-on-failure

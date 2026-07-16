@@ -5,6 +5,7 @@
 #include "archive.h"
 #include "helpers.h"
 #include "init.h"
+#include "repository.h"
 #include <windows.h>
 
 static int path_is_beneath(const char* path, const char* root)
@@ -59,6 +60,7 @@ static void print_diagnostics(void)
 int main(int argc, char *argv[])
 {
 	int verbose = 0;
+	int offline = 0;
     int command_index = -1;
 	int show_version = 0;
 	int show_diagnostics = 0;
@@ -71,6 +73,9 @@ int main(int argc, char *argv[])
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--verbose") == 0) {
             verbose = 1;
+        }
+        else if (strcmp(argv[i], "--offline") == 0) {
+            offline = 1;
         }
         else if (strcmp(argv[i], "--version") == 0) {
             show_version = 1;
@@ -140,7 +145,7 @@ int main(int argc, char *argv[])
         case CMD_INSTALL: {
             int package_count = 0;
             for (int i = command_index + 1; i < argc; i++) {
-                if (strcmp(argv[i], "--verbose") != 0) package_count++;
+                if (strcmp(argv[i], "--verbose") != 0 && strcmp(argv[i], "--offline") != 0) package_count++;
             }
             if (package_count == 0) {
                 printf("No packages specified.\n");
@@ -148,8 +153,12 @@ int main(int argc, char *argv[])
             }
 
             for (int i = command_index + 1; i < argc; i++) {
-                if (strcmp(argv[i], "--verbose") == 0) continue;
-                if (!wpm_archive_install(argv[i])) return 1;
+                const char* extension;
+                if (strcmp(argv[i], "--verbose") == 0 || strcmp(argv[i], "--offline") == 0) continue;
+                extension = strrchr(argv[i], '.');
+                if (extension && _stricmp(extension, ".zip") == 0) {
+                    if (!wpm_archive_install(argv[i])) return 1;
+                } else if (!wpm_repo_install(argv[i], offline)) return 1;
             }
             break;
         }
@@ -163,6 +172,24 @@ int main(int argc, char *argv[])
             for (int i = 2; i < argc; i++) {
                 if (!wpm_archive_remove(argv[i])) return 1;
             }
+            break;
+        }
+
+        case CMD_REPO: {
+            const char* action = command_index + 1 < argc ? argv[command_index + 1] : "list";
+            if (strcmp(action, "list") == 0 && (command_index + 2 == argc || (command_index + 3 == argc && strcmp(argv[command_index + 2], "--offline") == 0))) {
+                if (!wpm_repo_list()) return 1;
+            } else if (strcmp(action, "add") == 0) {
+                int priority = 0;
+                if (command_index + 2 >= argc) { printf("Usage: wpm repo add <https-url> [--priority <integer>]\n"); return 1; }
+                if (command_index + 3 < argc && (command_index + 5 != argc || strcmp(argv[command_index + 3], "--priority") != 0)) { printf("Usage: wpm repo add <https-url> [--priority <integer>]\n"); return 1; }
+                if (command_index + 3 < argc) priority = atoi(argv[command_index + 4]);
+                if (!wpm_repo_add(argv[command_index + 2], priority)) return 1;
+            } else if (strcmp(action, "remove") == 0 && command_index + 3 == argc) {
+                if (!wpm_repo_remove(argv[command_index + 2])) return 1;
+            } else if (strcmp(action, "update") == 0 && (command_index + 2 == argc || (command_index + 3 == argc && strcmp(argv[command_index + 2], "--offline") == 0))) {
+                if (!wpm_repo_update(offline)) return 1;
+            } else { printf("Usage: wpm repo <add|list|remove|update> ...\n"); return 1; }
             break;
         }
 
@@ -213,7 +240,7 @@ int main(int argc, char *argv[])
         }
 
         case CMD_UPDATE:
-            printf("Updating...\n");
+            if (!wpm_repo_update(offline)) return 1;
             break;
 
         default:
@@ -256,6 +283,9 @@ void print_usage(Command c) {
     printf("  remove <package...>\n");
     printf("      Remove one or more packages\n\n");
 
+    printf("  repo <add|list|remove|update> ...\n");
+    printf("      Configure HTTPS package repositories\n\n");
+
     printf("  update\n");
     printf("      Update package index\n\n");
 
@@ -275,6 +305,9 @@ void print_usage(Command c) {
     printf("  --no-index\n");
     printf("      Skip updating index during build\n\n");
 
+    printf("  --offline\n");
+    printf("      Use cached repository data only\n\n");
+
     printf("Examples:\n");
     printf("  wpm build ./my_project\n");
     printf("  wpm build ./my_project ./dist --no-index\n");
@@ -288,6 +321,7 @@ Command parse_command(const char* cmd) {
     if (strcmp(cmd, "build") == 0) return CMD_BUILD;
     if (strcmp(cmd, "install") == 0) return CMD_INSTALL;
     if (strcmp(cmd, "remove") == 0) return CMD_REMOVE;
+    if (strcmp(cmd, "repo") == 0) return CMD_REPO;
     if (strcmp(cmd, "update") == 0) return CMD_UPDATE;
     if (strcmp(cmd, "upgrade") == 0) return CMD_UPGRADE;
     return CMD_UNKNOWN;

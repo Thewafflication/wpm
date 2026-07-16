@@ -14,6 +14,7 @@ typedef enum {
     CMD_BUILD,
     CMD_INSTALL,
     CMD_REMOVE,
+    CMD_REPO,
     CMD_UPDATE,
     CMD_UPGRADE
 } Command;
