@@ -37,6 +37,14 @@ wpm build ./my_project ./dist --verbose
 wpm --verbose install package.zip
 ```
 
+Verbose output also reports whether WPM is running in managed or portable mode.
+
+Inspect the resolved executable and WPM locations without changing them:
+
+```text
+wpm --diagnose
+```
+
 ## Commands
 
 ### Initialize a package
@@ -201,10 +209,11 @@ The generated scripts are templates for package authors to customize.
 ## Installing WPM itself
 
 `setup.cmd` installs a built `wpm.exe` into the native architecture's Program
-Files directory (using `%ProgramW6432%` when applicable), creates WPM's
-mutable data directory at `%ProgramData%\WPM`, creates the machine-level
-`WPM` variable, and adds `%WPM%` to the machine-level `Path` by default. Run
-it from an elevated command prompt and open a new shell after installation:
+Files directory (using `%ProgramW6432%` when applicable), creates the
+machine-level `WPM` variable, and adds `%WPM%` to the machine-level `Path` by
+default. The executable creates its data directories when it performs an
+operation. Run setup from an elevated command prompt and open a new shell
+after installation:
 
 ```text
 setup.cmd bin\x86\Debug\wpm.exe

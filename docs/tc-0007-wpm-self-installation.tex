@@ -44,6 +44,7 @@ margin=1in
 		\texttt{WPM\_ENVIRONMENT\_REGISTRY\_KEY} to test locations.
 		\item Run \texttt{setup.cmd} with the built \texttt{wpm.exe}.
 		\item Verify the installed executable reports its version successfully.
+		\item Run an operational command and verify it initializes the data directories.
 		\item Verify the persistent WPM variable and Path entry are created.
 		\item Run \texttt{remove.cmd}.
 		\item Verify the installation and data directories no longer exist.
@@ -53,11 +54,12 @@ margin=1in
 \def\TCExpectedResult{
 	\par
 	\begin{enumerate}
-		\item \texttt{setup.cmd} exits 0, creates \texttt{wpm.exe} in the
-		configured installation directory, and creates the configured data
-		directory.
+		\item \texttt{setup.cmd} exits 0 and creates \texttt{wpm.exe} in the
+		configured installation directory without creating data directories.
 		\item The installed executable exits 0 when invoked with
 		\texttt{--version}.
+		\item The installed executable initializes the configured data directory
+		and its package, temporary, cache, and configuration subdirectories.
 		\item The configured environment key contains the installation directory
 		as \texttt{WPM} and contains \texttt{\%WPM\%} in \texttt{Path}.
 		\item \texttt{remove.cmd} exits 0 and removes the installation and data

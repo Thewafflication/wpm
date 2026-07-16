@@ -5,11 +5,63 @@
 #include "archive.h"
 #include "helpers.h"
 #include "init.h"
+#include <windows.h>
+
+static int path_is_beneath(const char* path, const char* root)
+{
+    size_t root_length = strlen(root);
+
+    while (root_length > 0 && (root[root_length - 1] == '\\' || root[root_length - 1] == '/')) {
+        root_length--;
+    }
+
+    return _strnicmp(path, root, root_length) == 0 &&
+        (path[root_length] == '\0' || path[root_length] == '\\' || path[root_length] == '/');
+}
+
+static void print_runtime_mode(void)
+{
+    char executable_path[MAX_PATH];
+    char managed_root[MAX_PATH];
+    const char* program_files = getenv("ProgramW6432");
+    DWORD path_length;
+
+    if (!program_files || !program_files[0]) program_files = getenv("ProgramFiles");
+    path_length = GetModuleFileNameA(NULL, executable_path, sizeof(executable_path));
+
+    if (program_files && program_files[0] && path_length > 0 && path_length < sizeof(executable_path) &&
+        snprintf(managed_root, sizeof(managed_root), "%s\\WPM", program_files) > 0 &&
+        path_is_beneath(executable_path, managed_root)) {
+        printf("Runtime mode: managed\n");
+    }
+    else {
+        printf("Runtime mode: portable\n");
+    }
+    if (path_length > 0 && path_length < sizeof(executable_path)) {
+        printf("Executable: %s\n", executable_path);
+    }
+}
+
+static void print_diagnostics(void)
+{
+    char data_root[MAX_PATH];
+    print_runtime_mode();
+    if (!wpm_get_data_root(data_root, sizeof(data_root))) {
+        printf("Data directory: unknown\n");
+        return;
+    }
+    printf("Data directory: %s\n", data_root);
+    printf("Package directory: %s\\packages\n", data_root);
+    printf("Cache directory: %s\\cache\n", data_root);
+    printf("Configuration directory: %s\\config\n", data_root);
+}
 
 int main(int argc, char *argv[])
 {
 	int verbose = 0;
     int command_index = -1;
+	int show_version = 0;
+	int show_diagnostics = 0;
 
 	if (argc == 1) {
 		print_version();
@@ -21,22 +73,38 @@ int main(int argc, char *argv[])
             verbose = 1;
         }
         else if (strcmp(argv[i], "--version") == 0) {
-            print_version();
-            return 0;
+            show_version = 1;
+        }
+        else if (strcmp(argv[i], "--diagnose") == 0) {
+            show_diagnostics = 1;
         }
         else if (command_index == -1) {
             command_index = i;
         }
     }
 
+    if (show_version) {
+        print_version();
+        if (verbose) print_runtime_mode();
+        return 0;
+    }
+
+    if (show_diagnostics) {
+        print_diagnostics();
+        return 0;
+    }
+
     if (command_index == -1) {
         print_version();
+        if (verbose) print_runtime_mode();
         print_usage(0);
         return 0;
     }
 
 	Command cmd = parse_command(argv[command_index]);
     wpm_set_verbose(verbose);
+	if (verbose) print_runtime_mode();
+	if (!wpm_initialize_data_directories()) return 1;
 	
     switch (cmd) {
         case CMD_BUILD: {
@@ -200,6 +268,9 @@ void print_usage(Command c) {
 
     printf("  --verbose\n");
     printf("      Display detailed file-operation progress; may appear before or after a command\n\n");
+
+    printf("  --diagnose\n");
+    printf("      Display runtime mode and resolved WPM locations\n\n");
 
     printf("  --no-index\n");
     printf("      Skip updating index during build\n\n");

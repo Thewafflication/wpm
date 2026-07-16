@@ -16,18 +16,11 @@ if not defined WPM_INSTALL_DIR (
         set "WPM_INSTALL_DIR=%ProgramFiles%\WPM"
     )
 )
-if not defined WPM_DATA_DIR set "WPM_DATA_DIR=%ProgramData%\WPM"
 if not defined WPM_ENVIRONMENT_REGISTRY_KEY set "WPM_ENVIRONMENT_REGISTRY_KEY=HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment"
 
 if not exist "%WPM_INSTALL_DIR%" mkdir "%WPM_INSTALL_DIR%"
 if errorlevel 1 (
     echo Error: could not create installation directory: "%WPM_INSTALL_DIR%"
-    exit /b 1
-)
-
-if not exist "%WPM_DATA_DIR%" mkdir "%WPM_DATA_DIR%"
-if errorlevel 1 (
-    echo Error: could not create data directory: "%WPM_DATA_DIR%"
     exit /b 1
 )
 
@@ -54,6 +47,5 @@ if errorlevel 1 (
 )
 
 echo WPM installed to "%WPM_INSTALL_DIR%\wpm.exe"
-echo WPM data directory: "%WPM_DATA_DIR%"
 echo The system WPM variable and Path have been updated. Open a new command prompt to use wpm.
 exit /b 0

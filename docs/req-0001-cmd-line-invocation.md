@@ -23,6 +23,9 @@ retain the command's normal output and add detailed progress for file-specific
 operations, including package indexing, hashing, archive creation, extraction,
 verification, and package script execution.
 
+When verbose output is requested, the application shall report its runtime
+mode according to REQ-0010.
+
 ## Rationale
 
 Users must be able to verify that the application is installed and

@@ -77,7 +77,8 @@ jobs:
             @('TC-0006 Package metadata archive naming', 'bin/x86/Debug/tc-0006-report.tex', 'bin/x86/Debug/tc-0006-execution-evidence.tex'),
             @('TC-0007 WPM self-installation', 'bin/x86/Debug/tc-0007-report.tex', 'bin/x86/Debug/tc-0007-execution-evidence.tex'),
             @('TC-0008 Package removal', 'bin/x86/Debug/tc-0008-report.tex', 'bin/x86/Debug/tc-0008-execution-evidence.tex'),
-            @('TC-0009 GitHub Release artifact workflow', 'bin/x86/Debug/tc-0009-report.tex', 'bin/x86/Debug/tc-0009-execution-evidence.tex')
+            @('TC-0009 GitHub Release artifact workflow', 'bin/x86/Debug/tc-0009-report.tex', 'bin/x86/Debug/tc-0009-execution-evidence.tex'),
+            @('TC-0010 Runtime mode detection', 'bin/x86/Debug/tc-0010-report.tex', 'bin/x86/Debug/tc-0010-execution-evidence.tex')
           )
 
           @"

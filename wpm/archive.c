@@ -48,7 +48,7 @@ static const char* path_basename(const char* path);
 static int normalized_full_path(const char* path, char* result, size_t result_size);
 static int join_path(char* result, size_t result_size, const char* left, const char* right);
 
-static int wpm_data_root(char* result, size_t result_size) {
+int wpm_get_data_root(char* result, size_t result_size) {
     const char* configured_root = getenv("WPM_DATA_DIR");
     const char* program_data = getenv("ProgramData");
 
@@ -95,6 +95,29 @@ static int create_directories(const char* path) {
     }
 
     return ensure_directory(partial);
+}
+
+int wpm_initialize_data_directories(void) {
+    char data_root[WPM_PATH_SIZE];
+    char temp_root[WPM_PATH_SIZE];
+    char package_root[WPM_PATH_SIZE];
+    char cache_root[WPM_PATH_SIZE];
+    char config_root[WPM_PATH_SIZE];
+
+    if (!wpm_get_data_root(data_root, sizeof(data_root)) ||
+        !join_path(temp_root, sizeof(temp_root), data_root, "temp") ||
+        !join_path(package_root, sizeof(package_root), data_root, "packages") ||
+        !join_path(cache_root, sizeof(cache_root), data_root, "cache") ||
+        !join_path(config_root, sizeof(config_root), data_root, "config") ||
+        !create_directories(data_root) || !create_directories(temp_root) ||
+        !create_directories(package_root) || !create_directories(cache_root) ||
+        !create_directories(config_root)) {
+        printf("Error: could not initialize WPM data directories.\n");
+        return 0;
+    }
+
+    verbose_log("WPM data directory: %s", data_root);
+    return 1;
 }
 
 static int remove_directory_tree(const char* path) {
@@ -1058,7 +1081,7 @@ int wpm_archive_install(const char* archive_path) {
         return 0;
     }
 
-    if (!wpm_data_root(data_root, sizeof(data_root)) ||
+    if (!wpm_get_data_root(data_root, sizeof(data_root)) ||
         !join_path(temp_root, sizeof(temp_root), data_root, "temp") ||
         !join_path(package_store, sizeof(package_store), data_root, "packages") ||
         !join_path(staging_path, sizeof(staging_path), temp_root, package_name) ||
@@ -1128,7 +1151,7 @@ int wpm_archive_remove(const char* package_name) {
     }
 
     written = snprintf(stored_archive_name, sizeof(stored_archive_name), "%s.zip", archive_name);
-    if (!wpm_data_root(data_root, sizeof(data_root)) ||
+    if (!wpm_get_data_root(data_root, sizeof(data_root)) ||
         !join_path(temp_root, sizeof(temp_root), data_root, "temp") ||
         !join_path(package_store, sizeof(package_store), data_root, "packages") ||
         !join_path(staging_path, sizeof(staging_path), temp_root, archive_name) ||

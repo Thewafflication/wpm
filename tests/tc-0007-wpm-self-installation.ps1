@@ -58,8 +58,8 @@ try {
         if (-not (Test-Path -LiteralPath (Join-Path $installDir 'wpm.exe') -PathType Leaf)) {
             throw "setup.cmd did not install wpm.exe to $installDir"
         }
-        if (-not (Test-Path -LiteralPath $dataDir -PathType Container)) {
-            throw "setup.cmd did not create the WPM data directory at $dataDir"
+        if (Test-Path -LiteralPath $dataDir) {
+            throw 'setup.cmd must not initialize WPM data directories.'
         }
         $environment = Get-ItemProperty -Path $environmentRegistryPath
         if ($environment.WPM -ne $installDir) {
@@ -82,6 +82,22 @@ try {
             }
             if ($Output -notmatch 'Waughtal Package Manager .* Version ') {
                 throw 'Expected installed executable version information.'
+            }
+        }
+
+    $results += Invoke-WpmTestStep `
+        -WpmExe $installedExe `
+        -Name 'Initialize WPM data directories from the executable' `
+        -Arguments @('update') `
+        -Assert {
+            param($ExitCode, $Output)
+            if ($ExitCode -ne 0) {
+                throw "Expected exit code 0, got $ExitCode."
+            }
+            foreach ($directory in @($dataDir, (Join-Path $dataDir 'packages'), (Join-Path $dataDir 'temp'), (Join-Path $dataDir 'cache'), (Join-Path $dataDir 'config'))) {
+                if (-not (Test-Path -LiteralPath $directory -PathType Container)) {
+                    throw "The executable did not initialize $directory"
+                }
             }
         }
 

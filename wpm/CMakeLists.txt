@@ -172,6 +172,7 @@ if(BUILD_TESTING)
   wpm_add_test_case(TC-0007 tc-0007 tc-0007-wpm-self-installation.ps1 tc-0007-wpm-self-installation.tex)
   wpm_add_test_case(TC-0008 tc-0008 tc-0008-package-removal.ps1 tc-0008-package-removal.tex)
   wpm_add_test_case(TC-0009 tc-0009 tc-0009-github-release-artifacts.ps1 tc-0009-github-release-artifacts.tex)
+  wpm_add_test_case(TC-0010 tc-0010 tc-0010-runtime-mode-detection.ps1 tc-0010-runtime-mode-detection.tex)
 
   add_custom_target(check
     COMMAND ${CMAKE_CTEST_COMMAND} --build-config $<CONFIG> --output-on-failure

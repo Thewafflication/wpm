@@ -11,7 +11,7 @@ verification evidence.
 - Package build, installation, removal, and WPM self-packaging are implemented.
 - The generated WPM package identifies its source repository as
   `https://github.com/Thewafflication/wpm`.
-- CI runs TC-0001 through TC-0009 and uploads their generated reports and
+- CI runs TC-0001 through TC-0010 and uploads their generated reports and
   execution evidence as a GitHub artifact.
 - `wpm upgrade` is a command placeholder; it does not yet resolve or install
   a newer package version.
@@ -19,29 +19,41 @@ verification evidence.
 - Remote package repositories are designed but not yet implemented.
 - WPM self-installation creates a machine-level `WPM` variable and adds it to
   the shell path.
-- WPM does not yet distinguish managed installation from portable execution.
+- WPM reports managed or portable runtime mode when verbose output is enabled.
 
 ## Milestone 1: Installation and Portable Runtime Modes
 
-Make WPM aware of how it is being run and keep portable use self-contained.
+Make WPM aware of how it is being run while keeping the executable portable
+and its mutable state centralized.
 
-- Detect a managed installation when the executable is located beneath
-  `%ProgramFiles%\WPM`.
-- Treat execution from any other location, including a USB drive, as portable.
-- Expose the active runtime mode and resolved executable, data, cache, and
-  configuration locations through a diagnostic command.
-- Keep portable mutable state beside the executable or in a clearly documented
-  portable data directory; never require the executable directory to be
-  writable for a managed installation.
-- Keep managed mutable state beneath `%ProgramData%\WPM`.
-- Define explicit overrides for test automation and advanced deployments.
+Implemented:
+
+- WPM detects a managed installation when the executable is located beneath
+  the native architecture's Program Files `WPM` directory.
+- WPM treats execution from any other location, including a USB drive, as
+  portable and reports this with `--verbose`.
+- `wpm --diagnose` displays runtime mode plus resolved executable, data,
+  package, cache, and configuration locations.
+- The executable, rather than the installer, initializes centralized mutable
+  state beneath `%ProgramData%\WPM` for both managed and portable execution.
+- Operational commands create `packages`, `temp`, `cache`, and `config`
+  beneath the data root without requiring the executable directory to be
+  writable.
+- `WPM_DATA_DIR` provides an explicit data-root override for test automation
+  and advanced deployments.
+
+Remaining work:
+
+- Add managed-installation and read-only portable execution coverage.
+- Define durable cache and configuration contents and their lifecycle.
+- Decide whether user-scoped data storage is needed for non-elevated scenarios.
 
 Completion criteria:
 
 - Requirements and test cases cover managed, portable, and read-only portable
-  execution, plus their expected data locations.
-- No command silently writes portable state into a managed installation path or
-  managed state onto a removable drive.
+  execution, plus their expected centralized data locations.
+- No command writes mutable state beside a portable executable or into the
+  managed executable directory.
 
 ## Milestone 2: Command-Line Installation
 

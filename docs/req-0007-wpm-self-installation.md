@@ -12,7 +12,6 @@ remove the WPM executable independently of WPM's package extraction location.
 - install the executable to the native architecture's Program Files directory
   (using `%ProgramW6432%` when available) under `WPM\wpm.exe` by default;
 - create the installation directory when needed; and
-- create `%ProgramData%\WPM` as the default mutable-data directory; and
 - create the machine-level `WPM` environment variable with the installation
   directory as its value; and
 - add `%WPM%` to the machine-level `Path` when it is not already present; and

@@ -40,6 +40,20 @@ $results = @(
                 throw 'Expected dependency version information in output.'
             }
         }
+
+    Invoke-WpmTestStep `
+        -WpmExe $WpmExe `
+        -Name 'Invoke wpm --verbose' `
+        -Arguments @('--verbose') `
+        -Assert {
+            param($ExitCode, $Output)
+            if ($ExitCode -ne 0) {
+                throw "Expected exit code 0, got $ExitCode."
+            }
+            if ($Output -notmatch 'Runtime mode: portable') {
+                throw 'Expected portable runtime mode information for the build output.'
+            }
+        }
 )
 $finished = Get-Date
 

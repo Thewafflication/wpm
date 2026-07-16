@@ -1,0 +1,54 @@
+\def\StandaloneLibrary{}
+\input{iso_iec_ieee29119-3_2021.tex}
+
+\documentclass[letterpaper]{article}
+
+\usepackage[
+letterpaper,
+margin=1in
+]{geometry}
+
+\begin{document}
+\def\TCID{TC-0010}
+
+\def\TCTitle{Runtime mode detection}
+
+\def\TCPurpose{
+	Verify that verbose output identifies a portable WPM executable.
+}
+
+\def\TCPriority{\TCPriorityHigh}
+
+\def\TCRequirementRef{REQ-0010}
+
+\def\TCPreconditions{
+	A built WPM executable is available outside the managed installation directory.
+}
+
+\def\TCEnvironment{
+	Local Windows developer workstation. Future target: Windows Container.
+}
+
+\def\TCInputData{
+	The built WPM executable.
+}
+
+\def\TCProcedure{
+	\par
+	\begin{enumerate}
+		\item Run \texttt{wpm.exe --verbose} from the build output directory.
+	\end{enumerate}
+}
+
+\def\TCExpectedResult{
+	\par
+	\begin{enumerate}
+		\item The command exits 0 and reports portable runtime mode and the executable path.
+	\end{enumerate}
+}
+
+\def\TCPostConditions{
+	The test environment remains operational.
+}
+\TCTemplate
+\end{document}
