@@ -208,15 +208,24 @@ The generated scripts are templates for package authors to customize.
 
 ## Installing WPM itself
 
-`setup.cmd` installs a built `wpm.exe` into the native architecture's Program
-Files directory (using `%ProgramW6432%` when applicable), creates the
-machine-level `WPM` variable, and adds `%WPM%` to the machine-level `Path` by
-default. The executable creates its data directories when it performs an
-operation. Run setup from an elevated command prompt and open a new shell
-after installation:
+`setup.cmd` detects whether it is elevated. An elevated process installs a
+built `wpm.exe` into the native architecture's Program Files directory (using
+`%ProgramW6432%` when applicable), creates the machine-level `WPM` variable,
+and adds `%WPM%` to the machine-level `Path`. A non-elevated process installs
+per-user instead. Open a new shell after installation:
 
 ```text
 setup.cmd bin\x86\Debug\wpm.exe
+```
+
+When elevation is unavailable, setup selects user scope automatically; `--user`
+can also be used explicitly. User scope installs WPM under
+`%LocalAppData%\WPM`, configures user-scoped `WPM`, `WPM_DATA_DIR`, and `Path`
+entries, and can be removed with the matching command:
+
+```text
+setup.cmd --user bin\x86\Debug\wpm.exe
+remove.cmd --user
 ```
 
 `remove.cmd` removes that installation and its machine-level environment

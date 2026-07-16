@@ -34,8 +34,14 @@ function Invoke-CmdScript {
     }
 }
 
+function Test-WpmProcessIsElevated {
+    $groups = & whoami /groups /fo csv /nh 2>$null | Out-String
+    return $groups -match 'S-1-16-(12288|16384)'
+}
+
 $started = Get-Date
 $results = @()
+$expectedDefaultScope = if (Test-WpmProcessIsElevated) { 'machine' } else { 'user' }
 $previousInstallDir = $env:WPM_INSTALL_DIR
 $previousDataDir = $env:WPM_DATA_DIR
 $previousEnvironmentRegistryKey = $env:WPM_ENVIRONMENT_REGISTRY_KEY
@@ -51,10 +57,35 @@ try {
         if ((Get-Content -Raw -LiteralPath $setupCmd) -notmatch 'ProgramW6432') {
             throw 'setup.cmd does not prefer the native Program Files directory.'
         }
+        if ((Get-Content -Raw -LiteralPath $setupCmd) -notmatch 'HKCU\\Environment' -or
+            (Get-Content -Raw -LiteralPath $setupCmd) -notmatch 'LocalAppData') {
+            throw 'setup.cmd does not provide a user-scoped installation mode.'
+        }
     }
 
-    $results += New-WpmManualStep -Name 'Install WPM with setup.cmd' -Action {
+    $results += New-WpmManualStep -Name 'Automatically select the installation scope from elevation' -Action {
         Invoke-CmdScript -Script $setupCmd -Arguments @($WpmExe)
+        if (-not (Test-Path -LiteralPath (Join-Path $installDir 'wpm.exe') -PathType Leaf)) {
+            throw "setup.cmd did not install wpm.exe to $installDir"
+        }
+        $environment = Get-ItemProperty -Path $environmentRegistryPath
+        if ($environment.WPM -ne $installDir -or $environment.Path -notmatch [regex]::Escape('%WPM%')) {
+            throw 'Default setup.cmd did not configure the persistent environment entries.'
+        }
+        if ($expectedDefaultScope -eq 'user' -and $environment.WPM_DATA_DIR -ne $dataDir) {
+            throw 'Non-elevated setup.cmd did not select user scope.'
+        }
+        if ($expectedDefaultScope -eq 'machine' -and $null -ne $environment.WPM_DATA_DIR) {
+            throw 'Elevated setup.cmd did not select machine scope.'
+        }
+        Invoke-CmdScript -Script $removeCmd
+        if (Test-Path -LiteralPath $installDir) {
+            throw 'Default remove.cmd did not remove the installation directory.'
+        }
+    }
+
+    $results += New-WpmManualStep -Name 'Install WPM with setup.cmd --user' -Action {
+        Invoke-CmdScript -Script $setupCmd -Arguments @('--user', $WpmExe)
         if (-not (Test-Path -LiteralPath (Join-Path $installDir 'wpm.exe') -PathType Leaf)) {
             throw "setup.cmd did not install wpm.exe to $installDir"
         }
@@ -65,26 +96,48 @@ try {
         if ($environment.WPM -ne $installDir) {
             throw 'setup.cmd did not create the persistent WPM environment variable.'
         }
+        if ($environment.WPM_DATA_DIR -ne $dataDir) {
+            throw 'setup.cmd --user did not create the persistent WPM_DATA_DIR environment variable.'
+        }
         if ($environment.Path -notmatch [regex]::Escape('%WPM%')) {
             throw 'setup.cmd did not add %WPM% to the persistent Path.'
         }
     }
 
-    $installedExe = Join-Path $installDir 'wpm.exe'
-    $results += Invoke-WpmTestStep `
-        -WpmExe $installedExe `
-        -Name 'Invoke the self-installed WPM executable' `
-        -Arguments @('--version') `
-        -Assert {
-            param($ExitCode, $Output)
-            if ($ExitCode -ne 0) {
-                throw "Expected exit code 0, got $ExitCode."
+    $results += New-WpmManualStep -Name 'Repeat user-scoped WPM installation' -Action {
+        Invoke-CmdScript -Script $setupCmd -Arguments @('--user', $WpmExe)
+        $environment = Get-ItemProperty -Path $environmentRegistryPath
+        $pathEntries = [regex]::Matches([string]$environment.Path, [regex]::Escape('%WPM%')).Count
+        if ($pathEntries -ne 1) {
+            throw "Repeated setup created $pathEntries %WPM% Path entries."
+        }
+    }
+
+    $results += New-WpmManualStep -Name 'Discover self-installed WPM by name in a new command process' -Action {
+        $environment = Get-ItemProperty -Path $environmentRegistryPath
+        $previousProcessWpm = $env:WPM
+        $previousProcessDataDir = $env:WPM_DATA_DIR
+        $previousProcessPath = $env:Path
+        try {
+            $env:WPM = $environment.WPM
+            $env:WPM_DATA_DIR = $environment.WPM_DATA_DIR
+            $env:Path = ([string]$environment.Path).Replace('%WPM%', $environment.WPM) + ';' + $previousProcessPath
+            $output = & $env:ComSpec /d /c 'wpm --version' 2>&1 | Out-String
+            if ($LASTEXITCODE -ne 0) {
+                throw "wpm --version in a new command process exited $LASTEXITCODE. Output: $output"
             }
-            if ($Output -notmatch 'Waughtal Package Manager .* Version ') {
-                throw 'Expected installed executable version information.'
+            if ($output -notmatch 'Waughtal Package Manager .* Version ') {
+                throw 'The new command process did not resolve wpm by name.'
             }
         }
+        finally {
+            $env:WPM = $previousProcessWpm
+            $env:WPM_DATA_DIR = $previousProcessDataDir
+            $env:Path = $previousProcessPath
+        }
+    }
 
+    $installedExe = Join-Path $installDir 'wpm.exe'
     $results += Invoke-WpmTestStep `
         -WpmExe $installedExe `
         -Name 'Initialize WPM data directories from the executable' `
@@ -101,8 +154,8 @@ try {
             }
         }
 
-    $results += New-WpmManualStep -Name 'Remove WPM with remove.cmd' -Action {
-        Invoke-CmdScript -Script $removeCmd
+    $results += New-WpmManualStep -Name 'Remove WPM with remove.cmd --user' -Action {
+        Invoke-CmdScript -Script $removeCmd -Arguments @('--user')
         if (Test-Path -LiteralPath $installDir) {
             throw "remove.cmd did not remove $installDir"
         }
@@ -110,7 +163,8 @@ try {
             throw "remove.cmd did not remove $dataDir"
         }
         $environment = Get-ItemProperty -Path $environmentRegistryPath
-        if ($null -ne $environment.WPM -or $environment.Path -match [regex]::Escape('%WPM%')) {
+        if ($null -ne $environment.WPM -or $null -ne $environment.WPM_DATA_DIR -or
+            $environment.Path -match [regex]::Escape('%WPM%')) {
             throw 'remove.cmd did not remove the persistent WPM environment entries.'
         }
     }

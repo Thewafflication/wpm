@@ -57,12 +57,15 @@ Completion criteria:
 
 ## Milestone 2: Command-Line Installation
 
-Make WPM available as a normal command after self-installation. The
-machine-wide Path integration is implemented; user-scoped installation and
-new-shell command-discovery coverage remain future work.
+Make WPM available as a normal command after self-installation.
 
-- Provide a user-scoped installation option when machine-wide elevation is not
-  available.
+Implemented:
+
+- Machine-wide installation configures the system `WPM` variable and `Path`.
+- `setup.cmd` detects elevation and automatically selects either machine-wide
+  installation or user-scoped installation under `%LocalAppData%\WPM`.
+- TC-0007 verifies installation, repeat installation, command discovery by
+  name in a fresh command process, and removal.
 
 Completion criteria:
 

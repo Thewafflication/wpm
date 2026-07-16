@@ -42,8 +42,12 @@ margin=1in
 	\begin{enumerate}
 		\item Set \texttt{WPM\_INSTALL\_DIR}, \texttt{WPM\_DATA\_DIR}, and
 		\texttt{WPM\_ENVIRONMENT\_REGISTRY\_KEY} to test locations.
-		\item Run \texttt{setup.cmd} with the built \texttt{wpm.exe}.
-		\item Verify the installed executable reports its version successfully.
+		\item Run \texttt{setup.cmd} with the built \texttt{wpm.exe} and verify it
+		selects machine scope when elevated or user scope otherwise.
+		\item Run \texttt{setup.cmd --user} with the built \texttt{wpm.exe}.
+		\item Run the user-scope setup command again and verify only one \texttt{\%WPM\%}
+		entry exists in \texttt{Path}.
+		\item Start a new command process and invoke \texttt{wpm --version} by name.
 		\item Run an operational command and verify it initializes the data directories.
 		\item Verify the persistent WPM variable and Path entry are created.
 		\item Run \texttt{remove.cmd}.
@@ -54,15 +58,18 @@ margin=1in
 \def\TCExpectedResult{
 	\par
 	\begin{enumerate}
-		\item \texttt{setup.cmd} exits 0 and creates \texttt{wpm.exe} in the
+		\item \texttt{setup.cmd} exits 0 and selects its installation scope based
+		on the process elevation.
+		\item \texttt{setup.cmd --user} exits 0 and creates \texttt{wpm.exe} in the
 		configured installation directory without creating data directories.
-		\item The installed executable exits 0 when invoked with
-		\texttt{--version}.
+		\item A newly started command process resolves \texttt{wpm} from Path and
+		exits 0 when invoked with \texttt{--version}.
 		\item The installed executable initializes the configured data directory
 		and its package, temporary, cache, and configuration subdirectories.
 		\item The configured environment key contains the installation directory
-		as \texttt{WPM} and contains \texttt{\%WPM\%} in \texttt{Path}.
-		\item \texttt{remove.cmd} exits 0 and removes the installation and data
+		as \texttt{WPM}, a user data root as \texttt{WPM\_DATA\_DIR}, and exactly
+		one \texttt{\%WPM\%} entry in \texttt{Path}.
+		\item \texttt{remove.cmd --user} exits 0 and removes the installation and data
 		directories.
 	\end{enumerate}
 }

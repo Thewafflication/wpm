@@ -17,10 +17,23 @@ remove the WPM executable independently of WPM's package extraction location.
 - add `%WPM%` to the machine-level `Path` when it is not already present; and
 - terminate with an exit code of `0` after a successful copy.
 
+`setup.cmd --user` shall provide a non-elevated alternative by installing to
+`%LocalAppData%\WPM` by default, using the `HKCU\Environment` environment
+entries, and setting `WPM_DATA_DIR` to `%LocalAppData%\WPM\data`. It shall add
+the user `WPM` variable to the user `Path` only once.
+
+When no scope is specified, `setup.cmd` shall detect whether it has an elevated
+Windows token and select machine scope when elevated or user scope otherwise.
+
 `remove.cmd` shall remove both the WPM installation directory and its mutable
 data directory, remove the `WPM` machine environment variable and its `%WPM%`
 machine `Path` entry, and terminate with an exit code of `0` when removal
 succeeds or the directories are already absent.
+
+`remove.cmd --user` shall remove the user-scoped installation, data directory,
+and the user `WPM`, `WPM_DATA_DIR`, and `%WPM%` `Path` entries.
+When no scope is specified, it shall use the same elevation-based scope
+selection as `setup.cmd`.
 
 For automated verification, both scripts shall use `WPM_INSTALL_DIR` as an
 explicit override of the default installation directory and `WPM_DATA_DIR` as
