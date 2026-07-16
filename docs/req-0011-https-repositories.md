@@ -64,8 +64,9 @@ WPM selects the highest semantic version available for a package. When the
 same version appears in more than one repository, the highest numeric priority
 wins; equal priorities are resolved by the order repositories were added.
 
-An unavailable repository shall not prevent refresh or resolution from another
-repository. If no usable index or package can be obtained, WPM shall return a
+An unavailable repository shall not prevent a refresh or resolution from
+another repository. A refresh succeeds when at least one repository index is
+usable. If no usable index or package can be obtained, WPM shall return a
 nonzero exit status without invoking a package install script.
 
 ## Verification

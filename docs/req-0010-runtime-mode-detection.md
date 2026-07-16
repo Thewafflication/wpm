@@ -14,6 +14,9 @@ WPM shall identify its runtime mode from the executable location.
   `config` subdirectories before performing an operational command. The data
   directory shall be `%ProgramData%\WPM` by default or `WPM_DATA_DIR` when
   explicitly overridden.
+- A portable executable directory may be read-only. Operational commands shall
+  use the data directory and shall not write mutable state beside the
+  executable.
 - The `--diagnose` option shall display the runtime mode and resolved
   executable, data, package, cache, and configuration locations without
   initializing data directories.

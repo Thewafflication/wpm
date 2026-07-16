@@ -95,7 +95,7 @@ static int refresh(repository* repo, int offline, int required) {
     if (GetFileAttributesA(cached) != INVALID_FILE_ATTRIBUTES) { printf("Warning: could not refresh %s; using cached index.\n", repo->url); return 1; }
     printf("Warning: could not retrieve repository index: %s\n", repo->url); return 0;
 }
-int wpm_repo_update(int offline) { repository repositories[MAX_REPOSITORIES]; int count, i, success = 1; if (!load_repositories(repositories, &count)) return 0; if (!count) { printf("No repositories configured.\n"); return 1; } for (i = 0; i < count; i++) if (!refresh(&repositories[i], offline, 1)) success = 0; return success; }
+int wpm_repo_update(int offline) { repository repositories[MAX_REPOSITORIES]; int count, i, refreshed = 0; if (!load_repositories(repositories, &count)) return 0; if (!count) { printf("No repositories configured.\n"); return 1; } for (i = 0; i < count; i++) if (refresh(&repositories[i], offline, 1)) refreshed = 1; return refreshed; }
 
 static const char* skip_ws(const char* p) { while (*p && isspace((unsigned char)*p)) p++; return p; }
 static int json_string(const char** source, char* output, size_t size) { const char* p = skip_ws(*source); size_t n = 0; if (*p++ != '"') return 0; while (*p && *p != '"') { if (*p == '\\') { p++; if (!*p) return 0; } if (n + 1 >= size) return 0; output[n++] = *p++; } if (*p != '"') return 0; output[n] = '\0'; *source = p + 1; return 1; }

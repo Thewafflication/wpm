@@ -11,17 +11,19 @@ verification evidence.
 - Package build, installation, removal, and WPM self-packaging are implemented.
 - The generated WPM package identifies its source repository as
   `https://github.com/Thewafflication/wpm`.
-- CI runs TC-0001 through TC-0010 and uploads their generated reports and
+- CI runs TC-0001 through TC-0011 and uploads their generated reports and
   execution evidence as a GitHub artifact.
 - `wpm upgrade` is a command placeholder; it does not yet resolve or install
   a newer package version.
 - Package signing and package-signature validation are not yet implemented.
-- Remote package repositories are designed but not yet implemented.
+- Remote HTTPS package repositories support configuration, caching, discovery,
+  and named package installation.
 - WPM self-installation creates a machine-level `WPM` variable and adds it to
   the shell path.
 - WPM reports managed or portable runtime mode when verbose output is enabled.
 
-## 🟡 Milestone 1: Installation and Portable Runtime Modes — In progress
+<details>
+<summary><strong>✅ Milestone 1: Installation and Portable Runtime Modes — Complete</strong></summary>
 
 Make WPM aware of how it is being run while keeping the executable portable
 and its mutable state centralized.
@@ -42,18 +44,14 @@ Implemented:
 - `WPM_DATA_DIR` provides an explicit data-root override for test automation
   and advanced deployments.
 
-Remaining work:
-
-- Add managed-installation and read-only portable execution coverage.
-- Define durable cache and configuration contents and their lifecycle.
-- Decide whether user-scoped data storage is needed for non-elevated scenarios.
-
 Completion criteria:
 
 - Requirements and test cases cover managed, portable, and read-only portable
   execution, plus their expected centralized data locations.
 - No command writes mutable state beside a portable executable or into the
   managed executable directory.
+
+</details>
 
 <details>
 <summary><strong>✅ Milestone 2: Command-Line Installation — Complete</strong></summary>
@@ -77,7 +75,8 @@ Completion criteria:
 
 </details>
 
-## 🟡 Milestone 3: Remote Package Repositories — In progress
+<details>
+<summary><strong>✅ Milestone 3: Remote Package Repositories — Complete</strong></summary>
 
 Enable named sources of packages instead of requiring a local ZIP path.
 
@@ -98,6 +97,8 @@ Completion criteria:
 
 Implementation contract: REQ-0011 defines the HTTPS-only first release,
 repository index schema, cache behavior, offline behavior, and precedence.
+
+</details>
 
 ## ⏳ Milestone 4: Package Signing and Validation — Planned
 

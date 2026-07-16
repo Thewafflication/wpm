@@ -2,57 +2,19 @@
 \input{iso_iec_ieee29119-3_2021.tex}
 
 \documentclass[letterpaper]{article}
-
-\usepackage[
-letterpaper,
-margin=1in
-]{geometry}
+\usepackage[letterpaper,margin=1in]{geometry}
 
 \begin{document}
 \def\TCID{TC-0010}
-
 \def\TCTitle{Runtime mode detection}
-
-\def\TCPurpose{
-	Verify that verbose output identifies a portable WPM executable.
-}
-
+\def\TCPurpose{Verify managed and portable runtime detection plus portable execution from a read-only executable directory.}
 \def\TCPriority{\TCPriorityHigh}
-
 \def\TCRequirementRef{REQ-0010}
-
-\def\TCPreconditions{
-	A built WPM executable is available outside the managed installation directory.
-}
-
-\def\TCEnvironment{
-	Local Windows developer workstation. Future target: Windows Container.
-}
-
-\def\TCInputData{
-	The built WPM executable.
-}
-
-\def\TCProcedure{
-	\par
-	\begin{enumerate}
-		\item Run \texttt{wpm.exe --verbose} from the build output directory.
-		\item Run \texttt{wpm.exe repo list} and verify it initializes the portable
-		data directories without network access.
-	\end{enumerate}
-}
-
-\def\TCExpectedResult{
-	\par
-	\begin{enumerate}
-		\item The command exits 0 and reports portable runtime mode and the executable path.
-		\item The repository-list command exits 0 and creates the data, package,
-		temporary, cache, and configuration directories.
-	\end{enumerate}
-}
-
-\def\TCPostConditions{
-	The test environment remains operational.
-}
+\def\TCPreconditions{A built WPM executable is available and temporary test directories are writable.}
+\def\TCEnvironment{Local Windows developer workstation. Future target: Windows Container.}
+\def\TCInputData{The built WPM executable, copied to simulated managed and portable locations.}
+\def\TCProcedure{\par\begin{enumerate}\item Run a portable copy with \texttt{--verbose}.\item Run a copy beneath a simulated Program Files \texttt{WPM} directory with \texttt{--verbose}.\item Deny writes to the portable executable directory, then run \texttt{wpm.exe repo list}.\end{enumerate}}
+\def\TCExpectedResult{\par\begin{enumerate}\item The portable copy reports portable mode and its executable path.\item The managed copy reports managed mode.\item The read-only portable copy creates the data, package, temporary, cache, and configuration directories without writing beside the executable.\end{enumerate}}
+\def\TCPostConditions{Temporary executable and data directories are removed.}
 \TCTemplate
 \end{document}

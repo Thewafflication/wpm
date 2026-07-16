@@ -95,6 +95,11 @@ try {
             Set-Content -LiteralPath $path -NoNewline -Value "{`"version`":1,`"packages`": [{`"name`":`"$packageName`",`"version`":`"2.0.0`",`"arch`":`"x64`",`"url`":`"packages/$archiveName`"},{`"name`":`"$packageName`",`"version`":`"1.0.0`",`"arch`":`"any`",`"url`":`"packages/$archiveName`"}]}"
         }
     }
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Refresh available cached indexes despite unavailable repositories' -Arguments @('repo', 'update', '--offline') -Assert {
+        param($ExitCode, $Output)
+        if ($ExitCode -ne 0) { throw "Expected available cached repositories to refresh successfully, got exit code $ExitCode. $Output" }
+        if ($Output -notmatch 'no cached index') { throw 'Expected the unavailable repository to be reported during offline refresh.' }
+    }
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'List configured repositories' -Arguments @('repo', 'list') -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -ne 0 -or $Output -notmatch [regex]::Escape($repositoryB) -or $Output -notmatch "5\s+$([regex]::Escape($repositoryB))") { throw 'Repository list did not show configured priorities.' }
