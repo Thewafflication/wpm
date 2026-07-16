@@ -54,7 +54,7 @@ try {
     $results += Invoke-WpmTestStep `
         -WpmExe $WpmExe `
         -Name 'Build archive from source directory' `
-        -Arguments @('build', $sourceDir, $outputDir, '--no-index') `
+        -Arguments @('--verbose', 'build', $sourceDir, $outputDir) `
         -Assert {
             param($ExitCode, $Output)
             if ($ExitCode -ne 0) {
@@ -62,6 +62,10 @@ try {
             }
             if (-not (Test-Path -LiteralPath $archivePath -PathType Leaf)) {
                 throw "build did not create $archivePath"
+            }
+            if ($Output -notmatch 'Computing BLAKE2b hash:' -or
+                $Output -notmatch 'Adding file to archive:' -or $Output -notmatch 'Creating archive:') {
+                throw 'Expected verbose archive build progress.'
             }
         }
 

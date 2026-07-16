@@ -16,6 +16,9 @@ application shall:
 - write the archive to the requested output directory, and
 - terminate normally with an exit code of `0`.
 
+When invoked with `--verbose`, the command shall additionally report the
+metadata, index, hashing, and archive-file operations it performs.
+
 ## Rationale
 
 Package authors need a reproducible command for creating distributable package

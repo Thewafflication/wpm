@@ -14,9 +14,14 @@ When invoked with no command-line arguments, the application shall:
 
 When invoked with the `--version` option, the application shall:
 
-- display version information,
+- display the WPM version and the version and commit of each bundled dependency,
 - terminate normally, and
 - return an exit code of `0`.
+
+The `--verbose` option shall be accepted before or after a command. It shall
+retain the command's normal output and add detailed progress for file-specific
+operations, including package indexing, hashing, archive creation, extraction,
+verification, and package script execution.
 
 ## Rationale
 
@@ -28,3 +33,5 @@ operational before attempting package management operations.
 Verified by:
 
 - TC-0001 - Usage/version check
+- TC-0003 - Package archive build
+- TC-0004 - Package archive installation

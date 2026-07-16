@@ -28,6 +28,10 @@ extraction destination or a software deployment location.
 to its required location. WPM shall not impose a deployment location on the
 package.
 
+When invoked with `--verbose`, the command shall additionally report archive
+extraction, per-file index verification and hashing, script execution, and
+archive storage operations.
+
 ## Rationale
 
 Users need a predictable, verified installation process, while package authors

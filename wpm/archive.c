@@ -2,6 +2,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <windows.h>
 
 #include "archive.h"
@@ -25,6 +26,23 @@ typedef struct wpm_package_metadata {
     char arch[64];
     int debug;
 } wpm_package_metadata;
+
+static int wpm_verbose = 0;
+
+void wpm_set_verbose(int enabled) {
+    wpm_verbose = enabled != 0;
+}
+
+static void verbose_log(const char* format, ...) {
+    va_list arguments;
+
+    if (!wpm_verbose) return;
+    va_start(arguments, format);
+    printf("  ");
+    vprintf(format, arguments);
+    printf("\n");
+    va_end(arguments);
+}
 
 static const char* path_basename(const char* path);
 static int normalized_full_path(const char* path, char* result, size_t result_size);
@@ -357,7 +375,10 @@ static int calculate_file_blake2b(const char* path, char* hex, size_t hex_size) 
     unsigned char buffer[8192];
     unsigned char hash[WPM_BLAKE2B_BYTES];
     crypto_generichash_state state;
-    FILE* file = fopen(path, "rb");
+    FILE* file;
+
+    verbose_log("Computing BLAKE2b hash: %s", path);
+    file = fopen(path, "rb");
 
     if (!file) return 0;
     if (!ensure_sodium_ready() ||
@@ -483,6 +504,8 @@ static int write_index_entries(
                 return 0;
             }
             if (_stricmp(source_full_path, output_archive) == 0) continue;
+
+            verbose_log("Indexing file: %s", archive_path);
 
             if (!get_file_size_bytes(source_path, &file_size) ||
                 !calculate_file_blake2b(source_path, blake2b, sizeof(blake2b)) ||
@@ -626,6 +649,8 @@ static int add_directory_to_zip(
             }
             if (_stricmp(source_full_path, output_archive) == 0) continue;
 
+            verbose_log("Adding file to archive: %s", archive_path);
+
             if (!mz_zip_writer_add_file(
                     zip,
                     archive_path,
@@ -656,6 +681,8 @@ int wpm_archive_build(const char* source_dir, const char* output_dir, int update
     mz_zip_archive zip;
     int success = 0;
 
+    verbose_log("Building package from: %s", source_dir);
+
     if (!is_directory(source_dir)) {
         printf("Error: source directory not found: %s\n", source_dir);
         return 0;
@@ -672,6 +699,7 @@ int wpm_archive_build(const char* source_dir, const char* output_dir, int update
     trim_trailing_separators(source_full_path);
     trim_trailing_separators(output_full_path);
 
+    verbose_log("Reading package metadata: %s\\.wpm\\package.txt", source_full_path);
     if (!read_package_metadata(source_full_path, &metadata)) return 0;
     {
         int written = snprintf(
@@ -690,7 +718,12 @@ int wpm_archive_build(const char* source_dir, const char* output_dir, int update
         }
     }
 
-    if (update_index && !update_package_index(source_full_path, output_path)) return 0;
+    if (update_index) {
+        verbose_log("Writing package index: %s\\.wpm\\index.csv", source_full_path);
+        if (!update_package_index(source_full_path, output_path)) return 0;
+    }
+
+    verbose_log("Creating archive: %s", output_path);
 
     memset(&zip, 0, sizeof(zip));
     if (!mz_zip_writer_init_file(&zip, output_path, 0)) {
@@ -747,6 +780,8 @@ int wpm_archive_extract(const char* archive_path, const char* destination_dir) {
     mz_uint file_count;
     int success = 0;
 
+    verbose_log("Extracting archive: %s", archive_path);
+
     if (!create_directories(destination_dir)) {
         printf("Error: could not create extraction directory: %s\n", destination_dir);
         return 0;
@@ -785,12 +820,14 @@ int wpm_archive_extract(const char* archive_path, const char* destination_dir) {
         }
 
         if (mz_zip_reader_is_file_a_directory(&zip, i)) {
+            verbose_log("Creating directory: %s", destination_path);
             if (!create_directories(destination_path)) {
                 printf("Error: could not create directory: %s\n", destination_path);
                 goto cleanup;
             }
         }
         else {
+            verbose_log("Extracting file: %s", destination_path);
             if (!create_parent_directory(destination_path) ||
                 !mz_zip_reader_extract_to_file(&zip, i, destination_path, 0)) {
                 printf("Error: could not extract file: %s\n", destination_path);
@@ -824,6 +861,8 @@ static int verify_package_index(const char* destination_dir) {
     }
 
     if (!file_exists_at_path(index_path)) return 1;
+
+    verbose_log("Verifying package index: %s", index_path);
 
     index = fopen(index_path, "r");
     if (!index) {
@@ -897,6 +936,8 @@ static int verify_package_index(const char* destination_dir) {
             return 0;
         }
 
+        verbose_log("Verifying file: %s", filename);
+
         if (!file_exists_at_path(file_path) ||
             !get_file_size_bytes(file_path, &actual_size) ||
             actual_size != expected_size ||
@@ -947,6 +988,8 @@ static int run_package_script(
         return 0;
     }
     if (!file_exists_at_path(script_path)) return 1;
+
+    verbose_log("Running %s script: %s", action_name, script_path);
 
     written = snprintf(
             command_line,
@@ -1001,6 +1044,8 @@ int wpm_archive_install(const char* archive_path) {
     char* extension;
     int success = 0;
 
+    verbose_log("Installing archive: %s", archive_path);
+
     if (!normalized_full_path(archive_path, archive_full_path, sizeof(archive_full_path))) {
         printf("Error: package path is too long: %s\n", archive_path);
         return 0;
@@ -1032,13 +1077,18 @@ int wpm_archive_install(const char* archive_path) {
         return 0;
     }
 
+    verbose_log("Using staging directory: %s", staging_path);
+
     if (!wpm_archive_extract(archive_full_path, staging_path)) goto cleanup;
     if (!verify_package_index(staging_path)) goto cleanup;
     if (!run_package_script(staging_path, ".wpm\\install.cmd", "install")) goto cleanup;
+    if (_stricmp(archive_full_path, stored_archive_path) != 0) {
+        verbose_log("Storing archive: %s", stored_archive_path);
+    }
     if (_stricmp(archive_full_path, stored_archive_path) != 0 &&
         !CopyFileA(archive_full_path, stored_archive_path, FALSE)) {
-        printf("Error: could not store package archive: %s\n", stored_archive_path);
-        goto cleanup;
+            printf("Error: could not store package archive: %s\n", stored_archive_path);
+            goto cleanup;
     }
 
     success = 1;

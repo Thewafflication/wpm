@@ -21,5 +21,4 @@ typedef enum {
 Command parse_command(const char* cmd);
 
 void print_version();
-void print_verbose_version();
 void print_usage(Command c);

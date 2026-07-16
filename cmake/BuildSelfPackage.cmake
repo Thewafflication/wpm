@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 
 foreach(required_variable
     WPM_EXECUTABLE
+    WPM_PACKAGE_EXECUTABLE
     WPM_PACKAGE_STAGING_DIR
     WPM_PACKAGE_OUTPUT_DIR
     WPM_PACKAGE_ARCH
@@ -17,6 +18,13 @@ foreach(required_variable
     message(FATAL_ERROR "${required_variable} is required to build the WPM package.")
   endif()
 endforeach()
+
+if(NOT DEFINED WPM_PACKAGE_DEBUG)
+  set(WPM_PACKAGE_DEBUG true)
+endif()
+if(NOT DEFINED WPM_PACKAGE_ARCH_FIRST_NAME)
+  set(WPM_PACKAGE_ARCH_FIRST_NAME false)
+endif()
 
 execute_process(
   COMMAND "${WPM_EXECUTABLE}" --version
@@ -50,7 +58,7 @@ file(MAKE_DIRECTORY
   "${WPM_PACKAGE_STAGING_DIR}/test-reports"
 )
 
-configure_file("${WPM_EXECUTABLE}" "${WPM_PACKAGE_STAGING_DIR}/wpm.exe" COPYONLY)
+configure_file("${WPM_PACKAGE_EXECUTABLE}" "${WPM_PACKAGE_STAGING_DIR}/wpm.exe" COPYONLY)
 configure_file("${WPM_SETUP_SCRIPT}" "${WPM_PACKAGE_STAGING_DIR}/setup.cmd" COPYONLY)
 configure_file("${WPM_REMOVE_SCRIPT}" "${WPM_PACKAGE_STAGING_DIR}/remove.cmd" COPYONLY)
 configure_file("${WPM_README_FILE}" "${WPM_PACKAGE_STAGING_DIR}/README.md" COPYONLY)
@@ -66,7 +74,7 @@ file(WRITE "${WPM_PACKAGE_STAGING_DIR}/.wpm/package.txt"
   "name=wpm\n"
   "version=${wpm_version}\n"
   "arch=${WPM_PACKAGE_ARCH}\n"
-  "debug=true\n"
+  "debug=${WPM_PACKAGE_DEBUG}\n"
   "description=Waughtal Package Manager\n"
   "repository=https://github.com/Thewafflication/wpm\n"
   "license=GPL-3.0-or-later\n"
@@ -94,4 +102,18 @@ if(NOT wpm_build_result EQUAL 0)
   message(FATAL_ERROR "WPM self-package build failed:\n${wpm_build_output}${wpm_build_error}")
 endif()
 
-message(STATUS "Built WPM package: ${WPM_PACKAGE_OUTPUT_DIR}/wpm-${wpm_version}-${WPM_PACKAGE_ARCH}-debug.zip")
+if(WPM_PACKAGE_DEBUG)
+  set(wpm_package_debug_suffix "-debug")
+else()
+  set(wpm_package_debug_suffix "")
+endif()
+set(wpm_package_default_path
+  "${WPM_PACKAGE_OUTPUT_DIR}/wpm-${wpm_version}-${WPM_PACKAGE_ARCH}${wpm_package_debug_suffix}.zip")
+set(wpm_package_output_path "${wpm_package_default_path}")
+
+if(WPM_PACKAGE_ARCH_FIRST_NAME)
+  set(wpm_package_output_path "${WPM_PACKAGE_OUTPUT_DIR}/wpm-${WPM_PACKAGE_ARCH}-${wpm_version}.zip")
+  file(RENAME "${wpm_package_default_path}" "${wpm_package_output_path}")
+endif()
+
+message(STATUS "Built WPM package: ${wpm_package_output_path}")

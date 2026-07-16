@@ -8,60 +8,79 @@
 
 int main(int argc, char *argv[])
 {
+	int verbose = 0;
+    int command_index = -1;
+
 	if (argc == 1) {
 		print_version();
         print_usage(0);
         return 0;
 	}
-
-    if (strcmp(argv[1], "--version") == 0) {
-        if (argc > 2 && strcmp(argv[2], "--verbose") == 0) {
-            print_verbose_version();
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--verbose") == 0) {
+            verbose = 1;
         }
-        else {
+        else if (strcmp(argv[i], "--version") == 0) {
             print_version();
+            return 0;
         }
+        else if (command_index == -1) {
+            command_index = i;
+        }
+    }
+
+    if (command_index == -1) {
+        print_version();
+        print_usage(0);
         return 0;
     }
 
-    if (strcmp(argv[1], "--verbose") == 0) {
-        print_verbose_version();
-        return 0;
-    }
+	Command cmd = parse_command(argv[command_index]);
+    wpm_set_verbose(verbose);
 	
-    Command cmd = parse_command(argv[1]);
     switch (cmd) {
         case CMD_BUILD: {
-            if (argc < 3) {
-                printf("Usage: wpm build <source_dir> [output_dir] [--no-index]\n");
-                return 1;
-            }
-
-            const char* source = argv[2];
-            const char* output = NULL;
+            const char* source_dir = NULL;
+            const char* output_dir = NULL;
             int no_index = 0;
 
-            for (int i = 3; i < argc; i++) {
+            for (int i = command_index + 1; i < argc; i++) {
+                if (strcmp(argv[i], "--verbose") == 0) continue;
                 if (strcmp(argv[i], "--no-index") == 0) {
                     no_index = 1;
                 }
+                else if (!source_dir) {
+                    source_dir = argv[i];
+                }
+                else if (!output_dir) {
+                    output_dir = argv[i];
+                }
                 else {
-                    output = argv[i];
+                    printf("Usage: wpm build <source_dir> [output_dir] [--no-index] [--verbose]\n");
+                    return 1;
                 }
             }
-
-            if (!wpm_archive_build(source, output ? output : ".", !no_index)) return 1;
+            if (!source_dir) {
+                printf("Usage: wpm build <source_dir> [output_dir] [--no-index]\n");
+                return 1;
+            }
+            if (!wpm_archive_build(source_dir, output_dir ? output_dir : ".", !no_index)) return 1;
             if (no_index) printf("Skipped package index update.\n");
             break;
         }
 
         case CMD_INSTALL: {
-            if (argc < 3) {
+            int package_count = 0;
+            for (int i = command_index + 1; i < argc; i++) {
+                if (strcmp(argv[i], "--verbose") != 0) package_count++;
+            }
+            if (package_count == 0) {
                 printf("No packages specified.\n");
                 return 1;
             }
 
-            for (int i = 2; i < argc; i++) {
+            for (int i = command_index + 1; i < argc; i++) {
+                if (strcmp(argv[i], "--verbose") == 0) continue;
                 if (!wpm_archive_install(argv[i])) return 1;
             }
             break;
@@ -141,11 +160,6 @@ void print_version()
     printf("=================================================================\n");
 	printf("Waughtal Package Manager (wpm) Version %s \n", WPM_VERSION);
     printf("=================================================================\n");
-}
-
-void print_verbose_version()
-{
-    print_version();
     printf("Dependencies:\n");
     printf("  miniz %s (commit %s%s)\n",
         WPM_MINIZ_VERSION,
@@ -181,11 +195,11 @@ void print_usage(Command c) {
     printf("      Upgrade one or more packages\n\n");
 
     printf("Options:\n");
-    printf("  --version [--verbose]\n");
-    printf("      Display WPM version and optional dependency details\n\n");
+    printf("  --version\n");
+    printf("      Display WPM and dependency version information\n\n");
 
     printf("  --verbose\n");
-    printf("      Display detailed WPM and dependency version information\n\n");
+    printf("      Display detailed file-operation progress; may appear before or after a command\n\n");
 
     printf("  --no-index\n");
     printf("      Skip updating index during build\n\n");

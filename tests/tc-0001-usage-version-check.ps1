@@ -29,15 +29,15 @@ $results = @(
 
     Invoke-WpmTestStep `
         -WpmExe $WpmExe `
-        -Name 'Invoke wpm --version --verbose' `
-        -Arguments @('--version', '--verbose') `
+        -Name 'Invoke wpm --version' `
+        -Arguments @('--version') `
         -Assert {
             param($ExitCode, $Output)
             if ($ExitCode -ne 0) {
                 throw "Expected exit code 0, got $ExitCode."
             }
             if ($Output -notmatch 'Dependencies:' -or $Output -notmatch 'miniz .+commit ' -or $Output -notmatch 'libsodium .+commit ') {
-                throw 'Expected verbose dependency version information in output.'
+                throw 'Expected dependency version information in output.'
             }
         }
 )

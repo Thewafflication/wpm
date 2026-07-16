@@ -11,7 +11,7 @@ verification evidence.
 - Package build, installation, removal, and WPM self-packaging are implemented.
 - The generated WPM package identifies its source repository as
   `https://github.com/Thewafflication/wpm`.
-- CI runs TC-0001 through TC-0008 and uploads their generated reports and
+- CI runs TC-0001 through TC-0009 and uploads their generated reports and
   execution evidence as a GitHub artifact.
 - `wpm upgrade` is a command placeholder; it does not yet resolve or install
   a newer package version.

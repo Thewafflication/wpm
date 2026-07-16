@@ -1,0 +1,58 @@
+\def\StandaloneLibrary{}
+\input{iso_iec_ieee29119-3_2021.tex}
+
+\documentclass[letterpaper]{article}
+
+\usepackage[
+letterpaper,
+margin=1in
+]{geometry}
+
+\begin{document}
+\def\TCID{TC-0009}
+
+\def\TCTitle{GitHub Release artifact workflow}
+
+\def\TCPurpose{
+	Verify that the tag-triggered GitHub workflow is configured to package and publish each Release architecture.
+}
+
+\def\TCPriority{\TCPriorityHigh}
+
+\def\TCRequirementRef{REQ-0009}
+
+\def\TCPreconditions{
+	The source repository contains the GitHub Release workflow.
+}
+
+\def\TCEnvironment{
+	Local Windows developer workstation or GitHub Actions Windows runner.
+}
+
+\def\TCInputData{
+	The checked-in \texttt{.github/workflows/release.yml} workflow definition.
+}
+
+\def\TCProcedure{
+	\par
+	\begin{enumerate}
+		\item Validate that the Release workflow is triggered by tags.
+		\item Validate that it builds all Release architectures.
+		\item Validate that x86 Debug WPM packages the Release executables into ZIP assets.
+	\end{enumerate}
+}
+
+\def\TCExpectedResult{
+	\par
+	\begin{enumerate}
+		\item The workflow configuration is valid.
+		\item On a non-tag run, the test passes and records that release publication is not required.
+		\item On a tag run, the Release workflow verifies, packages, and publishes the assets.
+	\end{enumerate}
+}
+
+\def\TCPostConditions{
+	No release assets are created by non-tag test execution.
+}
+\TCTemplate
+\end{document}

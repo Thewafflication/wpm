@@ -171,6 +171,7 @@ if(BUILD_TESTING)
   wpm_add_test_case(TC-0006 tc-0006 tc-0006-package-metadata-archive-naming.ps1 tc-0006-package-metadata-archive-naming.tex)
   wpm_add_test_case(TC-0007 tc-0007 tc-0007-wpm-self-installation.ps1 tc-0007-wpm-self-installation.tex)
   wpm_add_test_case(TC-0008 tc-0008 tc-0008-package-removal.ps1 tc-0008-package-removal.tex)
+  wpm_add_test_case(TC-0009 tc-0009 tc-0009-github-release-artifacts.ps1 tc-0009-github-release-artifacts.tex)
 
   add_custom_target(check
     COMMAND ${CMAKE_CTEST_COMMAND} --build-config $<CONFIG> --output-on-failure
@@ -201,6 +202,7 @@ if(BUILD_TESTING)
     add_custom_target(wpm-package
       COMMAND ${CMAKE_COMMAND}
         -DWPM_EXECUTABLE=$<TARGET_FILE:wpm>
+        -DWPM_PACKAGE_EXECUTABLE=$<TARGET_FILE:wpm>
         -DWPM_PACKAGE_STAGING_DIR=${WPM_PACKAGE_STAGING_DIR}
         -DWPM_PACKAGE_OUTPUT_DIR=${WPM_PACKAGE_OUTPUT_DIR}
         -DWPM_PACKAGE_ARCH=${wpm_arch}

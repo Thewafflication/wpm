@@ -55,7 +55,11 @@
         {
             "name": "x86-release",
             "displayName": "x86 Release",
-            "inherits": "x86-debug"
+            "inherits": "x86-debug",
+            "cacheVariables": {
+                "WPM_RUN_TESTS_AFTER_BUILD": "OFF",
+                "WPM_BUILD_TEST_REPORTS": "OFF"
+            }
         },
         {
             "name": "arm64-debug",

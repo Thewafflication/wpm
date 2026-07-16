@@ -1,0 +1,149 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - '*'
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    name: Verify x86 Debug
+    runs-on: windows-2022
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Configure verification build
+        shell: pwsh
+        run: cmake --preset x86-debug-reports
+
+      - name: Run verification suite
+        shell: pwsh
+        run: cmake --build --preset verify-x86-debug
+
+  build:
+    name: Build ${{ matrix.arch }} Release
+    needs: verify
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86
+            configure_preset: x86-release
+            build_preset: build-x86-release
+          - arch: x64
+            configure_preset: x64-release
+            build_preset: build-x64-release
+          - arch: arm64
+            configure_preset: arm64-release
+            build_preset: build-arm64-release
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Configure
+        shell: pwsh
+        run: cmake --preset ${{ matrix.configure_preset }}
+
+      - name: Build
+        shell: pwsh
+        run: cmake --build --preset ${{ matrix.build_preset }}
+
+      - name: Prepare Release executable
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release | Out-Null
+          Copy-Item -LiteralPath "bin/${{ matrix.arch }}/Release/wpm.exe" -Destination "release/wpm-${{ matrix.arch }}.exe"
+
+      - name: Upload Release executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: wpm-${{ matrix.arch }}-release-executable
+          path: release/wpm-${{ matrix.arch }}.exe
+          if-no-files-found: error
+
+  package:
+    name: Build WPM Release Packages
+    needs: build
+    runs-on: windows-2022
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Build x86 Debug package builder and reports
+        shell: pwsh
+        run: |
+          cmake --preset x86-debug-reports
+          cmake --build --preset verify-x86-debug
+
+      - name: Download Release executables
+        uses: actions/download-artifact@v4
+        with:
+          pattern: wpm-*-release-executable
+          path: release-binaries
+          merge-multiple: true
+
+      - name: Build Release WPM packages with x86 Debug WPM
+        shell: pwsh
+        run: |
+          $architectures = @('x86', 'x64', 'arm64')
+          foreach ($architecture in $architectures) {
+            cmake `
+              "-DWPM_EXECUTABLE=$PWD/bin/x86/Debug/wpm.exe" `
+              "-DWPM_PACKAGE_EXECUTABLE=$PWD/release-binaries/wpm-$architecture.exe" `
+              "-DWPM_PACKAGE_STAGING_DIR=$PWD/out/release-package/$architecture" `
+              "-DWPM_PACKAGE_OUTPUT_DIR=$PWD/release/packages" `
+              "-DWPM_PACKAGE_ARCH=$architecture" `
+              -DWPM_PACKAGE_DEBUG=false `
+              -DWPM_PACKAGE_ARCH_FIRST_NAME=true `
+              "-DWPM_SETUP_SCRIPT=$PWD/setup.cmd" `
+              "-DWPM_REMOVE_SCRIPT=$PWD/remove.cmd" `
+              "-DWPM_REPORT_DIR=$PWD/bin/x86/Debug" `
+              "-DWPM_DOCS_DIR=$PWD/docs" `
+              "-DWPM_README_FILE=$PWD/README.md" `
+              "-DWPM_LICENSE_FILE=$PWD/LICENSE.txt" `
+              "-DWPM_THIRD_PARTY_NOTICES_FILE=$PWD/THIRD_PARTY_NOTICES.md" `
+              -P cmake/BuildSelfPackage.cmake
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
+      - name: Upload Release WPM packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: wpm-release-packages
+          path: release/packages/wpm-*.zip
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub Release
+    needs: package
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download Release WPM packages
+        uses: actions/download-artifact@v4
+        with:
+          name: wpm-release-packages
+          path: release
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: release/wpm-*.zip

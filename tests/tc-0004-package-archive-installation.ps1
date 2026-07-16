@@ -65,7 +65,7 @@ try {
     $results += Invoke-WpmTestStep `
         -WpmExe $WpmExe `
         -Name 'Build setup archive for installation' `
-        -Arguments @('build', $sourceDir, $outputDir, '--no-index') `
+        -Arguments @('build', $sourceDir, $outputDir) `
         -Assert {
             param($ExitCode, $Output)
             if ($ExitCode -ne 0) {
@@ -79,7 +79,7 @@ try {
     $results += Invoke-WpmTestStep `
         -WpmExe $WpmExe `
         -Name 'Stage, verify, install, and store archive' `
-        -Arguments @('install', $archivePath) `
+        -Arguments @('install', $archivePath, '--verbose') `
         -Assert {
             param($ExitCode, $Output)
             if ($ExitCode -ne 0) {
@@ -91,6 +91,10 @@ try {
             }
             if (Test-Path -LiteralPath $stagingDir) {
                 throw "install did not remove staging directory $stagingDir"
+            }
+            if ($Output -notmatch 'Extracting file:' -or $Output -notmatch 'Verifying file:' -or
+                $Output -notmatch 'Running install script:' -or $Output -notmatch 'Storing archive:') {
+                throw 'Expected verbose installation progress.'
             }
         }
 

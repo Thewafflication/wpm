@@ -21,11 +21,20 @@ Display WPM's version:
 wpm --version
 ```
 
-Display detailed version and dependency information:
+`--version` includes the WPM version plus the bundled `miniz` and `libsodium`
+versions and commits:
 
 ```text
-wpm --verbose
-wpm --version --verbose
+wpm --version
+```
+
+Use `--verbose` with a command to show detailed file-operation progress. It
+may appear before or after the command:
+
+```text
+wpm --verbose build ./my_project ./dist
+wpm build ./my_project ./dist --verbose
+wpm --verbose install package.zip
 ```
 
 ## Commands
@@ -217,6 +226,11 @@ The resulting executable is located under `bin/x86/Debug/`.
 WPM's displayed version is generated from Git during each build. An exact Git
 tag, such as `1.0.0`, becomes the version. Otherwise, WPM displays the short
 commit hash and appends `-dirty` when tracked files have uncommitted changes.
+
+Pushing a Git tag runs the Release workflow. After the verification suite
+passes, the x86 Debug WPM executable packages the Release executables for all
+architectures and publishes `wpm-x86-<version>.zip`, `wpm-x64-<version>.zip`,
+and `wpm-arm64-<version>.zip` to the GitHub Release for that tag.
 
 ## Running tests
 
