@@ -705,11 +705,10 @@ int wpm_archive_build(const char* source_dir, const char* output_dir, int update
         int written = snprintf(
             archive_name,
             sizeof(archive_name),
-            "%s-%s-%s%s.zip",
+            metadata.debug ? "%s-%s-debug-%s.zip" : "%s-%s-%s.zip",
             metadata.name,
-            metadata.version,
             metadata.arch,
-            metadata.debug ? "-debug" : ""
+            metadata.version
         );
         if (written < 0 || (size_t)written >= sizeof(archive_name) ||
             !join_path(output_path, sizeof(output_path), output_full_path, archive_name)) {

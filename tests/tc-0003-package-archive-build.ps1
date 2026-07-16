@@ -17,7 +17,7 @@ $testRoot = Join-Path ([IO.Path]::GetTempPath()) "wpm-tests-$testId"
 $sourceDir = Join-Path $testRoot $packageName
 $outputDir = Join-Path $testRoot 'packages'
 $extractDir = Join-Path $testRoot 'inspect'
-$archivePath = Join-Path $outputDir "$packageName-1.2.3-any.zip"
+$archivePath = Join-Path $outputDir "$packageName-any-1.2.3.zip"
 
 function Assert-FileContent {
     param(

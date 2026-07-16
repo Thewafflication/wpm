@@ -9,8 +9,8 @@ When building a package, the application shall:
 
 - read `name`, `version`, `arch`, and `debug` from `.wpm/package.txt`,
 - reject missing or unsafe `name`, `version`, or `arch` values,
-- write release packages as `<name>-<version>-<arch>.zip`, and
-- write debug packages as `<name>-<version>-<arch>-debug.zip`.
+- write release packages as `<name>-<arch>-<version>.zip`, and
+- write debug packages as `<name>-<arch>-debug-<version>.zip`.
 
 The `wpm init` command shall create package metadata with default `version`,
 `arch`, and `debug` fields.

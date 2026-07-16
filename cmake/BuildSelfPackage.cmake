@@ -22,9 +22,6 @@ endforeach()
 if(NOT DEFINED WPM_PACKAGE_DEBUG)
   set(WPM_PACKAGE_DEBUG true)
 endif()
-if(NOT DEFINED WPM_PACKAGE_ARCH_FIRST_NAME)
-  set(WPM_PACKAGE_ARCH_FIRST_NAME false)
-endif()
 
 execute_process(
   COMMAND "${WPM_EXECUTABLE}" --version
@@ -103,17 +100,11 @@ if(NOT wpm_build_result EQUAL 0)
 endif()
 
 if(WPM_PACKAGE_DEBUG)
-  set(wpm_package_debug_suffix "-debug")
+  set(wpm_package_output_path
+    "${WPM_PACKAGE_OUTPUT_DIR}/wpm-${WPM_PACKAGE_ARCH}-debug-${wpm_version}.zip")
 else()
-  set(wpm_package_debug_suffix "")
-endif()
-set(wpm_package_default_path
-  "${WPM_PACKAGE_OUTPUT_DIR}/wpm-${wpm_version}-${WPM_PACKAGE_ARCH}${wpm_package_debug_suffix}.zip")
-set(wpm_package_output_path "${wpm_package_default_path}")
-
-if(WPM_PACKAGE_ARCH_FIRST_NAME)
-  set(wpm_package_output_path "${WPM_PACKAGE_OUTPUT_DIR}/wpm-${WPM_PACKAGE_ARCH}-${wpm_version}.zip")
-  file(RENAME "${wpm_package_default_path}" "${wpm_package_output_path}")
+  set(wpm_package_output_path
+    "${WPM_PACKAGE_OUTPUT_DIR}/wpm-${WPM_PACKAGE_ARCH}-${wpm_version}.zip")
 endif()
 
 message(STATUS "Built WPM package: ${wpm_package_output_path}")

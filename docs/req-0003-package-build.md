@@ -9,9 +9,9 @@ application shall:
 
 - recursively package source directory contents,
 - read package metadata from `.wpm/package.txt`,
-- name the archive `<package-name>-<version>-<arch>.zip` for release
+- name the archive `<package-name>-<arch>-<version>.zip` for release
   packages,
-- name the archive `<package-name>-<version>-<arch>-debug.zip` when package
+- name the archive `<package-name>-<arch>-debug-<version>.zip` when package
   metadata sets `debug=true`,
 - write the archive to the requested output directory, and
 - terminate normally with an exit code of `0`.

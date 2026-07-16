@@ -21,6 +21,10 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Fetch submodule tags
+        shell: pwsh
+        run: git submodule foreach --recursive 'git fetch --tags --force'
+
       - name: Configure
         shell: pwsh
         run: cmake --preset x86-debug-reports

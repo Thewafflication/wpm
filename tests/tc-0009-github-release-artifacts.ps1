@@ -20,12 +20,12 @@ $results = @(
             $workflow = Get-Content -Raw -LiteralPath $releaseWorkflow
             $requiredPatterns = @(
                 'tags:',
+                'git submodule foreach --recursive ''git fetch --tags --force''',
                 'x86-release',
                 'x64-release',
                 'arm64-release',
                 'WPM_EXECUTABLE=.*bin/x86/Debug/wpm\.exe',
                 'WPM_PACKAGE_EXECUTABLE=.*release-binaries/wpm-\$architecture\.exe',
-                'WPM_PACKAGE_ARCH_FIRST_NAME=true',
                 'release/packages/wpm-\*\.zip'
             )
 

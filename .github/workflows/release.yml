@@ -20,6 +20,10 @@ jobs:
           fetch-depth: 0
           submodules: recursive
 
+      - name: Fetch submodule tags
+        shell: pwsh
+        run: git submodule foreach --recursive 'git fetch --tags --force'
+
       - name: Configure verification build
         shell: pwsh
         run: cmake --preset x86-debug-reports
@@ -52,6 +56,10 @@ jobs:
         with:
           fetch-depth: 0
           submodules: recursive
+
+      - name: Fetch submodule tags
+        shell: pwsh
+        run: git submodule foreach --recursive 'git fetch --tags --force'
 
       - name: Configure
         shell: pwsh
@@ -86,6 +94,10 @@ jobs:
           fetch-depth: 0
           submodules: recursive
 
+      - name: Fetch submodule tags
+        shell: pwsh
+        run: git submodule foreach --recursive 'git fetch --tags --force'
+
       - name: Build x86 Debug package builder and reports
         shell: pwsh
         run: |
@@ -111,7 +123,6 @@ jobs:
               "-DWPM_PACKAGE_OUTPUT_DIR=$PWD/release/packages" `
               "-DWPM_PACKAGE_ARCH=$architecture" `
               -DWPM_PACKAGE_DEBUG=false `
-              -DWPM_PACKAGE_ARCH_FIRST_NAME=true `
               "-DWPM_SETUP_SCRIPT=$PWD/setup.cmd" `
               "-DWPM_REMOVE_SCRIPT=$PWD/remove.cmd" `
               "-DWPM_REPORT_DIR=$PWD/bin/x86/Debug" `

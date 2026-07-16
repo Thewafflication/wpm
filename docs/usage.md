@@ -68,8 +68,8 @@ wpm build <source_dir> [output_dir] [--no-index]
 
 Recursively compresses the contents of `source_dir` into a ZIP package. The
 package is named from `.wpm/package.txt` metadata:
-`<name>-<version>-<arch>.zip` for release packages and
-`<name>-<version>-<arch>-debug.zip` when `debug=true`. It is written to the
+`<name>-<arch>-<version>.zip` for release packages and
+`<name>-<arch>-debug-<version>.zip` when `debug=true`. It is written to the
 current directory unless `output_dir` is supplied.
 
 By default, WPM updates `.wpm/index.csv` with file sizes and BLAKE2b file
@@ -117,8 +117,8 @@ wpm remove <package...>
 Removes one or more packages:
 
 ```text
-wpm remove my-project-1.2.3-any
-wpm remove my-project-1.2.3-any.zip
+wpm remove my-project-any-1.2.3
+wpm remove my-project-any-1.2.3.zip
 ```
 
 The argument identifies a retained archive in
@@ -226,6 +226,8 @@ The resulting executable is located under `bin/x86/Debug/`.
 WPM's displayed version is generated from Git during each build. An exact Git
 tag, such as `1.0.0`, becomes the version. Otherwise, WPM displays the short
 commit hash and appends `-dirty` when tracked files have uncommitted changes.
+GitHub builds fetch submodule tags before generating this information, so the
+reported `miniz` and `libsodium` versions use their exact dependency tags.
 
 Pushing a Git tag runs the Release workflow. After the verification suite
 passes, the x86 Debug WPM executable packages the Release executables for all
