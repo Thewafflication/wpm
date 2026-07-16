@@ -17,7 +17,8 @@ verification evidence.
   a newer package version.
 - Package signing and package-signature validation are not yet implemented.
 - Remote package repositories are designed but not yet implemented.
-- WPM self-installation does not yet add `wpm.exe` to the shell path.
+- WPM self-installation creates a machine-level `WPM` variable and adds it to
+  the shell path.
 - WPM does not yet distinguish managed installation from portable execution.
 
 ## Milestone 1: Installation and Portable Runtime Modes
@@ -44,13 +45,12 @@ Completion criteria:
 
 ## Milestone 2: Command-Line Installation
 
-Make WPM available as a normal command after self-installation.
+Make WPM available as a normal command after self-installation. The
+machine-wide Path integration is implemented; user-scoped installation and
+new-shell command-discovery coverage remain future work.
 
-- Add the WPM installation directory to the appropriate Windows `PATH` scope.
-- Preserve existing `PATH` entries and avoid duplicate WPM entries.
-- Remove the WPM `PATH` entry during self-removal.
-- Define whether machine-wide installation requires elevation and provide a
-  user-scoped installation option when it does not.
+- Provide a user-scoped installation option when machine-wide elevation is not
+  available.
 
 Completion criteria:
 

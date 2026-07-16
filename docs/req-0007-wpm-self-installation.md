@@ -9,18 +9,25 @@ remove the WPM executable independently of WPM's package extraction location.
 
 - install the executable supplied as its first argument, or `wpm.exe` beside
   the script when no argument is supplied;
-- install the executable to `%ProgramFiles%\WPM\wpm.exe` by default;
+- install the executable to the native architecture's Program Files directory
+  (using `%ProgramW6432%` when available) under `WPM\wpm.exe` by default;
 - create the installation directory when needed; and
 - create `%ProgramData%\WPM` as the default mutable-data directory; and
+- create the machine-level `WPM` environment variable with the installation
+  directory as its value; and
+- add `%WPM%` to the machine-level `Path` when it is not already present; and
 - terminate with an exit code of `0` after a successful copy.
 
 `remove.cmd` shall remove both the WPM installation directory and its mutable
-data directory, and terminate with an exit code of `0` when removal succeeds
-or the directories are already absent.
+data directory, remove the `WPM` machine environment variable and its `%WPM%`
+machine `Path` entry, and terminate with an exit code of `0` when removal
+succeeds or the directories are already absent.
 
 For automated verification, both scripts shall use `WPM_INSTALL_DIR` as an
 explicit override of the default installation directory and `WPM_DATA_DIR` as
-an explicit override of the default mutable-data directory.
+an explicit override of the default mutable-data directory. They shall also
+use `WPM_ENVIRONMENT_REGISTRY_KEY` as an override of the machine environment
+registry key for automated verification.
 
 ## Rationale
 

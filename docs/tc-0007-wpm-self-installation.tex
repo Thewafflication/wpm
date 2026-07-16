@@ -34,16 +34,17 @@ margin=1in
 \def\TCInputData{
 	A built \texttt{wpm.exe} and unique temporary installation and data
 	directories supplied through \texttt{WPM\_INSTALL\_DIR} and
-	\texttt{WPM\_DATA\_DIR}.
+	\texttt{WPM\_DATA\_DIR}, plus a test environment registry key.
 }
 
 \def\TCProcedure{
 	\par
 	\begin{enumerate}
-		\item Set \texttt{WPM\_INSTALL\_DIR} and \texttt{WPM\_DATA\_DIR} to
-		unique temporary directories.
+		\item Set \texttt{WPM\_INSTALL\_DIR}, \texttt{WPM\_DATA\_DIR}, and
+		\texttt{WPM\_ENVIRONMENT\_REGISTRY\_KEY} to test locations.
 		\item Run \texttt{setup.cmd} with the built \texttt{wpm.exe}.
 		\item Verify the installed executable reports its version successfully.
+		\item Verify the persistent WPM variable and Path entry are created.
 		\item Run \texttt{remove.cmd}.
 		\item Verify the installation and data directories no longer exist.
 	\end{enumerate}
@@ -57,6 +58,8 @@ margin=1in
 		directory.
 		\item The installed executable exits 0 when invoked with
 		\texttt{--version}.
+		\item The configured environment key contains the installation directory
+		as \texttt{WPM} and contains \texttt{\%WPM\%} in \texttt{Path}.
 		\item \texttt{remove.cmd} exits 0 and removes the installation and data
 		directories.
 	\end{enumerate}

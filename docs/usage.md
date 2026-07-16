@@ -200,16 +200,20 @@ The generated scripts are templates for package authors to customize.
 
 ## Installing WPM itself
 
-`setup.cmd` installs a built `wpm.exe` into `%ProgramFiles%\WPM` and creates
-WPM's mutable data directory at `%ProgramData%\WPM` by default:
+`setup.cmd` installs a built `wpm.exe` into the native architecture's Program
+Files directory (using `%ProgramW6432%` when applicable), creates WPM's
+mutable data directory at `%ProgramData%\WPM`, creates the machine-level
+`WPM` variable, and adds `%WPM%` to the machine-level `Path` by default. Run
+it from an elevated command prompt and open a new shell after installation:
 
 ```text
 setup.cmd bin\x86\Debug\wpm.exe
 ```
 
-`remove.cmd` removes that installation. Both scripts accept the
-`WPM_INSTALL_DIR` and `WPM_DATA_DIR` environment variables as explicit
-directory overrides for automation and testing.
+`remove.cmd` removes that installation and its machine-level environment
+entries. Both scripts accept the `WPM_INSTALL_DIR`, `WPM_DATA_DIR`, and
+`WPM_ENVIRONMENT_REGISTRY_KEY` environment variables as explicit overrides for
+automation and testing.
 
 ## Building WPM from source
 

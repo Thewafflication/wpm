@@ -17,6 +17,8 @@ $removeCmd = Join-Path $repositoryRoot 'remove.cmd'
 $testId = [Guid]::NewGuid().ToString('N')
 $installDir = Join-Path ([IO.Path]::GetTempPath()) "wpm-self-install-$testId"
 $dataDir = Join-Path ([IO.Path]::GetTempPath()) "wpm-self-data-$testId"
+$environmentRegistryPath = "HKCU:\Software\WPM\Tests\$testId"
+$environmentRegistryKey = "HKCU\Software\WPM\Tests\$testId"
 
 function Invoke-CmdScript {
     param(
@@ -36,10 +38,20 @@ $started = Get-Date
 $results = @()
 $previousInstallDir = $env:WPM_INSTALL_DIR
 $previousDataDir = $env:WPM_DATA_DIR
+$previousEnvironmentRegistryKey = $env:WPM_ENVIRONMENT_REGISTRY_KEY
 
 try {
     $env:WPM_INSTALL_DIR = $installDir
     $env:WPM_DATA_DIR = $dataDir
+    $env:WPM_ENVIRONMENT_REGISTRY_KEY = $environmentRegistryKey
+    New-Item -Path $environmentRegistryPath -Force | Out-Null
+    New-ItemProperty -Path $environmentRegistryPath -Name Path -PropertyType ExpandString -Value 'C:\Windows' -Force | Out-Null
+
+    $results += New-WpmManualStep -Name 'Verify native Program Files selection' -Action {
+        if ((Get-Content -Raw -LiteralPath $setupCmd) -notmatch 'ProgramW6432') {
+            throw 'setup.cmd does not prefer the native Program Files directory.'
+        }
+    }
 
     $results += New-WpmManualStep -Name 'Install WPM with setup.cmd' -Action {
         Invoke-CmdScript -Script $setupCmd -Arguments @($WpmExe)
@@ -48,6 +60,13 @@ try {
         }
         if (-not (Test-Path -LiteralPath $dataDir -PathType Container)) {
             throw "setup.cmd did not create the WPM data directory at $dataDir"
+        }
+        $environment = Get-ItemProperty -Path $environmentRegistryPath
+        if ($environment.WPM -ne $installDir) {
+            throw 'setup.cmd did not create the persistent WPM environment variable.'
+        }
+        if ($environment.Path -notmatch [regex]::Escape('%WPM%')) {
+            throw 'setup.cmd did not add %WPM% to the persistent Path.'
         }
     }
 
@@ -74,11 +93,16 @@ try {
         if (Test-Path -LiteralPath $dataDir) {
             throw "remove.cmd did not remove $dataDir"
         }
+        $environment = Get-ItemProperty -Path $environmentRegistryPath
+        if ($null -ne $environment.WPM -or $environment.Path -match [regex]::Escape('%WPM%')) {
+            throw 'remove.cmd did not remove the persistent WPM environment entries.'
+        }
     }
 }
 finally {
     $env:WPM_INSTALL_DIR = $previousInstallDir
     $env:WPM_DATA_DIR = $previousDataDir
+    $env:WPM_ENVIRONMENT_REGISTRY_KEY = $previousEnvironmentRegistryKey
     $finished = Get-Date
     if ($EvidenceTex) {
         Write-WpmTestEvidence -TestCaseId 'TC-0007' -WpmExe $WpmExe -Started $started -Finished $finished -Results $results -EvidenceTex $EvidenceTex
@@ -88,6 +112,9 @@ finally {
     }
     if (Test-Path -LiteralPath $dataDir) {
         Remove-Item -LiteralPath $dataDir -Recurse -Force
+    }
+    if (Test-Path -LiteralPath $environmentRegistryPath) {
+        Remove-Item -LiteralPath $environmentRegistryPath -Recurse -Force
     }
 }
 
