@@ -104,7 +104,7 @@ try {
         param($ExitCode, $Output)
         if ($ExitCode -ne 0 -or $Output -notmatch [regex]::Escape($repositoryB) -or $Output -notmatch "5\s+$([regex]::Escape($repositoryB))") { throw 'Repository list did not show configured priorities.' }
     }
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Install named package from offline cache using priority' -Arguments @('install', $packageName, '--offline') -Assert {
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Install named package from offline cache using priority' -Arguments @('install', $packageName, '--offline', '--allow-unsigned') -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -ne 0) { throw "Expected exit code 0, got $ExitCode. $Output" }
         if ((Get-Content -Raw -LiteralPath $deployment).Trim() -ne 'repository-b') { throw 'Package priority did not select repository B.' }

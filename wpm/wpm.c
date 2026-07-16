@@ -167,7 +167,7 @@ int main(int argc, char *argv[])
                 extension = strrchr(argv[i], '.');
                 if (extension && _stricmp(extension, ".zip") == 0) {
                     if (!wpm_archive_install(argv[i], allow_unsigned)) return 1;
-                } else if (!wpm_repo_install(argv[i], offline)) return 1;
+                } else if (!wpm_repo_install(argv[i], offline, allow_unsigned)) return 1;
             }
             break;
         }

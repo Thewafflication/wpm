@@ -94,7 +94,7 @@ wpm build ./my_project ./dist --no-index
 ### Install packages
 
 ```text
-wpm install <package...>
+wpm install <package...> [--allow-unsigned]
 ```
 
 Installs one or more packages:
@@ -115,6 +115,15 @@ After a successful installation, WPM saves a copy of the ZIP archive as
 `%ProgramData%\WPM\packages\<archive-name>.zip`. The staging directory is
 removed after every installation attempt. The install script controls where
 the package deploys software; WPM does not impose a deployment location.
+
+Signed packages are validated against a trusted signing key before their
+installation script runs. Unsigned packages are rejected by default. For a
+known development or legacy package, use `--allow-unsigned` to proceed; WPM
+displays a warning for each unsigned package it installs:
+
+```text
+wpm install ./dist/legacy-package.zip --allow-unsigned
+```
 
 ### Remove packages
 

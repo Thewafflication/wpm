@@ -79,12 +79,13 @@ try {
     $results += Invoke-WpmTestStep `
         -WpmExe $WpmExe `
         -Name 'Stage, verify, install, and store archive' `
-        -Arguments @('install', $archivePath, '--verbose') `
+        -Arguments @('install', $archivePath, '--verbose', '--allow-unsigned') `
         -Assert {
             param($ExitCode, $Output)
             if ($ExitCode -ne 0) {
                 throw "Expected exit code 0, got $ExitCode."
             }
+            if ($Output -notmatch '(?i)warning.*unsigned') { throw 'Expected unsigned-package warning.' }
             Assert-FileContent $deploymentFile 'hello from wpm'
             if (-not (Test-Path -LiteralPath $storedArchivePath -PathType Leaf)) {
                 throw "install did not store $storedArchivePath"

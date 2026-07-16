@@ -1,5 +1,5 @@
 @echo off
-setlocal EnableExtensions
+setlocal EnableExtensions EnableDelayedExpansion
 
 set "WPM_INSTALL_SCOPE="
 if /I "%~1"=="--user" (
@@ -68,9 +68,9 @@ if /I "%WPM_INSTALL_SCOPE%"=="user" (
 
 set "WPM_PATH="
 for /f "tokens=1,2,*" %%A in ('reg query "%WPM_ENVIRONMENT_REGISTRY_KEY%" /v Path 2^>nul ^| find /I "Path"') do set "WPM_PATH=%%C"
-echo;%WPM_PATH%;| findstr /I /C:";%%WPM%%;" >nul
-if errorlevel 1 set "WPM_PATH=%WPM_PATH%;%%WPM%%"
-reg add "%WPM_ENVIRONMENT_REGISTRY_KEY%" /v Path /t REG_EXPAND_SZ /d "%WPM_PATH%" /f >nul
+echo;!WPM_PATH!;| findstr /I /C:"WPM" >nul
+if errorlevel 1 set "WPM_PATH=!WPM_PATH!;%%WPM%%"
+reg add "%WPM_ENVIRONMENT_REGISTRY_KEY%" /v Path /t REG_EXPAND_SZ /d "!WPM_PATH!" /f >nul
 if errorlevel 1 (
     echo Error: could not add %%WPM%% to the system Path. Run setup from an elevated command prompt.
     exit /b 1

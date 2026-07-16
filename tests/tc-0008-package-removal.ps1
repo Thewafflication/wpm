@@ -62,7 +62,7 @@ try {
     $results += Invoke-WpmTestStep `
         -WpmExe $WpmExe `
         -Name 'Install package before removal' `
-        -Arguments @('install', $archivePath) `
+        -Arguments @('install', $archivePath, '--allow-unsigned') `
         -Assert {
             param($ExitCode, $Output)
             if ($ExitCode -ne 0) { throw "Expected install exit code 0, got $ExitCode." }

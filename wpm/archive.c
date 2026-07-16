@@ -876,6 +876,68 @@ static int file_exists_at_path(const char* path) {
         (attributes & FILE_ATTRIBUTE_DIRECTORY) == 0;
 }
 
+static int index_contains_path(const char* index_path, const char* archive_path) {
+    char line[WPM_PATH_SIZE + WPM_BLAKE2B_HEX_SIZE + 64];
+    FILE* index = fopen(index_path, "r");
+    if (!index) return 0;
+
+    while (fgets(line, sizeof(line), index)) {
+        char* comma;
+        trim_line(line);
+        comma = strchr(line, ',');
+        if (comma) *comma = '\0';
+        normalize_archive_separators(line);
+        if (_stricmp(line, archive_path) == 0) {
+            fclose(index);
+            return 1;
+        }
+    }
+
+    fclose(index);
+    return 0;
+}
+
+static int verify_index_completeness(const char* destination_dir, const char* relative_dir, const char* index_path) {
+    char search_dir[WPM_PATH_SIZE];
+    char search_pattern[WPM_PATH_SIZE];
+    WIN32_FIND_DATAA entry;
+    HANDLE search;
+
+    if (!join_path(search_dir, sizeof(search_dir), destination_dir, relative_dir) ||
+        !join_path(search_pattern, sizeof(search_pattern), search_dir, "*")) return 0;
+    search = FindFirstFileA(search_pattern, &entry);
+    if (search == INVALID_HANDLE_VALUE) return 0;
+
+    do {
+        char relative_path[WPM_PATH_SIZE];
+        if (strcmp(entry.cFileName, ".") == 0 || strcmp(entry.cFileName, "..") == 0) continue;
+        if (relative_dir[0]) {
+            if (snprintf(relative_path, sizeof(relative_path), "%s/%s", relative_dir, entry.cFileName) < 0) {
+                FindClose(search);
+                return 0;
+            }
+        } else {
+            strcpy_s(relative_path, sizeof(relative_path), entry.cFileName);
+        }
+        normalize_archive_separators(relative_path);
+        if (entry.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+            if (!verify_index_completeness(destination_dir, relative_path, index_path)) {
+                FindClose(search);
+                return 0;
+            }
+        } else if (_stricmp(relative_path, ".wpm/index.csv") != 0 &&
+                   _stricmp(relative_path, ".wpm/signature.json") != 0 &&
+                   !index_contains_path(index_path, relative_path)) {
+            printf("Error: package contains unindexed file: %s.\n", relative_path);
+            FindClose(search);
+            return 0;
+        }
+    } while (FindNextFileA(search, &entry));
+
+    FindClose(search);
+    return 1;
+}
+
 static int verify_package_index(const char* destination_dir) {
     char index_path[WPM_PATH_SIZE];
     char line[WPM_PATH_SIZE + WPM_BLAKE2B_HEX_SIZE + 64];
@@ -983,7 +1045,12 @@ static int verify_package_index(const char* destination_dir) {
     }
 
     fclose(index);
-    return 1;
+    {
+        char signature_path[WPM_PATH_SIZE];
+        if (!join_path(signature_path, sizeof(signature_path), destination_dir, ".wpm\\signature.json")) return 0;
+        return !file_exists_at_path(signature_path) ||
+            verify_index_completeness(destination_dir, "", index_path);
+    }
 }
 
 static int is_valid_package_name(const char* package_name) {

@@ -110,7 +110,7 @@ static int parse_index(const char* path, repository* repo, package_entry* packag
 }
 static int semver_compare(const char* left, const char* right) { unsigned long a[3] = {0}, b[3] = {0}; const char *p = left, *q = right; int i; for (i=0;i<3;i++) { char* e; a[i]=strtoul(p,&e,10); if(e==p) return -1; p=(*e=='.')?e+1:e; b[i]=strtoul(q,&e,10); if(e==q) return 1; q=(*e=='.')?e+1:e; } for(i=0;i<3;i++) if(a[i]!=b[i]) return a[i]>b[i]?1:-1; if (*p == '-' && *q != '-') return -1; if (*p != '-' && *q == '-') return 1; return _stricmp(p,q); }
 static int package_url(const char* root, const char* item, char* result, size_t size) { if (_strnicmp(item,"https://",8)==0) return strcpy_s(result,size,item)==0; if (strstr(item,"://") || item[0]=='/' || strstr(item,"..")) return 0; return snprintf(result,size,"%s/%s",root,item)>0; }
-int wpm_repo_install(const char* package_name, int offline) {
+int wpm_repo_install(const char* package_name, int offline, int allow_unsigned) {
     repository repositories[MAX_REPOSITORIES]; package_entry entries[MAX_PACKAGES], *selected = NULL; int repositories_count, entries_count = 0, i; char cached[PATH_SIZE], url[PATH_SIZE], root[PATH_SIZE], package_cache[PATH_SIZE];
     if (!load_repositories(repositories, &repositories_count)) return 0;
     for (i = 0; i < repositories_count; i++) { if (refresh(&repositories[i], offline, 0) && cache_path(repositories[i].url, cached, sizeof(cached))) parse_index(cached, &repositories[i], entries, &entries_count); }
@@ -118,5 +118,5 @@ int wpm_repo_install(const char* package_name, int offline) {
     if (!selected) { printf("Error: package was not found in configured repositories: %s\n", package_name); return 0; }
     if (strpbrk(selected->name, "\\/:*") || strpbrk(selected->version, "\\/:*" ) || strpbrk(selected->arch, "\\/:*" ) || !package_url(repositories[selected->order].url, selected->url, url, sizeof(url)) || !wpm_get_data_root(root,sizeof(root)) || snprintf(package_cache,sizeof(package_cache),"%s\\cache\\packages\\%s-%s-%s.zip",root,selected->name,selected->version,selected->arch) < 0) { printf("Error: invalid package URL in repository index.\n"); return 0; }
     if (GetFileAttributesA(package_cache) == INVALID_FILE_ATTRIBUTES) { if (offline) { printf("Error: package is not cached while offline: %s\n", package_name); return 0; } if (!ensure_cache_directory("packages") || !download(url,package_cache)) { printf("Error: could not download package: %s\n", url); return 0; } }
-    printf("Installing %s %s from %s\n", selected->name, selected->version, repositories[selected->order].url); return wpm_archive_install(package_cache, 0);
+    printf("Installing %s %s from %s\n", selected->name, selected->version, repositories[selected->order].url); return wpm_archive_install(package_cache, allow_unsigned);
 }

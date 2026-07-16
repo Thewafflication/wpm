@@ -118,7 +118,7 @@ try {
     $results += Invoke-WpmTestStep `
         -WpmExe $WpmExe `
         -Name 'Install archive with valid signatures' `
-        -Arguments @('install', $archivePath) `
+        -Arguments @('install', $archivePath, '--allow-unsigned') `
         -Assert {
             param($ExitCode, $Output)
             if ($ExitCode -ne 0) {
@@ -147,7 +147,7 @@ try {
     $results += Invoke-WpmTestStep `
         -WpmExe $WpmExe `
         -Name 'Reject archive with tampered indexed file' `
-        -Arguments @('install', $tamperedArchivePath) `
+        -Arguments @('install', $tamperedArchivePath, '--allow-unsigned') `
         -Assert {
             param($ExitCode, $Output)
             if ($ExitCode -eq 0) {

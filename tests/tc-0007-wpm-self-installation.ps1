@@ -39,6 +39,23 @@ function Test-WpmProcessIsElevated {
     return $groups -match 'S-1-16-(12288|16384)'
 }
 
+function Get-WpmTestEnvironment {
+    $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey("Software\WPM\Tests\$testId")
+    try {
+        return [pscustomobject]@{
+            WPM = $key.GetValue('WPM', $null)
+            WPM_DATA_DIR = $key.GetValue('WPM_DATA_DIR', $null)
+            Path = $key.GetValue(
+                'Path',
+                $null,
+                [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames
+            )
+        }
+    } finally {
+        if ($null -ne $key) { $key.Dispose() }
+    }
+}
+
 $started = Get-Date
 $results = @()
 $expectedDefaultScope = if (Test-WpmProcessIsElevated) { 'machine' } else { 'user' }
@@ -68,7 +85,7 @@ try {
         if (-not (Test-Path -LiteralPath (Join-Path $installDir 'wpm.exe') -PathType Leaf)) {
             throw "setup.cmd did not install wpm.exe to $installDir"
         }
-        $environment = Get-ItemProperty -Path $environmentRegistryPath
+        $environment = Get-WpmTestEnvironment
         if ($environment.WPM -ne $installDir -or $environment.Path -notmatch [regex]::Escape('%WPM%')) {
             throw 'Default setup.cmd did not configure the persistent environment entries.'
         }
@@ -92,7 +109,7 @@ try {
         if (Test-Path -LiteralPath $dataDir) {
             throw 'setup.cmd must not initialize WPM data directories.'
         }
-        $environment = Get-ItemProperty -Path $environmentRegistryPath
+        $environment = Get-WpmTestEnvironment
         if ($environment.WPM -ne $installDir) {
             throw 'setup.cmd did not create the persistent WPM environment variable.'
         }
@@ -106,7 +123,7 @@ try {
 
     $results += New-WpmManualStep -Name 'Repeat user-scoped WPM installation' -Action {
         Invoke-CmdScript -Script $setupCmd -Arguments @('--user', $WpmExe)
-        $environment = Get-ItemProperty -Path $environmentRegistryPath
+        $environment = Get-WpmTestEnvironment
         $pathEntries = [regex]::Matches([string]$environment.Path, [regex]::Escape('%WPM%')).Count
         if ($pathEntries -ne 1) {
             throw "Repeated setup created $pathEntries %WPM% Path entries."
@@ -114,7 +131,7 @@ try {
     }
 
     $results += New-WpmManualStep -Name 'Discover self-installed WPM by name in a new command process' -Action {
-        $environment = Get-ItemProperty -Path $environmentRegistryPath
+        $environment = Get-WpmTestEnvironment
         $previousProcessWpm = $env:WPM
         $previousProcessDataDir = $env:WPM_DATA_DIR
         $previousProcessPath = $env:Path
@@ -162,7 +179,7 @@ try {
         if (Test-Path -LiteralPath $dataDir) {
             throw "remove.cmd did not remove $dataDir"
         }
-        $environment = Get-ItemProperty -Path $environmentRegistryPath
+        $environment = Get-WpmTestEnvironment
         if ($null -ne $environment.WPM -or $null -ne $environment.WPM_DATA_DIR -or
             $environment.Path -match [regex]::Escape('%WPM%')) {
             throw 'remove.cmd did not remove the persistent WPM environment entries.'
