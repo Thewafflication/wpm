@@ -48,7 +48,8 @@ margin=1in
 		\item Run the user-scope setup command again and verify only one \texttt{\%WPM\%}
 		entry exists in \texttt{Path}.
 		\item Start a new command process and invoke \texttt{wpm --version} by name.
-		\item Run an operational command and verify it initializes the data directories.
+		\item Run \texttt{wpm repo list} and verify it initializes the data directories
+		without requiring repository network access.
 		\item Verify the persistent WPM variable and Path entry are created.
 		\item Run \texttt{remove.cmd}.
 		\item Verify the installation and data directories no longer exist.

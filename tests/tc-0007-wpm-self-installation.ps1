@@ -140,8 +140,8 @@ try {
     $installedExe = Join-Path $installDir 'wpm.exe'
     $results += Invoke-WpmTestStep `
         -WpmExe $installedExe `
-        -Name 'Initialize WPM data directories from the executable' `
-        -Arguments @('update') `
+        -Name 'Initialize WPM data directories with a local repository command' `
+        -Arguments @('repo', 'list') `
         -Assert {
             param($ExitCode, $Output)
             if ($ExitCode -ne 0) {

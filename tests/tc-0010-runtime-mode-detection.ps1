@@ -37,8 +37,8 @@ try {
 
     $results += Invoke-WpmTestStep `
         -WpmExe $WpmExe `
-        -Name 'Initialize portable runtime data directories' `
-        -Arguments @('update') `
+        -Name 'Initialize portable runtime data directories without network access' `
+        -Arguments @('repo', 'list') `
         -Assert {
             param($ExitCode, $Output)
             if ($ExitCode -ne 0) {

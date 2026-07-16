@@ -37,6 +37,8 @@ margin=1in
 	\par
 	\begin{enumerate}
 		\item Run \texttt{wpm.exe --verbose} from the build output directory.
+		\item Run \texttt{wpm.exe repo list} and verify it initializes the portable
+		data directories without network access.
 	\end{enumerate}
 }
 
@@ -44,6 +46,8 @@ margin=1in
 	\par
 	\begin{enumerate}
 		\item The command exits 0 and reports portable runtime mode and the executable path.
+		\item The repository-list command exits 0 and creates the data, package,
+		temporary, cache, and configuration directories.
 	\end{enumerate}
 }
 
