@@ -25,6 +25,8 @@ add_executable (wpm
   "helpers.h"
   "repository.c"
   "repository.h"
+  "signing.c"
+  "signing.h"
 )
 
 add_dependencies(wpm wpm_version_header)
@@ -176,6 +178,7 @@ if(BUILD_TESTING)
   wpm_add_test_case(TC-0009 tc-0009 tc-0009-github-release-artifacts.ps1 tc-0009-github-release-artifacts.tex)
   wpm_add_test_case(TC-0010 tc-0010 tc-0010-runtime-mode-detection.ps1 tc-0010-runtime-mode-detection.tex)
   wpm_add_test_case(TC-0011 tc-0011 tc-0011-https-repositories.ps1 tc-0011-https-repositories.tex)
+  wpm_add_test_case(TC-0012 tc-0012 tc-0012-package-signing-and-validation.ps1 tc-0012-package-signing-and-validation.tex)
 
   add_custom_target(check
     COMMAND ${CMAKE_CTEST_COMMAND} --build-config $<CONFIG> --output-on-failure

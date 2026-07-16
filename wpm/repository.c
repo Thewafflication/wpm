@@ -118,5 +118,5 @@ int wpm_repo_install(const char* package_name, int offline) {
     if (!selected) { printf("Error: package was not found in configured repositories: %s\n", package_name); return 0; }
     if (strpbrk(selected->name, "\\/:*") || strpbrk(selected->version, "\\/:*" ) || strpbrk(selected->arch, "\\/:*" ) || !package_url(repositories[selected->order].url, selected->url, url, sizeof(url)) || !wpm_get_data_root(root,sizeof(root)) || snprintf(package_cache,sizeof(package_cache),"%s\\cache\\packages\\%s-%s-%s.zip",root,selected->name,selected->version,selected->arch) < 0) { printf("Error: invalid package URL in repository index.\n"); return 0; }
     if (GetFileAttributesA(package_cache) == INVALID_FILE_ATTRIBUTES) { if (offline) { printf("Error: package is not cached while offline: %s\n", package_name); return 0; } if (!ensure_cache_directory("packages") || !download(url,package_cache)) { printf("Error: could not download package: %s\n", url); return 0; } }
-    printf("Installing %s %s from %s\n", selected->name, selected->version, repositories[selected->order].url); return wpm_archive_install(package_cache);
+    printf("Installing %s %s from %s\n", selected->name, selected->version, repositories[selected->order].url); return wpm_archive_install(package_cache, 0);
 }

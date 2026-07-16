@@ -15,6 +15,8 @@ typedef enum {
     CMD_INSTALL,
     CMD_REMOVE,
     CMD_REPO,
+    CMD_TRUST,
+    CMD_KEY,
     CMD_UPDATE,
     CMD_UPGRADE
 } Command;

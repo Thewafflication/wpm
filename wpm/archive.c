@@ -8,6 +8,7 @@
 #include "archive.h"
 #include "miniz.h"
 #include "sodium.h"
+#include "signing.h"
 
 #define WPM_PATH_SIZE 4096
 #define WPM_DEFAULT_DATA_ROOT "C:\\ProgramData\\WPM"
@@ -505,7 +506,7 @@ static int write_index_entries(
         }
 
         normalize_archive_separators(archive_path);
-        if (_stricmp(archive_path, ".wpm/index.csv") == 0 ||
+        if (_stricmp(archive_path, ".wpm/index.csv") == 0 || _stricmp(archive_path, ".wpm/signature.json") == 0 ||
             (!is_tracked_package_support_file(archive_path) &&
                 is_ignored_by_list(ignore_list, archive_path))) {
             continue;
@@ -695,7 +696,7 @@ static int add_directory_to_zip(
     }
 }
 
-int wpm_archive_build(const char* source_dir, const char* output_dir, int update_index) {
+int wpm_archive_build(const char* source_dir, const char* output_dir, int update_index, const char* private_key) {
     char source_full_path[WPM_PATH_SIZE];
     char output_full_path[WPM_PATH_SIZE];
     char output_path[WPM_PATH_SIZE];
@@ -743,6 +744,10 @@ int wpm_archive_build(const char* source_dir, const char* output_dir, int update
     if (update_index) {
         verbose_log("Writing package index: %s\\.wpm\\index.csv", source_full_path);
         if (!update_package_index(source_full_path, output_path)) return 0;
+    }
+    if (private_key && private_key[0] && (!update_index || !wpm_sign_package_index(source_full_path, private_key))) {
+        printf("Error: package signing requires a valid generated index.\n");
+        return 0;
     }
 
     verbose_log("Creating archive: %s", output_path);
@@ -1055,7 +1060,7 @@ static int run_package_script(
     return 1;
 }
 
-int wpm_archive_install(const char* archive_path) {
+int wpm_archive_install(const char* archive_path, int allow_unsigned) {
     char archive_full_path[WPM_PATH_SIZE];
     char package_name[WPM_PATH_SIZE];
     char data_root[WPM_PATH_SIZE];
@@ -1102,6 +1107,7 @@ int wpm_archive_install(const char* archive_path) {
     verbose_log("Using staging directory: %s", staging_path);
 
     if (!wpm_archive_extract(archive_full_path, staging_path)) goto cleanup;
+    if (!wpm_validate_package_signature(staging_path, allow_unsigned, NULL, 0)) goto cleanup;
     if (!verify_package_index(staging_path)) goto cleanup;
     if (!run_package_script(staging_path, ".wpm\\install.cmd", "install")) goto cleanup;
     if (_stricmp(archive_full_path, stored_archive_path) != 0) {

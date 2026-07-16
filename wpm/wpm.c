@@ -6,6 +6,7 @@
 #include "helpers.h"
 #include "init.h"
 #include "repository.h"
+#include "signing.h"
 #include <windows.h>
 
 static int path_is_beneath(const char* path, const char* root)
@@ -116,11 +117,16 @@ int main(int argc, char *argv[])
             const char* source_dir = NULL;
             const char* output_dir = NULL;
             int no_index = 0;
+            const char* signing_key = NULL;
+            char default_key[4096];
 
             for (int i = command_index + 1; i < argc; i++) {
                 if (strcmp(argv[i], "--verbose") == 0) continue;
                 if (strcmp(argv[i], "--no-index") == 0) {
                     no_index = 1;
+                }
+                else if (strcmp(argv[i], "--sign") == 0 && i + 1 < argc) {
+                    signing_key = argv[++i];
                 }
                 else if (!source_dir) {
                     source_dir = argv[i];
@@ -137,14 +143,17 @@ int main(int argc, char *argv[])
                 printf("Usage: wpm build <source_dir> [output_dir] [--no-index]\n");
                 return 1;
             }
-            if (!wpm_archive_build(source_dir, output_dir ? output_dir : ".", !no_index)) return 1;
+            if (!signing_key && wpm_get_default_key(default_key, sizeof(default_key))) signing_key = default_key;
+            if (!wpm_archive_build(source_dir, output_dir ? output_dir : ".", !no_index, signing_key)) return 1;
             if (no_index) printf("Skipped package index update.\n");
             break;
         }
 
         case CMD_INSTALL: {
             int package_count = 0;
+            int allow_unsigned = 0;
             for (int i = command_index + 1; i < argc; i++) {
+                if (strcmp(argv[i], "--allow-unsigned") == 0) { allow_unsigned = 1; continue; }
                 if (strcmp(argv[i], "--verbose") != 0 && strcmp(argv[i], "--offline") != 0) package_count++;
             }
             if (package_count == 0) {
@@ -154,10 +163,10 @@ int main(int argc, char *argv[])
 
             for (int i = command_index + 1; i < argc; i++) {
                 const char* extension;
-                if (strcmp(argv[i], "--verbose") == 0 || strcmp(argv[i], "--offline") == 0) continue;
+                if (strcmp(argv[i], "--verbose") == 0 || strcmp(argv[i], "--offline") == 0 || strcmp(argv[i], "--allow-unsigned") == 0) continue;
                 extension = strrchr(argv[i], '.');
                 if (extension && _stricmp(extension, ".zip") == 0) {
-                    if (!wpm_archive_install(argv[i])) return 1;
+                    if (!wpm_archive_install(argv[i], allow_unsigned)) return 1;
                 } else if (!wpm_repo_install(argv[i], offline)) return 1;
             }
             break;
@@ -192,6 +201,37 @@ int main(int argc, char *argv[])
             } else { printf("Usage: wpm repo <add|list|remove|update> ...\n"); return 1; }
             break;
         }
+
+        case CMD_KEY: {
+            const char* action = command_index + 1 < argc ? argv[command_index + 1] : "";
+            if (strcmp(action, "default") == 0 && command_index + 2 < argc && strcmp(argv[command_index + 2], "--clear") == 0) {
+                if (!wpm_clear_default_key()) return 1;
+                printf("Default signing key cleared.\n");
+            }
+            else if (strcmp(action, "default") == 0 && command_index + 2 < argc) {
+                if (!wpm_set_default_key(argv[command_index + 2])) return 1;
+            }
+            else { printf("Usage: wpm key default <private-key-file>|--clear\n"); return 1; }
+            break;
+        }
+
+        case CMD_TRUST: {
+            const char* action = command_index + 1 < argc ? argv[command_index + 1] : "list";
+            if (strcmp(action, "add") == 0 && command_index + 2 < argc) { if (!wpm_trust_add(argv[command_index + 2])) return 1; }
+            else if (strcmp(action, "list") == 0) { if (!wpm_trust_list()) return 1; }
+            else if (strcmp(action, "revoke") == 0 && command_index + 2 < argc) { if (!wpm_trust_revoke(argv[command_index + 2])) return 1; }
+            else { printf("Usage: wpm trust <add|list|revoke> ...\n"); return 1; }
+            break;
+        }
+
+        case CMD_UNKNOWN:
+            if (strcmp(argv[command_index], "keygen") == 0) {
+                int make_default = argc == command_index + 4 && strcmp(argv[command_index + 3], "--default") == 0;
+                if ((argc != command_index + 3 && !make_default) || !wpm_keygen(argv[command_index + 1], argv[command_index + 2], make_default)) return 1;
+                break;
+            }
+            printf("Unknown command.\n");
+            return 1;
 
         case CMD_UPGRADE: {
             if (argc < 3) {
@@ -243,9 +283,7 @@ int main(int argc, char *argv[])
             if (!wpm_repo_update(offline)) return 1;
             break;
 
-        default:
-            printf("Unknown command.\n");
-            return 1;
+        default: return 1;
     }
     return 0;
 }
@@ -286,6 +324,13 @@ void print_usage(Command c) {
     printf("  repo <add|list|remove|update> ...\n");
     printf("      Configure HTTPS package repositories\n\n");
 
+    printf("  keygen <private-key-file> <public-key-file> [--default]\n");
+    printf("      Generate an Ed25519 signing key pair\n\n");
+    printf("  key default <private-key-file>|--clear\n");
+    printf("      Configure the default signing key\n\n");
+    printf("  trust <add|list|revoke> ...\n");
+    printf("      Manage trusted package signing keys\n\n");
+
     printf("  update\n");
     printf("      Update package index\n\n");
 
@@ -308,6 +353,11 @@ void print_usage(Command c) {
     printf("  --offline\n");
     printf("      Use cached repository data only\n\n");
 
+    printf("  --sign <private-key-file>\n");
+    printf("      Sign a package during build\n\n");
+    printf("  --allow-unsigned\n");
+    printf("      Allow installation of an unsigned package\n\n");
+
     printf("Examples:\n");
     printf("  wpm build ./my_project\n");
     printf("  wpm build ./my_project ./dist --no-index\n");
@@ -322,6 +372,8 @@ Command parse_command(const char* cmd) {
     if (strcmp(cmd, "install") == 0) return CMD_INSTALL;
     if (strcmp(cmd, "remove") == 0) return CMD_REMOVE;
     if (strcmp(cmd, "repo") == 0) return CMD_REPO;
+    if (strcmp(cmd, "key") == 0) return CMD_KEY;
+    if (strcmp(cmd, "trust") == 0) return CMD_TRUST;
     if (strcmp(cmd, "update") == 0) return CMD_UPDATE;
     if (strcmp(cmd, "upgrade") == 0) return CMD_UPGRADE;
     return CMD_UNKNOWN;

@@ -18,12 +18,19 @@ Release for the pushed tag and attach these assets:
 - `wpm-arm64-<version>.zip`
 - `index.json`, containing each published WPM package's name, version,
   architecture, and release-asset URL
+- `release.public`, the ephemeral Ed25519 public key used to sign every WPM
+  package in that release
 
 The index shall be available through GitHub's stable latest-release asset URL:
 `https://github.com/Thewafflication/wpm/releases/latest/download/index.json`.
 
 No release assets shall be published when verification or any architecture
 build fails.
+
+The workflow shall generate one fresh Ed25519 key pair during the package job,
+use its private key only to sign that job's three packages, and publish only
+the corresponding public key. The private key shall not be uploaded or
+published.
 
 ## Rationale
 

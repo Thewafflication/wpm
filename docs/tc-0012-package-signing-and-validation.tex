@@ -1,0 +1,34 @@
+\def\StandaloneLibrary{}
+\input{iso_iec_ieee29119-3_2021.tex}
+
+\documentclass[letterpaper]{article}
+\usepackage[letterpaper,margin=1in]{geometry}
+
+\begin{document}
+\def\TCID{TC-0012}
+\def\TCTitle{Package signing, trust, and installation validation}
+\def\TCPurpose{Verify Ed25519 key generation, default signing-key selection, package signature validation, trust revocation, and the limited unsigned-package exception.}
+\def\TCPriority{\TCPriorityHigh}
+\def\TCRequirementRef{REQ-0012}
+\def\TCPreconditions{A built WPM executable is available. The test uses an isolated WPM data-root override.}
+\def\TCEnvironment{Local Windows developer workstation or CI worker.}
+\def\TCInputData{Temporary package source directories and output directories. The test creates all signing keys, trust records, archives, and deployment markers.}
+\def\TCProcedure{\par\begin{enumerate}
+\item Generate an Ed25519 key pair with \texttt{wpm keygen ... --default}.
+\item Build a package without \texttt{--sign} and inspect its index and signature metadata.
+\item Attempt installation before its public key is trusted, then add the public key and install successfully.
+\item Build with an untrusted key and verify rejection; trust, revoke, and retry it.
+\item Build an unsigned package and verify default rejection plus the explicit \texttt{--allow-unsigned} exception.
+\item Create malformed-signature, invalid-signature, and unindexed-entry variants of a signed archive and attempt installation.
+\end{enumerate}}
+\def\TCExpectedResult{\par\begin{enumerate}
+\item Key generation creates correctly formatted public and private key files, records only a key path and identifier as the default, and does not display private-key material.
+\item A default-key build contains one Ed25519 signature metadata file; the exact archive index is signed and neither the index nor signature file indexes itself.
+\item A package signed by an unknown key is rejected without running its install script or retaining its archive; trusting that key permits installation.
+\item A package signed by a revoked key is rejected without running its install script or retaining its archive.
+\item An unsigned package is rejected by default and is accepted only with \texttt{--allow-unsigned}, with a warning.
+\item Malformed signature metadata, an invalid signature, and an unindexed archive entry each cause a nonzero installation result, no script execution, no retained archive, and staging cleanup.
+\end{enumerate}}
+\def\TCPostConditions{All temporary package, key, deployment, and WPM data directories are removed.}
+\TCTemplate
+\end{document}

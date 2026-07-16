@@ -79,7 +79,8 @@ jobs:
             @('TC-0008 Package removal', 'bin/x86/Debug/tc-0008-report.tex', 'bin/x86/Debug/tc-0008-execution-evidence.tex'),
             @('TC-0009 GitHub Release artifact workflow', 'bin/x86/Debug/tc-0009-report.tex', 'bin/x86/Debug/tc-0009-execution-evidence.tex'),
             @('TC-0010 Runtime mode detection', 'bin/x86/Debug/tc-0010-report.tex', 'bin/x86/Debug/tc-0010-execution-evidence.tex'),
-            @('TC-0011 HTTPS package repositories', 'bin/x86/Debug/tc-0011-report.tex', 'bin/x86/Debug/tc-0011-execution-evidence.tex')
+            @('TC-0011 HTTPS package repositories', 'bin/x86/Debug/tc-0011-report.tex', 'bin/x86/Debug/tc-0011-execution-evidence.tex'),
+            @('TC-0012 Package signing and validation', 'bin/x86/Debug/tc-0012-report.tex', 'bin/x86/Debug/tc-0012-execution-evidence.tex')
           )
 
           @"

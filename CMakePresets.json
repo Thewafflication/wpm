@@ -306,6 +306,23 @@
             "execution": {
                 "noTestsAction": "error"
             }
+        },
+        {
+            "name": "test-tc-0012-x86-debug",
+            "displayName": "Test TC-0012 x86 Debug",
+            "configurePreset": "x86-debug",
+            "configuration": "Debug",
+            "filter": {
+                "include": {
+                    "name": "TC-0012"
+                }
+            },
+            "output": {
+                "outputOnFailure": true
+            },
+            "execution": {
+                "noTestsAction": "error"
+            }
         }
     ]
 }

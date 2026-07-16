@@ -111,6 +111,12 @@ jobs:
           path: release-binaries
           merge-multiple: true
 
+      - name: Generate ephemeral release signing key
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release/keys | Out-Null
+          bin/x86/Debug/wpm.exe keygen release/keys/release.private release/keys/release.public
+
       - name: Build Release WPM packages with x86 Debug WPM
         shell: pwsh
         run: |
@@ -123,6 +129,7 @@ jobs:
               "-DWPM_PACKAGE_OUTPUT_DIR=$PWD/release/packages" `
               "-DWPM_PACKAGE_ARCH=$architecture" `
               -DWPM_PACKAGE_DEBUG=false `
+              "-DWPM_PACKAGE_SIGNING_KEY=$PWD/release/keys/release.private" `
               "-DWPM_SETUP_SCRIPT=$PWD/setup.cmd" `
               "-DWPM_REMOVE_SCRIPT=$PWD/remove.cmd" `
               "-DWPM_REPORT_DIR=$PWD/bin/x86/Debug" `
@@ -138,7 +145,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: wpm-release-packages
-          path: release/packages/wpm-*.zip
+          path: |
+            release/packages/wpm-*.zip
+            release/keys/release.public
           if-no-files-found: error
 
   publish:
@@ -179,3 +188,4 @@ jobs:
           files: |
             release/wpm-*.zip
             release/index.json
+            release/keys/release.public

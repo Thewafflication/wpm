@@ -119,6 +119,10 @@ Completion criteria:
 - CI produces execution evidence for each signature test.
 - The WPM self-package is signed in the release build process.
 
+Implementation contract: REQ-0012 defines the Ed25519 package-signature
+format, signing input, trust store, validation sequence, unsigned exception,
+and audit record.
+
 ## ⏳ Milestone 5: Version-Aware Upgrades — Planned
 
 Implement `wpm upgrade <package...>` as a real package lifecycle operation.

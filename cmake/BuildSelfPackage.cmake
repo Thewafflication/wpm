@@ -89,8 +89,12 @@ file(WRITE "${WPM_PACKAGE_STAGING_DIR}/.wpm/remove.cmd"
 )
 
 file(MAKE_DIRECTORY "${WPM_PACKAGE_OUTPUT_DIR}")
+set(wpm_build_command "${WPM_EXECUTABLE}" build "${WPM_PACKAGE_STAGING_DIR}" "${WPM_PACKAGE_OUTPUT_DIR}")
+if(DEFINED WPM_PACKAGE_SIGNING_KEY AND NOT "${WPM_PACKAGE_SIGNING_KEY}" STREQUAL "")
+  list(APPEND wpm_build_command --sign "${WPM_PACKAGE_SIGNING_KEY}")
+endif()
 execute_process(
-  COMMAND "${WPM_EXECUTABLE}" build "${WPM_PACKAGE_STAGING_DIR}" "${WPM_PACKAGE_OUTPUT_DIR}"
+  COMMAND ${wpm_build_command}
   RESULT_VARIABLE wpm_build_result
   OUTPUT_VARIABLE wpm_build_output
   ERROR_VARIABLE wpm_build_error
