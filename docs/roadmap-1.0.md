@@ -13,8 +13,8 @@ verification evidence.
   `https://github.com/Thewafflication/wpm`.
 - CI runs TC-0001 through TC-0011 and uploads their generated reports and
   execution evidence as a GitHub artifact.
-- `wpm upgrade` is a command placeholder; it does not yet resolve or install
-  a newer package version.
+- `wpm upgrade` discovers installed identities and performs validated,
+  architecture- and SemVer-aware upgrades from configured repositories.
 - Ed25519 package signing, trust management, validation, and installation audit records are implemented.
 - Remote HTTPS package repositories support configuration, caching, discovery,
   and named package installation.
@@ -126,7 +126,8 @@ and audit record.
 
 </details>
 
-## ⏳ Milestone 5: Version-Aware Upgrades — Planned
+<details>
+<summary><strong>✅ Milestone 5: Version-Aware Upgrades — Complete</strong></summary>
 
 Implement `wpm upgrade <package...>` as a real package lifecycle operation.
 
@@ -145,6 +146,13 @@ Completion criteria:
   invalid or untrusted upgrades, rollback or failure recovery, and multi-package
   behavior.
 - All upgrade test reports are included in the GitHub artifact.
+
+Implementation contract: REQ-0013 defines installed package identity,
+architecture and version selectors, prerelease configuration, SemVer candidate
+selection, upgrade execution, failure recovery, auditing, and multi-package
+behavior.
+
+</details>
 
 ## ⏳ Milestone 6: Release Hardening — Planned
 

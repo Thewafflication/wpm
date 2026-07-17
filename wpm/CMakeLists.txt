@@ -179,6 +179,7 @@ if(BUILD_TESTING)
   wpm_add_test_case(TC-0010 tc-0010 tc-0010-runtime-mode-detection.ps1 tc-0010-runtime-mode-detection.tex)
   wpm_add_test_case(TC-0011 tc-0011 tc-0011-https-repositories.ps1 tc-0011-https-repositories.tex)
   wpm_add_test_case(TC-0012 tc-0012 tc-0012-package-signing-and-validation.ps1 tc-0012-package-signing-and-validation.tex)
+  wpm_add_test_case(TC-0013 tc-0013 tc-0013-version-aware-upgrades.ps1 tc-0013-version-aware-upgrades.tex)
 
   add_custom_target(check
     COMMAND ${CMAKE_CTEST_COMMAND} --build-config $<CONFIG> --output-on-failure

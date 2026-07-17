@@ -100,6 +100,17 @@ int main(int argc, char *argv[])
         print_usage(0);
         return 0;
 	}
+    if (argc == 8 && strcmp(argv[1], "--complete-self-upgrade") == 0) {
+        DWORD parent_id = (DWORD)strtoul(argv[3], NULL, 10);
+        HANDLE parent = OpenProcess(SYNCHRONIZE, FALSE, parent_id);
+        if (parent) {
+            WaitForSingleObject(parent, INFINITE);
+            CloseHandle(parent);
+        }
+        if (!wpm_initialize_data_directories()) return 1;
+        return wpm_archive_upgrade(argv[2], atoi(argv[7]) != 0,
+            "wpm", argv[4], argv[5], argv[6]) ? 0 : 1;
+    }
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--verbose") == 0) {
             verbose = 1;
@@ -107,7 +118,7 @@ int main(int argc, char *argv[])
         else if (strcmp(argv[i], "--offline") == 0) {
             offline = 1;
         }
-        else if (strcmp(argv[i], "--version") == 0) {
+        else if (strcmp(argv[i], "--version") == 0 && argc == 2) {
             show_version = 1;
         }
         else if (strcmp(argv[i], "--diagnose") == 0) {
@@ -185,8 +196,12 @@ int main(int argc, char *argv[])
         case CMD_INSTALL: {
             int package_count = 0;
             int allow_unsigned = 0;
+            const char* selected_arch = NULL;
+            const char* selected_version = NULL;
             for (int i = command_index + 1; i < argc; i++) {
                 if (strcmp(argv[i], "--allow-unsigned") == 0) { allow_unsigned = 1; continue; }
+                if (strcmp(argv[i], "--arch") == 0 && i + 1 < argc) { selected_arch = argv[++i]; continue; }
+                if (strcmp(argv[i], "--version") == 0 && i + 1 < argc) { selected_version = argv[++i]; continue; }
                 if (strcmp(argv[i], "--verbose") != 0 && strcmp(argv[i], "--offline") != 0) package_count++;
             }
             if (package_count == 0) {
@@ -197,10 +212,12 @@ int main(int argc, char *argv[])
             for (int i = command_index + 1; i < argc; i++) {
                 const char* extension;
                 if (strcmp(argv[i], "--verbose") == 0 || strcmp(argv[i], "--offline") == 0 || strcmp(argv[i], "--allow-unsigned") == 0) continue;
+                if (strcmp(argv[i], "--arch") == 0 || strcmp(argv[i], "--version") == 0) { i++; continue; }
                 extension = strrchr(argv[i], '.');
                 if (extension && _stricmp(extension, ".zip") == 0) {
+                    if (selected_arch || selected_version) { printf("Error: --arch and --version are not valid for ZIP-path installation.\n"); return 1; }
                     if (!wpm_archive_install(argv[i], allow_unsigned)) return 1;
-                } else if (!wpm_repo_install(argv[i], offline, allow_unsigned)) return 1;
+                } else if (!wpm_repo_install(argv[i], selected_arch, selected_version, offline, allow_unsigned)) return 1;
             }
             break;
         }
@@ -257,6 +274,29 @@ int main(int argc, char *argv[])
             break;
         }
 
+        case CMD_CONFIG: {
+            const char* action = command_index + 1 < argc ? argv[command_index + 1] : "";
+            const char* setting = command_index + 2 < argc ? argv[command_index + 2] : "";
+            const char* package = NULL;
+            for (int i = command_index + 3; i < argc; i++) {
+                if (strcmp(argv[i], "--package") == 0 && i + 1 < argc) package = argv[++i];
+            }
+            if (strcmp(setting, "prerelease") != 0) { printf("Usage: wpm config <set|get|unset> prerelease ...\n"); return 1; }
+            if (strcmp(action, "get") == 0) {
+                if (!wpm_config_prerelease_get(package)) return 1;
+            }
+            else if (strcmp(action, "set") == 0 && command_index + 3 < argc) {
+                const char* value = argv[command_index + 3];
+                if (_stricmp(value, "true") && _stricmp(value, "false")) { printf("Error: prerelease value must be true or false.\n"); return 1; }
+                if (!wpm_config_prerelease_set(package, _stricmp(value, "true") == 0)) return 1;
+            }
+            else if (strcmp(action, "unset") == 0 && package) {
+                if (!wpm_config_prerelease_unset(package)) return 1;
+            }
+            else { printf("Usage: wpm config <set|get|unset> prerelease ...\n"); return 1; }
+            break;
+        }
+
         case CMD_UNKNOWN:
             if (strcmp(argv[command_index], "keygen") == 0) {
                 int make_default = argc == command_index + 4 && strcmp(argv[command_index + 3], "--default") == 0;
@@ -267,15 +307,22 @@ int main(int argc, char *argv[])
             return 1;
 
         case CMD_UPGRADE: {
-            if (argc < 3) {
-                printf("No packages specified.\n");
+            const char* names[128];
+            int name_count = 0, all = 0, allow_unsigned = 0;
+            const char* selected_arch = NULL;
+            const char* selected_version = NULL;
+            for (int i = command_index + 1; i < argc; i++) {
+                if (strcmp(argv[i], "--all") == 0) all = 1;
+                else if (strcmp(argv[i], "--allow-unsigned") == 0) allow_unsigned = 1;
+                else if (strcmp(argv[i], "--arch") == 0 && i + 1 < argc) selected_arch = argv[++i];
+                else if (strcmp(argv[i], "--version") == 0 && i + 1 < argc) selected_version = argv[++i];
+                else if (strcmp(argv[i], "--offline") && strcmp(argv[i], "--verbose") && name_count < 128) names[name_count++] = argv[i];
+            }
+            if ((!all && name_count == 0) || (all && name_count > 0) || (all && selected_version)) {
+                printf("Usage: wpm upgrade <package...> [--arch <arch>] [--version <semver>] | --all [--arch <arch>]\n");
                 return 1;
             }
-
-            printf("Packages:\n");
-            for (int i = 2; i < argc; i++) {
-                printf("- %s\n", argv[i]);
-            }
+            if (!wpm_repo_upgrade(names, name_count, all, selected_arch, selected_version, offline, allow_unsigned)) return 1;
             break;
         }
         case CMD_INIT: {
@@ -366,6 +413,9 @@ void print_usage(Command c) {
     printf("  trust <add|list|revoke> ...\n");
     printf("      Manage trusted package signing keys\n\n");
 
+    printf("  config <set|get|unset> prerelease ...\n");
+    printf("      Configure stable or prerelease package selection\n\n");
+
     printf("  update\n");
     printf("      Update package index\n\n");
 
@@ -409,6 +459,7 @@ Command parse_command(const char* cmd) {
     if (strcmp(cmd, "repo") == 0) return CMD_REPO;
     if (strcmp(cmd, "key") == 0) return CMD_KEY;
     if (strcmp(cmd, "trust") == 0) return CMD_TRUST;
+    if (strcmp(cmd, "config") == 0) return CMD_CONFIG;
     if (strcmp(cmd, "update") == 0) return CMD_UPDATE;
     if (strcmp(cmd, "upgrade") == 0) return CMD_UPGRADE;
     return CMD_UNKNOWN;

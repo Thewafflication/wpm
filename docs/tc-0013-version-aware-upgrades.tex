@@ -1,0 +1,43 @@
+\def\StandaloneLibrary{}
+\input{iso_iec_ieee29119-3_2021.tex}
+
+\documentclass[letterpaper]{article}
+\usepackage[letterpaper,margin=1in]{geometry}
+
+\begin{document}
+\def\TCID{TC-0013}
+\def\TCTitle{Version-aware package installation and upgrades}
+\def\TCPurpose{Verify installed-state discovery, exact architecture and version selectors, configurable prerelease eligibility, SemVer ordering, upgrade validation and auditing, failure recovery, and best-effort multi-package behavior.}
+\def\TCPriority{\TCPriorityHigh}
+\def\TCRequirementRef{REQ-0013}
+\def\TCPreconditions{A built WPM executable is available. The test uses an isolated WPM data-root override and controlled offline repository caches.}
+\def\TCEnvironment{Local Windows developer workstation or CI worker.}
+\def\TCInputData{Temporary packages covering x86, x64, and any architectures; stable and prerelease SemVer versions; successful and failing install scripts; controlled repository indexes; and an isolated prerelease configuration.}
+\def\TCProcedure{\par\begin{enumerate}
+\item Build and locally install baseline packages whose metadata creates independent x86, x64, and any installed identities.
+\item Configure a controlled repository and seed its offline index and package cache with exact-architecture, any-architecture, stable, prerelease, selected-version, successful, and failing candidates.
+\item Upgrade a package having installed x86 and x64 identities without an architecture selector.
+\item Exercise named installation and upgrade with \texttt{--arch} and \texttt{--version}, including unavailable, equal, lower, and ZIP-path selector rejection.
+\item Read and change the global prerelease setting, add and remove a per-package override, and perform stable and prerelease upgrades.
+\item Attempt an any/specific installed-architecture conflict and verify that any candidates do not upgrade specific installed identities.
+\item reject an unsigned upgrade before script execution, then explicitly permit it for the positive lifecycle scenarios.
+\item Run a multi-package upgrade in which the first package script fails and a later package succeeds.
+\item Upgrade WPM itself and verify that a validated candidate executable is launched from cache, waits for the invoking WPM process to exit, and completes installation.
+\item Inspect retained archives, staging cleanup, successful and failed upgrade audit records, command summaries, and exit statuses.
+\end{enumerate}}
+\def\TCExpectedResult{\par\begin{enumerate}
+\item Installed identities are discovered from package metadata and the highest retained SemVer is treated as current.
+\item x86 and x64 identities are upgraded independently; candidates must exactly match the installed architecture and an any candidate is ignored for a specific identity.
+\item Named installation selectors choose the exact requested artifact. Upgrade selectors choose only a strictly newer exact version and never downgrade, reinstall, or silently fall back.
+\item An any installation cannot coexist with specific architectures of the same package, and inconsistent state is diagnosed.
+\item Prereleases are disabled by default, a package override takes precedence over the global value, stable releases remain eligible, and SemVer prerelease ordering is honored when enabled.
+\item Build metadata alone does not cause an upgrade, and invalid repository versions do not prevent selection of valid candidates.
+\item An unsigned or otherwise unvalidated candidate is rejected without script execution or successful installation state.
+\item Successful upgrades retain both prior and new archives, clean staging, and create an audit record linking old and new versions.
+\item A failed script preserves prior state, does not retain the candidate as successfully installed, cleans staging, creates a failure audit, and produces a nonzero result.
+\item Multi-package processing continues after a failure, reports each identity as upgraded, current, or failed, and returns nonzero when any identity fails.
+\item WPM self-upgrade uses a cached candidate executable to complete replacement after the original process releases the installed executable.
+\end{enumerate}}
+\def\TCPostConditions{All temporary package sources, archives, repository caches, deployment markers, configuration, audit data, and WPM data directories are removed.}
+\TCTemplate
+\end{document}

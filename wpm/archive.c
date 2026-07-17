@@ -1092,7 +1092,8 @@ static int is_valid_package_name(const char* package_name) {
 static int run_package_script(
     const char* staging_dir,
     const char* script_name,
-    const char* action_name
+    const char* action_name,
+    DWORD* result_exit_code
 ) {
     char script_path[WPM_PATH_SIZE];
     char command_line[WPM_PATH_SIZE + 64];
@@ -1105,6 +1106,7 @@ static int run_package_script(
         printf("Error: %s script path is too long.\n", action_name);
         return 0;
     }
+    if (result_exit_code) *result_exit_code = 0;
     if (!file_exists_at_path(script_path)) return 1;
 
     verbose_log("Running %s script: %s", action_name, script_path);
@@ -1141,6 +1143,7 @@ static int run_package_script(
 
     WaitForSingleObject(process_info.hProcess, INFINITE);
     if (!GetExitCodeProcess(process_info.hProcess, &exit_code)) exit_code = 1;
+    if (result_exit_code) *result_exit_code = exit_code;
     CloseHandle(process_info.hThread);
     CloseHandle(process_info.hProcess);
     if (exit_code != 0) {
@@ -1148,6 +1151,52 @@ static int run_package_script(
         return 0;
     }
 
+    return 1;
+}
+
+int wpm_archive_inspect(const char* archive_path, wpm_package_info* info) {
+    char root[WPM_PATH_SIZE], temp[WPM_PATH_SIZE], stage[WPM_PATH_SIZE];
+    wpm_package_metadata metadata;
+    int result = 0;
+    if (!archive_path || !info || !wpm_get_data_root(root, sizeof(root)) ||
+        !join_path(temp, sizeof(temp), root, "temp") ||
+        snprintf(stage, sizeof(stage), "%s\\inspect-%lu-%llu", temp,
+            (unsigned long)GetCurrentProcessId(), (unsigned long long)GetTickCount64()) < 0 ||
+        !create_directories(temp) || !remove_directory_tree(stage)) return 0;
+    if (wpm_archive_extract(archive_path, stage) && read_package_metadata(stage, &metadata)) {
+        strcpy_s(info->name, sizeof(info->name), metadata.name);
+        strcpy_s(info->version, sizeof(info->version), metadata.version);
+        strcpy_s(info->arch, sizeof(info->arch), metadata.arch);
+        strcpy_s(info->archive_name, sizeof(info->archive_name), path_basename(archive_path));
+        result = 1;
+    }
+    if (!remove_directory_tree(stage)) result = 0;
+    return result;
+}
+
+static int installed_architecture_is_compatible(const wpm_package_metadata* candidate) {
+    char root[WPM_PATH_SIZE], store[WPM_PATH_SIZE], search[WPM_PATH_SIZE], archive[WPM_PATH_SIZE];
+    WIN32_FIND_DATAA entry;
+    HANDLE find;
+    int candidate_any = _stricmp(candidate->arch, "any") == 0;
+    if (!wpm_get_data_root(root, sizeof(root)) || !join_path(store, sizeof(store), root, "packages") ||
+        !join_path(search, sizeof(search), store, "*.zip")) return 0;
+    find = FindFirstFileA(search, &entry);
+    if (find == INVALID_HANDLE_VALUE) return GetLastError() == ERROR_FILE_NOT_FOUND;
+    do {
+        wpm_package_info installed;
+        int installed_any;
+        if (!join_path(archive, sizeof(archive), store, entry.cFileName) ||
+            !wpm_archive_inspect(archive, &installed) || _stricmp(installed.name, candidate->name) != 0) continue;
+        installed_any = _stricmp(installed.arch, "any") == 0;
+        if (candidate_any != installed_any) {
+            printf("Error: package architecture conflicts with installed %s %s; remove the conflicting installation first.\n",
+                installed.name, installed.arch);
+            FindClose(find);
+            return 0;
+        }
+    } while (FindNextFileA(find, &entry));
+    FindClose(find);
     return 1;
 }
 
@@ -1203,7 +1252,8 @@ int wpm_archive_install(const char* archive_path, int allow_unsigned) {
     if (!wpm_validate_package_signature(staging_path, allow_unsigned, signing_key_id, sizeof(signing_key_id))) goto cleanup;
     if (!verify_package_index(staging_path)) goto cleanup;
     if (!read_package_metadata(staging_path, &metadata)) goto cleanup;
-    if (!run_package_script(staging_path, ".wpm\\install.cmd", "install")) goto cleanup;
+    if (!installed_architecture_is_compatible(&metadata)) goto cleanup;
+    if (!run_package_script(staging_path, ".wpm\\install.cmd", "install", NULL)) goto cleanup;
     if (_stricmp(archive_full_path, stored_archive_path) != 0) {
         verbose_log("Storing archive: %s", stored_archive_path);
     }
@@ -1227,6 +1277,161 @@ cleanup:
     if (!success) return 0;
 
     printf("Installed package; archive stored at: %s\n", stored_archive_path);
+    return 1;
+}
+
+static int write_upgrade_audit(const char* data_root, const wpm_package_metadata* metadata,
+    const char* old_version, const char* archive_name, const char* signing_key,
+    int failed, const char* phase, DWORD exit_code) {
+    char directory[WPM_PATH_SIZE], path[WPM_PATH_SIZE];
+    SYSTEMTIME now;
+    FILE* file;
+    if (!join_path(directory, sizeof(directory), data_root, "audit") || !create_directories(directory)) return 0;
+    GetSystemTime(&now);
+    if (snprintf(path, sizeof(path), "%s\\%04u%02u%02uT%02u%02u%02u.%03uZ-%lu-%s.%s.txt",
+        directory, now.wYear, now.wMonth, now.wDay, now.wHour, now.wMinute, now.wSecond,
+        now.wMilliseconds, (unsigned long)GetCurrentProcessId(), metadata->name,
+        failed ? "upgrade-failed" : "upgrade") < 0 || (file = fopen(path, "wb")) == NULL) return 0;
+    fprintf(file, "name=%s\narch=%s\nold-version=%s\nnew-version=%s\narchive=%s\n"
+        "signing-key=%s\nverification=%s\nstatus=%s\n",
+        metadata->name, metadata->arch, old_version, metadata->version, archive_name,
+        signing_key && signing_key[0] ? signing_key : "unknown", failed ? "failed" : "verified",
+        failed ? "failed" : "upgraded");
+    if (failed) fprintf(file, "phase=%s\nexit-code=%lu\n", phase ? phase : "unknown", (unsigned long)exit_code);
+    return fclose(file) == 0;
+}
+
+int wpm_archive_schedule_self_upgrade(const char* archive_path, int allow_unsigned,
+    const char* expected_version, const char* expected_arch,
+    const char* old_version) {
+    char archive_full[WPM_PATH_SIZE], root[WPM_PATH_SIZE], temp[WPM_PATH_SIZE];
+    char stage[WPM_PATH_SIZE], staged_exe[WPM_PATH_SIZE], cache[WPM_PATH_SIZE];
+    char handoff_dir[WPM_PATH_SIZE], handoff_exe[WPM_PATH_SIZE];
+    char signing_key[65] = "", command[WPM_PATH_SIZE * 2];
+    wpm_package_metadata metadata;
+    STARTUPINFOA startup;
+    PROCESS_INFORMATION process;
+    int result = 0;
+    if (!normalized_full_path(archive_path, archive_full, sizeof(archive_full)) ||
+        !wpm_get_data_root(root, sizeof(root)) || !join_path(temp, sizeof(temp), root, "temp") ||
+        snprintf(stage, sizeof(stage), "%s\\self-upgrade-stage-%lu", temp,
+            (unsigned long)GetCurrentProcessId()) < 0 ||
+        !join_path(staged_exe, sizeof(staged_exe), stage, "wpm.exe") ||
+        !join_path(cache, sizeof(cache), root, "cache") ||
+        !join_path(handoff_dir, sizeof(handoff_dir), cache, "self-upgrade") ||
+        snprintf(handoff_exe, sizeof(handoff_exe), "%s\\wpm-%s-%s.exe",
+            handoff_dir, expected_arch, expected_version) < 0 ||
+        !create_directories(temp) || !create_directories(cache) ||
+        !create_directories(handoff_dir) || !remove_directory_tree(stage)) return 0;
+    memset(&metadata, 0, sizeof(metadata));
+    strcpy_s(metadata.name, sizeof(metadata.name), "wpm");
+    strcpy_s(metadata.version, sizeof(metadata.version), expected_version);
+    strcpy_s(metadata.arch, sizeof(metadata.arch), expected_arch);
+    if (!wpm_archive_extract(archive_full, stage)) {
+        write_upgrade_audit(root, &metadata, old_version, path_basename(archive_full), signing_key, 1, "self-upgrade-extraction", 0);
+        goto cleanup;
+    }
+    if (!wpm_validate_package_signature(stage, allow_unsigned, signing_key, sizeof(signing_key)) ||
+        !verify_package_index(stage) || !read_package_metadata(stage, &metadata)) {
+        write_upgrade_audit(root, &metadata, old_version, path_basename(archive_full), signing_key, 1, "self-upgrade-validation", 0);
+        goto cleanup;
+    }
+    if (_stricmp(metadata.name, "wpm") != 0 || strcmp(metadata.version, expected_version) != 0 ||
+        _stricmp(metadata.arch, expected_arch) != 0 || !file_exists_at_path(staged_exe)) {
+        printf("Error: WPM self-upgrade package metadata or executable does not match the selected candidate.\n");
+        write_upgrade_audit(root, &metadata, old_version, path_basename(archive_full), signing_key, 1, "self-upgrade-metadata", 0);
+        goto cleanup;
+    }
+    if (!CopyFileA(staged_exe, handoff_exe, FALSE)) {
+        printf("Error: could not cache the WPM self-upgrade executable.\n");
+        goto cleanup;
+    }
+    if (snprintf(command, sizeof(command), "\"%s\" --complete-self-upgrade \"%s\" %lu \"%s\" \"%s\" \"%s\" %d",
+        handoff_exe, archive_full, (unsigned long)GetCurrentProcessId(), expected_version,
+        expected_arch, old_version, allow_unsigned ? 1 : 0) < 0) goto cleanup;
+    memset(&startup, 0, sizeof(startup));
+    memset(&process, 0, sizeof(process));
+    startup.cb = sizeof(startup);
+    if (!CreateProcessA(handoff_exe, command, NULL, NULL, FALSE,
+        DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP, NULL, NULL, &startup, &process)) {
+        printf("Error: could not launch the cached WPM self-upgrade executable.\n");
+        goto cleanup;
+    }
+    CloseHandle(process.hThread);
+    CloseHandle(process.hProcess);
+    printf("Scheduled WPM self-upgrade to %s; installation will continue after this process exits.\n", expected_version);
+    result = 1;
+cleanup:
+    if (!remove_directory_tree(stage)) result = 0;
+    return result;
+}
+
+int wpm_archive_upgrade(const char* archive_path, int allow_unsigned,
+    const char* expected_name, const char* expected_version,
+    const char* expected_arch, const char* old_version) {
+    char archive_full[WPM_PATH_SIZE], base[WPM_PATH_SIZE], root[WPM_PATH_SIZE];
+    char temp[WPM_PATH_SIZE], store[WPM_PATH_SIZE], stage[WPM_PATH_SIZE], stored[WPM_PATH_SIZE];
+    char signing_key[65] = "";
+    wpm_package_metadata metadata;
+    DWORD script_exit = 0;
+    int success = 0;
+    memset(&metadata, 0, sizeof(metadata));
+    strcpy_s(metadata.name, sizeof(metadata.name), expected_name);
+    strcpy_s(metadata.version, sizeof(metadata.version), expected_version);
+    strcpy_s(metadata.arch, sizeof(metadata.arch), expected_arch);
+    if (!normalized_full_path(archive_path, archive_full, sizeof(archive_full))) return 0;
+    strcpy_s(base, sizeof(base), path_basename(archive_full));
+    if (!wpm_get_data_root(root, sizeof(root)) || !join_path(temp, sizeof(temp), root, "temp") ||
+        !join_path(store, sizeof(store), root, "packages") || !join_path(stage, sizeof(stage), temp, base) ||
+        !join_path(stored, sizeof(stored), store, base) || !create_directories(temp) ||
+        !create_directories(store) || !remove_directory_tree(stage)) return 0;
+    if (!wpm_archive_extract(archive_full, stage)) {
+        write_upgrade_audit(root, &metadata, old_version, base, signing_key, 1, "extraction", 0);
+        goto cleanup;
+    }
+    if (!wpm_validate_package_signature(stage, allow_unsigned, signing_key, sizeof(signing_key))) {
+        write_upgrade_audit(root, &metadata, old_version, base, signing_key, 1, "signature-validation", 0);
+        goto cleanup;
+    }
+    if (!verify_package_index(stage)) {
+        write_upgrade_audit(root, &metadata, old_version, base, signing_key, 1, "index-validation", 0);
+        goto cleanup;
+    }
+    if (!read_package_metadata(stage, &metadata)) {
+        write_upgrade_audit(root, &metadata, old_version, base, signing_key, 1, "metadata", 0);
+        goto cleanup;
+    }
+    if (_stricmp(metadata.name, expected_name) != 0 || strcmp(metadata.version, expected_version) != 0 ||
+        _stricmp(metadata.arch, expected_arch) != 0) {
+        printf("Error: downloaded package metadata does not match the selected repository entry.\n");
+        write_upgrade_audit(root, &metadata, old_version, base, signing_key, 1, "metadata", 0);
+        goto cleanup;
+    }
+    if (!installed_architecture_is_compatible(&metadata)) {
+        write_upgrade_audit(root, &metadata, old_version, base, signing_key, 1, "architecture", 0);
+        goto cleanup;
+    }
+    if (!run_package_script(stage, ".wpm\\install.cmd", "upgrade install", &script_exit)) {
+        write_upgrade_audit(root, &metadata, old_version, base, signing_key, 1, "install-script", script_exit);
+        printf("Warning: package-maintainer recovery may be required.\n");
+        goto cleanup;
+    }
+    if (_stricmp(archive_full, stored) != 0 && !CopyFileA(archive_full, stored, FALSE)) {
+        write_upgrade_audit(root, &metadata, old_version, base, signing_key, 1, "archive-retention", 0);
+        printf("Error: upgrade deployed software but archive retention failed; recovery is required.\n");
+        goto cleanup;
+    }
+    if (!write_upgrade_audit(root, &metadata, old_version, base, signing_key, 0, NULL, 0)) {
+        printf("Error: upgrade deployed software but audit recording failed; recovery is required.\n");
+        goto cleanup;
+    }
+    success = 1;
+cleanup:
+    if (!remove_directory_tree(stage)) success = 0;
+    if (!success) {
+        return 0;
+    }
+    printf("Upgraded %s %s %s to %s.\n", expected_name, expected_arch, old_version, expected_version);
     return 1;
 }
 
@@ -1275,7 +1480,7 @@ int wpm_archive_remove(const char* package_name) {
 
     if (!wpm_archive_extract(stored_archive_path, staging_path)) goto cleanup;
     if (!verify_package_index(staging_path)) goto cleanup;
-    if (!run_package_script(staging_path, ".wpm\\remove.cmd", "removal")) goto cleanup;
+    if (!run_package_script(staging_path, ".wpm\\remove.cmd", "removal", NULL)) goto cleanup;
     if (!DeleteFileA(stored_archive_path)) {
         printf("Error: could not remove stored package archive: %s\n", stored_archive_path);
         goto cleanup;

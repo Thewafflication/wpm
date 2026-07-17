@@ -323,6 +323,23 @@
             "execution": {
                 "noTestsAction": "error"
             }
+        },
+        {
+            "name": "test-tc-0013-x86-debug",
+            "displayName": "Test TC-0013 x86 Debug",
+            "configurePreset": "x86-debug",
+            "configuration": "Debug",
+            "filter": {
+                "include": {
+                    "name": "TC-0013"
+                }
+            },
+            "output": {
+                "outputOnFailure": true
+            },
+            "execution": {
+                "noTestsAction": "error"
+            }
         }
     ]
 }

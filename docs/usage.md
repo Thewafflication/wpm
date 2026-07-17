@@ -4,8 +4,7 @@ WPM (Waughtal Package Manager) is a command-line tool for creating, building,
 installing, removing, updating, and upgrading packages.
 
 > [!NOTE]
-> WPM is under development. Package removal and upgrades are not implemented
-> yet.
+> WPM is under active development toward its 1.0 release.
 
 ## Command syntax
 
@@ -125,6 +124,15 @@ displays a warning for each unsigned package it installs:
 wpm install ./dist/legacy-package.zip --allow-unsigned
 ```
 
+Named installation accepts exact architecture and version selectors:
+
+```text
+wpm install example --arch x86 --version 2.4.1
+```
+
+Selectors are not accepted with a local ZIP path because its metadata already
+defines its identity.
+
 ### Remove packages
 
 ```text
@@ -155,13 +163,37 @@ Updates the package index.
 ### Upgrade packages
 
 ```text
-wpm upgrade <package...>
+wpm upgrade <package...> [--arch <any|x86|x64|arm64>] [--version <semver>]
+wpm upgrade --all [--arch <any|x86|x64|arm64>]
 ```
 
 Upgrades one or more packages:
 
 ```text
 wpm upgrade pkg1 pkg2
+wpm upgrade pkg1 --arch x86 --version 2.5.0
+wpm upgrade --all
+```
+
+Without selectors, WPM upgrades every installed architecture of each named
+package when an exact-architecture newer candidate is available. Upgrade never
+uses an `any` candidate for a specific installed architecture and never
+performs an implicit downgrade. Prior retained archives remain available for
+version-specific removal and audit.
+
+When WPM upgrades itself, it validates the candidate, launches the candidate
+`wpm.exe` from `cache\self-upgrade`, and exits. The cached process waits for the
+original executable to be released before completing installation, allowing a
+managed Program Files installation to be replaced safely.
+
+Prerelease candidates are disabled by default. Configure the global policy or
+a package override with:
+
+```text
+wpm config set prerelease true
+wpm config set prerelease true --package example
+wpm config get prerelease --package example
+wpm config unset prerelease --package example
 ```
 
 ## Package layout
