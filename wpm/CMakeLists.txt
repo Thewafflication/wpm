@@ -62,7 +62,7 @@ if (CMAKE_VERSION VERSION_GREATER 3.12)
 endif()
 
 target_compile_definitions(wpm PRIVATE SODIUM_STATIC WPM_TARGET_ARCH="${wpm_arch}")
-target_link_libraries(wpm PRIVATE miniz libsodium urlmon)
+target_link_libraries(wpm PRIVATE miniz libsodium urlmon advapi32 version)
 
 if(BUILD_TESTING)
   find_program(WPM_POWERSHELL_EXECUTABLE NAMES pwsh powershell)

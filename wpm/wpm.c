@@ -58,6 +58,35 @@ static void print_diagnostics(void)
     printf("Configuration directory: %s\\config\n", data_root);
 }
 
+static void print_windows_dependency_version(const char* display_name, const char* module_name)
+{
+    HMODULE module = GetModuleHandleA(module_name);
+    char path[MAX_PATH];
+    DWORD handle = 0;
+    DWORD size;
+    void* version_data;
+    VS_FIXEDFILEINFO* fixed_info = NULL;
+    UINT fixed_info_size = 0;
+
+    if (!module || GetModuleFileNameA(module, path, sizeof(path)) == 0 ||
+        (size = GetFileVersionInfoSizeA(path, &handle)) == 0 ||
+        (version_data = malloc(size)) == NULL) {
+        printf("  %s unknown (Windows system library)\n", display_name);
+        return;
+    }
+    if (!GetFileVersionInfoA(path, 0, size, version_data) ||
+        !VerQueryValueA(version_data, "\\", (LPVOID*)&fixed_info, &fixed_info_size) ||
+        fixed_info_size < sizeof(*fixed_info)) {
+        printf("  %s unknown (Windows system library)\n", display_name);
+        free(version_data);
+        return;
+    }
+    printf("  %s %u.%u.%u.%u (Windows system library)\n", display_name,
+        HIWORD(fixed_info->dwFileVersionMS), LOWORD(fixed_info->dwFileVersionMS),
+        HIWORD(fixed_info->dwFileVersionLS), LOWORD(fixed_info->dwFileVersionLS));
+    free(version_data);
+}
+
 int main(int argc, char *argv[])
 {
 	int verbose = 0;
@@ -143,7 +172,11 @@ int main(int argc, char *argv[])
                 printf("Usage: wpm build <source_dir> [output_dir] [--no-index]\n");
                 return 1;
             }
-            if (!signing_key && wpm_get_default_key(default_key, sizeof(default_key))) signing_key = default_key;
+            if (!signing_key) {
+                int default_result = wpm_get_default_key(default_key, sizeof(default_key));
+                if (default_result < 0) return 1;
+                if (default_result > 0) signing_key = default_key;
+            }
             if (!wpm_archive_build(source_dir, output_dir ? output_dir : ".", !no_index, signing_key)) return 1;
             if (no_index) printf("Skipped package index update.\n");
             break;
@@ -302,6 +335,8 @@ void print_version()
         WPM_SODIUM_VERSION,
         WPM_SODIUM_COMMIT,
         WPM_SODIUM_DIRTY ? ", dirty" : "");
+    print_windows_dependency_version("urlmon", "urlmon.dll");
+    print_windows_dependency_version("advapi32", "advapi32.dll");
 }
 
 void print_usage(Command c) {

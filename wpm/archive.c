@@ -382,6 +382,30 @@ static int read_package_metadata(const char* source_dir, wpm_package_metadata* m
     return 1;
 }
 
+static int write_installation_audit(const char* data_root, const char* archive_name,
+                                    const wpm_package_metadata* metadata, const char* signing_key_id) {
+    char audit_dir[WPM_PATH_SIZE];
+    char audit_path[WPM_PATH_SIZE];
+    SYSTEMTIME now;
+    FILE* file;
+    int written;
+
+    if (!join_path(audit_dir, sizeof(audit_dir), data_root, "audit") || !create_directories(audit_dir)) return 0;
+    GetSystemTime(&now);
+    written = snprintf(audit_path, sizeof(audit_path),
+        "%s\\%04u%02u%02uT%02u%02u%02u.%03uZ-%lu-%s.install.txt",
+        audit_dir, now.wYear, now.wMonth, now.wDay, now.wHour, now.wMinute, now.wSecond,
+        now.wMilliseconds, (unsigned long)GetCurrentProcessId(), metadata->name);
+    if (written < 0 || (size_t)written >= sizeof(audit_path) || (file = fopen(audit_path, "wb")) == NULL) return 0;
+    fprintf(file,
+        "name=%s\nversion=%s\narchive=%s\ntimestamp=%04u-%02u-%02uT%02u:%02u:%02u.%03uZ\n"
+        "signing-key=%s\nverification=verified\n",
+        metadata->name, metadata->version, archive_name,
+        now.wYear, now.wMonth, now.wDay, now.wHour, now.wMinute, now.wSecond, now.wMilliseconds,
+        signing_key_id);
+    return fclose(file) == 0;
+}
+
 static int ensure_sodium_ready(void) {
     static int initialized = 0;
 
@@ -1135,6 +1159,8 @@ int wpm_archive_install(const char* archive_path, int allow_unsigned) {
     char package_store[WPM_PATH_SIZE];
     char staging_path[WPM_PATH_SIZE];
     char stored_archive_path[WPM_PATH_SIZE];
+    char signing_key_id[65];
+    wpm_package_metadata metadata;
     char* extension;
     int success = 0;
 
@@ -1174,16 +1200,21 @@ int wpm_archive_install(const char* archive_path, int allow_unsigned) {
     verbose_log("Using staging directory: %s", staging_path);
 
     if (!wpm_archive_extract(archive_full_path, staging_path)) goto cleanup;
-    if (!wpm_validate_package_signature(staging_path, allow_unsigned, NULL, 0)) goto cleanup;
+    if (!wpm_validate_package_signature(staging_path, allow_unsigned, signing_key_id, sizeof(signing_key_id))) goto cleanup;
     if (!verify_package_index(staging_path)) goto cleanup;
+    if (!read_package_metadata(staging_path, &metadata)) goto cleanup;
     if (!run_package_script(staging_path, ".wpm\\install.cmd", "install")) goto cleanup;
     if (_stricmp(archive_full_path, stored_archive_path) != 0) {
         verbose_log("Storing archive: %s", stored_archive_path);
     }
     if (_stricmp(archive_full_path, stored_archive_path) != 0 &&
         !CopyFileA(archive_full_path, stored_archive_path, FALSE)) {
-            printf("Error: could not store package archive: %s\n", stored_archive_path);
-            goto cleanup;
+        printf("Error: could not store package archive: %s\n", stored_archive_path);
+        goto cleanup;
+    }
+    if (!write_installation_audit(data_root, path_basename(archive_full_path), &metadata, signing_key_id)) {
+        printf("Error: could not record package verification audit.\n");
+        goto cleanup;
     }
 
     success = 1;
@@ -1249,7 +1280,6 @@ int wpm_archive_remove(const char* package_name) {
         printf("Error: could not remove stored package archive: %s\n", stored_archive_path);
         goto cleanup;
     }
-
     success = 1;
 
 cleanup:

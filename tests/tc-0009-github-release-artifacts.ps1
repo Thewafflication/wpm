@@ -26,7 +26,9 @@ $results = @(
                 'arm64-release',
                 'WPM_EXECUTABLE=.*bin/x86/Debug/wpm\.exe',
                 'WPM_PACKAGE_EXECUTABLE=.*release-binaries/wpm-\$architecture\.exe',
-                'release/packages/wpm-\*\.zip'
+                '\$packages = Get-ChildItem -LiteralPath release/packages -Filter ''wpm-\*\.zip''',
+                'release/packages/wpm-\*\.zip',
+                'release/keys/release\.public'
             )
 
             foreach ($pattern in $requiredPatterns) {

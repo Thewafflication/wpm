@@ -14,7 +14,7 @@ margin=1in
 \def\TCTitle{Usage/version check}
 
 \def\TCPurpose{
-	Verify that wpm executes and exits cleanly.
+	Verify that wpm executes, exits cleanly, and reports its bundled and Windows system-library dependency versions.
 }
 
 \def\TCPriority{\TCPriorityHigh}
@@ -45,7 +45,7 @@ margin=1in
 	\par
 	\begin{enumerate}
 		\item Exit code 0 and version or usage information is displayed.
-		\item Exit code 0 and dependency version information is displayed.
+		\item Exit code 0 and dependency version information is displayed for miniz, libsodium, urlmon, and advapi32.
 	\end{enumerate}
 }
 

@@ -15,7 +15,7 @@ verification evidence.
   execution evidence as a GitHub artifact.
 - `wpm upgrade` is a command placeholder; it does not yet resolve or install
   a newer package version.
-- Package signing and package-signature validation are not yet implemented.
+- Ed25519 package signing, trust management, validation, and installation audit records are implemented.
 - Remote HTTPS package repositories support configuration, caching, discovery,
   and named package installation.
 - WPM self-installation creates a machine-level `WPM` variable and adds it to
@@ -100,7 +100,8 @@ repository index schema, cache behavior, offline behavior, and precedence.
 
 </details>
 
-## ⏳ Milestone 4: Package Signing and Validation — Planned
+<details>
+<summary><strong>✅ Milestone 4: Package Signing and Validation — Complete</strong></summary>
 
 Define and implement a signed package format.
 
@@ -122,6 +123,8 @@ Completion criteria:
 Implementation contract: REQ-0012 defines the Ed25519 package-signature
 format, signing input, trust store, validation sequence, unsigned exception,
 and audit record.
+
+</details>
 
 ## ⏳ Milestone 5: Version-Aware Upgrades — Planned
 

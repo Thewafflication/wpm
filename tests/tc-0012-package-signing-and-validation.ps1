@@ -37,6 +37,9 @@ $untrustedKeyId = $null
 $malformedArchive = $null
 $invalidArchive = $null
 $unindexedArchive = $null
+$unsupportedVersionArchive = $null
+$unsupportedAlgorithmArchive = $null
+$defaultKeyConfig = $null
 
 function New-TestPackage {
     param([string]$Path, [string]$Name, [string]$Marker)
@@ -79,11 +82,34 @@ try {
         if (-not (Test-Path -LiteralPath $privateKey) -or -not (Test-Path -LiteralPath $publicKey)) { throw 'keygen did not create both key files.' }
         if ($Output -match 'secret-key=') { throw 'keygen displayed private-key material.' }
         if (-not (Test-Path -LiteralPath (Join-Path $dataDir 'config\signing-key.txt'))) { throw 'keygen did not configure the default signing key.' }
+        $acl = Get-Acl -LiteralPath $privateKey
+        if (-not $acl.AreAccessRulesProtected) { throw 'Private-key ACL still permits inherited access.' }
+        $currentSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+        $rules = @($acl.Access | Where-Object AccessControlType -eq 'Allow')
+        if ($rules.Count -ne 1 -or $rules[0].IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value -ne $currentSid) {
+            throw 'Private key is not restricted to the invoking user.'
+        }
     }
 
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Build signed package with default key' -Arguments @('build', $sourceDir, $outputDir) -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -ne 0 -or -not (Test-Path -LiteralPath $archivePath)) { throw "Default-key build failed. $Output" }
+    }
+
+    $results += New-WpmManualStep -Name 'Corrupt configured default signing-key identifier' -Action {
+        $configPath = Join-Path $dataDir 'config\signing-key.txt'
+        $script:defaultKeyConfig = Get-Content -Raw -LiteralPath $configPath
+        $corrupt = $defaultKeyConfig -replace '(?m)^key-id=.*$', ('key-id=' + ('0' * 64))
+        Set-Content -LiteralPath $configPath -Value $corrupt -NoNewline
+        'Configured key identifier replaced for negative testing.'
+    }
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Reject mismatched configured default signing key' -Arguments @('build', $sourceDir, $outputDir) -Assert {
+        param($ExitCode, $Output)
+        if ($ExitCode -eq 0 -or $Output -notmatch '(?i)default signing key') { throw 'Mismatched default signing-key configuration was accepted.' }
+    }
+    $results += New-WpmManualStep -Name 'Restore configured default signing key' -Action {
+        Set-Content -LiteralPath (Join-Path $dataDir 'config\signing-key.txt') -Value $defaultKeyConfig -NoNewline
+        'Default signing-key configuration restored.'
     }
 
     $results += New-WpmManualStep -Name 'Inspect signed package format' -Action {
@@ -110,6 +136,13 @@ try {
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Install package with trusted valid signature' -Arguments @('install', $archivePath) -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -ne 0 -or (Get-Content -Raw -LiteralPath $deployment).Trim() -ne 'signed') { throw "Trusted package did not install. $Output" }
+        $audit = Get-ChildItem -LiteralPath (Join-Path $dataDir 'audit') -Filter '*.install.txt'
+        if ($audit.Count -ne 1) { throw 'Expected one installation audit record.' }
+        $auditText = Get-Content -Raw -LiteralPath $audit[0].FullName
+        if ($auditText -notmatch "(?m)^name=$([regex]::Escape($packageName))$" -or
+            $auditText -notmatch '(?m)^version=1\.0\.0$' -or
+            $auditText -notmatch '(?m)^signing-key=[0-9a-f]{64}$' -or
+            $auditText -notmatch '(?m)^verification=verified$') { throw 'Installation audit record is incomplete.' }
     }
 
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Generate untrusted signing key' -Arguments @('keygen', $untrustedPrivateKey, $untrustedPublicKey) -Assert {
@@ -147,15 +180,21 @@ try {
         $malformed = New-ArchiveVariant -Archive $archivePath -VariantName 'malformed-signature' -Mutate { param($dir) Set-Content -LiteralPath (Join-Path $dir '.wpm\signature.json') -Value '{not json}' }
         $invalid = New-ArchiveVariant -Archive $archivePath -VariantName 'invalid-signature' -Mutate { param($dir) (Get-Content -Raw -LiteralPath (Join-Path $dir '.wpm\signature.json')).Replace('"signature":', '"signature":"AAAA", "original_signature":') | Set-Content -LiteralPath (Join-Path $dir '.wpm\signature.json') }
         $unindexed = New-ArchiveVariant -Archive $archivePath -VariantName 'unindexed-entry' -Mutate { param($dir) Set-Content -LiteralPath (Join-Path $dir 'unexpected.txt') -Value 'unindexed' }
+        $unsupportedVersion = New-ArchiveVariant -Archive $archivePath -VariantName 'unsupported-version' -Mutate { param($dir) (Get-Content -Raw -LiteralPath (Join-Path $dir '.wpm\signature.json')).Replace('"version": 1', '"version": 2') | Set-Content -LiteralPath (Join-Path $dir '.wpm\signature.json') }
+        $unsupportedAlgorithm = New-ArchiveVariant -Archive $archivePath -VariantName 'unsupported-algorithm' -Mutate { param($dir) (Get-Content -Raw -LiteralPath (Join-Path $dir '.wpm\signature.json')).Replace('"algorithm": "ed25519"', '"algorithm": "rsa"') | Set-Content -LiteralPath (Join-Path $dir '.wpm\signature.json') }
         $script:malformedArchive = $malformed
         $script:invalidArchive = $invalid
         $script:unindexedArchive = $unindexed
+        $script:unsupportedVersionArchive = $unsupportedVersion
+        $script:unsupportedAlgorithmArchive = $unsupportedAlgorithm
     }
 
     foreach ($variant in @(
         @{ Name = 'malformed signature metadata'; Archive = $malformedArchive },
         @{ Name = 'invalid signature'; Archive = $invalidArchive },
-        @{ Name = 'unindexed archive entry'; Archive = $unindexedArchive }
+        @{ Name = 'unindexed archive entry'; Archive = $unindexedArchive },
+        @{ Name = 'unsupported signature schema version'; Archive = $unsupportedVersionArchive },
+        @{ Name = 'unsupported signature algorithm'; Archive = $unsupportedAlgorithmArchive }
     )) {
         $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name "Reject $($variant.Name)" -Arguments @('install', $variant.Archive) -Assert {
             param($ExitCode, $Output)

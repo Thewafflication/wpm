@@ -19,15 +19,18 @@
 \item Attempt installation before its public key is trusted, then add the public key and install successfully.
 \item Build with an untrusted key and verify rejection; trust, revoke, and retry it.
 \item Build an unsigned package and verify default rejection plus the explicit \texttt{--allow-unsigned} exception.
-\item Create malformed-signature, invalid-signature, and unindexed-entry variants of a signed archive and attempt installation.
+\item Create malformed-signature, invalid-signature, unsupported-version, unsupported-algorithm, and unindexed-entry variants of a signed archive and attempt installation.
 \end{enumerate}}
 \def\TCExpectedResult{\par\begin{enumerate}
 \item Key generation creates correctly formatted public and private key files, records only a key path and identifier as the default, and does not display private-key material.
 \item A default-key build contains one Ed25519 signature metadata file; the exact archive index is signed and neither the index nor signature file indexes itself.
+\item A configured default key whose stored identifier no longer matches the private key causes the build to fail instead of silently producing an unsigned package.
+\item The generated private key is protected from inherited access and grants access only to the invoking user.
 \item A package signed by an unknown key is rejected without running its install script or retaining its archive; trusting that key permits installation.
 \item A package signed by a revoked key is rejected without running its install script or retaining its archive.
 \item An unsigned package is rejected by default and is accepted only with \texttt{--allow-unsigned}, with a warning.
 \item Malformed signature metadata, an invalid signature, and an unindexed archive entry each cause a nonzero installation result, no script execution, no retained archive, and staging cleanup.
+\item Unsupported signature schema versions and algorithms are rejected, and a successful installation creates a complete verification audit record.
 \end{enumerate}}
 \def\TCPostConditions{All temporary package, key, deployment, and WPM data directories are removed.}
 \TCTemplate
