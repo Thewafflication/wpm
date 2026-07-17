@@ -58,6 +58,22 @@ $results = @(
                 throw 'Expected portable runtime mode information for the build output.'
             }
         }
+
+    Invoke-WpmTestStep `
+        -WpmExe $WpmExe `
+        -Name 'Invoke the CI version and runtime diagnostic combination' `
+        -Arguments @('--version', '--verbose') `
+        -Assert {
+            param($ExitCode, $Output)
+            if ($ExitCode -ne 0) {
+                throw "Expected exit code 0, got $ExitCode."
+            }
+            if ($Output -notmatch 'Waughtal Package Manager .* Version ' -or
+                $Output -notmatch 'Dependencies:' -or
+                $Output -notmatch 'Runtime mode: portable') {
+                throw 'Expected combined version, dependency, and runtime information.'
+            }
+        }
 )
 $finished = Get-Date
 

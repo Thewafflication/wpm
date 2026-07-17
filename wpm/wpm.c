@@ -118,7 +118,7 @@ int main(int argc, char *argv[])
         else if (strcmp(argv[i], "--offline") == 0) {
             offline = 1;
         }
-        else if (strcmp(argv[i], "--version") == 0 && argc == 2) {
+        else if (strcmp(argv[i], "--version") == 0 && command_index == -1) {
             show_version = 1;
         }
         else if (strcmp(argv[i], "--diagnose") == 0) {
