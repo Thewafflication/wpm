@@ -71,10 +71,10 @@ jobs:
         shell: pwsh
         run: |
           cmake --preset ${{ matrix.configure_preset }} `
-            -DWPM_MINIZ_VERSION_OVERRIDE=${{ needs.dependency-metadata.outputs.miniz_version }} `
-            -DWPM_MINIZ_COMMIT_OVERRIDE=${{ needs.dependency-metadata.outputs.miniz_commit }} `
-            -DWPM_LIBSODIUM_VERSION_OVERRIDE=${{ needs.dependency-metadata.outputs.libsodium_version }} `
-            -DWPM_LIBSODIUM_COMMIT_OVERRIDE=${{ needs.dependency-metadata.outputs.libsodium_commit }}
+            "-DWPM_MINIZ_VERSION_OVERRIDE=${{ needs.dependency-metadata.outputs.miniz_version }}" `
+            "-DWPM_MINIZ_COMMIT_OVERRIDE=${{ needs.dependency-metadata.outputs.miniz_commit }}" `
+            "-DWPM_LIBSODIUM_VERSION_OVERRIDE=${{ needs.dependency-metadata.outputs.libsodium_version }}" `
+            "-DWPM_LIBSODIUM_COMMIT_OVERRIDE=${{ needs.dependency-metadata.outputs.libsodium_commit }}"
 
       - name: Verify requirements traceability
         shell: pwsh
@@ -129,10 +129,10 @@ jobs:
         shell: pwsh
         run: |
           cmake --preset ${{ matrix.configure_preset }} `
-            -DWPM_MINIZ_VERSION_OVERRIDE=${{ needs.dependency-metadata.outputs.miniz_version }} `
-            -DWPM_MINIZ_COMMIT_OVERRIDE=${{ needs.dependency-metadata.outputs.miniz_commit }} `
-            -DWPM_LIBSODIUM_VERSION_OVERRIDE=${{ needs.dependency-metadata.outputs.libsodium_version }} `
-            -DWPM_LIBSODIUM_COMMIT_OVERRIDE=${{ needs.dependency-metadata.outputs.libsodium_commit }}
+            "-DWPM_MINIZ_VERSION_OVERRIDE=${{ needs.dependency-metadata.outputs.miniz_version }}" `
+            "-DWPM_MINIZ_COMMIT_OVERRIDE=${{ needs.dependency-metadata.outputs.miniz_commit }}" `
+            "-DWPM_LIBSODIUM_VERSION_OVERRIDE=${{ needs.dependency-metadata.outputs.libsodium_version }}" `
+            "-DWPM_LIBSODIUM_COMMIT_OVERRIDE=${{ needs.dependency-metadata.outputs.libsodium_commit }}"
 
       - name: Build
         shell: pwsh
