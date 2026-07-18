@@ -9,9 +9,11 @@ package for each Release executable. The package job shall download that
 immutable verification artifact, including its generated reports and evidence,
 and shall not configure, compile, or test a second x86 Debug build.
 
-The workflow shall fetch tags for every checked-out submodule before generating
-version information, so dependency versions identify their exact tags when the
-checked-out submodule commit is tagged.
+The workflow shall use one preliminary metadata job to fetch submodule tags,
+resolve each pinned dependency's exact tag and commit, and pass that immutable
+metadata to every architecture build. Architecture jobs shall not independently
+fetch dependency tags. This ensures all executables report identical dependency
+versions while performing tag discovery only once.
 
 When all required jobs succeed, the workflow shall create or update the GitHub
 Release for the pushed tag and attach these assets:

@@ -9,8 +9,39 @@ permissions:
   contents: write
 
 jobs:
+  dependency-metadata:
+    name: Resolve dependency metadata
+    runs-on: windows-2022
+    outputs:
+      miniz_version: ${{ steps.metadata.outputs.miniz_version }}
+      miniz_commit: ${{ steps.metadata.outputs.miniz_commit }}
+      libsodium_version: ${{ steps.metadata.outputs.libsodium_version }}
+      libsodium_commit: ${{ steps.metadata.outputs.libsodium_commit }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Fetch submodule tags
+        shell: pwsh
+        run: git submodule foreach --recursive 'git fetch --tags --force'
+
+      - name: Check for newer dependency releases
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: tests/check-dependency-releases.ps1
+
+      - name: Export dependency metadata
+        id: metadata
+        shell: pwsh
+        run: tests/export-dependency-metadata.ps1 -GitHubOutput $env:GITHUB_OUTPUT
+
   verify:
     name: Verify ${{ matrix.arch }} Debug
+    needs: dependency-metadata
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -36,20 +67,14 @@ jobs:
           fetch-depth: 0
           submodules: recursive
 
-      - name: Fetch submodule tags
-        shell: pwsh
-        run: git submodule foreach --recursive 'git fetch --tags --force'
-
-      - name: Check for newer dependency releases
-        if: matrix.arch == 'x86'
-        shell: pwsh
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: tests/check-dependency-releases.ps1
-
       - name: Configure verification build
         shell: pwsh
-        run: cmake --preset ${{ matrix.configure_preset }}
+        run: |
+          cmake --preset ${{ matrix.configure_preset }} `
+            -DWPM_MINIZ_VERSION_OVERRIDE=${{ needs.dependency-metadata.outputs.miniz_version }} `
+            -DWPM_MINIZ_COMMIT_OVERRIDE=${{ needs.dependency-metadata.outputs.miniz_commit }} `
+            -DWPM_LIBSODIUM_VERSION_OVERRIDE=${{ needs.dependency-metadata.outputs.libsodium_version }} `
+            -DWPM_LIBSODIUM_COMMIT_OVERRIDE=${{ needs.dependency-metadata.outputs.libsodium_commit }}
 
       - name: Verify requirements traceability
         shell: pwsh
@@ -77,7 +102,7 @@ jobs:
 
   build:
     name: Build ${{ matrix.arch }} Release
-    needs: verify
+    needs: [verify, dependency-metadata]
     runs-on: windows-2022
     strategy:
       fail-fast: false
@@ -100,13 +125,14 @@ jobs:
           fetch-depth: 0
           submodules: recursive
 
-      - name: Fetch submodule tags
-        shell: pwsh
-        run: git submodule foreach --recursive 'git fetch --tags --force'
-
       - name: Configure
         shell: pwsh
-        run: cmake --preset ${{ matrix.configure_preset }}
+        run: |
+          cmake --preset ${{ matrix.configure_preset }} `
+            -DWPM_MINIZ_VERSION_OVERRIDE=${{ needs.dependency-metadata.outputs.miniz_version }} `
+            -DWPM_MINIZ_COMMIT_OVERRIDE=${{ needs.dependency-metadata.outputs.miniz_commit }} `
+            -DWPM_LIBSODIUM_VERSION_OVERRIDE=${{ needs.dependency-metadata.outputs.libsodium_version }} `
+            -DWPM_LIBSODIUM_COMMIT_OVERRIDE=${{ needs.dependency-metadata.outputs.libsodium_commit }}
 
       - name: Build
         shell: pwsh
@@ -137,10 +163,6 @@ jobs:
         with:
           fetch-depth: 0
           submodules: recursive
-
-      - name: Fetch submodule tags
-        shell: pwsh
-        run: git submodule foreach --recursive 'git fetch --tags --force'
 
       - name: Download verified x86 Debug package builder and reports
         uses: actions/download-artifact@v8

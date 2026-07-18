@@ -58,6 +58,12 @@ if(NOT tag_result EQUAL 0)
     endif()
 endif()
 
+if(DEFINED WPM_MINIZ_VERSION_OVERRIDE AND NOT WPM_MINIZ_VERSION_OVERRIDE STREQUAL "" AND
+   DEFINED WPM_MINIZ_COMMIT_OVERRIDE AND NOT WPM_MINIZ_COMMIT_OVERRIDE STREQUAL "")
+    set(miniz_version "${WPM_MINIZ_VERSION_OVERRIDE}")
+    set(miniz_commit "${WPM_MINIZ_COMMIT_OVERRIDE}")
+    set(miniz_dirty 0)
+else()
 execute_process(
     COMMAND git describe --tags --exact-match
     WORKING_DIRECTORY "${WPM_SOURCE_DIR}/third_party/miniz"
@@ -97,7 +103,14 @@ if(miniz_dirty_files STREQUAL "")
 else()
     set(miniz_dirty 1)
 endif()
+endif()
 
+if(DEFINED WPM_LIBSODIUM_VERSION_OVERRIDE AND NOT WPM_LIBSODIUM_VERSION_OVERRIDE STREQUAL "" AND
+   DEFINED WPM_LIBSODIUM_COMMIT_OVERRIDE AND NOT WPM_LIBSODIUM_COMMIT_OVERRIDE STREQUAL "")
+    set(sodium_version "${WPM_LIBSODIUM_VERSION_OVERRIDE}")
+    set(sodium_commit "${WPM_LIBSODIUM_COMMIT_OVERRIDE}")
+    set(sodium_dirty 0)
+else()
 execute_process(
     COMMAND git describe --tags --exact-match
     WORKING_DIRECTORY "${WPM_SOURCE_DIR}/third_party/libsodium"
@@ -136,6 +149,7 @@ if(sodium_dirty_files STREQUAL "")
         set(sodium_dirty 0)
 else()
 	set(sodium_dirty 1)
+endif()
 endif()
 
 set(version_header "#ifndef WPM_VERSION_H\n#define WPM_VERSION_H\n\n

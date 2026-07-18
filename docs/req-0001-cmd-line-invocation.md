@@ -18,6 +18,14 @@ When invoked with the `--version` option, the application shall:
 - terminate normally, and
 - return an exit code of `0`.
 
+An exact Git tag shall be displayed unchanged as the WPM version. A development
+build shall display `<last-tag>-dev+<commits-since-tag>.<short-commit>`, with
+`.dirty` appended when tracked files have uncommitted changes. CI checkouts
+shall include complete main-repository tag history so development versions use
+the last reachable release tag rather than the no-tag `0.0.0` fallback.
+CI shall resolve tagged bundled-dependency versions once and provide the same
+version and commit metadata to every architecture build.
+
 The `--verbose` option shall be accepted before or after a command. It shall
 retain the command's normal output and add detailed progress for file-specific
 operations, including package indexing, hashing, archive creation, extraction,
