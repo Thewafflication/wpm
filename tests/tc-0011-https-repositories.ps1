@@ -22,6 +22,27 @@ function Get-RepositoryCachePath {
     return Join-Path $DataDir ("cache\repositories\{0:x8}.json" -f $hash)
 }
 
+function Get-WpmArchitecture {
+    param([string]$Executable)
+
+    $stream = [IO.File]::OpenRead($Executable)
+    $reader = [IO.BinaryReader]::new($stream)
+    try {
+        $stream.Position = 0x3c
+        $peOffset = $reader.ReadInt32()
+        $stream.Position = $peOffset + 4
+        switch ($reader.ReadUInt16()) {
+            0x014c { return 'x86' }
+            0x8664 { return 'x64' }
+            0xaa64 { return 'arm64' }
+            default { throw 'Unsupported WPM executable architecture.' }
+        }
+    } finally {
+        $reader.Dispose()
+        $stream.Dispose()
+    }
+}
+
 $testId = [Guid]::NewGuid().ToString('N')
 $packageName = "repository-test-$testId"
 $testRoot = Join-Path ([IO.Path]::GetTempPath()) "wpm-repositories-$testId"
@@ -37,6 +58,8 @@ $repositoryB = 'https://repo-b.example.test'
 $unavailableRepository = 'https://unavailable.example.test'
 $started = Get-Date
 $results = @()
+$wpmArchitecture = Get-WpmArchitecture $WpmExe
+$incompatibleArchitecture = if ($wpmArchitecture -eq 'x64') { 'arm64' } else { 'x64' }
 
 function New-TestPackage {
     param([string]$Source, [string]$Marker)
@@ -92,7 +115,7 @@ try {
         foreach ($repository in @($repositoryA, $repositoryB)) {
             $path = Get-RepositoryCachePath $dataDir $repository
             New-Item -ItemType Directory -Force -Path (Split-Path -Parent $path) | Out-Null
-            Set-Content -LiteralPath $path -NoNewline -Value "{`"version`":1,`"packages`": [{`"name`":`"$packageName`",`"version`":`"2.0.0`",`"arch`":`"x64`",`"url`":`"packages/$archiveName`"},{`"name`":`"$packageName`",`"version`":`"1.0.0`",`"arch`":`"any`",`"url`":`"packages/$archiveName`"}]}"
+            Set-Content -LiteralPath $path -NoNewline -Value "{`"version`":1,`"packages`": [{`"name`":`"$packageName`",`"version`":`"2.0.0`",`"arch`":`"$incompatibleArchitecture`",`"url`":`"packages/$archiveName`"},{`"name`":`"$packageName`",`"version`":`"1.0.0`",`"arch`":`"any`",`"url`":`"packages/$archiveName`"}]}"
         }
     }
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Refresh available cached indexes despite unavailable repositories' -Arguments @('repo', 'update', '--offline') -Assert {
@@ -109,7 +132,7 @@ try {
         if ($ExitCode -ne 0) { throw "Expected exit code 0, got $ExitCode. $Output" }
         if ((Get-Content -Raw -LiteralPath $deployment).Trim() -ne 'repository-b') { throw 'Package priority did not select repository B.' }
         if ($Output -notmatch [regex]::Escape($repositoryB)) { throw 'Expected selected repository in install output.' }
-        if ($Output -notmatch 'Installing .+ 1\.0\.0 ') { throw 'Resolver selected the incompatible x64 package.' }
+        if ($Output -notmatch 'Installing .+ 1\.0\.0 ') { throw "Resolver selected the incompatible $incompatibleArchitecture package for $wpmArchitecture WPM." }
     }
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Reject uncached named package while offline' -Arguments @('install', 'missing-package', '--offline') -Assert {
         param($ExitCode, $Output)

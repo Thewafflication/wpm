@@ -12,7 +12,7 @@
 \def\TCRequirementRef{REQ-0011}
 \def\TCPreconditions{A built WPM executable is available.}
 \def\TCEnvironment{Local Windows developer workstation or CI worker.}
-\def\TCInputData{Two controlled package archives and corresponding cached repository indexes, including an incompatible x64 candidate.}
+\def\TCInputData{Two controlled package archives and corresponding cached repository indexes, including a candidate whose architecture is incompatible with the WPM executable under test.}
 \def\TCProcedure{\par\begin{enumerate}\item Configure repositories with different priorities.\item Seed controlled index and package caches.\item Install a package by name with \texttt{--offline}.\item Request an absent package while offline.\end{enumerate}}
 \def\TCExpectedResult{\par\begin{enumerate}\item The higher-priority repository supplies the equal-version compatible package.\item An incompatible architecture candidate is ignored.\item No network access is required for the cached installation.\item An unavailable repository does not prevent resolution from another cached repository.\item The absent package request fails without invoking an install script.\end{enumerate}}
 \def\TCPostConditions{The temporary WPM data directory is removed.}
