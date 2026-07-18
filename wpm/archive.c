@@ -1097,7 +1097,8 @@ static int run_package_script(
     DWORD* result_exit_code
 ) {
     char script_path[WPM_PATH_SIZE];
-    char command_line[WPM_PATH_SIZE + 64];
+    char command_line[WPM_PATH_SIZE * 2];
+    char self_upgrade_log[WPM_PATH_SIZE];
     STARTUPINFOA startup_info;
     PROCESS_INFORMATION process_info;
     DWORD exit_code;
@@ -1112,12 +1113,14 @@ static int run_package_script(
 
     verbose_log("Running %s script: %s", action_name, script_path);
 
-    written = snprintf(
-            command_line,
-            sizeof(command_line),
-            "cmd.exe /d /s /c call \"%s\"",
-            script_path
-        );
+    if (GetEnvironmentVariableA("WPM_SELF_UPGRADE_LOG", self_upgrade_log, sizeof(self_upgrade_log)) > 0) {
+        written = snprintf(command_line, sizeof(command_line),
+            "cmd.exe /d /s /c call \"%s\" >> \"%s\" 2>&1", script_path, self_upgrade_log);
+    }
+    else {
+        written = snprintf(command_line, sizeof(command_line),
+            "cmd.exe /d /s /c call \"%s\"", script_path);
+    }
     if (written < 0 || (size_t)written >= sizeof(command_line)) {
         printf("Error: %s command is too long.\n", action_name);
         return 0;
@@ -1126,12 +1129,16 @@ static int run_package_script(
     memset(&startup_info, 0, sizeof(startup_info));
     memset(&process_info, 0, sizeof(process_info));
     startup_info.cb = sizeof(startup_info);
+    startup_info.dwFlags = STARTF_USESTDHANDLES;
+    startup_info.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
+    startup_info.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
+    startup_info.hStdError = GetStdHandle(STD_ERROR_HANDLE);
     if (!CreateProcessA(
             NULL,
             command_line,
             NULL,
             NULL,
-            FALSE,
+            TRUE,
             0,
             NULL,
             staging_dir,
@@ -1345,7 +1352,7 @@ int wpm_archive_schedule_self_upgrade(const char* archive_path, int allow_unsign
     const char* old_version) {
     char archive_full[WPM_PATH_SIZE], root[WPM_PATH_SIZE], temp[WPM_PATH_SIZE];
     char stage[WPM_PATH_SIZE], staged_exe[WPM_PATH_SIZE], cache[WPM_PATH_SIZE];
-    char handoff_dir[WPM_PATH_SIZE], handoff_exe[WPM_PATH_SIZE];
+    char handoff_dir[WPM_PATH_SIZE], handoff_exe[WPM_PATH_SIZE], audit_dir[WPM_PATH_SIZE], log_path[WPM_PATH_SIZE];
     char signing_key[65] = "", command[WPM_PATH_SIZE * 2];
     wpm_package_metadata metadata;
     STARTUPINFOA startup;
@@ -1358,10 +1365,14 @@ int wpm_archive_schedule_self_upgrade(const char* archive_path, int allow_unsign
         !join_path(staged_exe, sizeof(staged_exe), stage, "wpm.exe") ||
         !join_path(cache, sizeof(cache), root, "cache") ||
         !join_path(handoff_dir, sizeof(handoff_dir), cache, "self-upgrade") ||
+        !join_path(audit_dir, sizeof(audit_dir), root, "audit") ||
+        snprintf(log_path, sizeof(log_path), "%s\\self-upgrade-%s-%s.log", audit_dir,
+            expected_arch, expected_version) < 0 ||
         snprintf(handoff_exe, sizeof(handoff_exe), "%s\\wpm-%s-%s.exe",
             handoff_dir, expected_arch, expected_version) < 0 ||
-        !create_directories(temp) || !create_directories(cache) ||
+        !create_directories(temp) || !create_directories(cache) || !create_directories(audit_dir) ||
         !create_directories(handoff_dir) || !remove_directory_tree(stage)) return 0;
+    DeleteFileA(log_path);
     memset(&metadata, 0, sizeof(metadata));
     strcpy_s(metadata.name, sizeof(metadata.name), "wpm");
     strcpy_s(metadata.version, sizeof(metadata.version), expected_version);
@@ -1385,9 +1396,9 @@ int wpm_archive_schedule_self_upgrade(const char* archive_path, int allow_unsign
         printf("Error: could not cache the WPM self-upgrade executable.\n");
         goto cleanup;
     }
-    if (snprintf(command, sizeof(command), "\"%s\" --complete-self-upgrade \"%s\" %lu \"%s\" \"%s\" \"%s\" %d",
+    if (snprintf(command, sizeof(command), "\"%s\" --complete-self-upgrade \"%s\" %lu \"%s\" \"%s\" \"%s\" %d \"%s\"",
         handoff_exe, archive_full, (unsigned long)GetCurrentProcessId(), expected_version,
-        expected_arch, old_version, allow_unsigned ? 1 : 0) < 0) goto cleanup;
+        expected_arch, old_version, allow_unsigned ? 1 : 0, log_path) < 0) goto cleanup;
     memset(&startup, 0, sizeof(startup));
     memset(&process, 0, sizeof(process));
     startup.cb = sizeof(startup);
@@ -1399,6 +1410,7 @@ int wpm_archive_schedule_self_upgrade(const char* archive_path, int allow_unsign
     CloseHandle(process.hThread);
     CloseHandle(process.hProcess);
     printf("Scheduled WPM self-upgrade to %s; installation will continue after this process exits.\n", expected_version);
+    printf("Self-upgrade output: %s\n", log_path);
     result = 1;
 cleanup:
     if (!remove_directory_tree(stage)) result = 0;

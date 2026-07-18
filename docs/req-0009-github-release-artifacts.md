@@ -4,7 +4,10 @@
 
 When a Git tag is pushed, GitHub Actions shall verify the WPM source, build
 Release executables for x86, x64, and ARM64 Windows architectures, and use the
-x86 Debug WPM executable to build a WPM package for each Release executable.
+x86 Debug WPM executable that passed the x86 verification job to build a WPM
+package for each Release executable. The package job shall download that
+immutable verification artifact, including its generated reports and evidence,
+and shall not configure, compile, or test a second x86 Debug build.
 
 The workflow shall fetch tags for every checked-out submodule before generating
 version information, so dependency versions identify their exact tags when the

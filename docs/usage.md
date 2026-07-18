@@ -172,13 +172,15 @@ is removed after every attempt.
 wpm update
 ```
 
-Updates the package index.
+Refreshes configured repository indexes, then reports installed package
+identities for which a newer eligible version is available. It does not
+download or install those packages.
 
 ### Upgrade packages
 
 ```text
 wpm upgrade <package...> [--arch <any|x86|x64|arm64>] [--version <semver>]
-wpm upgrade --all [--arch <any|x86|x64|arm64>]
+wpm upgrade --all [--arch <any|x86|x64|arm64>] [-y|--yes]
 ```
 
 Upgrades one or more packages:
@@ -188,6 +190,10 @@ wpm upgrade pkg1 pkg2
 wpm upgrade pkg1 --arch x86 --version 2.5.0
 wpm upgrade --all
 ```
+
+An `--all` upgrade prints the complete proposed version changes and prompts
+once before making changes. Pass `-y` or `--yes` for unattended operation; the
+plan is still printed.
 
 Without selectors, WPM upgrades every installed architecture of each named
 package when an exact-architecture newer candidate is available. Upgrade never
@@ -199,6 +205,9 @@ When WPM upgrades itself, it validates the candidate, launches the candidate
 `wpm.exe` from `cache\self-upgrade`, and exits. The cached process waits for the
 original executable to be released before completing installation, allowing a
 managed Program Files installation to be replaced safely.
+The original command reports the self-upgrade as `scheduled` and prints the
+path to a persistent output log. The completion process records installation
+script output and the final `upgraded` or `failed` result in that log.
 
 Prerelease candidates are disabled by default. Configure the global policy or
 a package override with:
@@ -301,8 +310,9 @@ cmake --build out/build/x86-debug --config Debug
 The resulting executable is located under `bin/x86/Debug/`.
 
 WPM's displayed version is generated from Git during each build. An exact Git
-tag, such as `1.0.0`, becomes the version. Otherwise, WPM displays the short
-commit hash and appends `-dirty` when tracked files have uncommitted changes.
+tag, such as `1.0.0`, becomes the version. Otherwise, WPM displays the
+SemVer-compatible development version `0.0.0-dev.g<short-commit>` and appends
+`.dirty` when tracked files have uncommitted changes.
 GitHub builds fetch submodule tags before generating this information, so the
 reported `miniz` and `libsodium` versions use their exact dependency tags.
 CI also compares each pinned submodule commit with the latest GitHub release.

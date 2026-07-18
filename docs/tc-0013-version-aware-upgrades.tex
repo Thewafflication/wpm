@@ -16,6 +16,8 @@
 \def\TCProcedure{\par\begin{enumerate}
 \item Build and locally install baseline packages whose metadata creates independent x86, x64, and any installed identities.
 \item Configure a controlled repository and seed its offline index and package cache with exact-architecture, any-architecture, stable, prerelease, selected-version, successful, and failing candidates.
+\item Refresh repository data and verify that update reports eligible installed-package upgrades without applying them.
+\item Decline an \texttt{upgrade --all} plan, then repeat with \texttt{-y} and verify that the plan, install-script output, and results remain visible.
 \item Upgrade a package having installed x86 and x64 identities without an architecture selector.
 \item Exercise named installation and upgrade with \texttt{--arch} and \texttt{--version}, including unavailable, equal, lower, and ZIP-path selector rejection.
 \item Read and change the global prerelease setting, add and remove a per-package override, and perform stable and prerelease upgrades.
@@ -37,6 +39,7 @@
 \item A failed script preserves prior state, does not retain the candidate as successfully installed, cleans staging, creates a failure audit, and produces a nonzero result.
 \item Multi-package processing continues after a failure, reports each identity as upgraded, current, or failed, and returns nonzero when any identity fails.
 \item WPM self-upgrade uses a cached candidate executable to complete replacement after the original process releases the installed executable.
+\item Self-upgrade reports \texttt{scheduled} in the invoking process and records install-script output plus the final result in its persistent log.
 \end{enumerate}}
 \def\TCPostConditions{All temporary package sources, archives, repository caches, deployment markers, configuration, audit data, and WPM data directories are removed.}
 \TCTemplate

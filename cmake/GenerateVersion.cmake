@@ -12,7 +12,7 @@ if(NOT tag_result EQUAL 0)
         COMMAND git rev-parse --short HEAD
         WORKING_DIRECTORY "${WPM_SOURCE_DIR}"
         RESULT_VARIABLE commit_result
-        OUTPUT_VARIABLE version
+        OUTPUT_VARIABLE commit_version
         OUTPUT_STRIP_TRAILING_WHITESPACE
         ERROR_QUIET
     )
@@ -20,6 +20,7 @@ if(NOT tag_result EQUAL 0)
     if(NOT commit_result EQUAL 0)
         set(version "unknown")
     else()
+        set(version "0.0.0-dev.g${commit_version}")
         execute_process(
             COMMAND git status --porcelain --untracked-files=no
             WORKING_DIRECTORY "${WPM_SOURCE_DIR}"
@@ -29,7 +30,7 @@ if(NOT tag_result EQUAL 0)
         )
 
         if(NOT dirty_files STREQUAL "")
-            string(APPEND version "-dirty")
+            string(APPEND version ".dirty")
         endif()
     endif()
 endif()

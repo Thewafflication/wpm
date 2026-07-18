@@ -24,6 +24,8 @@ $results = @(
                 'x86-release',
                 'x64-release',
                 'arm64-release',
+                'name: wpm-release-verification-x86',
+                'path: bin/x86/Debug',
                 'WPM_EXECUTABLE=.*bin/x86/Debug/wpm\.exe',
                 'WPM_PACKAGE_EXECUTABLE=.*release-binaries/wpm-\$architecture\.exe',
                 'environment: release',
@@ -43,6 +45,10 @@ $results = @(
             }
             if ($workflow -match '(?m)^\s*- name: Generate ephemeral release signing key') {
                 throw 'Release workflow still generates an ephemeral release signing key.'
+            }
+            if ([regex]::Matches($workflow, 'cmake --preset x86-debug-reports').Count -ne 0 -or
+                [regex]::Matches($workflow, 'cmake --build --preset verify-x86-debug').Count -ne 0) {
+                throw 'Release workflow redundantly rebuilds the verified x86 Debug package builder.'
             }
 
             if ($env:GITHUB_REF_TYPE -ne 'tag') {

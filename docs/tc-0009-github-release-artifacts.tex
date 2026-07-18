@@ -39,6 +39,7 @@ margin=1in
 		\item Validate that the Release workflow is triggered by tags.
 		\item Validate that it builds all Release architectures.
 		\item Validate that x86 Debug WPM packages the Release executables into ZIP assets.
+		\item Validate that packaging downloads the successful x86 verification artifact and does not rebuild x86 Debug.
 		\item Validate that the protected release environment supplies the durable private key without publishing it.
 		\item Validate that each finished package is verified with the checked-in durable public key before upload.
 	\end{enumerate}
@@ -51,6 +52,7 @@ margin=1in
 		\item On a non-tag run, the test passes and records that release publication is not required.
 		\item On a tag run, the Release workflow verifies, packages, and publishes the assets.
 		\item Publication depends on successful signature and package-content validation of all three archives.
+		\item The executable used as package builder is the same artifact that produced the x86 verification evidence.
 	\end{enumerate}
 }
 

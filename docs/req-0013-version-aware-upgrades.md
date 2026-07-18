@@ -45,7 +45,7 @@ WPM shall support:
 
 ```text
 wpm upgrade <package...> [--arch <any|x86|x64|arm64>] [--version <semver>]
-wpm upgrade --all [--arch <any|x86|x64|arm64>]
+wpm upgrade --all [--arch <any|x86|x64|arm64>] [-y|--yes]
 ```
 
 Package operands identify installed packages by metadata name. A ZIP path or
@@ -70,6 +70,11 @@ architecture.
 
 `--offline`, `--allow-unsigned`, and `--verbose` shall retain their existing
 repository, signature-validation, and reporting meanings during upgrades.
+Before an `--all` upgrade changes any package, WPM shall display every planned
+identity with its installed and candidate versions and prompt once for
+confirmation. A response other than `y` or `yes` shall cancel successfully
+without acquisition or script execution. `-y` and `--yes` shall accept the
+displayed plan without prompting; they shall not suppress the plan itself.
 
 ### Installation selectors
 
@@ -183,7 +188,14 @@ shall copy the candidate `wpm.exe` beneath `cache\self-upgrade`, launch that
 cached executable as a detached completion process, and exit. The completion
 process shall wait for the invoking WPM process to terminate before repeating
 normal package validation and installation. The completed upgrade shall retain
-the candidate archive and create the normal upgrade audit record.
+the candidate archive and create the normal upgrade audit record. The invoking
+process shall report the result as `scheduled`, not `upgraded`, and identify a
+persistent self-upgrade output log. That log shall contain package-script output
+and the completion process's final `upgraded` or `failed` result.
+
+Package installation and upgrade scripts shall inherit WPM's standard input,
+output, and error streams so their diagnostics are visible to an interactive
+caller or captured by normal output redirection.
 
 ### Current packages and failed upgrades
 

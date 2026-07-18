@@ -127,7 +127,7 @@ jobs:
 
   package:
     name: Build WPM Release Packages
-    needs: build
+    needs: [verify, build]
     runs-on: windows-2022
     environment: release
 
@@ -142,11 +142,11 @@ jobs:
         shell: pwsh
         run: git submodule foreach --recursive 'git fetch --tags --force'
 
-      - name: Build x86 Debug package builder and reports
-        shell: pwsh
-        run: |
-          cmake --preset x86-debug-reports
-          cmake --build --preset verify-x86-debug
+      - name: Download verified x86 Debug package builder and reports
+        uses: actions/download-artifact@v8
+        with:
+          name: wpm-release-verification-x86
+          path: bin/x86/Debug
 
       - name: Download Release executables
         uses: actions/download-artifact@v8

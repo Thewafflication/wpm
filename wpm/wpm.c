@@ -103,16 +103,27 @@ int main(int argc, char *argv[])
         print_usage(0);
         return 0;
 	}
-    if (argc == 8 && strcmp(argv[1], "--complete-self-upgrade") == 0) {
+    if (argc == 9 && strcmp(argv[1], "--complete-self-upgrade") == 0) {
         DWORD parent_id = (DWORD)strtoul(argv[3], NULL, 10);
+        int completed;
+        FILE* self_upgrade_log = NULL;
+        if (fopen_s(&self_upgrade_log, argv[8], "a") != 0) return 1;
+        fprintf(self_upgrade_log, "Completing WPM self-upgrade: %s %s -> %s\n", argv[5], argv[6], argv[4]);
+        fclose(self_upgrade_log);
+        SetEnvironmentVariableA("WPM_SELF_UPGRADE_LOG", argv[8]);
         HANDLE parent = OpenProcess(SYNCHRONIZE, FALSE, parent_id);
         if (parent) {
             WaitForSingleObject(parent, INFINITE);
             CloseHandle(parent);
         }
         if (!wpm_initialize_data_directories()) return 1;
-        return wpm_archive_upgrade(argv[2], atoi(argv[7]) != 0,
-            "wpm", argv[4], argv[5], argv[6]) ? 0 : 1;
+        completed = wpm_archive_upgrade(argv[2], atoi(argv[7]) != 0,
+            "wpm", argv[4], argv[5], argv[6]);
+        if (fopen_s(&self_upgrade_log, argv[8], "a") == 0) {
+            fprintf(self_upgrade_log, "Result: wpm %s %s\n", argv[5], completed ? "upgraded" : "failed");
+            fclose(self_upgrade_log);
+        }
+        return completed ? 0 : 1;
     }
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--verbose") == 0) {
@@ -325,21 +336,22 @@ int main(int argc, char *argv[])
 
         case CMD_UPGRADE: {
             const char* names[128];
-            int name_count = 0, all = 0, allow_unsigned = 0;
+            int name_count = 0, all = 0, allow_unsigned = 0, assume_yes = 0;
             const char* selected_arch = NULL;
             const char* selected_version = NULL;
             for (int i = command_index + 1; i < argc; i++) {
                 if (strcmp(argv[i], "--all") == 0) all = 1;
+                else if (strcmp(argv[i], "-y") == 0 || strcmp(argv[i], "--yes") == 0) assume_yes = 1;
                 else if (strcmp(argv[i], "--allow-unsigned") == 0) allow_unsigned = 1;
                 else if (strcmp(argv[i], "--arch") == 0 && i + 1 < argc) selected_arch = argv[++i];
                 else if (strcmp(argv[i], "--version") == 0 && i + 1 < argc) selected_version = argv[++i];
                 else if (strcmp(argv[i], "--offline") && strcmp(argv[i], "--verbose") && name_count < 128) names[name_count++] = argv[i];
             }
-            if ((!all && name_count == 0) || (all && name_count > 0) || (all && selected_version)) {
+            if ((!all && name_count == 0) || (all && name_count > 0) || (all && selected_version) || (assume_yes && !all)) {
                 printf("Usage: wpm upgrade <package...> [--arch <arch>] [--version <semver>] | --all [--arch <arch>]\n");
                 return 1;
             }
-            if (!wpm_repo_upgrade(names, name_count, all, selected_arch, selected_version, offline, allow_unsigned)) return 1;
+            if (!wpm_repo_upgrade(names, name_count, all, selected_arch, selected_version, offline, allow_unsigned, assume_yes)) return 1;
             break;
         }
         case CMD_INIT: {
@@ -439,7 +451,7 @@ void print_usage(Command c) {
     printf("  update\n");
     printf("      Update package index\n\n");
 
-    printf("  upgrade <package...>\n");
+    printf("  upgrade <package...> | --all [-y]\n");
     printf("      Upgrade one or more packages\n\n");
 
     printf("Options:\n");
@@ -462,6 +474,8 @@ void print_usage(Command c) {
     printf("      Sign a package during build\n\n");
     printf("  --allow-unsigned\n");
     printf("      Allow installation of an unsigned package\n\n");
+    printf("  -y, --yes\n");
+    printf("      Confirm a planned --all upgrade without prompting\n\n");
 
     printf("Examples:\n");
     printf("  wpm build ./my_project\n");

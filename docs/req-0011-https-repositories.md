@@ -47,7 +47,11 @@ executable. `url` may be a relative HTTPS path below the repository root or an a
 HTTPS URL. WPM rejects any other URL scheme. Indexes and package downloads
 shall use normal HTTPS certificate validation.
 
-`wpm repo update` and `wpm update` shall refresh every configured index.
+`wpm repo update` and `wpm update` shall refresh every configured index. After
+refreshing, they shall compare cached entries with valid installed package
+records and list every eligible newer identity with its architecture, installed
+version, and candidate version. They shall explicitly report when all installed
+packages are current and shall not download or install package archives.
 `wpm install <package-name>` shall resolve a package from cached indexes and
 download the selected ZIP to `cache\packages` before using the existing ZIP
 installation flow. ZIP path arguments continue to use the existing local

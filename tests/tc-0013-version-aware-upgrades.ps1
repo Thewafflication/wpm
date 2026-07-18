@@ -40,6 +40,8 @@ $packages = @{
     Failure = "failure-$testId"
     Continue = "continue-$testId"
     Named = "named-$testId"
+    Confirm = "confirm-$testId"
+    Legacy = "legacy-$testId"
     Self = 'wpm'
 }
 
@@ -61,6 +63,7 @@ function New-PackageArchive {
     )
     Set-Content -LiteralPath (Join-Path $source '.wpm\install.cmd') -Value @(
         '@echo off'
+        "echo install-script:$Marker"
         "echo $Marker>>`"$(Join-Path $markerDir "$Name-$Arch.txt")`""
         "exit /b $ExitCode"
     )
@@ -100,6 +103,8 @@ try {
         Install-Baseline $packages.Failure '1.0.0' 'any'
         Install-Baseline $packages.Continue '1.0.0' 'any'
         Install-Baseline $packages.Self '1.0.0' 'x86'
+        Install-Baseline $packages.Confirm '1.0.0' 'arm64'
+        Install-Baseline $packages.Legacy 'ef32a57' 'any'
 
         New-PackageArchive $packages.Architecture '2.0.0' 'x86' 'x86-2.0.0' -RepositoryEntry | Out-Null
         New-PackageArchive $packages.Architecture '2.0.0' 'x64' 'x64-2.0.0' -RepositoryEntry | Out-Null
@@ -117,6 +122,7 @@ try {
         New-PackageArchive $packages.Named '2.0.0' 'x86' 'named-x86-2.0.0' -RepositoryEntry | Out-Null
         New-PackageArchive $packages.Named '2.0.0' 'any' 'named-any-2.0.0' -RepositoryEntry | Out-Null
         New-PackageArchive $packages.Self '2.0.0' 'x86' 'self-2.0.0' -IncludeWpmExe -RepositoryEntry | Out-Null
+        New-PackageArchive $packages.Confirm '2.0.0' 'arm64' 'confirmed-2.0.0' -RepositoryEntry | Out-Null
         $entries.Add([ordered]@{ name=$packages.Prerelease; version='not-semver'; arch='any'; url='packages/invalid.zip' })
         'Baseline and candidate archives created.'
     }
@@ -130,6 +136,22 @@ try {
         New-Item -ItemType Directory -Force -Path (Split-Path -Parent $path) | Out-Null
         @{ version=1; packages=@($entries) } | ConvertTo-Json -Depth 5 -Compress | Set-Content -LiteralPath $path -NoNewline
         "Seeded $($entries.Count) repository entries."
+    }
+
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Update repositories and report available package upgrades' -Arguments @('update','--offline') -Assert {
+        param($ExitCode,$Output)
+        if ($ExitCode -ne 0 -or $Output -notmatch '(?i)planned upgrades|can be upgraded' -or $Output -notmatch [regex]::Escape($packages.Confirm)) { throw "Update availability report was incomplete. $Output" }
+        if ($Output -notmatch "(?i)non-SemVer version 'ef32a57'" -or $Output -notmatch [regex]::Escape((Join-Path $dataDir "packages\$($packages.Legacy)-any-ef32a57.zip"))) { throw 'Legacy installed-record diagnostic was not actionable.' }
+    }
+    $results += New-WpmManualStep -Name 'Decline prompted upgrade-all plan' -Action {
+        $output = @('n') | & $WpmExe upgrade --all --arch arm64 --offline --allow-unsigned 2>&1
+        if ($LASTEXITCODE -ne 0 -or ($output -join "`n") -notmatch '(?i)planned upgrades|proceed' -or ($output -join "`n") -notmatch '(?i)cancelled') { throw "Prompted cancellation failed. $($output -join "`n")" }
+        if ((Get-Content -Raw -LiteralPath (Join-Path $markerDir "$($packages.Confirm)-arm64.txt")) -match 'confirmed-2\.0\.0') { throw 'Declined upgrade executed its install script.' }
+        'Upgrade plan was declined without changes.'
+    }
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Bypass upgrade-all prompt with -y and show install-script output' -Arguments @('upgrade','--all','--arch','arm64','-y','--offline','--allow-unsigned') -Assert {
+        param($ExitCode,$Output)
+        if ($ExitCode -ne 0 -or $Output -notmatch '(?i)planned upgrades' -or $Output -notmatch 'install-script:confirmed-2\.0\.0' -or $Output -notmatch '(?i)upgraded') { throw "Confirmed upgrade-all failed or hid script output. $Output" }
     }
 
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Reject unsigned upgrade before script execution' -Arguments @('upgrade',$packages.Architecture,'--offline') -Assert {
@@ -225,13 +247,23 @@ try {
         param($ExitCode,$Output)
         if ($ExitCode -ne 0 -or $Output -notmatch '(?i)scheduled|continue') { throw "WPM self-upgrade was not scheduled. $Output" }
         $markerPath = Join-Path $markerDir 'wpm-x86.txt'
+        $logPath = Join-Path $dataDir 'audit\self-upgrade-x86-2.0.0.log'
         $deadline = [DateTime]::UtcNow.AddSeconds(15)
         while ([DateTime]::UtcNow -lt $deadline) {
             if ((Test-Path -LiteralPath $markerPath) -and (Get-Content -Raw -LiteralPath $markerPath) -match 'self-2\.0\.0') { break }
             Start-Sleep -Milliseconds 100
         }
-        if (-not (Test-Path -LiteralPath $markerPath) -or (Get-Content -Raw -LiteralPath $markerPath) -notmatch 'self-2\.0\.0') { throw 'Cached WPM handoff did not complete the installation.' }
+        if (-not (Test-Path -LiteralPath $markerPath) -or (Get-Content -Raw -LiteralPath $markerPath) -notmatch 'self-2\.0\.0') { $log = if (Test-Path -LiteralPath $logPath) { Get-Content -Raw -LiteralPath $logPath } else { '<missing>' }; throw "Cached WPM handoff did not complete the installation. Log: $log" }
         if (-not (Test-Path -LiteralPath (Join-Path $dataDir 'cache\self-upgrade\wpm-x86-2.0.0.exe'))) { throw 'Candidate WPM executable was not retained in the self-upgrade cache.' }
+        $deadline = [DateTime]::UtcNow.AddSeconds(15)
+        while ([DateTime]::UtcNow -lt $deadline) {
+            if ((Test-Path -LiteralPath $logPath) -and (Get-Content -Raw -LiteralPath $logPath) -match 'Result: wpm x86 upgraded') { break }
+            Start-Sleep -Milliseconds 100
+        }
+        if (-not (Test-Path -LiteralPath $logPath)) { throw 'Self-upgrade output log was not created.' }
+        $log = Get-Content -Raw -LiteralPath $logPath
+        if ($log -notmatch 'install-script:self-2\.0\.0' -or $log -notmatch 'Result: wpm x86 upgraded') { throw "Self-upgrade log did not include script output and final result. Log: $log" }
+        if ($Output -notmatch '(?i)Result: wpm x86 scheduled' -or $Output -notmatch '(?i)Self-upgrade output:') { throw 'Parent process claimed completion or omitted the output-log path.' }
     }
 
     $results += New-WpmManualStep -Name 'Verify retained versions, upgrade audits, and staging cleanup' -Action {
