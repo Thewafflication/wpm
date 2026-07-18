@@ -85,19 +85,6 @@ jobs:
           path: bin/${{ matrix.arch }}/Debug/
           if-no-files-found: error
 
-      - name: Build WPM package with test reports
-        if: matrix.arch == 'x86' && steps.verify.outputs.exit_code == '0'
-        shell: pwsh
-        run: cmake --build --preset package-x86-debug
-
-      - name: Upload WPM package artifact
-        if: matrix.arch == 'x86' && steps.verify.outputs.exit_code == '0'
-        uses: actions/upload-artifact@v7
-        with:
-          name: wpm-package-windows-x86-debug
-          path: bin/x86/Debug/packages/*.zip
-          if-no-files-found: error
-
       - name: Publish GitHub summary
         shell: pwsh
         run: |
@@ -152,7 +139,7 @@ jobs:
           }
 
           @"
-          The generated executable, debug symbols, and TeX reports are attached to this workflow run as the architecture-specific test-report artifact. The x86 job also produces the indexed WPM ZIP package when verification passes.
+          The generated executable, debug symbols, build log, and TeX reports are attached to this workflow run as the architecture-specific test-report artifact. Distributable packages are produced only by the tag-triggered Release workflow.
           "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
 
           if ($overallStatus -ne 'PASS') {

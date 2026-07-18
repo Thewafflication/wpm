@@ -173,15 +173,6 @@
             ]
         },
         {
-            "name": "package-x86-debug",
-            "displayName": "Build WPM package with reports x86 Debug",
-            "configurePreset": "x86-debug-reports",
-            "configuration": "Debug",
-            "targets": [
-                "wpm-package"
-            ]
-        },
-        {
             "name": "build-x86-release",
             "displayName": "Build x86 Release",
             "configurePreset": "x86-release",

@@ -326,17 +326,9 @@ Generate only the LaTeX reports without running the final CTest pass:
 cmake --build out/build/x86-debug --config Debug --target test-reports
 ```
 
-Build WPM's distributable ZIP package after generating the reports:
-
-```powershell
-cmake --build --preset package-x86-debug
-```
-
-The package is written to `bin/x86/Debug/packages/`. It contains
-`wpm.exe`, `setup.cmd`, `remove.cmd`, WPM package metadata, and the
-generated TeX reports with their execution evidence. It also includes the
-checked-in Markdown documentation, `README.md`, `LICENSE.txt`, and
-`THIRD_PARTY_NOTICES.md`.
+Debug verification builds do not produce distributable packages. Signed,
+architecture-specific packages are built from Release executables only by the
+tag-triggered Release workflow.
 
 The optional `test-report-pdfs` target requires a local `pdflatex`
 installation and is not required for the standard test artifact.
