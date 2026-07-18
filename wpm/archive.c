@@ -1175,6 +1175,44 @@ int wpm_archive_inspect(const char* archive_path, wpm_package_info* info) {
     return result;
 }
 
+int wpm_archive_verify(const char* archive_path) {
+    char archive_full_path[WPM_PATH_SIZE];
+    char data_root[WPM_PATH_SIZE], temp_root[WPM_PATH_SIZE], staging_path[WPM_PATH_SIZE];
+    char signing_key_id[65];
+    wpm_package_metadata metadata;
+    int success = 0;
+
+    verbose_log("Verifying archive: %s", archive_path);
+    if (!normalized_full_path(archive_path, archive_full_path, sizeof(archive_full_path))) {
+        printf("Error: package path is too long: %s\n", archive_path);
+        return 0;
+    }
+    if (!wpm_get_data_root(data_root, sizeof(data_root)) ||
+        !join_path(temp_root, sizeof(temp_root), data_root, "temp") ||
+        snprintf(staging_path, sizeof(staging_path), "%s\\verify-%lu-%llu", temp_root,
+            (unsigned long)GetCurrentProcessId(), (unsigned long long)GetTickCount64()) < 0 ||
+        !create_directories(temp_root) || !remove_directory_tree(staging_path)) {
+        printf("Error: could not prepare package verification staging.\n");
+        return 0;
+    }
+
+    if (!wpm_archive_extract(archive_full_path, staging_path)) goto cleanup;
+    if (!wpm_validate_package_signature(staging_path, 0, signing_key_id, sizeof(signing_key_id))) goto cleanup;
+    if (!verify_package_index(staging_path)) goto cleanup;
+    if (!read_package_metadata(staging_path, &metadata)) goto cleanup;
+    success = 1;
+
+cleanup:
+    if (!remove_directory_tree(staging_path)) {
+        printf("Error: could not remove verification staging directory: %s\n", staging_path);
+        success = 0;
+    }
+    if (!success) return 0;
+    printf("Verified package: %s (%s %s %s; signing key %s)\n",
+        path_basename(archive_full_path), metadata.name, metadata.arch, metadata.version, signing_key_id);
+    return 1;
+}
+
 static int installed_architecture_is_compatible(const wpm_package_metadata* candidate) {
     char root[WPM_PATH_SIZE], store[WPM_PATH_SIZE], search[WPM_PATH_SIZE], archive[WPM_PATH_SIZE];
     WIN32_FIND_DATAA entry;

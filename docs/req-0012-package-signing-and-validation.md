@@ -123,6 +123,16 @@ no package script, retain no package archive, and remove its staging directory.
 Signature verification shall work without repository access once the package
 and trusted public key are available.
 
+### Read-only package verification
+
+`wpm verify <package...>` shall apply the same signature, trust-store, complete
+index, and package-metadata validation used before installation. It shall
+reject unsigned packages and shall not provide an unsigned override. It shall
+execute no package script, retain no package archive, write no installation or
+upgrade audit record, and remove its staging directory after success or
+failure. Each valid package shall produce a confirmation containing its
+declared name, version, architecture, and signing-key identifier.
+
 Unsigned packages shall be rejected by default. An elevated administrator may
 install a package with no signature file only by specifying
 `wpm install <package...> --allow-unsigned`. When `WPM_DATA_DIR` explicitly

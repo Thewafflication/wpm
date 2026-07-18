@@ -133,6 +133,20 @@ wpm install example --arch x86 --version 2.4.1
 Selectors are not accepted with a local ZIP path because its metadata already
 defines its identity.
 
+### Verify packages without installing
+
+```text
+wpm verify <package...>
+```
+
+Validates each package's trusted Ed25519 signature, complete package index,
+payload, and metadata without running installation scripts or retaining the
+archive. Unsigned packages are always rejected by this command.
+
+```text
+wpm verify ./dist/my_project-any-1.2.3.zip
+```
+
 ### Remove packages
 
 ```text
@@ -303,7 +317,10 @@ summary for each architecture.
 Pushing a Git tag runs the Release workflow. After the verification suite
 passes, the x86 Debug WPM executable packages the Release executables for all
 architectures and publishes `wpm-x86-<version>.zip`, `wpm-x64-<version>.zip`,
-and `wpm-arm64-<version>.zip` to the GitHub Release for that tag.
+and `wpm-arm64-<version>.zip` to the GitHub Release for that tag. The protected
+`release` environment supplies the durable release signing key, and every
+finished archive must pass `wpm verify` with `release_keys/wpm-release.public`
+before publication.
 
 ## Running tests
 

@@ -82,6 +82,20 @@ are accepted.
 
 WPM SHALL NOT automatically trust replacement keys.
 
+Official WPM releases use one durable release key so that users can establish
+trust once and authenticate subsequent upgrades. The private key is maintained
+outside the repository, supplied only to the protected release environment,
+and never published as a workflow artifact. Its public key and key identifier
+are published in the repository and release documentation.
+
+Planned rotation uses an overlap period: publish the replacement public key
+and identifier through independently controlled project channels, require
+administrators to add it explicitly, sign later releases with the replacement,
+and revoke the old key after migration. If the old private key is compromised,
+administrators must revoke it immediately and explicitly bootstrap trust in the
+replacement; possession of an old or new signing key alone cannot silently
+change local trust.
+
 ## Key Revocation
 
 Administrators may revoke a trusted key:

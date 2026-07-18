@@ -15,6 +15,7 @@ int wpm_initialize_data_directories(void);
 void wpm_set_verbose(int enabled);
 int wpm_archive_build(const char* source_dir, const char* output_dir, int update_index, const char* private_key);
 int wpm_archive_extract(const char* archive_path, const char* destination_dir);
+int wpm_archive_verify(const char* archive_path);
 int wpm_archive_install(const char* archive_path, int allow_unsigned);
 int wpm_archive_inspect(const char* archive_path, wpm_package_info* info);
 int wpm_archive_upgrade(const char* archive_path, int allow_unsigned,

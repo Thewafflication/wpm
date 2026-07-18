@@ -12,6 +12,7 @@ typedef enum {
     CMD_UNKNOWN,
     CMD_INIT,
     CMD_BUILD,
+    CMD_VERIFY,
     CMD_INSTALL,
     CMD_REMOVE,
     CMD_REPO,

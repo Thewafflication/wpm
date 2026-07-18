@@ -18,8 +18,8 @@ Release for the pushed tag and attach these assets:
 - `wpm-arm64-<version>.zip`
 - `index.json`, containing each published WPM package's name, version,
   architecture, and release-asset URL
-- `release.public`, the ephemeral Ed25519 public key used to sign every WPM
-  package in that release
+- `wpm-release.public`, the durable Ed25519 public key used to sign official
+  WPM release packages
 
 The index shall be available through GitHub's stable latest-release asset URL:
 `https://github.com/Thewafflication/wpm/releases/latest/download/index.json`.
@@ -27,10 +27,16 @@ The index shall be available through GitHub's stable latest-release asset URL:
 No release assets shall be published when verification or any architecture
 build fails.
 
-The workflow shall generate one fresh Ed25519 key pair during the package job,
-use its private key only to sign that job's three packages, and publish only
-the corresponding public key. The private key shall not be uploaded or
-published.
+The package job shall obtain the durable release private key only from the
+protected GitHub `release` environment after any configured approval. It shall
+materialize the key only beneath the temporary runner directory, use it to sign
+the three packages, and remove it before uploading artifacts. The private key
+shall not be uploaded, published, logged, or stored in the repository.
+
+Before upload, the workflow shall add the checked-in durable release public key
+to an isolated trust store and run `wpm verify` against each of the three
+finished packages. Publication shall not proceed unless all three signatures,
+indexes, package metadata files, and payloads validate successfully.
 
 ## Rationale
 

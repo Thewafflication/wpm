@@ -196,6 +196,20 @@ int main(int argc, char *argv[])
             break;
         }
 
+        case CMD_VERIFY: {
+            int package_count = 0;
+            for (int i = command_index + 1; i < argc; i++) {
+                if (strcmp(argv[i], "--verbose") == 0) continue;
+                package_count++;
+                if (!wpm_archive_verify(argv[i])) return 1;
+            }
+            if (package_count == 0) {
+                printf("No packages specified.\n");
+                return 1;
+            }
+            break;
+        }
+
         case CMD_INSTALL: {
             int package_count = 0;
             int allow_unsigned = 0;
@@ -397,6 +411,9 @@ void print_usage(Command c) {
     printf("  build <source_dir> [output_dir] [--no-index]\n");
     printf("      Build a package from source\n\n");
 
+    printf("  verify <package...>\n");
+    printf("      Validate signed packages without installing them\n\n");
+
     printf("  install <package...>\n");
     printf("      Install one or more packages\n\n");
 
@@ -457,6 +474,7 @@ void print_usage(Command c) {
 Command parse_command(const char* cmd) {
     if (strcmp(cmd, "init") == 0) return CMD_INIT;
     if (strcmp(cmd, "build") == 0) return CMD_BUILD;
+    if (strcmp(cmd, "verify") == 0) return CMD_VERIFY;
     if (strcmp(cmd, "install") == 0) return CMD_INSTALL;
     if (strcmp(cmd, "remove") == 0) return CMD_REMOVE;
     if (strcmp(cmd, "repo") == 0) return CMD_REPO;

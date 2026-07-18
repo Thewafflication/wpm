@@ -133,6 +133,15 @@ try {
         if ($ExitCode -ne 0) { throw "Could not add trusted key. $Output" }
     }
 
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Verify trusted package without installing it' -Arguments @('verify', $archivePath) -Assert {
+        param($ExitCode, $Output)
+        if ($ExitCode -ne 0 -or $Output -notmatch '(?i)verified package') { throw "Package verification failed. $Output" }
+        if (Test-Path -LiteralPath $deployment) { throw 'Verification executed the package install script.' }
+        if (Get-ChildItem -LiteralPath (Join-Path $dataDir 'packages') -Force -ErrorAction SilentlyContinue) { throw 'Verification retained the package archive.' }
+        if (Get-ChildItem -LiteralPath (Join-Path $dataDir 'audit') -Force -ErrorAction SilentlyContinue) { throw 'Verification wrote an installation audit record.' }
+        if (Get-ChildItem -LiteralPath (Join-Path $dataDir 'temp') -Force -ErrorAction SilentlyContinue) { throw 'Verification did not clean its staging directory.' }
+    }
+
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Install package with trusted valid signature' -Arguments @('install', $archivePath) -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -ne 0 -or (Get-Content -Raw -LiteralPath $deployment).Trim() -ne 'signed') { throw "Trusted package did not install. $Output" }
@@ -202,6 +211,17 @@ try {
         }
     }
 
+    $results += New-WpmManualStep -Name 'Clear deployment marker before failed read-only verification' -Action {
+        Remove-Item -LiteralPath $deployment -Force -ErrorAction SilentlyContinue
+        'Deployment marker cleared.'
+    }
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Reject invalid signature during read-only verification' -Arguments @('verify', $invalidArchive) -Assert {
+        param($ExitCode, $Output)
+        if ($ExitCode -eq 0) { throw 'Read-only verification accepted an invalid signature.' }
+        if (Test-Path -LiteralPath $deployment) { throw 'Failed verification executed the package install script.' }
+        if (Get-ChildItem -LiteralPath (Join-Path $dataDir 'temp') -Force -ErrorAction SilentlyContinue) { throw 'Failed verification did not clean its staging directory.' }
+    }
+
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Clear default signing key' -Arguments @('key', 'default', '--clear') -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -ne 0) { throw "Could not clear default signing key. $Output" }
@@ -213,6 +233,10 @@ try {
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Reject unsigned package by default' -Arguments @('install', $unsignedArchivePath) -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -eq 0) { throw 'Unsigned package was installed without an override.' }
+    }
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Reject unsigned package during read-only verification' -Arguments @('verify', $unsignedArchivePath) -Assert {
+        param($ExitCode, $Output)
+        if ($ExitCode -eq 0) { throw 'Read-only verification accepted an unsigned package.' }
     }
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Allow explicitly overridden unsigned package' -Arguments @('install', $unsignedArchivePath, '--allow-unsigned') -Assert {
         param($ExitCode, $Output)

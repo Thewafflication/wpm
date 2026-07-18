@@ -7,7 +7,7 @@
 \begin{document}
 \def\TCID{TC-0012}
 \def\TCTitle{Package signing, trust, and installation validation}
-\def\TCPurpose{Verify Ed25519 key generation, default signing-key selection, package signature validation, trust revocation, and the limited unsigned-package exception.}
+\def\TCPurpose{Verify Ed25519 key generation, default signing-key selection, read-only and installation package validation, trust revocation, and the limited unsigned-package exception.}
 \def\TCPriority{\TCPriorityHigh}
 \def\TCRequirementRef{REQ-0012}
 \def\TCPreconditions{A built WPM executable is available. The test uses an isolated WPM data-root override.}
@@ -15,6 +15,7 @@
 \def\TCInputData{Temporary package source directories and output directories. The test creates all signing keys, trust records, archives, and deployment markers.}
 \def\TCProcedure{\par\begin{enumerate}
 \item Generate an Ed25519 key pair with \texttt{wpm keygen ... --default}.
+	\item Verify a trusted signed package with \texttt{wpm verify} and confirm that no script executes and no package or audit record is retained.
 \item Build a package without \texttt{--sign} and inspect its index and signature metadata.
 \item Attempt installation before its public key is trusted, then add the public key and install successfully.
 \item Build with an untrusted key and verify rejection; trust, revoke, and retry it.
@@ -31,6 +32,7 @@
 \item An unsigned package is rejected by default and is accepted only with \texttt{--allow-unsigned}, with a warning.
 \item Malformed signature metadata, an invalid signature, and an unindexed archive entry each cause a nonzero installation result, no script execution, no retained archive, and staging cleanup.
 \item Unsupported signature schema versions and algorithms are rejected, and a successful installation creates a complete verification audit record.
+	\item Read-only verification rejects invalid and unsigned packages and cleans staging after both successful and failed validation.
 \end{enumerate}}
 \def\TCPostConditions{All temporary package, key, deployment, and WPM data directories are removed.}
 \TCTemplate

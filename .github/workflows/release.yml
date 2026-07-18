@@ -129,6 +129,7 @@ jobs:
     name: Build WPM Release Packages
     needs: build
     runs-on: windows-2022
+    environment: release
 
     steps:
       - name: Check out source
@@ -154,11 +155,15 @@ jobs:
           path: release-binaries
           merge-multiple: true
 
-      - name: Generate ephemeral release signing key
+      - name: Materialize protected release signing key
         shell: pwsh
+        env:
+          WPM_RELEASE_PRIVATE_KEY: ${{ secrets.WPM_RELEASE_PRIVATE_KEY }}
         run: |
-          New-Item -ItemType Directory -Force -Path release/keys | Out-Null
-          bin/x86/Debug/wpm.exe keygen release/keys/release.private release/keys/release.public
+          if (-not $env:WPM_RELEASE_PRIVATE_KEY) { throw 'WPM_RELEASE_PRIVATE_KEY is not configured.' }
+          $keyPath = Join-Path $env:RUNNER_TEMP 'wpm-release.private'
+          [IO.File]::WriteAllText($keyPath, $env:WPM_RELEASE_PRIVATE_KEY, [Text.UTF8Encoding]::new($false))
+          "WPM_RELEASE_KEY_PATH=$keyPath" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Build Release WPM packages with x86 Debug WPM
         shell: pwsh
@@ -172,7 +177,7 @@ jobs:
               "-DWPM_PACKAGE_OUTPUT_DIR=$PWD/release/packages" `
               "-DWPM_PACKAGE_ARCH=$architecture" `
               -DWPM_PACKAGE_DEBUG=false `
-              "-DWPM_PACKAGE_SIGNING_KEY=$PWD/release/keys/release.private" `
+              "-DWPM_PACKAGE_SIGNING_KEY=$env:WPM_RELEASE_KEY_PATH" `
               "-DWPM_SETUP_SCRIPT=$PWD/setup.cmd" `
               "-DWPM_REMOVE_SCRIPT=$PWD/remove.cmd" `
               "-DWPM_REPORT_DIR=$PWD/bin/x86/Debug" `
@@ -184,13 +189,40 @@ jobs:
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
 
+      - name: Validate signed Release WPM packages
+        shell: pwsh
+        run: |
+          $env:WPM_DATA_DIR = Join-Path $env:RUNNER_TEMP 'wpm-release-validation'
+          bin/x86/Debug/wpm.exe trust add release_keys/wpm-release.public
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $packages = @(Get-ChildItem -LiteralPath release/packages -Filter 'wpm-*.zip')
+          if ($packages.Count -ne 3) { throw "Expected three release packages, found $($packages.Count)." }
+          foreach ($package in $packages) {
+            bin/x86/Debug/wpm.exe verify $package.FullName
+            if ($LASTEXITCODE -ne 0) { throw "Release package validation failed: $($package.Name)" }
+          }
+
+      - name: Remove materialized release signing key
+        if: always()
+        shell: pwsh
+        run: |
+          if ($env:WPM_RELEASE_KEY_PATH -and (Test-Path -LiteralPath $env:WPM_RELEASE_KEY_PATH)) {
+            Remove-Item -LiteralPath $env:WPM_RELEASE_KEY_PATH -Force
+          }
+
+      - name: Prepare public release key
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release/keys | Out-Null
+          Copy-Item -LiteralPath release_keys/wpm-release.public -Destination release/keys/wpm-release.public
+
       - name: Upload Release WPM packages
         uses: actions/upload-artifact@v7
         with:
           name: wpm-release-packages
           path: |
             release/packages/wpm-*.zip
-            release/keys/release.public
+            release/keys/wpm-release.public
           if-no-files-found: error
 
   publish:
@@ -231,4 +263,4 @@ jobs:
           files: |
             release/packages/wpm-*.zip
             release/index.json
-            release/keys/release.public
+            release/keys/wpm-release.public

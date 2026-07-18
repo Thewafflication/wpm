@@ -26,15 +26,23 @@ $results = @(
                 'arm64-release',
                 'WPM_EXECUTABLE=.*bin/x86/Debug/wpm\.exe',
                 'WPM_PACKAGE_EXECUTABLE=.*release-binaries/wpm-\$architecture\.exe',
+                'environment: release',
+                'secrets\.WPM_RELEASE_PRIVATE_KEY',
+                'WPM_PACKAGE_SIGNING_KEY=\$env:WPM_RELEASE_KEY_PATH',
+                'trust add release_keys/wpm-release\.public',
+                'wpm\.exe verify \$package\.FullName',
                 '\$packages = Get-ChildItem -LiteralPath release/packages -Filter ''wpm-\*\.zip''',
                 'release/packages/wpm-\*\.zip',
-                'release/keys/release\.public'
+                'release/keys/wpm-release\.public'
             )
 
             foreach ($pattern in $requiredPatterns) {
                 if ($workflow -notmatch $pattern) {
                     throw "Release workflow is missing required configuration: $pattern"
                 }
+            }
+            if ($workflow -match '(?m)^\s*- name: Generate ephemeral release signing key') {
+                throw 'Release workflow still generates an ephemeral release signing key.'
             }
 
             if ($env:GITHUB_REF_TYPE -ne 'tag') {
