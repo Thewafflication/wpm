@@ -3,6 +3,21 @@
 WPM is the Waughtal Package Manager, a command-line tool for building,
 installing, removing, and upgrading packages.
 
+## Install
+
+From Command Prompt or PowerShell, download and run the latest bootstrap
+installer:
+
+```powershell
+powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$p=Join-Path $env:TEMP 'wpm-install.cmd'; try { Invoke-WebRequest -UseBasicParsing 'https://github.com/Thewafflication/wpm/releases/latest/download/install.cmd' -OutFile $p; & $p; exit $LASTEXITCODE } finally { Remove-Item -LiteralPath $p -Force -ErrorAction SilentlyContinue }"
+```
+
+The bootstrapper selects the native x86, x64, or ARM64 package from the latest
+release index, downloads its release public key, validates the signed package
+with the downloaded WPM executable in an isolated temporary trust store, and
+then runs the packaged `setup.cmd`. Its initial trust anchor is GitHub HTTPS;
+the public-key identifier is documented below for independent verification.
+
 See the [usage guide](docs/usage.md) for commands, examples, and the WPM
 package layout.
 

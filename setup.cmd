@@ -21,6 +21,7 @@ if not defined WPM_INSTALL_SCOPE (
 
 set "SOURCE_EXE=%~1"
 if not defined SOURCE_EXE set "SOURCE_EXE=%~dp0wpm.exe"
+set "SOURCE_ROOT=%~dp0"
 
 if not exist "%SOURCE_EXE%" (
     echo Error: WPM executable not found: "%SOURCE_EXE%"
@@ -52,6 +53,35 @@ if errorlevel 1 (
     exit /b 1
 )
 
+for %%F in (README.md LICENSE.txt THIRD_PARTY_NOTICES.md) do (
+    if not exist "%SOURCE_ROOT%%%F" (
+        echo Error: required WPM distribution file not found: "%SOURCE_ROOT%%%F"
+        exit /b 1
+    )
+    copy /y "%SOURCE_ROOT%%%F" "%WPM_INSTALL_DIR%\%%F" >nul
+    if errorlevel 1 (
+        echo Error: could not install %%F to "%WPM_INSTALL_DIR%"
+        exit /b 1
+    )
+)
+
+if not exist "%SOURCE_ROOT%docs\usage.md" (
+    echo Error: required WPM documentation not found: "%SOURCE_ROOT%docs\usage.md"
+    exit /b 1
+)
+if not exist "%WPM_INSTALL_DIR%\docs" mkdir "%WPM_INSTALL_DIR%\docs"
+if errorlevel 1 (
+    echo Error: could not create documentation directory: "%WPM_INSTALL_DIR%\docs"
+    exit /b 1
+)
+for %%F in ("%SOURCE_ROOT%docs\*.md") do (
+    copy /y "%%~fF" "%WPM_INSTALL_DIR%\docs\%%~nxF" >nul
+    if errorlevel 1 (
+        echo Error: could not install documentation file %%~nxF
+        exit /b 1
+    )
+)
+
 reg add "%WPM_ENVIRONMENT_REGISTRY_KEY%" /v WPM /t REG_SZ /d "%WPM_INSTALL_DIR%" /f >nul
 if errorlevel 1 (
     echo Error: could not set the WPM environment variable. Run setup from an elevated command prompt.
@@ -76,7 +106,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo WPM installed to "%WPM_INSTALL_DIR%\wpm.exe"
+echo WPM executable, licenses, and documentation installed to "%WPM_INSTALL_DIR%"
 if /I "%WPM_INSTALL_SCOPE%"=="user" (
     echo The user WPM variable and Path have been updated. Open a new command prompt to use wpm.
 ) else (

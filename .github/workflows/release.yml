@@ -215,6 +215,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path release/keys | Out-Null
           Copy-Item -LiteralPath release_keys/wpm-release.public -Destination release/keys/wpm-release.public
+          Copy-Item -LiteralPath install.cmd -Destination release/install.cmd
 
       - name: Upload Release WPM packages
         uses: actions/upload-artifact@v7
@@ -223,6 +224,7 @@ jobs:
           path: |
             release/packages/wpm-*.zip
             release/keys/wpm-release.public
+            release/install.cmd
           if-no-files-found: error
 
   publish:
@@ -264,3 +266,4 @@ jobs:
             release/packages/wpm-*.zip
             release/index.json
             release/keys/wpm-release.public
+            release/install.cmd

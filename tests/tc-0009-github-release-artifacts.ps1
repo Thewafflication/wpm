@@ -35,7 +35,8 @@ $results = @(
                 'wpm\.exe verify \$package\.FullName',
                 '\$packages = Get-ChildItem -LiteralPath release/packages -Filter ''wpm-\*\.zip''',
                 'release/packages/wpm-\*\.zip',
-                'release/keys/wpm-release\.public'
+                'release/keys/wpm-release\.public',
+                'release/install\.cmd'
             )
 
             foreach ($pattern in $requiredPatterns) {

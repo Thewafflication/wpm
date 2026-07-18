@@ -23,6 +23,7 @@ Release for the pushed tag and attach these assets:
   architecture, and release-asset URL
 - `wpm-release.public`, the durable Ed25519 public key used to sign official
   WPM release packages
+- `install.cmd`, the architecture-selecting latest-release bootstrap installer
 
 The index shall be available through GitHub's stable latest-release asset URL:
 `https://github.com/Thewafflication/wpm/releases/latest/download/index.json`.

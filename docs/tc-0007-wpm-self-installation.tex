@@ -40,9 +40,12 @@ margin=1in
 \def\TCProcedure{
 	\par
 	\begin{enumerate}
+		\item Inspect and invoke the help path of the latest-release \texttt{install.cmd} bootstrapper, verifying architecture selection, HTTPS retrieval, isolated signature validation, setup delegation, and cleanup.
 		\item Set \texttt{WPM\_INSTALL\_DIR}, \texttt{WPM\_DATA\_DIR}, and
 		\texttt{WPM\_ENVIRONMENT\_REGISTRY\_KEY} to test locations.
 		\item Run \texttt{setup.cmd} with the built \texttt{wpm.exe} and verify it
+		copies the executable, license and notice files, README, and packaged Markdown
+		documentation into the installation directory, then verify it
 		selects machine scope when elevated or user scope otherwise.
 		\item Run \texttt{setup.cmd --user} with the built \texttt{wpm.exe}.
 		\item Run the user-scope setup command again and verify only one \texttt{\%WPM\%}

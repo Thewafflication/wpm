@@ -5,12 +5,26 @@
 WPM shall provide package-maintainer deployment scripts that install and
 remove the WPM executable independently of WPM's package extraction location.
 
+The published `install.cmd` bootstrapper shall require Windows PowerShell,
+download `index.json` from the stable GitHub latest-release asset URL, select
+exactly one `wpm` package matching the native x86, x64, or ARM64 Windows
+architecture, and reject unsupported index schemas or unsafe asset names. It
+shall download the selected archive and `wpm-release.public` over HTTPS into a
+unique temporary directory. Before setup, it shall use the extracted WPM
+executable and an isolated temporary data root to trust the downloaded public
+key and run `wpm verify` against the archive. It shall then invoke the
+packaged `setup.cmd`, propagate failure, and remove temporary content after
+success or failure. The bootstrap process's initial trust anchor is GitHub
+HTTPS.
+
 `setup.cmd` shall:
 
 - install the executable supplied as its first argument, or `wpm.exe` beside
   the script when no argument is supplied;
 - install the executable to the native architecture's Program Files directory
   (using `%ProgramW6432%` when available) under `WPM\wpm.exe` by default;
+- install `README.md`, `LICENSE.txt`, and `THIRD_PARTY_NOTICES.md` beside the
+  executable, and install the packaged Markdown documentation under `WPM\docs`;
 - create the installation directory when needed; and
 - create the machine-level `WPM` environment variable with the installation
   directory as its value; and

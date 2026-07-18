@@ -14,6 +14,7 @@ $WpmExe = (Resolve-Path -LiteralPath $WpmExe).Path
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $setupCmd = Join-Path $repositoryRoot 'setup.cmd'
 $removeCmd = Join-Path $repositoryRoot 'remove.cmd'
+$installCmd = Join-Path $repositoryRoot 'install.cmd'
 $testId = [Guid]::NewGuid().ToString('N')
 $installDir = Join-Path ([IO.Path]::GetTempPath()) "wpm-self-install-$testId"
 $dataDir = Join-Path ([IO.Path]::GetTempPath()) "wpm-self-data-$testId"
@@ -80,6 +81,28 @@ try {
         }
     }
 
+    $results += New-WpmManualStep -Name 'Validate latest-release bootstrap installer contract' -Action {
+        $help = & $installCmd --help 2>&1 | Out-String
+        if ($LASTEXITCODE -ne 0 -or $help -notmatch '(?i)latest WPM release') {
+            throw 'install.cmd --help did not complete successfully.'
+        }
+        $bootstrap = Get-Content -Raw -LiteralPath $installCmd
+        foreach ($pattern in @(
+            'releases/latest/download',
+            'index\.json',
+            'PROCESSOR_ARCHITEW6432',
+            'wpm-release\.public',
+            'WPM_DATA_DIR',
+            'trust add',
+            'verify \$archive',
+            '& \$setup \$wpm',
+            'Remove-Item -LiteralPath \$work -Recurse -Force'
+        )) {
+            if ($bootstrap -notmatch $pattern) { throw "install.cmd is missing bootstrap behavior: $pattern" }
+        }
+        'Latest-release bootstrap selection, validation, setup, and cleanup are configured.'
+    }
+
     $results += New-WpmManualStep -Name 'Automatically select the installation scope from elevation' -Action {
         Invoke-CmdScript -Script $setupCmd -Arguments @($WpmExe)
         if (-not (Test-Path -LiteralPath (Join-Path $installDir 'wpm.exe') -PathType Leaf)) {
@@ -105,6 +128,24 @@ try {
         Invoke-CmdScript -Script $setupCmd -Arguments @('--user', $WpmExe)
         if (-not (Test-Path -LiteralPath (Join-Path $installDir 'wpm.exe') -PathType Leaf)) {
             throw "setup.cmd did not install wpm.exe to $installDir"
+        }
+        foreach ($relativePath in @(
+            'README.md',
+            'LICENSE.txt',
+            'THIRD_PARTY_NOTICES.md',
+            'docs\usage.md'
+        )) {
+            $installedFile = Join-Path $installDir $relativePath
+            if (-not (Test-Path -LiteralPath $installedFile -PathType Leaf)) {
+                throw "setup.cmd did not install $relativePath to $installDir"
+            }
+        }
+        $sourceDocumentation = Get-ChildItem -LiteralPath (Join-Path $repositoryRoot 'docs') -Filter '*.md' -File
+        foreach ($sourceFile in $sourceDocumentation) {
+            $installedFile = Join-Path (Join-Path $installDir 'docs') $sourceFile.Name
+            if (-not (Test-Path -LiteralPath $installedFile -PathType Leaf)) {
+                throw "setup.cmd did not install documentation file $($sourceFile.Name)"
+            }
         }
         if (Test-Path -LiteralPath $dataDir) {
             throw 'setup.cmd must not initialize WPM data directories.'
