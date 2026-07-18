@@ -291,6 +291,14 @@ tag, such as `1.0.0`, becomes the version. Otherwise, WPM displays the short
 commit hash and appends `-dirty` when tracked files have uncommitted changes.
 GitHub builds fetch submodule tags before generating this information, so the
 reported `miniz` and `libsodium` versions use their exact dependency tags.
+CI also compares each pinned submodule commit with the latest GitHub release.
+When a newer released tag contains the pinned commit, the workflow emits a
+non-blocking dependency warning with the pinned and available versions. All
+dependency freshness warnings are collected in the GitHub Actions job summary;
+a warning-free check records an explicit clean result there instead. Verification
+build output is also retained as `verification-build.log`; compiler, linker, and
+CMake warning lines are collected into a collapsible section in the same job
+summary for each architecture.
 
 Pushing a Git tag runs the Release workflow. After the verification suite
 passes, the x86 Debug WPM executable packages the Release executables for all

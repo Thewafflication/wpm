@@ -41,6 +41,13 @@ jobs:
         shell: pwsh
         run: git submodule foreach --recursive 'git fetch --tags --force'
 
+      - name: Check for newer dependency releases
+        if: matrix.arch == 'x86'
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: tests/check-dependency-releases.ps1
+
       - name: Configure
         shell: pwsh
         run: cmake --preset ${{ matrix.configure_preset }}
@@ -55,13 +62,20 @@ jobs:
         continue-on-error: true
         run: |
           New-Item -ItemType Directory -Force -Path bin/${{ matrix.arch }}/Debug | Out-Null
-          cmake --build --preset ${{ matrix.verify_preset }}
-          "exit_code=$LASTEXITCODE" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          if ($LASTEXITCODE -ne 0) {
-            "The x86 Debug build failed before all expected artifacts were generated. See the workflow log for compiler or test output." |
+          cmake --build --preset ${{ matrix.verify_preset }} 2>&1 |
+            Tee-Object -FilePath bin/${{ matrix.arch }}/Debug/verification-build.log
+          $buildExitCode = $LASTEXITCODE
+          "exit_code=$buildExitCode" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          if ($buildExitCode -ne 0) {
+            "The ${{ matrix.arch }} Debug build failed before all expected artifacts were generated. See the workflow log for compiler or test output." |
               Set-Content -Path bin/${{ matrix.arch }}/Debug/build-failed.txt
           }
           exit 0
+
+      - name: Collect build warnings in summary
+        if: always()
+        shell: pwsh
+        run: tests/summarize-build-warnings.ps1 -LogPath bin/${{ matrix.arch }}/Debug/verification-build.log
 
       - name: Upload complete test report artifact
         if: always()
