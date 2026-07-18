@@ -1,6 +1,6 @@
 # ADR-0003: Package Format and Installation Semantics
 
-Status: Proposed
+Status: Accepted
 
 ## Context
 

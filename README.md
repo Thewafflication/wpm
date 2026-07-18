@@ -3,6 +3,17 @@
 WPM is the Waughtal Package Manager, a command-line tool for building,
 installing, removing, and upgrading packages.
 
+## WPM 1.0.0
+
+WPM 1.0.0 is the first stable release of the Waughtal Package Manager for
+Windows x86, x64, and ARM64. It provides signed package build, installation,
+removal, HTTPS repository use, version-aware upgrades, and safe WPM
+self-upgrade.
+
+Use the latest-release installer below to install or upgrade WPM. See the
+[support policy](docs/support-policy.md) for the scope of best-effort support,
+and the [2.0 UX roadmap](docs/roadmap-2.0.md) for planned improvements.
+
 ## Install
 
 From Command Prompt or PowerShell, download and run the latest bootstrap
@@ -21,8 +32,19 @@ the public-key identifier is documented below for independent verification.
 See the [usage guide](docs/usage.md) for commands, examples, and the WPM
 package layout.
 
-See the [1.0 release roadmap](docs/roadmap-1.0.md) for planned capabilities
-and release criteria.
+See the [1.0 release roadmap](docs/roadmap-1.0.md) for the 1.0 scope and
+release criteria.
+
+See the [2.0 UX roadmap](docs/roadmap-2.0.md) for the next major release.
+
+See [compatibility tracking](docs/compatibility-tracking.md) for platforms
+under investigation that are not yet supported releases.
+
+See the [quality testing program](docs/quality-testing.md) for long-running and
+fault-injection testing that complements regular CI.
+
+See the [support policy](docs/support-policy.md) for supported releases and
+issue-reporting guidance.
 
 WPM uses third-party open-source software. See
 [Third-Party Notices](THIRD_PARTY_NOTICES.md) for attribution and licenses.

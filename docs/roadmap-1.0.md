@@ -163,7 +163,7 @@ behavior.
   The CI verification matrix now covers x86, x64, and native ARM64 runners.
 - Build, sign, and validate the release package in CI.
 - Publish release notes, installation instructions, package-format guidance, and
-  a 1.0 support policy.
+  the [1.0 support policy](support-policy.md).
 - Tag and publish 1.0.0 only from a clean, fully verified commit.
 
 ## Release Gate

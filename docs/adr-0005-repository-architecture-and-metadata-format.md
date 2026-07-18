@@ -1,6 +1,6 @@
 # ADR-0005: Repository Architecture and Metadata Format
 
-Status: Proposed
+Status: Accepted
 
 ## Context
 

@@ -1,6 +1,6 @@
 # ADR-0001: Package Trust Model
 
-Status: Proposed
+Status: Accepted
 
 ## Context
 

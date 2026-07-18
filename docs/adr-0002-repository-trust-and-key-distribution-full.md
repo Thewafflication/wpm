@@ -1,6 +1,6 @@
 # ADR-0002: Repository Trust and Key Distribution
 
-Status: Proposed
+Status: Accepted
 
 ## Context
 

@@ -1,6 +1,6 @@
 # ADR-0006: Package Relationships and Deployment Coordination
 
-Status: Proposed
+Status: Accepted
 
 ## Context
 

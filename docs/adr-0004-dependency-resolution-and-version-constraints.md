@@ -1,6 +1,6 @@
 # ADR-0004: Dependency Resolution and Version Constraints
 
-Status: Proposed
+Status: Accepted
 
 ## Context
 

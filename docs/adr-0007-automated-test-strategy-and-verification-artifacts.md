@@ -1,6 +1,6 @@
 # ADR-0007: Automated Test Strategy and Verification Artifacts
 
-Status: Proposed
+Status: Accepted
 
 ## Context
 
