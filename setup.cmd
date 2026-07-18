@@ -53,14 +53,14 @@ if errorlevel 1 (
     exit /b 1
 )
 
-for %%F in (README.md LICENSE.txt THIRD_PARTY_NOTICES.md) do (
-    if not exist "%SOURCE_ROOT%%%F" (
-        echo Error: required WPM distribution file not found: "%SOURCE_ROOT%%%F"
+for %%F in ("%SOURCE_ROOT%README.md" "%SOURCE_ROOT%LICENSE.txt" "%SOURCE_ROOT%THIRD_PARTY_NOTICES.md") do (
+    if not exist "%%~fF" (
+        echo Error: required WPM distribution file not found: "%%~fF"
         exit /b 1
     )
-    copy /y "%SOURCE_ROOT%%%F" "%WPM_INSTALL_DIR%\%%F" >nul
+    copy /y "%%~fF" "%WPM_INSTALL_DIR%\%%~nxF" >nul
     if errorlevel 1 (
-        echo Error: could not install %%F to "%WPM_INSTALL_DIR%"
+        echo Error: could not install %%~nxF to "%WPM_INSTALL_DIR%"
         exit /b 1
     )
 )
