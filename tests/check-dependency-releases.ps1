@@ -38,6 +38,12 @@ function Write-DependencySummary {
     $lines | Out-File -LiteralPath $SummaryPath -Encoding utf8 -Append
 }
 
+function ConvertTo-ReleaseVersion([string]$Tag) {
+    if ($Tag -notmatch '(?<!\d)(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?') { return $null }
+    $revision = if ($Matches[4]) { [int]$Matches[4] } else { 0 }
+    return [version]::new([int]$Matches[1], [int]$Matches[2], [int]$Matches[3], $revision)
+}
+
 $headers = @{ Accept = 'application/vnd.github+json' }
 if ($GitHubToken) { $headers.Authorization = "Bearer $GitHubToken" }
 
@@ -57,6 +63,22 @@ foreach ($dependency in $dependencies) {
         $latestTag = [string]$release.tag_name
         if (-not $latestTag) { throw 'the latest GitHub release has no tag' }
 
+        $currentOutput = & git -c $gitSafety -C $path describe --tags --exact-match HEAD 2>$null
+        $currentTag = "$currentOutput".Trim()
+        $currentVersion = ConvertTo-ReleaseVersion $currentTag
+        $latestVersion = ConvertTo-ReleaseVersion $latestTag
+
+        if ($currentVersion -and $latestVersion) {
+            if ($latestVersion -gt $currentVersion) {
+                Write-DependencyWarning "$($dependency.Name) is pinned to $currentTag; GitHub release $latestTag is available."
+            } else {
+                Write-Host "$($dependency.Name) is pinned to $currentTag; latest GitHub release is $latestTag."
+            }
+            continue
+        }
+
+        # Untagged pins cannot be compared by version. Fall back to ancestry
+        # when the latest release tag is available in the submodule checkout.
         & git -c $gitSafety -C $path rev-parse --verify --quiet "refs/tags/$latestTag^{commit}" *> $null
         if ($LASTEXITCODE -ne 0) {
             throw "latest release tag '$latestTag' was not fetched"
@@ -68,8 +90,6 @@ foreach ($dependency in $dependencies) {
         $containsLatest = $LASTEXITCODE -eq 0
 
         if ($isOlder -and -not $containsLatest) {
-            $currentOutput = & git -c $gitSafety -C $path describe --tags --exact-match HEAD 2>$null
-            $currentTag = "$currentOutput".Trim()
             if (-not $currentTag) { $currentTag = $pinnedCommit.Substring(0, 12) }
             Write-DependencyWarning "$($dependency.Name) is pinned to $currentTag; GitHub release $latestTag is available."
         } else {
