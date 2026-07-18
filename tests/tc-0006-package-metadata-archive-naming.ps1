@@ -16,15 +16,15 @@ $packageName = "wpm-name-$testId"
 $testRoot = Join-Path ([IO.Path]::GetTempPath()) "wpm-tests-$testId"
 $sourceDir = Join-Path $testRoot 'source'
 $outputDir = Join-Path $testRoot 'packages'
-$releaseArchivePath = Join-Path $outputDir "$packageName-x64-2.4.6.zip"
-$debugArchivePath = Join-Path $outputDir "$packageName-x64-debug-2.4.6.zip"
+$releaseArchivePath = Join-Path $outputDir "$packageName-x64-2.4.6+build.5.zip"
+$debugArchivePath = Join-Path $outputDir "$packageName-x64-debug-2.4.6+build.5.zip"
 
 function Set-PackageMetadata {
     param([bool]$Debug)
 
     Set-Content -LiteralPath (Join-Path $sourceDir '.wpm\package.txt') -Value @(
         "name=$packageName"
-        'version=2.4.6'
+        'version=2.4.6+build.5'
         'arch=x64'
         "debug=$($Debug.ToString().ToLowerInvariant())"
     )

@@ -18,27 +18,30 @@ Stable releases:
 
 Development builds:
 
-1.0.1-dev.17+9c52d1f
-1.0.1-dev.18+ab12cd3
-1.0.1-dev.18+ab12cd3.dirty
+1.0.1-dev+17.9c52d1f
+1.0.1-dev+18.ab12cd3
+1.0.1-dev+18.ab12cd3.dirty
 
 Where:
 
-- dev.<n> is the sortable commit count since the last tag.
-- +<hash> is build metadata containing the Git commit hash.
+- `dev` identifies a development prerelease.
+- `+<n>.<hash>` is build metadata containing the commit count since the last
+  tag and the Git commit hash.
 - .dirty indicates uncommitted changes.
 
 ## Version Ordering
 
 Example ordering:
 
-1.0.0-dev.1+abc123
-<
-1.0.0-dev.2+def456
-<
+1.0.0-dev+1.abc123
+and
+1.0.0-dev+2.def456
+have equal SemVer precedence because build metadata does not affect ordering.
+Both are less than
+
 1.0.0
 <
-1.0.1-dev.1+789abc
+1.0.1-dev+1.789abc
 <
 1.0.1
 
@@ -74,7 +77,7 @@ Stable releases SHALL be preferred over prerelease builds of the same version.
 Example:
 
 Installed:
-1.0.0-dev.17+9c52d1f
+1.0.0-dev+17.9c52d1f
 
 Available:
 1.0.0

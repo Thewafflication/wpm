@@ -91,7 +91,9 @@ if(BUILD_TESTING)
     endif()
   endif()
 
+  set(WPM_TEST_CASE_COUNT 0)
   macro(wpm_add_test_case test_id test_slug test_script test_tex)
+    math(EXPR WPM_TEST_CASE_COUNT "${WPM_TEST_CASE_COUNT} + 1")
     add_test(
       NAME ${test_id}
       COMMAND ${WPM_POWERSHELL_EXECUTABLE}
@@ -199,10 +201,23 @@ if(BUILD_TESTING)
 
   endif()
 
-  add_custom_target(verify)
-  add_dependencies(verify check)
   if(WPM_BUILD_TEST_REPORTS)
+    add_custom_target(verify
+      COMMAND ${WPM_POWERSHELL_EXECUTABLE}
+        -NoProfile
+        -ExecutionPolicy Bypass
+        -File ${CMAKE_SOURCE_DIR}/tests/verify-test-evidence.ps1
+        -EvidenceDirectory "${WPM_TEST_REPORT_DIR}"
+        -ExpectedCount ${WPM_TEST_CASE_COUNT}
+      DEPENDS
+        ${CMAKE_SOURCE_DIR}/tests/verify-test-evidence.ps1
+      COMMENT "Validating generated test evidence"
+      VERBATIM
+    )
     add_dependencies(verify test-reports)
+  else()
+    add_custom_target(verify)
+    add_dependencies(verify check)
   endif()
 
   if(WPM_RUN_TESTS_AFTER_BUILD)

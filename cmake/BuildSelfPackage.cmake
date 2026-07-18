@@ -33,7 +33,7 @@ if(NOT wpm_version_result EQUAL 0)
   message(FATAL_ERROR "Could not determine the WPM package version: ${wpm_version_error}")
 endif()
 
-string(REGEX MATCH "Version ([A-Za-z0-9._-]+)" wpm_version_match "${wpm_version_output}")
+string(REGEX MATCH "Version ([A-Za-z0-9._+-]+)" wpm_version_match "${wpm_version_output}")
 if(NOT wpm_version_match)
   message(FATAL_ERROR "Could not parse a safe WPM package version from: ${wpm_version_output}")
 endif()

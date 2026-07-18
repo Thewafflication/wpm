@@ -311,8 +311,10 @@ The resulting executable is located under `bin/x86/Debug/`.
 
 WPM's displayed version is generated from Git during each build. An exact Git
 tag, such as `1.0.0`, becomes the version. Otherwise, WPM displays the
-SemVer-compatible development version `0.0.0-dev.g<short-commit>` and appends
-`.dirty` when tracked files have uncommitted changes.
+SemVer-compatible development version
+`<last-tag>-dev+<commits-since-tag>.<short-commit>` and appends `.dirty` when
+tracked files have uncommitted changes. A repository without any tags uses
+`0.0.0` as the development-version base.
 GitHub builds fetch submodule tags before generating this information, so the
 reported `miniz` and `libsodium` versions use their exact dependency tags.
 CI also compares each pinned submodule commit with the latest GitHub release.

@@ -39,7 +39,8 @@ margin=1in
 	\par
 	\begin{enumerate}
 		\item Create a temporary source package directory.
-		\item Write package metadata with \texttt{debug=false}.
+		\item Write package metadata with \texttt{debug=false} and a SemVer
+		version containing \texttt{+} build metadata.
 		\item Run \texttt{wpm.exe build <source-dir> <output-dir> --no-index}.
 		\item Write package metadata with \texttt{debug=true}.
 		\item Run \texttt{wpm.exe build <source-dir> <output-dir> --no-index}.

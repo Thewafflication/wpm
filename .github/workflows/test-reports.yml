@@ -38,6 +38,7 @@ jobs:
           submodules: recursive
 
       - name: Fetch submodule tags
+        if: matrix.arch == 'x86'
         shell: pwsh
         run: git submodule foreach --recursive 'git fetch --tags --force'
 
@@ -62,7 +63,7 @@ jobs:
         continue-on-error: true
         run: |
           New-Item -ItemType Directory -Force -Path bin/${{ matrix.arch }}/Debug | Out-Null
-          cmake --build --preset ${{ matrix.verify_preset }} 2>&1 |
+          cmake --build --preset ${{ matrix.verify_preset }} --parallel 2>&1 |
             Tee-Object -FilePath bin/${{ matrix.arch }}/Debug/verification-build.log
           $buildExitCode = $LASTEXITCODE
           "exit_code=$buildExitCode" | Out-File -FilePath $env:GITHUB_OUTPUT -Append

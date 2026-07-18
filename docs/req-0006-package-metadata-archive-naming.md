@@ -8,7 +8,8 @@ metadata.
 When building a package, the application shall:
 
 - read `name`, `version`, `arch`, and `debug` from `.wpm/package.txt`,
-- reject missing or unsafe `name`, `version`, or `arch` values,
+- reject missing or unsafe `name`, `version`, or `arch` values while accepting
+  `+` in SemVer version build metadata,
 - write release packages as `<name>-<arch>-<version>.zip`, and
 - write debug packages as `<name>-<arch>-debug-<version>.zip`.
 

@@ -274,7 +274,7 @@ static int is_safe_metadata_value(const char* value) {
     if (!value || !value[0] || strcmp(value, ".") == 0 || strcmp(value, "..") == 0) return 0;
 
     for (const unsigned char* current = (const unsigned char*)value; *current; current++) {
-        if (!isalnum(*current) && *current != '-' && *current != '_' && *current != '.') {
+        if (!isalnum(*current) && *current != '-' && *current != '_' && *current != '.' && *current != '+') {
             return 0;
         }
     }

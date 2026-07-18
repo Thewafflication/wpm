@@ -9,18 +9,41 @@ execute_process(
 
 if(NOT tag_result EQUAL 0)
     execute_process(
-        COMMAND git rev-parse --short HEAD
+        COMMAND git describe --tags --long --abbrev=7 HEAD
         WORKING_DIRECTORY "${WPM_SOURCE_DIR}"
-        RESULT_VARIABLE commit_result
-        OUTPUT_VARIABLE commit_version
+        RESULT_VARIABLE describe_result
+        OUTPUT_VARIABLE describe_version
         OUTPUT_STRIP_TRAILING_WHITESPACE
         ERROR_QUIET
     )
 
-    if(NOT commit_result EQUAL 0)
-        set(version "unknown")
+    if(describe_result EQUAL 0 AND describe_version MATCHES "^(.+)-([0-9]+)-g([0-9A-Fa-f]+)$")
+        set(version "${CMAKE_MATCH_1}-dev+${CMAKE_MATCH_2}.${CMAKE_MATCH_3}")
     else()
-        set(version "0.0.0-dev.g${commit_version}")
+        execute_process(
+            COMMAND git rev-list --count HEAD
+            WORKING_DIRECTORY "${WPM_SOURCE_DIR}"
+            RESULT_VARIABLE count_result
+            OUTPUT_VARIABLE commit_count
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_QUIET
+        )
+        execute_process(
+            COMMAND git rev-parse --short=7 HEAD
+            WORKING_DIRECTORY "${WPM_SOURCE_DIR}"
+            RESULT_VARIABLE commit_result
+            OUTPUT_VARIABLE commit_version
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_QUIET
+        )
+        if(NOT count_result EQUAL 0 OR NOT commit_result EQUAL 0)
+            set(version "unknown")
+        else()
+            set(version "0.0.0-dev+${commit_count}.${commit_version}")
+        endif()
+    endif()
+
+    if(NOT version STREQUAL "unknown")
         execute_process(
             COMMAND git status --porcelain --untracked-files=no
             WORKING_DIRECTORY "${WPM_SOURCE_DIR}"
