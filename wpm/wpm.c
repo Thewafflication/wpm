@@ -103,14 +103,17 @@ int main(int argc, char *argv[])
         print_usage(0);
         return 0;
 	}
-    if (argc == 9 && strcmp(argv[1], "--complete-self-upgrade") == 0) {
+    if ((argc == 8 || argc == 9) && strcmp(argv[1], "--complete-self-upgrade") == 0) {
         DWORD parent_id = (DWORD)strtoul(argv[3], NULL, 10);
         int completed;
+        const char* self_upgrade_log_path = argc == 9 ? argv[8] : NULL;
         FILE* self_upgrade_log = NULL;
-        if (fopen_s(&self_upgrade_log, argv[8], "a") != 0) return 1;
-        fprintf(self_upgrade_log, "Completing WPM self-upgrade: %s %s -> %s\n", argv[5], argv[6], argv[4]);
-        fclose(self_upgrade_log);
-        SetEnvironmentVariableA("WPM_SELF_UPGRADE_LOG", argv[8]);
+        if (self_upgrade_log_path) {
+            if (fopen_s(&self_upgrade_log, self_upgrade_log_path, "a") != 0) return 1;
+            fprintf(self_upgrade_log, "Completing WPM self-upgrade: %s %s -> %s\n", argv[5], argv[6], argv[4]);
+            fclose(self_upgrade_log);
+            SetEnvironmentVariableA("WPM_SELF_UPGRADE_LOG", self_upgrade_log_path);
+        }
         HANDLE parent = OpenProcess(SYNCHRONIZE, FALSE, parent_id);
         if (parent) {
             WaitForSingleObject(parent, INFINITE);
@@ -119,7 +122,7 @@ int main(int argc, char *argv[])
         if (!wpm_initialize_data_directories()) return 1;
         completed = wpm_archive_upgrade(argv[2], atoi(argv[7]) != 0,
             "wpm", argv[4], argv[5], argv[6]);
-        if (fopen_s(&self_upgrade_log, argv[8], "a") == 0) {
+        if (self_upgrade_log_path && fopen_s(&self_upgrade_log, self_upgrade_log_path, "a") == 0) {
             fprintf(self_upgrade_log, "Result: wpm %s %s\n", argv[5], completed ? "upgraded" : "failed");
             fclose(self_upgrade_log);
         }

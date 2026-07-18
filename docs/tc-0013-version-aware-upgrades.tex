@@ -40,6 +40,7 @@
 \item Multi-package processing continues after a failure, reports each identity as upgraded, current, or failed, and returns nonzero when any identity fails.
 \item WPM self-upgrade uses a cached candidate executable to complete replacement after the original process releases the installed executable.
 \item Self-upgrade reports \texttt{scheduled} in the invoking process and records install-script output plus the final result in its persistent log.
+\item The cached candidate accepts the legacy eight-argument self-upgrade handoff used by earlier WPM releases.
 \end{enumerate}}
 \def\TCPostConditions{All temporary package sources, archives, repository caches, deployment markers, configuration, audit data, and WPM data directories are removed.}
 \TCTemplate

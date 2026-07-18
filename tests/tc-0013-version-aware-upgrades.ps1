@@ -266,6 +266,19 @@ try {
         if ($Output -notmatch '(?i)Result: wpm x86 scheduled' -or $Output -notmatch '(?i)Self-upgrade output:') { throw 'Parent process claimed completion or omitted the output-log path.' }
     }
 
+    $results += New-WpmManualStep -Name 'Accept the legacy self-upgrade handoff protocol' -Action {
+        $handoffExe = Join-Path $dataDir 'cache\self-upgrade\wpm-x86-2.0.0.exe'
+        $archive = Join-Path $dataDir 'cache\packages\wpm-x86-2.0.0.zip'
+        $output = & $handoffExe --complete-self-upgrade $archive 0 2.0.0 x86 1.0.0 1 2>&1 | Out-String
+        if ($LASTEXITCODE -ne 0) {
+            throw "Legacy eight-argument self-upgrade handoff failed. $output"
+        }
+        if ($output -notmatch 'install-script:self-2\.0\.0') {
+            throw "Legacy handoff did not run the package install script. $output"
+        }
+        'Legacy eight-argument self-upgrade handoff completed.'
+    }
+
     $results += New-WpmManualStep -Name 'Verify retained versions, upgrade audits, and staging cleanup' -Action {
         foreach ($arch in 'x86','x64') {
             foreach ($version in '1.0.0','2.0.0') {

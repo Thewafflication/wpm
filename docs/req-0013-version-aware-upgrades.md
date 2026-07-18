@@ -192,6 +192,8 @@ the candidate archive and create the normal upgrade audit record. The invoking
 process shall report the result as `scheduled`, not `upgraded`, and identify a
 persistent self-upgrade output log. That log shall contain package-script output
 and the completion process's final `upgraded` or `failed` result.
+The completion process shall also accept the legacy eight-argument handoff
+protocol used by earlier WPM releases; that protocol has no output-log path.
 
 Package installation and upgrade scripts shall inherit WPM's standard input,
 output, and error streams so their diagnostics are visible to an interactive
