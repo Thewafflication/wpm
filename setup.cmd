@@ -1,5 +1,6 @@
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
+set "SOURCE_ROOT=%~dp0"
 
 set "WPM_INSTALL_SCOPE="
 if /I "%~1"=="--user" (
@@ -20,8 +21,7 @@ if not defined WPM_INSTALL_SCOPE (
 )
 
 set "SOURCE_EXE=%~1"
-if not defined SOURCE_EXE set "SOURCE_EXE=%~dp0wpm.exe"
-set "SOURCE_ROOT=%~dp0"
+if not defined SOURCE_EXE set "SOURCE_EXE=%SOURCE_ROOT%wpm.exe"
 
 if not exist "%SOURCE_EXE%" (
     echo Error: WPM executable not found: "%SOURCE_EXE%"
