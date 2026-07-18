@@ -7,6 +7,9 @@
 #include "sodium.h"
 #include "archive.h"
 #include "signing.h"
+#include "helpers.h"
+
+#define fopen(path, mode) wpm_fopen((path), (mode))
 
 #define PATH_SIZE 4096
 #define KEY_ID_SIZE 65

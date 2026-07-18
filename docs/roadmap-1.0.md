@@ -154,10 +154,13 @@ behavior.
 
 </details>
 
-## ⏳ Milestone 6: Release Hardening — Planned
+## 🚧 Milestone 6: Release Hardening — In Progress
 
-- Complete requirements-to-test traceability for all 1.0 commands.
+- Complete requirements-to-test traceability for all 1.0 commands. The
+  baseline matrix is in `traceability-1.0.md` and CI enforces its artifact
+  relationships.
 - Run the full verification suite on every supported Windows architecture.
+  The CI verification matrix now covers x86, x64, and native ARM64 runners.
 - Build, sign, and validate the release package in CI.
 - Publish release notes, installation instructions, package-format guidance, and
   a 1.0 support policy.

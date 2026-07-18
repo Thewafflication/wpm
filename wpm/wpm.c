@@ -25,13 +25,16 @@ static void print_runtime_mode(void)
 {
     char executable_path[MAX_PATH];
     char managed_root[MAX_PATH];
-    const char* program_files = getenv("ProgramW6432");
+    char program_files[MAX_PATH];
     DWORD path_length;
 
-    if (!program_files || !program_files[0]) program_files = getenv("ProgramFiles");
+    if (!wpm_get_environment_variable("ProgramW6432", program_files, sizeof(program_files)) &&
+        !wpm_get_environment_variable("ProgramFiles", program_files, sizeof(program_files))) {
+        program_files[0] = '\0';
+    }
     path_length = GetModuleFileNameA(NULL, executable_path, sizeof(executable_path));
 
-    if (program_files && program_files[0] && path_length > 0 && path_length < sizeof(executable_path) &&
+    if (program_files[0] && path_length > 0 && path_length < sizeof(executable_path) &&
         snprintf(managed_root, sizeof(managed_root), "%s\\WPM", program_files) > 0 &&
         path_is_beneath(executable_path, managed_root)) {
         printf("Runtime mode: managed\n");

@@ -6,6 +6,7 @@
 #include <windows.h>
 #include <urlmon.h>
 #include "archive.h"
+#include "helpers.h"
 #include "repository.h"
 
 #define PATH_SIZE 4096
@@ -52,7 +53,7 @@ static int parse_entry(char* line, int* priority, char** url) {
 }
 static int load_repositories(repository* result, int* count) {
     char path[PATH_SIZE], line[PATH_SIZE + 32]; FILE* input; *count = 0;
-    if (!config_path(path, sizeof(path))) return 0; input = fopen(path, "r");
+    if (!config_path(path, sizeof(path))) return 0; input = wpm_fopen(path, "r");
     if (input) {
         while (*count < MAX_REPOSITORIES && fgets(line, sizeof(line), input)) { char* url; int priority;
             if (parse_entry(line, &priority, &url)) { repository* r = &result[*count]; r->priority = priority; r->order = *count; strcpy_s(r->url, sizeof(r->url), url); (*count)++; }
@@ -66,7 +67,7 @@ static int load_repositories(repository* result, int* count) {
 static int rewrite(const char* wanted, int priority, int remove) {
     char path[PATH_SIZE], temporary[PATH_SIZE], line[PATH_SIZE + 32]; FILE *input, *output; int found = 0;
     if (!config_path(path, sizeof(path)) || snprintf(temporary, sizeof(temporary), "%s.tmp", path) < 0) return 0;
-    input = fopen(path, "r"); output = fopen(temporary, "w");
+    input = wpm_fopen(path, "r"); output = wpm_fopen(temporary, "w");
     if (!output) { if (input) fclose(input); printf("Error: could not write repository configuration.\n"); return 0; }
     if (input) { while (fgets(line, sizeof(line), input)) { char original[PATH_SIZE + 32], *url; int old_priority; strcpy_s(original, sizeof(original), line);
         if (parse_entry(line, &old_priority, &url) && _stricmp(url, wanted) == 0) { found = 1; if (!remove) fprintf(output, "%d\t%s\n", priority, wanted); } else fputs(original, output); } fclose(input); }
@@ -103,7 +104,7 @@ static const char* skip_ws(const char* p) { while (*p && isspace((unsigned char)
 static int json_string(const char** source, char* output, size_t size) { const char* p = skip_ws(*source); size_t n = 0; if (*p++ != '"') return 0; while (*p && *p != '"') { if (*p == '\\') { p++; if (!*p) return 0; } if (n + 1 >= size) return 0; output[n++] = *p++; } if (*p != '"') return 0; output[n] = '\0'; *source = p + 1; return 1; }
 static int json_value_end(const char** source) { const char* p = skip_ws(*source); int depth = 0, quote = 0; while (*p) { if (quote) { if (*p == '\\' && p[1]) p += 2; else if (*p++ == '"') quote = 0; else p++; continue; } if (*p == '"') quote = 1; else if (*p == '{' || *p == '[') depth++; else if (*p == '}' || *p == ']') { if (!depth--) break; } else if (*p == ',' && depth == 0) break; p++; } *source = p; return 1; }
 static int parse_index(const char* path, repository* repo, package_entry* packages, int* count) {
-    FILE* f = fopen(path, "rb"); long size; char* text; const char* p; int version_ok = 0;
+    FILE* f = wpm_fopen(path, "rb"); long size; char* text; const char* p; int version_ok = 0;
     if (!f) return 0; fseek(f, 0, SEEK_END); size = ftell(f); rewind(f); if (size < 2 || size > 4 * 1024 * 1024) { fclose(f); return 0; } text = malloc((size_t)size + 1); if (!text) { fclose(f); return 0; } if (fread(text, 1, (size_t)size, f) != (size_t)size) { free(text); fclose(f); return 0; } fclose(f); text[size] = '\0';
     version_ok = strstr(text, "\"version\":1") != NULL || strstr(text, "\"version\": 1") != NULL;
     p = text; while ((p = strchr(p, '"')) != NULL) { char key[32]; const char* value; if (!json_string(&p, key, sizeof(key))) break; p = skip_ws(p); if (*p++ != ':') continue; value = skip_ws(p); if (strcmp(key, "packages") == 0 && *value == '[') { p = value + 1; break; } json_value_end(&p); }
@@ -142,8 +143,8 @@ static int semver_compare(const char* a,const char* b,int* valid){semver av,bv;i
 static int is_prerelease(const char* value){semver parsed;return semver_parse(value,&parsed)&&parsed.prerelease!=NULL;}
 
 static int prerelease_path(char* path,size_t size){char root[PATH_SIZE];return wpm_get_data_root(root,sizeof(root))&&join_path(path,size,root,"config\\prerelease.txt");}
-static int prerelease_effective(const char* package,int* overridden){char path[PATH_SIZE],line[512];FILE*f;int global=0,value=0,found=0;if(overridden)*overridden=0;if(!prerelease_path(path,sizeof(path)))return 0;f=fopen(path,"r");if(!f)return 0;while(fgets(line,sizeof(line),f)){char*tab;line[strcspn(line,"\r\n")]=0;if(_strnicmp(line,"global=",7)==0)global=_stricmp(line+7,"true")==0;else if((tab=strchr(line,'\t'))!=NULL){*tab=0;if(package&&_stricmp(line,package)==0){value=_stricmp(tab+1,"true")==0;found=1;}}}fclose(f);if(found){if(overridden)*overridden=1;return value;}return global;}
-static int rewrite_prerelease(const char* package,int enabled,int remove){char path[PATH_SIZE],tmp[PATH_SIZE],line[512];FILE*in,*out;int found=0;if(!prerelease_path(path,sizeof(path))||snprintf(tmp,sizeof(tmp),"%s.tmp",path)<0)return 0;in=fopen(path,"r");out=fopen(tmp,"w");if(!out){if(in)fclose(in);return 0;}if(in){while(fgets(line,sizeof(line),in)){char copy[512],*tab;strcpy_s(copy,sizeof(copy),line);line[strcspn(line,"\r\n")]=0;if(!package&&_strnicmp(line,"global=",7)==0){found=1;if(!remove)fprintf(out,"global=%s\n",enabled?"true":"false");}else if(package&&(tab=strchr(line,'\t'))!=NULL){*tab=0;if(_stricmp(line,package)==0){found=1;if(!remove)fprintf(out,"%s\t%s\n",package,enabled?"true":"false");}else fputs(copy,out);}else fputs(copy,out);}fclose(in);}if(!remove&&!found){if(package)fprintf(out,"%s\t%s\n",package,enabled?"true":"false");else fprintf(out,"global=%s\n",enabled?"true":"false");}if(fclose(out)||!MoveFileExA(tmp,path,MOVEFILE_REPLACE_EXISTING)){DeleteFileA(tmp);return 0;}return !remove||found;}
+static int prerelease_effective(const char* package,int* overridden){char path[PATH_SIZE],line[512];FILE*f;int global=0,value=0,found=0;if(overridden)*overridden=0;if(!prerelease_path(path,sizeof(path)))return 0;f=wpm_fopen(path,"r");if(!f)return 0;while(fgets(line,sizeof(line),f)){char*tab;line[strcspn(line,"\r\n")]=0;if(_strnicmp(line,"global=",7)==0)global=_stricmp(line+7,"true")==0;else if((tab=strchr(line,'\t'))!=NULL){*tab=0;if(package&&_stricmp(line,package)==0){value=_stricmp(tab+1,"true")==0;found=1;}}}fclose(f);if(found){if(overridden)*overridden=1;return value;}return global;}
+static int rewrite_prerelease(const char* package,int enabled,int remove){char path[PATH_SIZE],tmp[PATH_SIZE],line[512];FILE*in,*out;int found=0;if(!prerelease_path(path,sizeof(path))||snprintf(tmp,sizeof(tmp),"%s.tmp",path)<0)return 0;in=wpm_fopen(path,"r");out=wpm_fopen(tmp,"w");if(!out){if(in)fclose(in);return 0;}if(in){while(fgets(line,sizeof(line),in)){char copy[512],*tab;strcpy_s(copy,sizeof(copy),line);line[strcspn(line,"\r\n")]=0;if(!package&&_strnicmp(line,"global=",7)==0){found=1;if(!remove)fprintf(out,"global=%s\n",enabled?"true":"false");}else if(package&&(tab=strchr(line,'\t'))!=NULL){*tab=0;if(_stricmp(line,package)==0){found=1;if(!remove)fprintf(out,"%s\t%s\n",package,enabled?"true":"false");}else fputs(copy,out);}else fputs(copy,out);}fclose(in);}if(!remove&&!found){if(package)fprintf(out,"%s\t%s\n",package,enabled?"true":"false");else fprintf(out,"global=%s\n",enabled?"true":"false");}if(fclose(out)||!MoveFileExA(tmp,path,MOVEFILE_REPLACE_EXISTING)){DeleteFileA(tmp);return 0;}return !remove||found;}
 int wpm_config_prerelease_set(const char* package_name,int enabled){if(!rewrite_prerelease(package_name,enabled,0)){printf("Error: could not save prerelease configuration.\n");return 0;}printf("Prerelease %s=%s.\n",package_name?package_name:"global",enabled?"true":"false");return 1;}
 int wpm_config_prerelease_get(const char* package_name){int overridden=0,value=prerelease_effective(package_name,&overridden);printf("prerelease=%s (%s)\n",value?"true":"false",package_name?(overridden?"package override":"global setting"):"global setting");return 1;}
 int wpm_config_prerelease_unset(const char* package_name){if(!package_name||!rewrite_prerelease(package_name,0,1)){printf("Error: package prerelease override was not found.\n");return 0;}printf("Prerelease override removed: %s\n",package_name);return 1;}

@@ -5,6 +5,7 @@
 
 #include "init.h"
 #include "helpers.h"
+#include "helpers.h"
 
 /* ---------- File Creators ---------- */
 
@@ -31,7 +32,7 @@ static int create_package_txt(const char* name) {
 
     if (file_exists(path)) return 1;
 
-    FILE* f = fopen(path, "w");
+    FILE* f = wpm_fopen(path, "w");
     if (!f) return 0;
 
     int result = fprintf(f,
@@ -57,7 +58,7 @@ static int create_index_csv(void) {
 
     if (file_exists(path)) return 1;
 
-    FILE* f = fopen(path, "w");
+    FILE* f = wpm_fopen(path, "w");
     if (!f) return 0;
 
     int result = fprintf(f, "filename,size,hash,algorithm\n");
@@ -70,7 +71,7 @@ static int create_ignore(void) {
 
     if (file_exists(path)) return 1;
 
-    FILE* f = fopen(path, "w");
+    FILE* f = wpm_fopen(path, "w");
     if (!f) return 0;
 
     int result = fprintf(f,
@@ -88,7 +89,7 @@ static int create_install_cmd(void) {
 
     if (file_exists(path)) return 1;
 
-    FILE* f = fopen(path, "w");
+    FILE* f = wpm_fopen(path, "w");
     if (!f) return 0;
 
     int result = fprintf(f,
@@ -106,7 +107,7 @@ static int create_remove_cmd(void) {
 
     if (file_exists(path)) return 1;
 
-    FILE* f = fopen(path, "w");
+    FILE* f = wpm_fopen(path, "w");
     if (!f) return 0;
 
     int result = fprintf(f,

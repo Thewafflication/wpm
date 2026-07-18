@@ -31,6 +31,14 @@
             "inherits": "x64-debug"
         },
         {
+            "name": "x64-debug-reports",
+            "displayName": "x64 Debug + Test Reports",
+            "inherits": "x64-debug",
+            "cacheVariables": {
+                "WPM_BUILD_TEST_REPORTS": "ON"
+            }
+        },
+        {
             "name": "x86-debug",
             "displayName": "x86 Debug",
             "inherits": "windows-base",
@@ -77,6 +85,14 @@
             "name": "arm64-release",
             "displayName": "ARM64 Release",
             "inherits": "arm64-debug"
+        },
+        {
+            "name": "arm64-debug-reports",
+            "displayName": "ARM64 Debug + Test Reports",
+            "inherits": "arm64-debug",
+            "cacheVariables": {
+                "WPM_BUILD_TEST_REPORTS": "ON"
+            }
         },
         {
             "name": "linux-debug",
@@ -133,6 +149,15 @@
             "configuration": "Release"
         },
         {
+            "name": "verify-x64-debug",
+            "displayName": "Run Tests and Build Reports x64 Debug",
+            "configurePreset": "x64-debug-reports",
+            "configuration": "Debug",
+            "targets": [
+                "verify"
+            ]
+        },
+        {
             "name": "build-x86-debug",
             "displayName": "Build x86 Debug",
             "configurePreset": "x86-debug",
@@ -173,6 +198,15 @@
             "displayName": "Build ARM64 Release",
             "configurePreset": "arm64-release",
             "configuration": "Release"
+        },
+        {
+            "name": "verify-arm64-debug",
+            "displayName": "Run Tests and Build Reports ARM64 Debug",
+            "configurePreset": "arm64-debug-reports",
+            "configuration": "Debug",
+            "targets": [
+                "verify"
+            ]
         }
     ],
     "testPresets": [

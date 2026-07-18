@@ -10,12 +10,28 @@ permissions:
 
 jobs:
   verify:
-    name: Verify x86 Debug
-    runs-on: windows-2022
+    name: Verify ${{ matrix.arch }} Debug
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86
+            runner: windows-2022
+            configure_preset: x86-debug-reports
+            verify_preset: verify-x86-debug
+          - arch: x64
+            runner: windows-2022
+            configure_preset: x64-debug-reports
+            verify_preset: verify-x64-debug
+          - arch: arm64
+            runner: windows-11-arm
+            configure_preset: arm64-debug-reports
+            verify_preset: verify-arm64-debug
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
           submodules: recursive
@@ -26,11 +42,22 @@ jobs:
 
       - name: Configure verification build
         shell: pwsh
-        run: cmake --preset x86-debug-reports
+        run: cmake --preset ${{ matrix.configure_preset }}
+
+      - name: Verify requirements traceability
+        shell: pwsh
+        run: tests/verify-traceability.ps1
 
       - name: Run verification suite
         shell: pwsh
-        run: cmake --build --preset verify-x86-debug
+        run: cmake --build --preset ${{ matrix.verify_preset }}
+
+      - name: Upload verification evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: wpm-release-verification-${{ matrix.arch }}
+          path: bin/${{ matrix.arch }}/Debug/
+          if-no-files-found: error
 
   build:
     name: Build ${{ matrix.arch }} Release
@@ -52,7 +79,7 @@ jobs:
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
           submodules: recursive
@@ -76,7 +103,7 @@ jobs:
           Copy-Item -LiteralPath "bin/${{ matrix.arch }}/Release/wpm.exe" -Destination "release/wpm-${{ matrix.arch }}.exe"
 
       - name: Upload Release executable
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wpm-${{ matrix.arch }}-release-executable
           path: release/wpm-${{ matrix.arch }}.exe
@@ -89,7 +116,7 @@ jobs:
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
           submodules: recursive
@@ -105,7 +132,7 @@ jobs:
           cmake --build --preset verify-x86-debug
 
       - name: Download Release executables
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: wpm-*-release-executable
           path: release-binaries
@@ -142,7 +169,7 @@ jobs:
           }
 
       - name: Upload Release WPM packages
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wpm-release-packages
           path: |
@@ -157,7 +184,7 @@ jobs:
 
     steps:
       - name: Download Release WPM packages
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: wpm-release-packages
           path: release
@@ -182,7 +209,7 @@ jobs:
             Set-Content -LiteralPath release/index.json -Encoding utf8
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
           files: |

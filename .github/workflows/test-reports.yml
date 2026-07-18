@@ -11,13 +11,29 @@ permissions:
   contents: read
 
 jobs:
-  windows-x86-debug:
-    name: Windows x86 Debug
-    runs-on: windows-2022
+  windows-debug:
+    name: Windows ${{ matrix.arch }} Debug
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86
+            runner: windows-2022
+            configure_preset: x86-debug-reports
+            verify_preset: verify-x86-debug
+          - arch: x64
+            runner: windows-2022
+            configure_preset: x64-debug-reports
+            verify_preset: verify-x64-debug
+          - arch: arm64
+            runner: windows-11-arm
+            configure_preset: arm64-debug-reports
+            verify_preset: verify-arm64-debug
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -27,38 +43,42 @@ jobs:
 
       - name: Configure
         shell: pwsh
-        run: cmake --preset x86-debug-reports
+        run: cmake --preset ${{ matrix.configure_preset }}
+
+      - name: Verify requirements traceability
+        shell: pwsh
+        run: tests/verify-traceability.ps1
 
       - name: Run tests and generate TeX reports
         id: verify
         shell: pwsh
         continue-on-error: true
         run: |
-          New-Item -ItemType Directory -Force -Path bin/x86/Debug | Out-Null
-          cmake --build --preset verify-x86-debug
+          New-Item -ItemType Directory -Force -Path bin/${{ matrix.arch }}/Debug | Out-Null
+          cmake --build --preset ${{ matrix.verify_preset }}
           "exit_code=$LASTEXITCODE" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           if ($LASTEXITCODE -ne 0) {
             "The x86 Debug build failed before all expected artifacts were generated. See the workflow log for compiler or test output." |
-              Set-Content -Path bin/x86/Debug/build-failed.txt
+              Set-Content -Path bin/${{ matrix.arch }}/Debug/build-failed.txt
           }
           exit 0
 
       - name: Upload complete test report artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: wpm-test-report-windows-x86-debug
-          path: bin/x86/Debug/
+          name: wpm-test-report-windows-${{ matrix.arch }}-debug
+          path: bin/${{ matrix.arch }}/Debug/
           if-no-files-found: error
 
       - name: Build WPM package with test reports
-        if: steps.verify.outputs.exit_code == '0'
+        if: matrix.arch == 'x86' && steps.verify.outputs.exit_code == '0'
         shell: pwsh
         run: cmake --build --preset package-x86-debug
 
       - name: Upload WPM package artifact
-        if: steps.verify.outputs.exit_code == '0'
-        uses: actions/upload-artifact@v4
+        if: matrix.arch == 'x86' && steps.verify.outputs.exit_code == '0'
+        uses: actions/upload-artifact@v7
         with:
           name: wpm-package-windows-x86-debug
           path: bin/x86/Debug/packages/*.zip
@@ -69,19 +89,19 @@ jobs:
         run: |
           $overallStatus = if ('${{ steps.verify.outputs.exit_code }}' -eq '0') { 'PASS' } else { 'FAIL' }
           $rows = @(
-            @('TC-0001 Usage/version check', 'bin/x86/Debug/tc-0001-report.tex', 'bin/x86/Debug/tc-0001-execution-evidence.tex'),
-            @('TC-0002 Package initialization', 'bin/x86/Debug/tc-0002-report.tex', 'bin/x86/Debug/tc-0002-execution-evidence.tex'),
-            @('TC-0003 Package archive build', 'bin/x86/Debug/tc-0003-report.tex', 'bin/x86/Debug/tc-0003-execution-evidence.tex'),
-            @('TC-0004 Package archive installation', 'bin/x86/Debug/tc-0004-report.tex', 'bin/x86/Debug/tc-0004-execution-evidence.tex'),
-            @('TC-0005 Package index signature verification', 'bin/x86/Debug/tc-0005-report.tex', 'bin/x86/Debug/tc-0005-execution-evidence.tex'),
-            @('TC-0006 Package metadata archive naming', 'bin/x86/Debug/tc-0006-report.tex', 'bin/x86/Debug/tc-0006-execution-evidence.tex'),
-            @('TC-0007 WPM self-installation', 'bin/x86/Debug/tc-0007-report.tex', 'bin/x86/Debug/tc-0007-execution-evidence.tex'),
-            @('TC-0008 Package removal', 'bin/x86/Debug/tc-0008-report.tex', 'bin/x86/Debug/tc-0008-execution-evidence.tex'),
-            @('TC-0009 GitHub Release artifact workflow', 'bin/x86/Debug/tc-0009-report.tex', 'bin/x86/Debug/tc-0009-execution-evidence.tex'),
-            @('TC-0010 Runtime mode detection', 'bin/x86/Debug/tc-0010-report.tex', 'bin/x86/Debug/tc-0010-execution-evidence.tex'),
-            @('TC-0011 HTTPS package repositories', 'bin/x86/Debug/tc-0011-report.tex', 'bin/x86/Debug/tc-0011-execution-evidence.tex'),
-            @('TC-0012 Package signing and validation', 'bin/x86/Debug/tc-0012-report.tex', 'bin/x86/Debug/tc-0012-execution-evidence.tex'),
-            @('TC-0013 Version-aware upgrades', 'bin/x86/Debug/tc-0013-report.tex', 'bin/x86/Debug/tc-0013-execution-evidence.tex')
+            @('TC-0001 Usage/version check', 'tc-0001'),
+            @('TC-0002 Package initialization', 'tc-0002'),
+            @('TC-0003 Package archive build', 'tc-0003'),
+            @('TC-0004 Package archive installation', 'tc-0004'),
+            @('TC-0005 Package index signature verification', 'tc-0005'),
+            @('TC-0006 Package metadata archive naming', 'tc-0006'),
+            @('TC-0007 WPM self-installation', 'tc-0007'),
+            @('TC-0008 Package removal', 'tc-0008'),
+            @('TC-0009 GitHub Release artifact workflow', 'tc-0009'),
+            @('TC-0010 Runtime mode detection', 'tc-0010'),
+            @('TC-0011 HTTPS package repositories', 'tc-0011'),
+            @('TC-0012 Package signing and validation', 'tc-0012'),
+            @('TC-0013 Version-aware upgrades', 'tc-0013')
           )
 
           @"
@@ -91,7 +111,7 @@ jobs:
           "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
 
           '```text' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
-          & bin/x86/Debug/wpm.exe --version --verbose | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          & bin/${{ matrix.arch }}/Debug/wpm.exe --version --verbose | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
           '```' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
 
           @"
@@ -102,8 +122,10 @@ jobs:
 
           foreach ($row in $rows) {
             $status = 'UNKNOWN'
-            if (Test-Path -LiteralPath $row[2]) {
-              $statusLine = Select-String -LiteralPath $row[2] -Pattern '\\item\[Overall Status\]\s+(\w+)' | Select-Object -First 1
+            $report = "bin/${{ matrix.arch }}/Debug/$($row[1])-report.tex"
+            $evidence = "bin/${{ matrix.arch }}/Debug/$($row[1])-execution-evidence.tex"
+            if (Test-Path -LiteralPath $evidence) {
+              $statusLine = Select-String -LiteralPath $evidence -Pattern '\\item\[Overall Status\]\s+(\w+)' | Select-Object -First 1
               if ($statusLine) {
                 $status = $statusLine.Matches[0].Groups[1].Value.ToUpperInvariant()
               }
@@ -111,12 +133,12 @@ jobs:
 
             $indicator = if ($status -eq 'PASS') { '🟢' } else { '🔴' }
 
-            "| $($row[0]) | $indicator **$status** | $($row[1]) |" |
+            "| $($row[0]) | $indicator **$status** | $report |" |
               Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
           }
 
           @"
-          The generated executable, debug symbols, and TeX reports are attached to this workflow run as the `wpm-test-report-windows-x86-debug` artifact. When verification passes, the `wpm-package-windows-x86-debug` artifact contains the indexed WPM ZIP package with the executable, deployment scripts, and generated TeX test reports.
+          The generated executable, debug symbols, and TeX reports are attached to this workflow run as the architecture-specific test-report artifact. The x86 job also produces the indexed WPM ZIP package when verification passes.
           "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
 
           if ($overallStatus -ne 'PASS') {

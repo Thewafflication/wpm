@@ -6,6 +6,7 @@
 #include <windows.h>
 
 #include "archive.h"
+#include "helpers.h"
 #include "miniz.h"
 #include "sodium.h"
 #include "signing.h"
@@ -50,13 +51,13 @@ static int normalized_full_path(const char* path, char* result, size_t result_si
 static int join_path(char* result, size_t result_size, const char* left, const char* right);
 
 int wpm_get_data_root(char* result, size_t result_size) {
-    const char* configured_root = getenv("WPM_DATA_DIR");
-    const char* program_data = getenv("ProgramData");
+    char configured_root[WPM_PATH_SIZE];
+    char program_data[WPM_PATH_SIZE];
 
-    if (configured_root && configured_root[0]) {
+    if (wpm_get_environment_variable("WPM_DATA_DIR", configured_root, sizeof(configured_root))) {
         return strcpy_s(result, result_size, configured_root) == 0;
     }
-    if (program_data && program_data[0]) {
+    if (wpm_get_environment_variable("ProgramData", program_data, sizeof(program_data))) {
         return join_path(result, result_size, program_data, "WPM");
     }
     return strcpy_s(result, result_size, WPM_DEFAULT_DATA_ROOT) == 0;
@@ -219,7 +220,7 @@ static int load_ignore_list(const char* source_dir, wpm_ignore_list* ignore_list
     ignore_list->count = 0;
     if (!join_path(ignore_path, sizeof(ignore_path), source_dir, ".wpm\\wpmignore.txt")) return 0;
 
-    file = fopen(ignore_path, "r");
+    file = wpm_fopen(ignore_path, "r");
     if (!file) return 1;
 
     while (ignore_list->count < WPM_MAX_IGNORE_PATTERNS &&
@@ -311,7 +312,7 @@ static int read_package_metadata(const char* source_dir, wpm_package_metadata* m
         return 0;
     }
 
-    file = fopen(package_path, "r");
+    file = wpm_fopen(package_path, "r");
     if (!file) {
         printf("Error: could not open package metadata: %s\n", package_path);
         return 0;
@@ -396,7 +397,7 @@ static int write_installation_audit(const char* data_root, const char* archive_n
         "%s\\%04u%02u%02uT%02u%02u%02u.%03uZ-%lu-%s.install.txt",
         audit_dir, now.wYear, now.wMonth, now.wDay, now.wHour, now.wMinute, now.wSecond,
         now.wMilliseconds, (unsigned long)GetCurrentProcessId(), metadata->name);
-    if (written < 0 || (size_t)written >= sizeof(audit_path) || (file = fopen(audit_path, "wb")) == NULL) return 0;
+    if (written < 0 || (size_t)written >= sizeof(audit_path) || (file = wpm_fopen(audit_path, "wb")) == NULL) return 0;
     fprintf(file,
         "name=%s\nversion=%s\narchive=%s\ntimestamp=%04u-%02u-%02uT%02u:%02u:%02u.%03uZ\n"
         "signing-key=%s\nverification=verified\n",
@@ -426,7 +427,7 @@ static int calculate_file_blake2b(const char* path, char* hex, size_t hex_size) 
     FILE* file;
 
     verbose_log("Computing BLAKE2b hash: %s", path);
-    file = fopen(path, "rb");
+    file = wpm_fopen(path, "rb");
 
     if (!file) return 0;
     if (!ensure_sodium_ready() ||
@@ -594,7 +595,7 @@ static int update_package_index(const char* source_dir, const char* output_archi
         return 0;
     }
 
-    index = fopen(index_path, "w");
+    index = wpm_fopen(index_path, "w");
     if (!index) {
         printf("Error: could not write package index: %s\n", index_path);
         return 0;
@@ -902,7 +903,7 @@ static int file_exists_at_path(const char* path) {
 
 static int index_contains_path(const char* index_path, const char* archive_path) {
     char line[WPM_PATH_SIZE + WPM_BLAKE2B_HEX_SIZE + 64];
-    FILE* index = fopen(index_path, "r");
+    FILE* index = wpm_fopen(index_path, "r");
     if (!index) return 0;
 
     while (fgets(line, sizeof(line), index)) {
@@ -977,7 +978,7 @@ static int verify_package_index(const char* destination_dir) {
 
     verbose_log("Verifying package index: %s", index_path);
 
-    index = fopen(index_path, "r");
+    index = wpm_fopen(index_path, "r");
     if (!index) {
         printf("Error: could not open package index: %s\n", index_path);
         return 0;
@@ -1291,7 +1292,7 @@ static int write_upgrade_audit(const char* data_root, const wpm_package_metadata
     if (snprintf(path, sizeof(path), "%s\\%04u%02u%02uT%02u%02u%02u.%03uZ-%lu-%s.%s.txt",
         directory, now.wYear, now.wMonth, now.wDay, now.wHour, now.wMinute, now.wSecond,
         now.wMilliseconds, (unsigned long)GetCurrentProcessId(), metadata->name,
-        failed ? "upgrade-failed" : "upgrade") < 0 || (file = fopen(path, "wb")) == NULL) return 0;
+        failed ? "upgrade-failed" : "upgrade") < 0 || (file = wpm_fopen(path, "wb")) == NULL) return 0;
     fprintf(file, "name=%s\narch=%s\nold-version=%s\nnew-version=%s\narchive=%s\n"
         "signing-key=%s\nverification=%s\nstatus=%s\n",
         metadata->name, metadata->arch, old_version, metadata->version, archive_name,
