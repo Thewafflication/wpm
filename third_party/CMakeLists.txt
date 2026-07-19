@@ -106,6 +106,14 @@ endforeach()
 
 list(REMOVE_DUPLICATES libsodium_sources)
 
+if(CMAKE_C_COMPILER_ID STREQUAL "TinyCC")
+  # The internal random implementation is not selected by the Windows build,
+  # and assumes a Unix unistd.h whenever the compiler is not MSVC/Borland.
+  list(FILTER libsodium_sources EXCLUDE REGEX
+    "/randombytes/internal/randombytes_internal_random\\.c$"
+  )
+endif()
+
 if(NOT libsodium_sources)
   message(FATAL_ERROR "Unable to discover libsodium sources from ${LIBSODIUM_MSVC_PROJECT}")
 endif()
@@ -113,6 +121,11 @@ endif()
 if(NOT TARGET libsodium)
   set(LIBSODIUM_GENERATED_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/libsodium/include")
   file(MAKE_DIRECTORY "${LIBSODIUM_GENERATED_INCLUDE_DIR}/sodium")
+  if(CMAKE_C_COMPILER_ID STREQUAL "TinyCC")
+    # libsodium includes this header for Windows, but the APIs used by this
+    # translation unit are already declared by TinyCC's windows.h.
+    file(WRITE "${LIBSODIUM_GENERATED_INCLUDE_DIR}/wincrypt.h" "#pragma once\n")
+  endif()
   configure_file(
     "${LIBSODIUM_SOURCE_DIR}/builds/msvc/version.h"
     "${LIBSODIUM_GENERATED_INCLUDE_DIR}/sodium/version.h"

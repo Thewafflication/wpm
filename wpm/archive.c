@@ -471,7 +471,8 @@ static int calculate_file_blake2b(const char* path, char* hex, size_t hex_size) 
 }
 
 static int get_file_size_bytes(const char* path, unsigned long long* size) {
-    LARGE_INTEGER file_size;
+    DWORD file_size_low;
+    DWORD file_size_high = 0;
     HANDLE file = CreateFileA(
         path,
         GENERIC_READ,
@@ -483,13 +484,15 @@ static int get_file_size_bytes(const char* path, unsigned long long* size) {
     );
 
     if (file == INVALID_HANDLE_VALUE) return 0;
-    if (!GetFileSizeEx(file, &file_size)) {
+    SetLastError(NO_ERROR);
+    file_size_low = GetFileSize(file, &file_size_high);
+    if (file_size_low == INVALID_FILE_SIZE && GetLastError() != NO_ERROR) {
         CloseHandle(file);
         return 0;
     }
 
     CloseHandle(file);
-    *size = (unsigned long long)file_size.QuadPart;
+    *size = ((unsigned long long)file_size_high << 32) | file_size_low;
     return 1;
 }
 

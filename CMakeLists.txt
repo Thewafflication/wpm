@@ -38,6 +38,15 @@ endif()
 # Pentium III provides SSE, but not SSE2.  Current MSVC x86 builds otherwise
 # default to a newer instruction-set baseline, and current linkers otherwise
 # stamp executables with a post-XP subsystem version.
+if(WIN32 AND wpm_arch STREQUAL "x86")
+  add_definitions(
+    -DWINVER=0x0501
+    -D_WIN32_WINNT=0x0501
+    -DNTDDI_VERSION=0x05010000
+  )
+
+endif()
+
 if(MSVC AND wpm_arch STREQUAL "x86")
   # Avoid requiring a separately installed VC/UCRT redistributable on XP.
   # This initializes MSVC_RUNTIME_LIBRARY on every subsequently created target,
@@ -46,11 +55,6 @@ if(MSVC AND wpm_arch STREQUAL "x86")
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
   endif()
 
-  add_definitions(
-    -DWINVER=0x0501
-    -D_WIN32_WINNT=0x0501
-    -DNTDDI_VERSION=0x05010000
-  )
   add_compile_options(/arch:SSE)
 endif()
 

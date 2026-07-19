@@ -24,7 +24,7 @@ add_custom_target(wpm_version_header ALL
   VERBATIM
 )
 
-add_executable (wpm
+set(wpm_sources
   "wpm.c"
   "archive.c"
   "archive.h"
@@ -36,10 +36,19 @@ add_executable (wpm
   "repository.h"
   "signing.c"
   "signing.h"
-  "${WPM_VERSION_RESOURCE}"
   "${WPM_ICON_FILE}"
   "${WPM_ICON_SOURCE}"
 )
+
+# TinyCC does not include a Windows resource compiler. The executable remains
+# functional, but this experimental artifact has no embedded version/icon yet.
+if(NOT CMAKE_C_COMPILER_ID STREQUAL "TinyCC")
+  list(APPEND wpm_sources "${WPM_VERSION_RESOURCE}")
+else()
+  list(APPEND wpm_sources "tcc_compat/secure_crt.c")
+endif()
+
+add_executable(wpm ${wpm_sources})
 
 set_source_files_properties("${WPM_VERSION_RESOURCE}" PROPERTIES GENERATED TRUE)
 set_source_files_properties("${WPM_ICON_FILE}" "${WPM_ICON_SOURCE}" PROPERTIES HEADER_FILE_ONLY TRUE)
@@ -76,7 +85,12 @@ set_property(TARGET wpm PROPERTY C_STANDARD_REQUIRED ON)
 set_property(TARGET wpm PROPERTY C_EXTENSIONS OFF)
 
 target_compile_definitions(wpm PRIVATE SODIUM_STATIC WPM_TARGET_ARCH="${wpm_arch}")
-target_link_libraries(wpm PRIVATE miniz libsodium urlmon advapi32 version)
+target_link_libraries(wpm PRIVATE miniz libsodium)
+if(CMAKE_C_COMPILER_ID STREQUAL "TinyCC")
+  target_link_options(wpm PRIVATE -lurlmon -ladvapi32 -lversion)
+else()
+  target_link_libraries(wpm PRIVATE urlmon advapi32 version)
+endif()
 
 if(MSVC AND wpm_arch STREQUAL "x86")
   if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.13)

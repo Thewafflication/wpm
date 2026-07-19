@@ -7,6 +7,7 @@
 #include "init.h"
 #include "repository.h"
 #include "signing.h"
+#include <stdlib.h>
 #include <windows.h>
 
 static int path_is_beneath(const char* path, const char* root)

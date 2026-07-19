@@ -26,6 +26,28 @@
             }
         },
         {
+            "name": "tcc-x86-xp",
+            "displayName": "TinyCC x86 Windows XP (experimental)",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/out/build/${presetName}",
+            "installDir": "${sourceDir}/out/install/${presetName}",
+            "toolchainFile": "${sourceDir}/cmake/toolchains/tcc-x86-xp.cmake",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "CMAKE_MAKE_PROGRAM": "${sourceDir}/out/tools/ninja/ninja.exe",
+                "BUILD_TESTING": "OFF",
+                "WPM_ARCH": "x86",
+                "WPM_THIRD_PARTY_ARCH": "x86",
+                "WPM_BIN_DIR": "${sourceDir}/bin/tcc-x86-xp",
+                "WPM_THIRD_PARTY_BIN_DIR": "${sourceDir}/third_party/bin/tcc-x86-xp"
+            },
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            }
+        },
+        {
             "name": "x64-release",
             "displayName": "x64 Release",
             "inherits": "x64-debug"
@@ -136,6 +158,11 @@
         }
     ],
     "buildPresets": [
+        {
+            "name": "build-tcc-x86-xp",
+            "displayName": "Build TinyCC x86 Windows XP (experimental)",
+            "configurePreset": "tcc-x86-xp"
+        },
         {
             "name": "build-x64-debug",
             "displayName": "Build x64 Debug",
