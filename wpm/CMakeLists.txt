@@ -71,10 +71,9 @@ target_include_directories(wpm PRIVATE
   ${CMAKE_CURRENT_BINARY_DIR}
 )
 
-if (CMAKE_VERSION VERSION_GREATER 3.12)
-  set_property(TARGET wpm PROPERTY C_STANDARD 11)
-  set_property(TARGET wpm PROPERTY C_STANDARD_REQUIRED ON)
-endif()
+set_property(TARGET wpm PROPERTY C_STANDARD 99)
+set_property(TARGET wpm PROPERTY C_STANDARD_REQUIRED ON)
+set_property(TARGET wpm PROPERTY C_EXTENSIONS OFF)
 
 target_compile_definitions(wpm PRIVATE SODIUM_STATIC WPM_TARGET_ARCH="${wpm_arch}")
 target_link_libraries(wpm PRIVATE miniz libsodium urlmon advapi32 version)

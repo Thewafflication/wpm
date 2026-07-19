@@ -36,6 +36,10 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: tests/check-dependency-releases.ps1
 
+      - name: Lint C99 source
+        shell: pwsh
+        run: tests/lint-c99.ps1
+
       - name: Export dependency metadata
         id: metadata
         shell: pwsh

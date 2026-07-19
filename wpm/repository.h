@@ -1,6 +1,7 @@
 #ifndef WPM_REPOSITORY_H
 #define WPM_REPOSITORY_H
 
+void wpm_repo_set_verbose(int enabled);
 int wpm_repo_add(const char* url, int priority);
 int wpm_repo_list(void);
 int wpm_repo_remove(const char* url);

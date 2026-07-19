@@ -138,6 +138,14 @@ try {
         param($ExitCode, $Output)
         if ($ExitCode -eq 0 -or $Output -notmatch 'was not found') { throw 'Expected offline resolution failure for missing package.' }
     }
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Explain repository package lookup in verbose mode' -Arguments @('install', 'missing-package', '--offline', '--verbose') -Assert {
+        param($ExitCode, $Output)
+        if ($ExitCode -eq 0) { throw 'Expected verbose lookup of a missing package to fail.' }
+        if ($Output -notmatch "Repository: configured\[0\].+$([regex]::Escape($repositoryA))") { throw 'Verbose output did not identify the first configured repository.' }
+        if ($Output -notmatch "Repository: configured\[1\].+$([regex]::Escape($repositoryB))") { throw 'Verbose output did not identify the second configured repository.' }
+        if ($Output -notmatch 'Repository: parsed 2 package entries') { throw 'Verbose output did not report per-repository package counts.' }
+        if ($Output -notmatch "resolution for 'missing-package': name matches=0") { throw 'Verbose output did not explain the failed package-name match.' }
+    }
 }
 finally {
     $finished = Get-Date

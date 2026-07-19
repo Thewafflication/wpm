@@ -166,6 +166,7 @@ int main(int argc, char *argv[])
 
 	Command cmd = parse_command(argv[command_index]);
     wpm_set_verbose(verbose);
+	wpm_repo_set_verbose(verbose);
 	if (verbose) print_runtime_mode();
 	if (!wpm_initialize_data_directories()) return 1;
 	
