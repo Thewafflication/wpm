@@ -148,6 +148,16 @@ if(NOT TARGET libsodium)
       /wd4244
       $<$<VERSION_GREATER_EQUAL:${MSVC_VERSION},1930>:/UndefIntOverflow->
     )
+
+    # MSVC requires SSE2 or newer for __vectorcall.  This implementation is
+    # protected by libsodium's runtime AES-NI feature check, so it remains safe
+    # in an otherwise Pentium III/SSE build.
+    if(wpm_third_party_arch STREQUAL "x86")
+      set_source_files_properties(
+        "${LIBSODIUM_SOURCE_DIR}/src/libsodium/crypto_aead/aes256gcm/aesni/aead_aes256gcm_aesni.c"
+        PROPERTIES COMPILE_OPTIONS /arch:SSE2
+      )
+    endif()
   endif()
 endif()
 

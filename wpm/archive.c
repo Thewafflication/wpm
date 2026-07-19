@@ -31,6 +31,14 @@ typedef struct wpm_package_metadata {
 
 static int wpm_verbose = 0;
 
+static ULONGLONG wpm_tick_count(void) {
+#if defined(_WIN32_WINNT) && _WIN32_WINNT < 0x0600
+    return (ULONGLONG)GetTickCount();
+#else
+    return GetTickCount64();
+#endif
+}
+
 void wpm_set_verbose(int enabled) {
     wpm_verbose = enabled != 0;
 }
@@ -1169,7 +1177,7 @@ int wpm_archive_inspect(const char* archive_path, wpm_package_info* info) {
     if (!archive_path || !info || !wpm_get_data_root(root, sizeof(root)) ||
         !join_path(temp, sizeof(temp), root, "temp") ||
         snprintf(stage, sizeof(stage), "%s\\inspect-%lu-%llu", temp,
-            (unsigned long)GetCurrentProcessId(), (unsigned long long)GetTickCount64()) < 0 ||
+            (unsigned long)GetCurrentProcessId(), (unsigned long long)wpm_tick_count()) < 0 ||
         !create_directories(temp) || !remove_directory_tree(stage)) return 0;
     if (wpm_archive_extract(archive_path, stage) && read_package_metadata(stage, &metadata)) {
         strcpy_s(info->name, sizeof(info->name), metadata.name);
@@ -1197,7 +1205,7 @@ int wpm_archive_verify(const char* archive_path) {
     if (!wpm_get_data_root(data_root, sizeof(data_root)) ||
         !join_path(temp_root, sizeof(temp_root), data_root, "temp") ||
         snprintf(staging_path, sizeof(staging_path), "%s\\verify-%lu-%llu", temp_root,
-            (unsigned long)GetCurrentProcessId(), (unsigned long long)GetTickCount64()) < 0 ||
+            (unsigned long)GetCurrentProcessId(), (unsigned long long)wpm_tick_count()) < 0 ||
         !create_directories(temp_root) || !remove_directory_tree(staging_path)) {
         printf("Error: could not prepare package verification staging.\n");
         return 0;

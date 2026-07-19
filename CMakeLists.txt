@@ -3,6 +3,11 @@
 #
 cmake_minimum_required (VERSION 3.10)
 
+# Let CMake select the MSVC runtime per target/configuration when supported.
+if(POLICY CMP0091)
+  cmake_policy(SET CMP0091 NEW)
+endif()
+
 # Enable Hot Reload for MSVC compilers if supported.
 if (POLICY CMP0141)
   cmake_policy(SET CMP0141 NEW)
@@ -27,6 +32,26 @@ elseif(CMAKE_SIZEOF_VOID_P EQUAL 4)
   set(wpm_arch "x86")
 else()
   set(wpm_arch "${CMAKE_SYSTEM_PROCESSOR}")
+endif()
+
+# Keep the 32-bit build usable on the oldest platform and processor it targets.
+# Pentium III provides SSE, but not SSE2.  Current MSVC x86 builds otherwise
+# default to a newer instruction-set baseline, and current linkers otherwise
+# stamp executables with a post-XP subsystem version.
+if(MSVC AND wpm_arch STREQUAL "x86")
+  # Avoid requiring a separately installed VC/UCRT redistributable on XP.
+  # This initializes MSVC_RUNTIME_LIBRARY on every subsequently created target,
+  # including the bundled static libraries.
+  if(POLICY CMP0091)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+  endif()
+
+  add_definitions(
+    -DWINVER=0x0501
+    -D_WIN32_WINNT=0x0501
+    -DNTDDI_VERSION=0x05010000
+  )
+  add_compile_options(/arch:SSE)
 endif()
 
 set(WPM_BIN_DIR
