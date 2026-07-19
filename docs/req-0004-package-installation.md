@@ -13,6 +13,9 @@ When invoked with a valid package archive, the application shall:
   logic,
 - execute `.wpm\install.cmd`, when present, with the staging directory as its
   working directory,
+- stream the standard output and standard error from `.wpm\install.cmd` to the
+  invoking console, framed by start and completion messages that include the
+  script exit code,
 - fail the installation when extraction, index verification, or
   `install.cmd` fails,
 - copy the successfully installed ZIP archive to

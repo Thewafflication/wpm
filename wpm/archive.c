@@ -1141,6 +1141,8 @@ static int run_package_script(
     startup_info.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
     startup_info.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
     startup_info.hStdError = GetStdHandle(STD_ERROR_HANDLE);
+    printf("--- %s script output ---\n", action_name);
+    fflush(stdout);
     if (!CreateProcessA(
             NULL,
             command_line,
@@ -1159,6 +1161,7 @@ static int run_package_script(
 
     WaitForSingleObject(process_info.hProcess, INFINITE);
     if (!GetExitCodeProcess(process_info.hProcess, &exit_code)) exit_code = 1;
+    printf("--- end %s script output (exit code %lu) ---\n", action_name, (unsigned long)exit_code);
     if (result_exit_code) *result_exit_code = exit_code;
     CloseHandle(process_info.hThread);
     CloseHandle(process_info.hProcess);

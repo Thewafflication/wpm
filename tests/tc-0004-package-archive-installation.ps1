@@ -59,6 +59,8 @@ try {
     Set-Content -LiteralPath (Join-Path $sourceDir 'nested\data.txt') -Value 'nested package data'
     Set-Content -LiteralPath (Join-Path $sourceDir '.wpm\install.cmd') -Value @(
         '@echo off'
+        'echo install-script-standard-output'
+        'echo install-script-error-output 1>&2'
         "copy /y `"hello.txt`" `"$deploymentFile`" >nul"
     )
 
@@ -86,6 +88,12 @@ try {
                 throw "Expected exit code 0, got $ExitCode."
             }
             if ($Output -notmatch '(?i)warning.*unsigned') { throw 'Expected unsigned-package warning.' }
+            if ($Output -notmatch 'install-script-standard-output' -or $Output -notmatch 'install-script-error-output') {
+                throw 'install.cmd standard output and error were not visible.'
+            }
+            if ($Output -notmatch '(?s)--- install script output ---.*--- end install script output \(exit code 0\) ---') {
+                throw 'install.cmd output was not framed with its completion status.'
+            }
             Assert-FileContent $deploymentFile 'hello from wpm'
             if (-not (Test-Path -LiteralPath $storedArchivePath -PathType Leaf)) {
                 throw "install did not store $storedArchivePath"
