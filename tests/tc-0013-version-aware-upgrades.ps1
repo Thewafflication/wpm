@@ -35,6 +35,7 @@ $entries = [Collections.Generic.List[object]]::new()
 $packages = @{
     Architecture = "architecture-$testId"
     Prerelease = "prerelease-$testId"
+    PrereleaseOnly = "prerelease-only-$testId"
     Selector = "selector-$testId"
     Conflict = "conflict-$testId"
     Failure = "failure-$testId"
@@ -112,6 +113,7 @@ try {
         New-PackageArchive $packages.Prerelease '1.1.0' 'any' 'stable-1.1.0' -RepositoryEntry | Out-Null
         New-PackageArchive $packages.Prerelease '1.2.0-beta.2' 'any' 'beta-2' -RepositoryEntry | Out-Null
         New-PackageArchive $packages.Prerelease '1.2.0-beta.10' 'any' 'beta-10' -RepositoryEntry | Out-Null
+        New-PackageArchive $packages.PrereleaseOnly '1.0.0-rc.1' 'any' 'prerelease-only' -RepositoryEntry | Out-Null
         New-PackageArchive $packages.Selector '1.1.0' 'x86' 'selected-x86' -RepositoryEntry | Out-Null
         New-PackageArchive $packages.Selector '1.2.0' 'x86' 'unselected-x86' -RepositoryEntry | Out-Null
         New-PackageArchive $packages.Selector '1.2.0' 'x64' 'x64-untouched' -RepositoryEntry | Out-Null
@@ -204,6 +206,11 @@ try {
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Read default prerelease configuration' -Arguments @('config','get','prerelease') -Assert {
         param($ExitCode,$Output)
         if ($ExitCode -ne 0 -or $Output -notmatch '(?i)false') { throw 'Prereleases were not disabled by default.' }
+    }
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Suggest enabling prereleases when all matching candidates are excluded' -Arguments @('install',$packages.PrereleaseOnly,'--offline','--allow-unsigned') -Assert {
+        param($ExitCode,$Output)
+        if ($ExitCode -eq 0 -or $Output -notmatch '(?i)prerelease.+excluded') { throw "Excluded prereleases did not produce an actionable warning. $Output" }
+        if ($Output -notmatch [regex]::Escape("wpm config set prerelease true --package $($packages.PrereleaseOnly)")) { throw 'Prerelease warning did not include the package-scoped enable command.' }
     }
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Select stable candidate while prereleases are disabled' -Arguments @('upgrade',$packages.Prerelease,'--offline','--allow-unsigned') -Assert {
         param($ExitCode,$Output)
