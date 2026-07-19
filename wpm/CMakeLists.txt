@@ -4,17 +4,22 @@
 
 # Add source to this project's executable.
 set(WPM_VERSION_HEADER "${CMAKE_CURRENT_BINARY_DIR}/version.h")
+set(WPM_VERSION_RESOURCE "${CMAKE_CURRENT_BINARY_DIR}/wpm-version.rc")
+set(WPM_ICON_FILE "${CMAKE_SOURCE_DIR}/wpm_xp_multires.ico")
+set(WPM_ICON_SOURCE "${CMAKE_SOURCE_DIR}/wpm_xp_master_v2.svg")
 
 add_custom_target(wpm_version_header ALL
   COMMAND ${CMAKE_COMMAND}
     -DWPM_SOURCE_DIR=${CMAKE_SOURCE_DIR}
     -DWPM_VERSION_HEADER=${WPM_VERSION_HEADER}
+    -DWPM_VERSION_RESOURCE=${WPM_VERSION_RESOURCE}
+    -DWPM_ICON_FILE=${WPM_ICON_FILE}
     -DWPM_MINIZ_VERSION_OVERRIDE=${WPM_MINIZ_VERSION_OVERRIDE}
     -DWPM_MINIZ_COMMIT_OVERRIDE=${WPM_MINIZ_COMMIT_OVERRIDE}
     -DWPM_LIBSODIUM_VERSION_OVERRIDE=${WPM_LIBSODIUM_VERSION_OVERRIDE}
     -DWPM_LIBSODIUM_COMMIT_OVERRIDE=${WPM_LIBSODIUM_COMMIT_OVERRIDE}
     -P ${CMAKE_SOURCE_DIR}/cmake/GenerateVersion.cmake
-  BYPRODUCTS ${WPM_VERSION_HEADER}
+  BYPRODUCTS ${WPM_VERSION_HEADER} ${WPM_VERSION_RESOURCE}
   COMMENT "Generating WPM version from Git"
   VERBATIM
 )
@@ -31,7 +36,13 @@ add_executable (wpm
   "repository.h"
   "signing.c"
   "signing.h"
+  "${WPM_VERSION_RESOURCE}"
+  "${WPM_ICON_FILE}"
+  "${WPM_ICON_SOURCE}"
 )
+
+set_source_files_properties("${WPM_VERSION_RESOURCE}" PROPERTIES GENERATED TRUE)
+set_source_files_properties("${WPM_ICON_FILE}" "${WPM_ICON_SOURCE}" PROPERTIES HEADER_FILE_ONLY TRUE)
 
 add_dependencies(wpm wpm_version_header)
 

@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <title>WPM - Waffle Package Manager</title>
+  <desc>Early-2000s software package icon with a waffle emblem and optical disc.</desc>
+  <defs>
+    <linearGradient id="front" x1="0" y1="0" x2=".25" y2="1">
+      <stop offset="0" stop-color="#ffffff"/><stop offset=".6" stop-color="#f1f2f4"/><stop offset="1" stop-color="#d0d4d9"/>
+    </linearGradient>
+    <linearGradient id="side" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f1f2f3"/><stop offset=".65" stop-color="#c8cdd3"/><stop offset="1" stop-color="#a8afb7"/>
+    </linearGradient>
+    <linearGradient id="lid" x1="0" y1="0" x2=".75" y2="1">
+      <stop offset="0" stop-color="#ffffff"/><stop offset=".7" stop-color="#f0f1f2"/><stop offset="1" stop-color="#d2d6da"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="0" y1="0" x2=".1" y2="1">
+      <stop offset="0" stop-color="#6aa7ff"/><stop offset=".38" stop-color="#2c72e9"/>
+      <stop offset=".75" stop-color="#1453c0"/><stop offset="1" stop-color="#092d79"/>
+    </linearGradient>
+    <linearGradient id="blueSide" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#347de8"/><stop offset=".65" stop-color="#1553bc"/><stop offset="1" stop-color="#08296c"/>
+    </linearGradient>
+    <linearGradient id="waffle" x1="0" y1="0" x2=".2" y2="1">
+      <stop offset="0" stop-color="#ffe692"/><stop offset=".35" stop-color="#ffc94a"/>
+      <stop offset=".75" stop-color="#e39813"/><stop offset="1" stop-color="#bd6800"/>
+    </linearGradient>
+    <linearGradient id="waffleEdge" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e99612"/><stop offset=".55" stop-color="#bd6400"/><stop offset="1" stop-color="#743400"/>
+    </linearGradient>
+    <linearGradient id="pocket" x1="0" y1="0" x2=".8" y2="1">
+      <stop offset="0" stop-color="#874000"/><stop offset=".52" stop-color="#b75d00"/><stop offset="1" stop-color="#db8308"/>
+    </linearGradient>
+    <linearGradient id="butter" x1="0" y1="0" x2=".25" y2="1">
+      <stop offset="0" stop-color="#fffbd1"/><stop offset=".5" stop-color="#fff17e"/><stop offset="1" stop-color="#e9c237"/>
+    </linearGradient>
+    <radialGradient id="disc" cx=".38" cy=".28" r=".8">
+      <stop offset="0" stop-color="#ffffff"/><stop offset=".42" stop-color="#f4f4f4"/>
+      <stop offset=".75" stop-color="#d4d8dc"/><stop offset="1" stop-color="#a9afb6"/>
+    </radialGradient>
+    <linearGradient id="metal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff"/><stop offset=".25" stop-color="#bac1c8"/>
+      <stop offset=".5" stop-color="#4d5560"/><stop offset=".76" stop-color="#fff"/><stop offset="1" stop-color="#6c747d"/>
+    </linearGradient>
+    <filter id="shadow" x="-25%" y="-25%" width="160%" height="175%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="12"/><feOffset dx="12" dy="17" result="o"/>
+      <feColorMatrix in="o" type="matrix" values="0 0 0 0 0  0 0 0 0 0.03  0 0 0 0 0.08  0 0 0 .46 0"/>
+      <feBlend in="SourceGraphic"/>
+    </filter>
+    <filter id="smallShadow" x="-30%" y="-30%" width="170%" height="180%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="4"/><feOffset dx="5" dy="7" result="o"/>
+      <feColorMatrix in="o" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .4 0"/>
+      <feBlend in="SourceGraphic"/>
+    </filter>
+    <clipPath id="discClip"><circle cx="736" cy="654" r="124"/></clipPath>
+  </defs>
+
+  <!-- Transparent background for project use -->
+  <ellipse cx="505" cy="778" rx="342" ry="48" fill="#08101f" opacity=".25"/>
+
+  <g id="package" filter="url(#shadow)">
+    <!-- Box -->
+    <polygon points="196,260 301,319 301,767 196,706" fill="url(#side)" stroke="#071426" stroke-width="10" stroke-linejoin="round"/>
+    <polygon points="301,319 723,258 723,709 301,767" fill="url(#front)" stroke="#071426" stroke-width="10" stroke-linejoin="round"/>
+    <polyline points="318,337 706,280 706,690 318,743" fill="none" stroke="#fff" stroke-width="5" opacity=".75"/>
+
+    <!-- Blue bands -->
+    <polygon points="196,260 301,319 301,366 196,307" fill="url(#blueSide)" stroke="#08245d" stroke-width="4"/>
+    <polygon points="301,319 723,258 723,306 301,366" fill="url(#blue)" stroke="#08245d" stroke-width="4"/>
+    <polygon points="196,622 301,681 301,767 196,706" fill="url(#blueSide)" stroke="#08245d" stroke-width="4"/>
+    <polygon points="301,681 723,625 723,709 301,767" fill="url(#blue)" stroke="#08245d" stroke-width="4"/>
+
+    <!-- Side label -->
+    <polygon points="221,344 279,376 279,481 221,449" fill="url(#blue)" stroke="#fff" stroke-width="4"/>
+    <g stroke="#2b62c8" stroke-width="8">
+      <line x1="222" y1="505" x2="279" y2="537"/><line x1="222" y1="527" x2="267" y2="552"/>
+      <line x1="222" y1="549" x2="279" y2="581"/><line x1="222" y1="571" x2="258" y2="591"/>
+    </g>
+
+    <!-- Lid -->
+    <polygon points="178,188 625,134 744,190 301,254" fill="url(#lid)" stroke="#071426" stroke-width="11" stroke-linejoin="round"/>
+    <polygon points="178,188 301,254 301,320 178,251" fill="#e4e6e8" stroke="#071426" stroke-width="11" stroke-linejoin="round"/>
+    <polygon points="301,254 744,190 744,251 301,320" fill="#eceeef" stroke="#071426" stroke-width="11" stroke-linejoin="round"/>
+    <polyline points="195,196 624,145 728,193" fill="none" stroke="#fff" stroke-width="7" opacity=".95"/>
+    <polyline points="310,306 729,246" fill="none" stroke="#aeb3b8" stroke-width="4"/>
+
+    <!-- Waffle extrusion -->
+    <polygon points="369,380 474,430 631,381 526,335" fill="#7c3700" opacity=".22" filter="url(#smallShadow)"/>
+    <polygon points="368,356 474,414 474,444 368,386" fill="url(#waffleEdge)" stroke="#182131" stroke-width="8" stroke-linejoin="round"/>
+    <polygon points="474,414 630,365 630,395 474,444" fill="url(#waffleEdge)" stroke="#182131" stroke-width="8" stroke-linejoin="round"/>
+    <polygon points="368.0,356.0 524.0,318.0 630.0,365.0 474.0,414.0" fill="url(#waffle)" stroke="#182131" stroke-width="9" stroke-linejoin="round"/>
+    <polygon points="378,357 524,324 619,365 474,405" fill="none" stroke="#fff07b" stroke-width="5" opacity=".92"/>
+    <polygon points="385.6,357.5 417.3,349.7 437.8,360.3 406.1,368.6" fill="url(#pocket)" stroke="#8c4b00" stroke-width="2.5" stroke-linejoin="round"/><path d="M 406.1,368.6 L 385.6,357.5 L 417.3,349.7" fill="none" stroke="#ffd66e" stroke-width="2.5" opacity=".75" stroke-linecap="round"/><polygon points="437.6,344.6 469.3,336.7 489.8,346.7 458.1,355.0" fill="url(#pocket)" stroke="#8c4b00" stroke-width="2.5" stroke-linejoin="round"/><path d="M 458.1,355.0 L 437.6,344.6 L 469.3,336.7" fill="none" stroke="#ffd66e" stroke-width="2.5" opacity=".75" stroke-linecap="round"/><polygon points="489.6,331.7 521.3,323.8 541.8,333.0 510.1,341.4" fill="url(#pocket)" stroke="#8c4b00" stroke-width="2.5" stroke-linejoin="round"/><path d="M 510.1,341.4 L 489.6,331.7 L 521.3,323.8" fill="none" stroke="#ffd66e" stroke-width="2.5" opacity=".75" stroke-linecap="round"/><polygon points="420.9,376.6 452.6,368.0 473.1,378.6 441.4,387.7" fill="url(#pocket)" stroke="#8c4b00" stroke-width="2.5" stroke-linejoin="round"/><path d="M 441.4,387.7 L 420.9,376.6 L 452.6,368.0" fill="none" stroke="#ffd66e" stroke-width="2.5" opacity=".75" stroke-linecap="round"/><polygon points="472.9,362.5 504.6,353.9 525.1,363.8 493.4,372.9" fill="url(#pocket)" stroke="#8c4b00" stroke-width="2.5" stroke-linejoin="round"/><path d="M 493.4,372.9 L 472.9,362.5 L 504.6,353.9" fill="none" stroke="#ffd66e" stroke-width="2.5" opacity=".75" stroke-linecap="round"/><polygon points="524.9,348.3 556.6,339.7 577.1,348.9 545.4,358.0" fill="url(#pocket)" stroke="#8c4b00" stroke-width="2.5" stroke-linejoin="round"/><path d="M 545.4,358.0 L 524.9,348.3 L 556.6,339.7" fill="none" stroke="#ffd66e" stroke-width="2.5" opacity=".75" stroke-linecap="round"/><polygon points="456.2,395.7 487.9,386.4 508.4,397.0 476.7,406.8" fill="url(#pocket)" stroke="#8c4b00" stroke-width="2.5" stroke-linejoin="round"/><path d="M 476.7,406.8 L 456.2,395.7 L 487.9,386.4" fill="none" stroke="#ffd66e" stroke-width="2.5" opacity=".75" stroke-linecap="round"/><polygon points="508.2,380.4 539.9,371.0 560.4,380.9 528.7,390.7" fill="url(#pocket)" stroke="#8c4b00" stroke-width="2.5" stroke-linejoin="round"/><path d="M 528.7,390.7 L 508.2,380.4 L 539.9,371.0" fill="none" stroke="#ffd66e" stroke-width="2.5" opacity=".75" stroke-linecap="round"/><polygon points="560.2,365.0 591.9,355.6 612.4,364.8 580.7,374.7" fill="url(#pocket)" stroke="#8c4b00" stroke-width="2.5" stroke-linejoin="round"/><path d="M 580.7,374.7 L 560.2,365.0 L 591.9,355.6" fill="none" stroke="#ffd66e" stroke-width="2.5" opacity=".75" stroke-linecap="round"/>
+
+    <!-- Smaller, cleaner butter pat -->
+    <g filter="url(#smallShadow)">
+      <polygon points="480,351 513,342 543,354 510,364" fill="url(#butter)" stroke="#ca9815" stroke-width="2.5"/>
+      <polygon points="480,351 510,364 510,385 480,373" fill="#f0d34d" stroke="#bd850d" stroke-width="2.5"/>
+      <polygon points="510,364 543,354 543,375 510,385" fill="#d9ad27" stroke="#bd850d" stroke-width="2.5"/>
+      <path d="M487 351 L513 345 L535 354" fill="none" stroke="#fffbd0" stroke-width="4" stroke-linecap="round"/>
+    </g>
+
+    <!-- Dedicated branding panel: no CD overlap -->
+    <rect x="335" y="500" width="260" height="137" rx="7" fill="#fbfbfb" opacity=".94" stroke="#c3c9d0" stroke-width="2"/>
+    <text x="465" y="570" text-anchor="middle"
+          font-family="Arial Black, Arial, Helvetica, sans-serif"
+          font-size="72" font-weight="900" letter-spacing="-5"
+          fill="#0a0e16">wpm</text>
+    <line x1="355" y1="585" x2="575" y2="585" stroke="#214e9f" stroke-width="3" opacity=".45"/>
+    <text x="465" y="615" text-anchor="middle"
+          textLength="220" lengthAdjust="spacingAndGlyphs"
+          font-family="Tahoma, Verdana, Arial, sans-serif"
+          font-size="20" font-weight="700" fill="#0b3ea7">Waffle Package Manager</text>
+  </g>
+
+  <!-- Disc moved right so it never hides the text -->
+  <g id="disc-object" filter="url(#shadow)">
+    <circle cx="736" cy="654" r="141" fill="#07111f" opacity=".45"/>
+    <circle cx="736" cy="654" r="132" fill="url(#disc)" stroke="#07111f" stroke-width="10"/>
+    <circle cx="736" cy="654" r="124" fill="#eef0f1" stroke="#fff" stroke-width="5"/>
+    <g clip-path="url(#discClip)">
+      <path d="M 736,654 L 726.79,522.32 A 132,132 0 0 1 756.32,523.57 Z" fill="#f7c7ff" opacity="0.48"/><path d="M 736,654 L 756.32,523.57 A 132,132 0 0 1 784.84,531.37 Z" fill="#c9d8ff" opacity="0.28"/><path d="M 736,654 L 784.84,531.37 A 132,132 0 0 1 810.90,545.31 Z" fill="#b9efff" opacity="0.48"/><path d="M 736,654 L 810.90,545.31 A 132,132 0 0 1 833.21,564.70 Z" fill="#c9f4e8" opacity="0.28"/><path d="M 736,654 L 833.21,564.70 A 132,132 0 0 1 850.64,588.57 Z" fill="#fff7bb" opacity="0.48"/><path d="M 736,654 L 850.64,588.57 A 132,132 0 0 1 862.33,615.72 Z" fill="#ffd6a9" opacity="0.28"/><path d="M 736,654 L 862.33,615.72 A 132,132 0 0 1 867.68,644.79 Z" fill="#ffc8d8" opacity="0.48"/><path d="M 736,654 L 867.68,644.79 A 132,132 0 0 1 866.43,674.32 Z" fill="#d9c7ff" opacity="0.28"/><path d="M 736,654 L 866.43,674.32 A 132,132 0 0 1 858.63,702.84 Z" fill="#f7c7ff" opacity="0.48"/><path d="M 736,654 L 858.63,702.84 A 132,132 0 0 1 844.69,728.90 Z" fill="#c9d8ff" opacity="0.28"/><path d="M 736,654 L 844.69,728.90 A 132,132 0 0 1 825.30,751.21 Z" fill="#b9efff" opacity="0.48"/><path d="M 736,654 L 825.30,751.21 A 132,132 0 0 1 801.43,768.64 Z" fill="#c9f4e8" opacity="0.28"/><path d="M 736,654 L 801.43,768.64 A 132,132 0 0 1 774.28,780.33 Z" fill="#fff7bb" opacity="0.48"/><path d="M 736,654 L 774.28,780.33 A 132,132 0 0 1 745.21,785.68 Z" fill="#ffd6a9" opacity="0.28"/><path d="M 736,654 L 745.21,785.68 A 132,132 0 0 1 715.68,784.43 Z" fill="#ffc8d8" opacity="0.48"/><path d="M 736,654 L 715.68,784.43 A 132,132 0 0 1 687.16,776.63 Z" fill="#d9c7ff" opacity="0.28"/><path d="M 736,654 L 687.16,776.63 A 132,132 0 0 1 661.10,762.69 Z" fill="#f7c7ff" opacity="0.48"/><path d="M 736,654 L 661.10,762.69 A 132,132 0 0 1 638.79,743.30 Z" fill="#c9d8ff" opacity="0.28"/><path d="M 736,654 L 638.79,743.30 A 132,132 0 0 1 621.36,719.43 Z" fill="#b9efff" opacity="0.48"/><path d="M 736,654 L 621.36,719.43 A 132,132 0 0 1 609.67,692.28 Z" fill="#c9f4e8" opacity="0.28"/><path d="M 736,654 L 609.67,692.28 A 132,132 0 0 1 604.32,663.21 Z" fill="#fff7bb" opacity="0.48"/><path d="M 736,654 L 604.32,663.21 A 132,132 0 0 1 605.57,633.68 Z" fill="#ffd6a9" opacity="0.28"/><path d="M 736,654 L 605.57,633.68 A 132,132 0 0 1 613.37,605.16 Z" fill="#ffc8d8" opacity="0.48"/><path d="M 736,654 L 613.37,605.16 A 132,132 0 0 1 627.31,579.10 Z" fill="#d9c7ff" opacity="0.28"/><path d="M 736,654 L 627.31,579.10 A 132,132 0 0 1 646.70,556.79 Z" fill="#f7c7ff" opacity="0.48"/><path d="M 736,654 L 646.70,556.79 A 132,132 0 0 1 670.57,539.36 Z" fill="#c9d8ff" opacity="0.28"/><path d="M 736,654 L 670.57,539.36 A 132,132 0 0 1 697.72,527.67 Z" fill="#b9efff" opacity="0.48"/><path d="M 736,654 L 697.72,527.67 A 132,132 0 0 1 726.79,522.32 Z" fill="#c9f4e8" opacity="0.28"/>
+      <path d="M630 574 Q735 625 836 552" fill="none" stroke="#fff" stroke-width="12" opacity=".34"/>
+      <path d="M657 744 Q746 668 842 726" fill="none" stroke="#fff7b5" stroke-width="9" opacity=".38"/>
+      <path d="M693 533 Q716 650 679 767" fill="none" stroke="#edbfff" stroke-width="11" opacity=".34"/>
+      <path d="M785 531 Q753 649 812 757" fill="none" stroke="#b9e7ff" stroke-width="11" opacity=".4"/>
+    </g>
+    <circle cx="736" cy="654" r="47" fill="url(#metal)" stroke="#151b24" stroke-width="7"/>
+    <circle cx="736" cy="654" r="33" fill="#f4f4f4" stroke="#fff" stroke-width="4"/>
+    <circle cx="736" cy="654" r="24" fill="#222a34" stroke="#111821" stroke-width="4"/>
+    <circle cx="736" cy="654" r="11" fill="#06101d"/>
+    <ellipse cx="697" cy="588" rx="46" ry="22" fill="#fff" opacity=".34" transform="rotate(-28 697 588)"/>
+    <path d="M640 608 A118 118 0 0 1 735 534" fill="none" stroke="#fff" stroke-width="7" opacity=".8" stroke-linecap="round"/>
+  </g>
+</svg>

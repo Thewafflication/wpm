@@ -171,3 +171,74 @@ endif()
 if(NOT existing_version_header STREQUAL version_header)
     file(WRITE "${WPM_VERSION_HEADER}" "${version_header}")
 endif()
+
+# Windows VERSIONINFO requires four numeric 16-bit components. Keep the full
+# Git-derived version in the string fields while using its SemVer core (and,
+# for development builds, the commit count) for the numeric file version.
+set(version_major 0)
+set(version_minor 0)
+set(version_patch 0)
+set(version_build 0)
+if(version MATCHES "^v?([0-9]+)\\.([0-9]+)\\.([0-9]+)")
+    set(version_major "${CMAKE_MATCH_1}")
+    set(version_minor "${CMAKE_MATCH_2}")
+    set(version_patch "${CMAKE_MATCH_3}")
+endif()
+if(version MATCHES "-dev\\+([0-9]+)")
+    set(version_build "${CMAKE_MATCH_1}")
+endif()
+
+foreach(component version_major version_minor version_patch version_build)
+    if(${component} GREATER 65535)
+        set(${component} 65535)
+    endif()
+endforeach()
+
+if(NOT DEFINED WPM_ICON_FILE OR NOT EXISTS "${WPM_ICON_FILE}")
+    message(FATAL_ERROR "WPM icon file was not found: ${WPM_ICON_FILE}")
+endif()
+file(TO_CMAKE_PATH "${WPM_ICON_FILE}" version_resource_icon)
+file(SHA256 "${WPM_ICON_FILE}" version_resource_icon_sha256)
+
+string(CONCAT version_resource
+    "#include <winver.h>\n\n"
+    "// Icon SHA-256: ${version_resource_icon_sha256}\n"
+    "101 ICON \"${version_resource_icon}\"\n\n"
+    "VS_VERSION_INFO VERSIONINFO\n"
+    " FILEVERSION ${version_major},${version_minor},${version_patch},${version_build}\n"
+    " PRODUCTVERSION ${version_major},${version_minor},${version_patch},${version_build}\n"
+    " FILEFLAGSMASK VS_FFI_FILEFLAGSMASK\n"
+    " FILEFLAGS 0x0L\n"
+    " FILEOS VOS_NT_WINDOWS32\n"
+    " FILETYPE VFT_APP\n"
+    " FILESUBTYPE VFT2_UNKNOWN\n"
+    "BEGIN\n"
+    "  BLOCK \"StringFileInfo\"\n"
+    "  BEGIN\n"
+    "    BLOCK \"040904B0\"\n"
+    "    BEGIN\n"
+    "      VALUE \"Comments\", \"https://github.com/Thewafflication/wpm\"\n"
+    "      VALUE \"FileDescription\", \"Waughtal Package Manager\"\n"
+    "      VALUE \"FileVersion\", \"${version}\"\n"
+    "      VALUE \"InternalName\", \"wpm\"\n"
+    "      VALUE \"OriginalFilename\", \"wpm.exe\"\n"
+    "      VALUE \"ProductName\", \"WPM\"\n"
+    "      VALUE \"ProductVersion\", \"${version}\"\n"
+    "    END\n"
+    "  END\n"
+    "  BLOCK \"VarFileInfo\"\n"
+    "  BEGIN\n"
+    "    VALUE \"Translation\", 0x0409, 1200\n"
+    "  END\n"
+    "END\n"
+)
+
+if(EXISTS "${WPM_VERSION_RESOURCE}")
+    file(READ "${WPM_VERSION_RESOURCE}" existing_version_resource)
+else()
+    set(existing_version_resource "")
+endif()
+
+if(NOT existing_version_resource STREQUAL version_resource)
+    file(WRITE "${WPM_VERSION_RESOURCE}" "${version_resource}")
+endif()
