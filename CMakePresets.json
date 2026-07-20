@@ -4,9 +4,10 @@
         {
             "name": "windows-base",
             "hidden": true,
-            "generator": "Visual Studio 17 2022",
+            "generator": "Ninja",
             "binaryDir": "${sourceDir}/out/build/${presetName}",
             "installDir": "${sourceDir}/out/install/${presetName}",
+            "toolchainFile": "${sourceDir}/cmake/toolchains/tcc-x86-xp.cmake",
             "condition": {
                 "type": "equals",
                 "lhs": "${hostSystemName}",
@@ -17,12 +18,11 @@
             "name": "x64-debug",
             "displayName": "x64 Debug",
             "inherits": "windows-base",
-            "architecture": {
-                "value": "x64"
-            },
             "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
                 "WPM_ARCH": "x64",
-                "WPM_THIRD_PARTY_ARCH": "x64"
+                "WPM_THIRD_PARTY_ARCH": "x64",
+                "WPM_WINDOWS_XP_COMPAT": "OFF"
             }
         },
         {
@@ -37,6 +37,7 @@
                 "BUILD_TESTING": "OFF",
                 "WPM_ARCH": "x86",
                 "WPM_THIRD_PARTY_ARCH": "x86",
+                "WPM_WINDOWS_XP_COMPAT": "ON",
                 "WPM_BIN_DIR": "${sourceDir}/bin/tcc-x86-xp",
                 "WPM_THIRD_PARTY_BIN_DIR": "${sourceDir}/third_party/bin/tcc-x86-xp"
             },
@@ -49,7 +50,10 @@
         {
             "name": "x64-release",
             "displayName": "x64 Release",
-            "inherits": "x64-debug"
+            "inherits": "x64-debug",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release"
+            }
         },
         {
             "name": "x64-debug-reports",
@@ -63,12 +67,11 @@
             "name": "x86-debug",
             "displayName": "x86 Debug",
             "inherits": "windows-base",
-            "architecture": {
-                "value": "Win32"
-            },
             "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
                 "WPM_ARCH": "x86",
                 "WPM_THIRD_PARTY_ARCH": "x86",
+                "WPM_WINDOWS_XP_COMPAT": "ON",
                 "WPM_RUN_TESTS_AFTER_BUILD": "ON",
                 "WPM_BUILD_TEST_REPORTS": "ON"
             }
@@ -87,25 +90,28 @@
             "inherits": "x86-debug",
             "cacheVariables": {
                 "WPM_RUN_TESTS_AFTER_BUILD": "OFF",
-                "WPM_BUILD_TEST_REPORTS": "OFF"
+                "WPM_BUILD_TEST_REPORTS": "OFF",
+                "CMAKE_BUILD_TYPE": "Release"
             }
         },
         {
             "name": "arm64-debug",
             "displayName": "ARM64 Debug",
             "inherits": "windows-base",
-            "architecture": {
-                "value": "ARM64"
-            },
             "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
                 "WPM_ARCH": "arm64",
-                "WPM_THIRD_PARTY_ARCH": "arm64"
+                "WPM_THIRD_PARTY_ARCH": "arm64",
+                "WPM_WINDOWS_XP_COMPAT": "OFF"
             }
         },
         {
             "name": "arm64-release",
             "displayName": "ARM64 Release",
-            "inherits": "arm64-debug"
+            "inherits": "arm64-debug",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release"
+            }
         },
         {
             "name": "arm64-debug-reports",

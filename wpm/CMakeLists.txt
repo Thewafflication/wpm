@@ -46,6 +46,9 @@ if(NOT CMAKE_C_COMPILER_ID STREQUAL "TinyCC")
   list(APPEND wpm_sources "${WPM_VERSION_RESOURCE}")
 else()
   list(APPEND wpm_sources "tcc_compat/secure_crt.c")
+  if(WPM_WINDOWS_XP_COMPAT)
+    list(APPEND wpm_sources "tcc_compat/xp_crt.c")
+  endif()
 endif()
 
 add_executable(wpm ${wpm_sources})
@@ -93,12 +96,18 @@ set_property(TARGET wpm PROPERTY C_EXTENSIONS OFF)
 target_compile_definitions(wpm PRIVATE SODIUM_STATIC WPM_TARGET_ARCH="${wpm_arch}")
 target_link_libraries(wpm PRIVATE miniz libsodium)
 if(CMAKE_C_COMPILER_ID STREQUAL "TinyCC")
-  target_link_options(wpm PRIVATE -lurlmon -ladvapi32 -lversion)
+  # Use explicit import definitions so cross-architecture builds don't depend
+  # on matching system DLLs being installed on the build host.
+  target_link_options(wpm PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/tcc_compat/urlmon.def"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tcc_compat/advapi32.def"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tcc_compat/version.def"
+  )
 else()
   target_link_libraries(wpm PRIVATE urlmon advapi32 version)
 endif()
 
-if(MSVC AND wpm_arch STREQUAL "x86")
+if(MSVC AND WPM_WINDOWS_XP_COMPAT)
   if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.13)
     target_link_options(wpm PRIVATE /SUBSYSTEM:CONSOLE,5.01)
   else()

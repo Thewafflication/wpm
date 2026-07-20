@@ -34,11 +34,17 @@ else()
   set(wpm_arch "${CMAKE_SYSTEM_PROCESSOR}")
 endif()
 
-# Keep the 32-bit build usable on the oldest platform and processor it targets.
+# Keep the explicitly selected 32-bit XP build usable on the oldest platform
+# and processor it targets.
 # Pentium III provides SSE, but not SSE2.  Current MSVC x86 builds otherwise
 # default to a newer instruction-set baseline, and current linkers otherwise
 # stamp executables with a post-XP subsystem version.
-if(WIN32 AND wpm_arch STREQUAL "x86")
+option(WPM_WINDOWS_XP_COMPAT "Enable Windows XP compatibility workarounds" OFF)
+if(WPM_WINDOWS_XP_COMPAT AND NOT (WIN32 AND wpm_arch STREQUAL "x86"))
+  message(FATAL_ERROR "WPM_WINDOWS_XP_COMPAT is supported only by Windows x86 builds")
+endif()
+
+if(WPM_WINDOWS_XP_COMPAT)
   add_definitions(
     -DWINVER=0x0501
     -D_WIN32_WINNT=0x0501
@@ -47,7 +53,7 @@ if(WIN32 AND wpm_arch STREQUAL "x86")
 
 endif()
 
-if(MSVC AND wpm_arch STREQUAL "x86")
+if(MSVC AND WPM_WINDOWS_XP_COMPAT)
   # Avoid requiring a separately installed VC/UCRT redistributable on XP.
   # This initializes MSVC_RUNTIME_LIBRARY on every subsequently created target,
   # including the bundled static libraries.

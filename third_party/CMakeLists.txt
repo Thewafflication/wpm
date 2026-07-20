@@ -60,6 +60,10 @@ if(NOT TARGET miniz)
     "${MINIZ_SOURCE_DIR}/miniz_tdef.c"
   )
 
+  if(WPM_WINDOWS_XP_COMPAT)
+    target_sources(miniz PRIVATE "${CMAKE_SOURCE_DIR}/wpm/tcc_compat/utime.c")
+  endif()
+
   generate_export_header(miniz)
 
   target_include_directories(miniz PUBLIC
