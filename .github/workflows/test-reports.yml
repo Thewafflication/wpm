@@ -73,10 +73,14 @@ jobs:
           fetch-depth: 0
           submodules: recursive
 
+      - name: Set up latest WPM and TinyCC
+        uses: ./.github/actions/setup-tinycc
+
       - name: Configure
         shell: pwsh
         run: |
           cmake --preset ${{ matrix.configure_preset }} `
+            "-DCMAKE_MAKE_PROGRAM=$env:WPM_NINJA" `
             "-DWPM_MINIZ_VERSION_OVERRIDE=${{ needs.dependency-metadata.outputs.miniz_version }}" `
             "-DWPM_MINIZ_COMMIT_OVERRIDE=${{ needs.dependency-metadata.outputs.miniz_commit }}" `
             "-DWPM_LIBSODIUM_VERSION_OVERRIDE=${{ needs.dependency-metadata.outputs.libsodium_version }}" `

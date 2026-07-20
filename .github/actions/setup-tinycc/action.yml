@@ -1,0 +1,50 @@
+name: Set up latest WPM and TinyCC
+description: Bootstrap the latest WPM release and install the latest TinyCC package
+
+runs:
+  using: composite
+  steps:
+    - name: Install latest WPM and TinyCC
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = 'Stop'
+        $bootstrap = Join-Path $env:RUNNER_TEMP 'wpm-install.cmd'
+        Invoke-WebRequest -UseBasicParsing `
+          -Uri 'https://github.com/Thewafflication/wpm/releases/latest/download/install.cmd' `
+          -OutFile $bootstrap
+        & $bootstrap
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+        $wpm = Join-Path $env:ProgramFiles 'WPM\wpm.exe'
+        if (-not (Test-Path -LiteralPath $wpm)) {
+          throw "The latest WPM release was not installed at $wpm."
+        }
+        & $wpm install tinycc
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+        $tinyccRoot = Get-ChildItem (Join-Path $env:ProgramFiles 'TinyCC') `
+          -Directory -ErrorAction Stop |
+          Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'tcc.exe') } |
+          Sort-Object Name -Descending |
+          Select-Object -First 1 -ExpandProperty FullName
+        if (-not $tinyccRoot) {
+          throw 'The TinyCC WPM package did not install a usable toolchain.'
+        }
+
+        $ninjaCommand = Get-Command ninja -ErrorAction SilentlyContinue
+        if ($ninjaCommand) {
+          $ninja = $ninjaCommand.Source
+        } else {
+          $ninja = Get-ChildItem $env:ProgramFiles -Recurse -Filter ninja.exe `
+            -ErrorAction SilentlyContinue |
+            Select-Object -First 1 -ExpandProperty FullName
+        }
+        if (-not $ninja) {
+          throw 'Ninja was not found on the GitHub runner.'
+        }
+
+        & $wpm --version
+        & (Join-Path $tinyccRoot 'tcc.exe') -v
+        & $ninja --version
+        "WPM_TCC_ROOT=$tinyccRoot" | Out-File $env:GITHUB_ENV -Append
+        "WPM_NINJA=$ninja" | Out-File $env:GITHUB_ENV -Append

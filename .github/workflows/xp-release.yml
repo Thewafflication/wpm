@@ -21,36 +21,14 @@ jobs:
           fetch-depth: 0
           submodules: recursive
 
-      - name: Install pinned TinyCC x86 toolchain
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          $tag = 'v0.9.28-rc.1430+d9d02c56'
-          $asset = 'tinycc-x86-0.9.28-rc.1430+d9d02c56.zip'
-          $downloadDirectory = Join-Path $env:RUNNER_TEMP 'tinycc-download'
-          $installDirectory = Join-Path $env:RUNNER_TEMP 'tinycc'
-          New-Item -ItemType Directory -Force -Path $downloadDirectory | Out-Null
-          gh release download $tag `
-            --repo Thewafflication/tcc_package `
-            --pattern $asset `
-            --dir $downloadDirectory
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          Expand-Archive -LiteralPath (Join-Path $downloadDirectory $asset) `
-            -DestinationPath $installDirectory -Force
-          if (-not (Test-Path -LiteralPath (Join-Path $installDirectory 'tcc.exe'))) {
-            throw 'The TinyCC release did not contain tcc.exe at its package root.'
-          }
-          "WPM_TCC_ROOT=$installDirectory" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - name: Set up latest WPM and TinyCC
+        uses: ./.github/actions/setup-tinycc
 
       - name: Configure XP Release build with tests
         shell: pwsh
         run: |
-          $ninja = (Get-Command ninja -ErrorAction Stop).Source
-          ninja --version
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           cmake --preset tcc-x86-xp `
-            "-DCMAKE_MAKE_PROGRAM=$ninja" `
+            "-DCMAKE_MAKE_PROGRAM=$env:WPM_NINJA" `
             -DBUILD_TESTING=ON `
             -DWPM_BUILD_TEST_REPORTS=ON `
             -DWPM_RUN_TESTS_AFTER_BUILD=OFF
