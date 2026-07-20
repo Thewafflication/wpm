@@ -1,0 +1,116 @@
+name: Windows XP Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - codex/fix-windows-xp-kernel32-errors
+
+permissions:
+  contents: read
+
+jobs:
+  build-test-package:
+    name: Build, test, and package x86 XP
+    runs-on: windows-2022
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Install pinned TinyCC x86 toolchain
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = 'v0.9.28-rc.1430+d9d02c56'
+          $asset = 'tinycc-x86-0.9.28-rc.1430+d9d02c56.zip'
+          $downloadDirectory = Join-Path $env:RUNNER_TEMP 'tinycc-download'
+          $installDirectory = Join-Path $env:RUNNER_TEMP 'tinycc'
+          New-Item -ItemType Directory -Force -Path $downloadDirectory | Out-Null
+          gh release download $tag `
+            --repo Thewafflication/tcc_package `
+            --pattern $asset `
+            --dir $downloadDirectory
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Expand-Archive -LiteralPath (Join-Path $downloadDirectory $asset) `
+            -DestinationPath $installDirectory -Force
+          if (-not (Test-Path -LiteralPath (Join-Path $installDirectory 'tcc.exe'))) {
+            throw 'The TinyCC release did not contain tcc.exe at its package root.'
+          }
+          "WPM_TCC_ROOT=$installDirectory" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Materialize Ninja for the CMake preset
+        shell: pwsh
+        run: |
+          $ninja = (Get-Command ninja -ErrorAction Stop).Source
+          New-Item -ItemType Directory -Force -Path out/tools/ninja | Out-Null
+          Copy-Item -LiteralPath $ninja -Destination out/tools/ninja/ninja.exe
+
+      - name: Configure XP Release build with tests
+        shell: pwsh
+        run: |
+          cmake --preset tcc-x86-xp `
+            -DBUILD_TESTING=ON `
+            -DWPM_BUILD_TEST_REPORTS=ON `
+            -DWPM_RUN_TESTS_AFTER_BUILD=OFF
+
+      - name: Build XP Release executable
+        shell: pwsh
+        run: cmake --build --preset build-tcc-x86-xp
+
+      - name: Run XP Release tests
+        shell: pwsh
+        run: |
+          ctest `
+            --test-dir out/build/tcc-x86-xp `
+            -C Release `
+            --output-on-failure
+
+      - name: Generate and validate test evidence
+        shell: pwsh
+        run: |
+          cmake --build out/build/tcc-x86-xp `
+            --target verify `
+            --config Release
+
+      - name: Build unsigned XP WPM package
+        shell: pwsh
+        run: |
+          cmake `
+            "-DWPM_EXECUTABLE=$PWD/bin/tcc-x86-xp/Release/wpm.exe" `
+            "-DWPM_PACKAGE_EXECUTABLE=$PWD/bin/tcc-x86-xp/Release/wpm.exe" `
+            "-DWPM_PACKAGE_STAGING_DIR=$PWD/out/xp-release-package" `
+            "-DWPM_PACKAGE_OUTPUT_DIR=$PWD/release/xp/packages" `
+            -DWPM_PACKAGE_ARCH=x86 `
+            -DWPM_PACKAGE_DEBUG=false `
+            "-DWPM_SETUP_SCRIPT=$PWD/setup.cmd" `
+            "-DWPM_REMOVE_SCRIPT=$PWD/remove.cmd" `
+            "-DWPM_REPORT_DIR=$PWD/bin/tcc-x86-xp/Release" `
+            "-DWPM_DOCS_DIR=$PWD/docs" `
+            "-DWPM_README_FILE=$PWD/README.md" `
+            "-DWPM_LICENSE_FILE=$PWD/LICENSE.txt" `
+            "-DWPM_THIRD_PARTY_NOTICES_FILE=$PWD/THIRD_PARTY_NOTICES.md" `
+            -P cmake/BuildSelfPackage.cmake
+
+      - name: Prepare XP artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release/xp/bin | Out-Null
+          New-Item -ItemType Directory -Force -Path release/xp/test-reports | Out-Null
+          Copy-Item -LiteralPath bin/tcc-x86-xp/Release/wpm.exe `
+            -Destination release/xp/bin/wpm-x86-xp.exe
+          Copy-Item -Path bin/tcc-x86-xp/Release/tc-*-report.tex `
+            -Destination release/xp/test-reports
+          Copy-Item -Path bin/tcc-x86-xp/Release/tc-*-execution-evidence.tex `
+            -Destination release/xp/test-reports
+
+      - name: Upload XP executable, WPM package, and test reports
+        uses: actions/upload-artifact@v7
+        with:
+          name: wpm-x86-xp-${{ github.sha }}
+          path: release/xp/
+          if-no-files-found: error

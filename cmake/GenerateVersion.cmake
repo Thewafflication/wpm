@@ -74,7 +74,13 @@ execute_process(
 )
 
 if(NOT miniz_tag_result EQUAL 0)
-    set(miniz_version "unknown")
+    file(STRINGS "${WPM_SOURCE_DIR}/third_party/miniz/miniz.h" miniz_version_line
+        REGEX "^/\\* miniz\\.c [0-9]+\\.[0-9]+\\.[0-9]+")
+    if(miniz_version_line MATCHES "miniz\\.c ([0-9]+\\.[0-9]+\\.[0-9]+)")
+        set(miniz_version "${CMAKE_MATCH_1}")
+    else()
+        set(miniz_version "unknown")
+    endif()
 endif()
 
 execute_process(
@@ -87,7 +93,19 @@ execute_process(
 )
 
 if(NOT miniz_commit_result EQUAL 0)
-    set(miniz_commit "unknown")
+    execute_process(
+        COMMAND git rev-parse HEAD:third_party/miniz
+        WORKING_DIRECTORY "${WPM_SOURCE_DIR}"
+        RESULT_VARIABLE miniz_gitlink_result
+        OUTPUT_VARIABLE miniz_gitlink_commit
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+    )
+    if(miniz_gitlink_result EQUAL 0)
+        string(SUBSTRING "${miniz_gitlink_commit}" 0 7 miniz_commit)
+    else()
+        set(miniz_commit "unknown")
+    endif()
 endif()
 
 execute_process(
@@ -121,7 +139,15 @@ execute_process(
 )
 
 if(NOT sodium_tag_result EQUAL 0)
-    set(sodium_version "unknown")
+    file(STRINGS
+        "${WPM_SOURCE_DIR}/third_party/libsodium/src/libsodium/include/sodium/version.h"
+        sodium_version_line
+        REGEX "^#define SODIUM_VERSION_STRING")
+    if(sodium_version_line MATCHES "SODIUM_VERSION_STRING[ \t]+\"([^\"]+)\"")
+        set(sodium_version "${CMAKE_MATCH_1}")
+    else()
+        set(sodium_version "unknown")
+    endif()
 endif()
 
 execute_process(
@@ -134,7 +160,19 @@ execute_process(
 )
 
 if(NOT sodium_commit_result EQUAL 0)
-	set(sodium_commit "unknown")
+    execute_process(
+        COMMAND git rev-parse HEAD:third_party/libsodium
+        WORKING_DIRECTORY "${WPM_SOURCE_DIR}"
+        RESULT_VARIABLE sodium_gitlink_result
+        OUTPUT_VARIABLE sodium_gitlink_commit
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+    )
+    if(sodium_gitlink_result EQUAL 0)
+        string(SUBSTRING "${sodium_gitlink_commit}" 0 7 sodium_commit)
+    else()
+        set(sodium_commit "unknown")
+    endif()
 endif()
 
 execute_process(

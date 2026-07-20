@@ -51,7 +51,13 @@ endif()
 add_executable(wpm ${wpm_sources})
 
 set_source_files_properties("${WPM_VERSION_RESOURCE}" PROPERTIES GENERATED TRUE)
+set_source_files_properties("${WPM_VERSION_HEADER}" PROPERTIES GENERATED TRUE)
 set_source_files_properties("${WPM_ICON_FILE}" "${WPM_ICON_SOURCE}" PROPERTIES HEADER_FILE_ONLY TRUE)
+
+# TinyCC does not emit dependency files for included headers. Make the generated
+# metadata dependency explicit so a version change recompiles wpm.c in the same
+# build invocation that regenerates version.h.
+set_property(SOURCE "wpm.c" APPEND PROPERTY OBJECT_DEPENDS "${WPM_VERSION_HEADER}")
 
 add_dependencies(wpm wpm_version_header)
 

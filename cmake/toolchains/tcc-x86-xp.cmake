@@ -8,10 +8,24 @@ set(CMAKE_SYSTEM_PROCESSOR x86)
 if(DEFINED ENV{WPM_TCC_ROOT} AND NOT "$ENV{WPM_TCC_ROOT}" STREQUAL "")
   file(TO_CMAKE_PATH "$ENV{WPM_TCC_ROOT}" WPM_TCC_ROOT)
 else()
-  get_filename_component(WPM_TCC_ROOT
-    "${CMAKE_CURRENT_LIST_DIR}/../../out/tools/tcc"
-    ABSOLUTE
+  file(TO_CMAKE_PATH "$ENV{ProgramFiles}/TinyCC" WPM_TCC_INSTALL_ROOT)
+  file(GLOB WPM_TCC_INSTALLATIONS LIST_DIRECTORIES TRUE
+    "${WPM_TCC_INSTALL_ROOT}/*"
   )
+  list(SORT WPM_TCC_INSTALLATIONS COMPARE NATURAL ORDER DESCENDING)
+  foreach(WPM_TCC_INSTALLATION IN LISTS WPM_TCC_INSTALLATIONS)
+    if(EXISTS "${WPM_TCC_INSTALLATION}/tcc.exe")
+      set(WPM_TCC_ROOT "${WPM_TCC_INSTALLATION}")
+      break()
+    endif()
+  endforeach()
+
+  if(NOT WPM_TCC_ROOT)
+    get_filename_component(WPM_TCC_ROOT
+      "${CMAKE_CURRENT_LIST_DIR}/../../out/tools/tcc"
+      ABSOLUTE
+    )
+  endif()
 endif()
 
 set(CMAKE_C_COMPILER "${WPM_TCC_ROOT}/tcc.exe" CACHE FILEPATH "TinyCC compiler")
