@@ -43,17 +43,14 @@ jobs:
           }
           "WPM_TCC_ROOT=$installDirectory" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-      - name: Materialize Ninja for the CMake preset
-        shell: pwsh
-        run: |
-          $ninja = (Get-Command ninja -ErrorAction Stop).Source
-          New-Item -ItemType Directory -Force -Path out/tools/ninja | Out-Null
-          Copy-Item -LiteralPath $ninja -Destination out/tools/ninja/ninja.exe
-
       - name: Configure XP Release build with tests
         shell: pwsh
         run: |
+          $ninja = (Get-Command ninja -ErrorAction Stop).Source
+          ninja --version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           cmake --preset tcc-x86-xp `
+            "-DCMAKE_MAKE_PROGRAM=$ninja" `
             -DBUILD_TESTING=ON `
             -DWPM_BUILD_TEST_REPORTS=ON `
             -DWPM_RUN_TESTS_AFTER_BUILD=OFF

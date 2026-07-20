@@ -34,7 +34,6 @@
             "toolchainFile": "${sourceDir}/cmake/toolchains/tcc-x86-xp.cmake",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release",
-                "CMAKE_MAKE_PROGRAM": "${sourceDir}/out/tools/ninja/ninja.exe",
                 "BUILD_TESTING": "OFF",
                 "WPM_ARCH": "x86",
                 "WPM_THIRD_PARTY_ARCH": "x86",
