@@ -49,6 +49,22 @@ issue-reporting guidance.
 WPM uses third-party open-source software. See
 [Third-Party Notices](THIRD_PARTY_NOTICES.md) for attribution and licenses.
 
+## Building with TinyCC and WCRT
+
+The experimental `tcc-x64-wcrt` preset builds WPM with TinyCC and links its C
+library calls to WCRT instead of MSVCRT. It finds the newest package beneath
+`%ProgramFiles%\WCRT`, or uses `WPM_WCRT_ROOT` when that environment variable
+is set. The installed WCRT package must match the requested architecture.
+
+```powershell
+cmake --preset tcc-x64-wcrt
+cmake --build --preset build-tcc-x64-wcrt
+ctest --test-dir out/build/tcc-x64-wcrt -C Release --output-on-failure
+```
+
+The output is written to `bin/tcc-x64-wcrt/Release`. Keep `wcrt.dll` beside
+`wpm.exe` when copying or packaging this build.
+
 ## Official release signing key
 
 Official WPM packages are signed with the durable public key in

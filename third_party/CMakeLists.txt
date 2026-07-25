@@ -60,8 +60,13 @@ if(NOT TARGET miniz)
     "${MINIZ_SOURCE_DIR}/miniz_tdef.c"
   )
 
-  if(WPM_WINDOWS_XP_COMPAT)
-    target_sources(miniz PRIVATE "${CMAKE_SOURCE_DIR}/wpm/tcc_compat/utime.c")
+  if(WPM_WINDOWS_XP_COMPAT OR WPM_USE_WCRT)
+    target_sources(miniz PRIVATE
+      "${CMAKE_SOURCE_DIR}/wpm/tcc_compat/utime.c"
+    )
+    if(WPM_USE_WCRT)
+      target_sources(miniz PRIVATE "${CMAKE_SOURCE_DIR}/wpm/tcc_compat/wcrt_stat.c")
+    endif()
   endif()
 
   generate_export_header(miniz)
@@ -129,6 +134,11 @@ if(NOT TARGET libsodium)
     # libsodium includes this header for Windows, but the APIs used by this
     # translation unit are already declared by TinyCC's windows.h.
     file(WRITE "${LIBSODIUM_GENERATED_INCLUDE_DIR}/wincrypt.h" "#pragma once\n")
+    if(WPM_USE_WCRT)
+      # This header is included unconditionally by libsodium's cross-platform
+      # RNG source, but none of its declarations are used by the Windows path.
+      file(WRITE "${LIBSODIUM_GENERATED_INCLUDE_DIR}/fcntl.h" "#pragma once\n")
+    endif()
   endif()
   configure_file(
     "${LIBSODIUM_SOURCE_DIR}/builds/msvc/version.h"

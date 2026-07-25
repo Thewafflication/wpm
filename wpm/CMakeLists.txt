@@ -46,7 +46,9 @@ if(NOT CMAKE_C_COMPILER_ID STREQUAL "TinyCC")
   list(APPEND wpm_sources "${WPM_VERSION_RESOURCE}")
 else()
   list(APPEND wpm_sources "tcc_compat/secure_crt.c")
-  if(WPM_WINDOWS_XP_COMPAT)
+  if(WPM_USE_WCRT)
+    list(APPEND wpm_sources "tcc_compat/wcrt_start.c")
+  elseif(WPM_WINDOWS_XP_COMPAT)
     list(APPEND wpm_sources "tcc_compat/xp_crt.c")
   endif()
 endif()
@@ -103,6 +105,19 @@ if(CMAKE_C_COMPILER_ID STREQUAL "TinyCC")
     "${CMAKE_CURRENT_SOURCE_DIR}/tcc_compat/advapi32.def"
     "${CMAKE_CURRENT_SOURCE_DIR}/tcc_compat/version.def"
   )
+  if(WPM_USE_WCRT)
+    target_link_options(wpm PRIVATE
+      -nostdlib
+      "${WPM_TCC_ROOT}/lib/kernel32.def"
+      "${WPM_WCRT_ROOT}/lib/wcrt.def"
+    )
+    add_custom_command(TARGET wpm POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${WPM_WCRT_ROOT}/bin/wcrt.dll"
+        "$<TARGET_FILE_DIR:wpm>/wcrt.dll"
+      VERBATIM
+    )
+  endif()
 else()
   target_link_libraries(wpm PRIVATE urlmon advapi32 version)
 endif()
@@ -145,6 +160,7 @@ if(BUILD_TESTING)
   set(WPM_TEST_CASE_COUNT 0)
   macro(wpm_add_test_case test_id test_slug test_script test_tex)
     math(EXPR WPM_TEST_CASE_COUNT "${WPM_TEST_CASE_COUNT} + 1")
+    list(APPEND WPM_TEST_NAMES ${test_id})
     add_test(
       NAME ${test_id}
       COMMAND ${WPM_POWERSHELL_EXECUTABLE}
@@ -233,6 +249,12 @@ if(BUILD_TESTING)
   wpm_add_test_case(TC-0011 tc-0011 tc-0011-https-repositories.ps1 tc-0011-https-repositories.tex)
   wpm_add_test_case(TC-0012 tc-0012 tc-0012-package-signing-and-validation.ps1 tc-0012-package-signing-and-validation.tex)
   wpm_add_test_case(TC-0013 tc-0013 tc-0013-version-aware-upgrades.ps1 tc-0013-version-aware-upgrades.tex)
+
+  if(WPM_USE_WCRT)
+    set_tests_properties(${WPM_TEST_NAMES} PROPERTIES
+      ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:wpm>"
+    )
+  endif()
 
   add_custom_target(check
     COMMAND ${CMAKE_CTEST_COMMAND} --build-config $<CONFIG> --output-on-failure

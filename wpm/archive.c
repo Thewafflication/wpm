@@ -437,9 +437,13 @@ static int calculate_file_blake2b(const char* path, char* hex, size_t hex_size) 
     verbose_log("Computing BLAKE2b hash: %s", path);
     file = wpm_fopen(path, "rb");
 
-    if (!file) return 0;
+    if (!file) {
+        verbose_log("Could not open hash input");
+        return 0;
+    }
     if (!ensure_sodium_ready() ||
         crypto_generichash_init(&state, NULL, 0, sizeof(hash)) != 0) {
+        verbose_log("Could not initialize BLAKE2b state");
         fclose(file);
         return 0;
     }
@@ -448,12 +452,14 @@ static int calculate_file_blake2b(const char* path, char* hex, size_t hex_size) 
         size_t bytes_read = fread(buffer, 1, sizeof(buffer), file);
         if (bytes_read > 0) {
             if (crypto_generichash_update(&state, buffer, bytes_read) != 0) {
+                verbose_log("Could not update BLAKE2b state");
                 fclose(file);
                 return 0;
             }
         }
         if (bytes_read < sizeof(buffer)) {
             if (ferror(file)) {
+                verbose_log("Hash input reported a read error after %lu bytes", (unsigned long)bytes_read);
                 fclose(file);
                 return 0;
             }
@@ -462,12 +468,17 @@ static int calculate_file_blake2b(const char* path, char* hex, size_t hex_size) 
     }
 
     if (crypto_generichash_final(&state, hash, sizeof(hash)) != 0) {
+        verbose_log("Could not finalize BLAKE2b state");
         fclose(file);
         return 0;
     }
 
     sodium_bin2hex(hex, hex_size, hash, sizeof(hash));
-    return fclose(file) == 0;
+    if (fclose(file) != 0) {
+        verbose_log("Could not close hash input");
+        return 0;
+    }
+    return 1;
 }
 
 static int get_file_size_bytes(const char* path, unsigned long long* size) {
@@ -557,6 +568,7 @@ static int write_index_entries(
         else {
             char source_full_path[WPM_PATH_SIZE];
             char blake2b[WPM_BLAKE2B_HEX_SIZE];
+            char index_line[WPM_PATH_SIZE + WPM_BLAKE2B_HEX_SIZE + 64];
             unsigned long long file_size;
 
             if (!normalized_full_path(source_path, source_full_path, sizeof(source_full_path))) {
@@ -569,7 +581,9 @@ static int write_index_entries(
 
             if (!get_file_size_bytes(source_path, &file_size) ||
                 !calculate_file_blake2b(source_path, blake2b, sizeof(blake2b)) ||
-                fprintf(index, "%s,%llu,%s,blake2b\n", archive_path, file_size, blake2b) < 0) {
+                snprintf(index_line, sizeof(index_line), "%s,%llu,%s,blake2b\n",
+                         archive_path, file_size, blake2b) < 0 ||
+                fputs(index_line, index) < 0) {
                 FindClose(search);
                 return 0;
             }
