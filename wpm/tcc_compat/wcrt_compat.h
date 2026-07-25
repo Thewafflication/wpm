@@ -3,6 +3,13 @@
 
 #include <stddef.h>
 #include <stdio.h>
+#include <time.h>
+
+/* WCRT uses a 64-bit time_t on every architecture. Prevent TinyCC's MinGW
+ * compatibility headers from redeclaring it as 32-bit in x86 builds. */
+#ifndef _TIME_T_DEFINED
+#define _TIME_T_DEFINED
+#endif
 
 #ifndef ULLONG_MAX
 #define ULLONG_MAX 18446744073709551615ULL

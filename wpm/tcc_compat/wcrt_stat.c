@@ -52,3 +52,12 @@ int __cdecl _stat64(const char *path, struct _stat64 *result)
     result->st_ctime = file_time_to_unix(data.ftCreationTime);
     return 0;
 }
+
+#if defined(__i386__)
+/* TinyCC's 32-bit PE linker canonicalizes the imported _stat64 spelling to
+ * _stat even when the public header selects the 64-bit-time structure. */
+int __cdecl _stat(const char *path, struct _stat64 *result)
+{
+    return _stat64(path, result);
+}
+#endif

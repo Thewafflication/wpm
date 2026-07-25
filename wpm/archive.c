@@ -58,6 +58,48 @@ static const char* path_basename(const char* path);
 static int normalized_full_path(const char* path, char* result, size_t result_size);
 static int join_path(char* result, size_t result_size, const char* left, const char* right);
 
+static size_t wpm_zip_read_file(void* opaque, mz_uint64 offset, void* buffer, size_t size) {
+    HANDLE file = (HANDLE)opaque;
+    LARGE_INTEGER position;
+    DWORD bytes_to_read;
+    DWORD bytes_read = 0;
+
+    if (size > MAXDWORD) size = MAXDWORD;
+    position.QuadPart = (LONGLONG)offset;
+    bytes_to_read = (DWORD)size;
+    if (!SetFilePointerEx(file, position, NULL, FILE_BEGIN) ||
+        !ReadFile(file, buffer, bytes_to_read, &bytes_read, NULL)) {
+        return 0;
+    }
+    return (size_t)bytes_read;
+}
+
+static int wpm_zip_add_file(mz_zip_archive* zip, const char* archive_path, const char* source_path) {
+    HANDLE file;
+    LARGE_INTEGER size;
+    DWORD size_high = 0;
+    DWORD size_low;
+    mz_bool added;
+
+    file = CreateFileA(source_path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING,
+        FILE_ATTRIBUTE_NORMAL, NULL);
+    if (file == INVALID_HANDLE_VALUE) return 0;
+    SetLastError(NO_ERROR);
+    size_low = GetFileSize(file, &size_high);
+    if (size_low == INVALID_FILE_SIZE && GetLastError() != NO_ERROR) {
+        CloseHandle(file);
+        return 0;
+    }
+    size.HighPart = (LONG)size_high;
+    size.LowPart = size_low;
+
+    added = mz_zip_writer_add_read_buf_callback(zip, archive_path, wpm_zip_read_file,
+        file, (mz_uint64)size.QuadPart, NULL, NULL, 0, MZ_BEST_COMPRESSION,
+        NULL, 0, NULL, 0);
+    CloseHandle(file);
+    return added != MZ_FALSE;
+}
+
 int wpm_get_data_root(char* result, size_t result_size) {
     char configured_root[WPM_PATH_SIZE];
     char program_data[WPM_PATH_SIZE];
@@ -725,14 +767,7 @@ static int add_directory_to_zip(
 
             verbose_log("Adding file to archive: %s", archive_path);
 
-            if (!mz_zip_writer_add_file(
-                    zip,
-                    archive_path,
-                    source_path,
-                    NULL,
-                    0,
-                    MZ_BEST_COMPRESSION
-                )) {
+            if (!wpm_zip_add_file(zip, archive_path, source_path)) {
                 FindClose(search);
                 return 0;
             }

@@ -51,10 +51,11 @@ WPM uses third-party open-source software. See
 
 ## Building with TinyCC and WCRT
 
-The experimental `tcc-x64-wcrt` preset builds WPM with TinyCC and links its C
-library calls to WCRT instead of MSVCRT. It finds the newest package beneath
-`%ProgramFiles%\WCRT`, or uses `WPM_WCRT_ROOT` when that environment variable
-is set. The installed WCRT package must match the requested architecture.
+The experimental `tcc-x86-wcrt`, `tcc-x64-wcrt`, and `tcc-arm64-wcrt` presets
+build WPM with TinyCC and link its C library calls to WCRT instead of MSVCRT.
+They find the newest package beneath `%ProgramFiles%\WCRT`, or use
+`WPM_WCRT_ROOT` when that CMake or environment variable is set. The selected
+WCRT package must match the requested architecture.
 
 ```powershell
 cmake --preset tcc-x64-wcrt
@@ -62,8 +63,10 @@ cmake --build --preset build-tcc-x64-wcrt
 ctest --test-dir out/build/tcc-x64-wcrt -C Release --output-on-failure
 ```
 
-The output is written to `bin/tcc-x64-wcrt/Release`. Keep `wcrt.dll` beside
-`wpm.exe` when copying or packaging this build.
+Replace `x64` with `x86` for the 32-bit build. ARM64 can be cross-built with
+`tcc-arm64-wcrt`, but its tests must run on an ARM64 Windows host. Outputs are
+written beneath `bin/tcc-<architecture>-wcrt/Release`. Keep the matching
+`wcrt.dll` beside `wpm.exe` when copying or packaging these builds.
 
 ## Official release signing key
 

@@ -105,6 +105,13 @@ if(CMAKE_C_COMPILER_ID STREQUAL "TinyCC")
     "${CMAKE_CURRENT_SOURCE_DIR}/tcc_compat/advapi32.def"
     "${CMAKE_CURRENT_SOURCE_DIR}/tcc_compat/version.def"
   )
+  if(wpm_arch STREQUAL "x86")
+    get_filename_component(tcc_bin_dir "${CMAKE_C_COMPILER}" DIRECTORY)
+    target_link_libraries(wpm PRIVATE "${tcc_bin_dir}/lib/i386-win32-libtcc1.a")
+  elseif(wpm_arch STREQUAL "arm64")
+    get_filename_component(tcc_bin_dir "${CMAKE_C_COMPILER}" DIRECTORY)
+    target_link_libraries(wpm PRIVATE "${tcc_bin_dir}/lib/arm64-win32-libtcc1.a")
+  endif()
   if(WPM_USE_WCRT)
     target_link_options(wpm PRIVATE
       -nostdlib
