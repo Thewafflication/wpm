@@ -97,9 +97,11 @@ algorithm=ed25519
 public-key=<base64-encoded 32-byte Ed25519 public key>
 ```
 
-WPM shall derive the key identifier itself and shall reject duplicate active
-keys, malformed key files, and attempts to revoke an unknown key. Revocation
-shall be durable and a revoked key shall not be reactivated by `trust add`.
+WPM shall derive the key identifier itself. Adding an already-active key shall
+succeed as an idempotent operation and report that the key is already trusted.
+WPM shall reject malformed key files and attempts to revoke an unknown key.
+Revocation shall be durable and a revoked key shall not be reactivated by
+`trust add`.
 Private keys shall never enter the trust store. Adding a repository shall not
 add or trust a signing key.
 

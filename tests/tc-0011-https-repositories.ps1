@@ -45,6 +45,7 @@ function Get-WpmArchitecture {
 
 $testId = [Guid]::NewGuid().ToString('N')
 $packageName = "repository-test-$testId"
+$architectureOnlyPackage = "architecture-only-$testId"
 $testRoot = Join-Path ([IO.Path]::GetTempPath()) "wpm-repositories-$testId"
 $dataDir = Join-Path $testRoot 'wpm-data'
 $sourceA = Join-Path $testRoot 'source-a'
@@ -115,7 +116,7 @@ try {
         foreach ($repository in @($repositoryA, $repositoryB)) {
             $path = Get-RepositoryCachePath $dataDir $repository
             New-Item -ItemType Directory -Force -Path (Split-Path -Parent $path) | Out-Null
-            Set-Content -LiteralPath $path -NoNewline -Value "{`"version`":1,`"packages`": [{`"name`":`"$packageName`",`"version`":`"2.0.0`",`"arch`":`"$incompatibleArchitecture`",`"url`":`"packages/$archiveName`"},{`"name`":`"$packageName`",`"version`":`"1.0.0`",`"arch`":`"any`",`"url`":`"packages/$archiveName`"}]}"
+            Set-Content -LiteralPath $path -NoNewline -Value "{`"version`":1,`"packages`": [{`"name`":`"$packageName`",`"version`":`"2.0.0`",`"arch`":`"$incompatibleArchitecture`",`"url`":`"packages/$archiveName`"},{`"name`":`"$packageName`",`"version`":`"1.0.0`",`"arch`":`"any`",`"url`":`"packages/$archiveName`"},{`"name`":`"$architectureOnlyPackage`",`"version`":`"1.0.0`",`"arch`":`"$incompatibleArchitecture`",`"url`":`"packages/$archiveName`"}]}"
         }
     }
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Refresh available cached indexes despite unavailable repositories' -Arguments @('repo', 'update', '--offline') -Assert {
@@ -138,12 +139,17 @@ try {
         param($ExitCode, $Output)
         if ($ExitCode -eq 0 -or $Output -notmatch 'was not found') { throw 'Expected offline resolution failure for missing package.' }
     }
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Suggest an available architecture when matching packages are incompatible' -Arguments @('install', $architectureOnlyPackage, '--offline', '--allow-unsigned') -Assert {
+        param($ExitCode, $Output)
+        if ($ExitCode -eq 0 -or $Output -notmatch "none support architecture $wpmArchitecture") { throw "Architecture mismatch did not produce a targeted warning. $Output" }
+        if ($Output -notmatch [regex]::Escape("wpm install $architectureOnlyPackage --arch $incompatibleArchitecture")) { throw 'Architecture warning did not include an actionable retry command.' }
+    }
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Explain repository package lookup in verbose mode' -Arguments @('install', 'missing-package', '--offline', '--verbose') -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -eq 0) { throw 'Expected verbose lookup of a missing package to fail.' }
         if ($Output -notmatch "Repository: configured\[0\].+$([regex]::Escape($repositoryA))") { throw 'Verbose output did not identify the first configured repository.' }
         if ($Output -notmatch "Repository: configured\[1\].+$([regex]::Escape($repositoryB))") { throw 'Verbose output did not identify the second configured repository.' }
-        if ($Output -notmatch 'Repository: parsed 2 package entries') { throw 'Verbose output did not report per-repository package counts.' }
+        if ($Output -notmatch 'Repository: parsed 3 package entries') { throw 'Verbose output did not report per-repository package counts.' }
         if ($Output -notmatch "resolution for 'missing-package': name matches=0") { throw 'Verbose output did not explain the failed package-name match.' }
     }
 }
