@@ -37,6 +37,12 @@ jobs:
         shell: pwsh
         run: cmake --build --preset build-tcc-x86-xp
 
+      - name: Verify XP PE headers and imports
+        shell: pwsh
+        run: >-
+          ./tests/verify-windows-xp-pe.ps1
+          -Executable ./bin/tcc-x86-xp/Release/wpm.exe
+
       - name: Run XP Release tests
         shell: pwsh
         run: |
