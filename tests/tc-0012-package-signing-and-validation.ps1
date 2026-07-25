@@ -132,6 +132,10 @@ try {
         param($ExitCode, $Output)
         if ($ExitCode -ne 0) { throw "Could not add trusted key. $Output" }
     }
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Accept already trusted signing key' -Arguments @('trust', 'add', $publicKey) -Assert {
+        param($ExitCode, $Output)
+        if ($ExitCode -ne 0 -or $Output -notmatch '(?i)already trusted') { throw "Adding an already trusted key was not idempotent. $Output" }
+    }
 
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Verify trusted package without installing it' -Arguments @('verify', $archivePath) -Assert {
         param($ExitCode, $Output)
@@ -179,6 +183,10 @@ try {
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Revoke trusted signing key' -Arguments @('trust', 'revoke', $untrustedKeyId) -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -ne 0) { throw "Could not revoke the second key. $Output" }
+    }
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Reject re-adding revoked signing key' -Arguments @('trust', 'add', $untrustedPublicKey) -Assert {
+        param($ExitCode, $Output)
+        if ($ExitCode -eq 0 -or $Output -notmatch '(?i)revoked') { throw "Revoked key was reactivated or reported unclearly. $Output" }
     }
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Reject package signed by revoked key' -Arguments @('install', $untrustedArchivePath) -Assert {
         param($ExitCode, $Output)
