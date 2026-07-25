@@ -62,7 +62,7 @@ static void print_diagnostics(void)
     printf("Configuration directory: %s\\config\n", data_root);
 }
 
-static void print_windows_dependency_version(const char* display_name, const char* module_name)
+static void print_windows_dependency_version(const char* display_name, const char* module_name, const char* description)
 {
     HMODULE module = GetModuleHandleA(module_name);
     char path[MAX_PATH];
@@ -75,19 +75,19 @@ static void print_windows_dependency_version(const char* display_name, const cha
     if (!module || GetModuleFileNameA(module, path, sizeof(path)) == 0 ||
         (size = GetFileVersionInfoSizeA(path, &handle)) == 0 ||
         (version_data = malloc(size)) == NULL) {
-        printf("  %s unknown (Windows system library)\n", display_name);
+        printf("  %s unknown (%s)\n", display_name, description);
         return;
     }
     if (!GetFileVersionInfoA(path, 0, size, version_data) ||
         !VerQueryValueA(version_data, "\\", (LPVOID*)&fixed_info, &fixed_info_size) ||
         fixed_info_size < sizeof(*fixed_info)) {
-        printf("  %s unknown (Windows system library)\n", display_name);
+        printf("  %s unknown (%s)\n", display_name, description);
         free(version_data);
         return;
     }
-    printf("  %s %u.%u.%u.%u (Windows system library)\n", display_name,
+    printf("  %s %u.%u.%u.%u (%s)\n", display_name,
         HIWORD(fixed_info->dwFileVersionMS), LOWORD(fixed_info->dwFileVersionMS),
-        HIWORD(fixed_info->dwFileVersionLS), LOWORD(fixed_info->dwFileVersionLS));
+        HIWORD(fixed_info->dwFileVersionLS), LOWORD(fixed_info->dwFileVersionLS), description);
     free(version_data);
 }
 
@@ -416,8 +416,11 @@ void print_version()
         WPM_SODIUM_VERSION,
         WPM_SODIUM_COMMIT,
         WPM_SODIUM_DIRTY ? ", dirty" : "");
-    print_windows_dependency_version("urlmon", "urlmon.dll");
-    print_windows_dependency_version("advapi32", "advapi32.dll");
+    if (GetModuleHandleA("wcrt.dll")) {
+        print_windows_dependency_version("wcrt", "wcrt.dll", "runtime library");
+    }
+    print_windows_dependency_version("urlmon", "urlmon.dll", "Windows system library");
+    print_windows_dependency_version("advapi32", "advapi32.dll", "Windows system library");
 }
 
 void print_usage(Command c) {

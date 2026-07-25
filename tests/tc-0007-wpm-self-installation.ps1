@@ -108,6 +108,10 @@ try {
         if (-not (Test-Path -LiteralPath (Join-Path $installDir 'wpm.exe') -PathType Leaf)) {
             throw "setup.cmd did not install wpm.exe to $installDir"
         }
+        $sourceRuntime = Join-Path (Split-Path -Parent $WpmExe) 'wcrt.dll'
+        if ((Test-Path -LiteralPath $sourceRuntime) -and -not (Test-Path -LiteralPath (Join-Path $installDir 'wcrt.dll') -PathType Leaf)) {
+            throw "setup.cmd did not install wcrt.dll to $installDir"
+        }
         $environment = Get-WpmTestEnvironment
         if ($environment.WPM -ne $installDir -or $environment.Path -notmatch [regex]::Escape('%WPM%')) {
             throw 'Default setup.cmd did not configure the persistent environment entries.'

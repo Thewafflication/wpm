@@ -56,6 +56,11 @@ file(MAKE_DIRECTORY
 )
 
 configure_file("${WPM_PACKAGE_EXECUTABLE}" "${WPM_PACKAGE_STAGING_DIR}/wpm.exe" COPYONLY)
+get_filename_component(wpm_package_executable_dir "${WPM_PACKAGE_EXECUTABLE}" DIRECTORY)
+set(wpm_package_runtime_dll "${wpm_package_executable_dir}/wcrt.dll")
+if(EXISTS "${wpm_package_runtime_dll}")
+  configure_file("${wpm_package_runtime_dll}" "${WPM_PACKAGE_STAGING_DIR}/wcrt.dll" COPYONLY)
+endif()
 configure_file("${WPM_SETUP_SCRIPT}" "${WPM_PACKAGE_STAGING_DIR}/setup.cmd" COPYONLY)
 configure_file("${WPM_REMOVE_SCRIPT}" "${WPM_PACKAGE_STAGING_DIR}/remove.cmd" COPYONLY)
 configure_file("${WPM_README_FILE}" "${WPM_PACKAGE_STAGING_DIR}/README.md" COPYONLY)

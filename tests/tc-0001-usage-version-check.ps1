@@ -12,6 +12,7 @@ $WpmExe = (Resolve-Path -LiteralPath $WpmExe).Path
 . (Join-Path $PSScriptRoot 'wpm-test-lib.ps1')
 
 $started = Get-Date
+$expectsWcrt = Test-Path -LiteralPath (Join-Path (Split-Path -Parent $WpmExe) 'wcrt.dll')
 $results = @(
     Invoke-WpmTestStep `
         -WpmExe $WpmExe `
@@ -42,6 +43,9 @@ $results = @(
                 $Output -notmatch 'urlmon \d+\.\d+\.\d+\.\d+ \(Windows system library\)' -or
                 $Output -notmatch 'advapi32 \d+\.\d+\.\d+\.\d+ \(Windows system library\)') {
                 throw 'Expected dependency version information in output.'
+            }
+            if ($expectsWcrt -and $Output -notmatch 'wcrt \d+\.\d+\.\d+\.\d+ \(runtime library\)') {
+                throw 'Expected the WCRT runtime dependency version in output.'
             }
         }
 

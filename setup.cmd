@@ -22,6 +22,7 @@ if not defined WPM_INSTALL_SCOPE (
 
 set "SOURCE_EXE=%~1"
 if not defined SOURCE_EXE set "SOURCE_EXE=%SOURCE_ROOT%wpm.exe"
+for %%I in ("%SOURCE_EXE%") do set "SOURCE_RUNTIME_DIR=%%~dpI"
 
 if not exist "%SOURCE_EXE%" (
     echo Error: WPM executable not found: "%SOURCE_EXE%"
@@ -51,6 +52,13 @@ copy /y "%SOURCE_EXE%" "%WPM_INSTALL_DIR%\wpm.exe" >nul
 if errorlevel 1 (
     echo Error: could not install WPM to "%WPM_INSTALL_DIR%"
     exit /b 1
+)
+if exist "%SOURCE_RUNTIME_DIR%wcrt.dll" (
+    copy /y "%SOURCE_RUNTIME_DIR%wcrt.dll" "%WPM_INSTALL_DIR%\wcrt.dll" >nul
+    if errorlevel 1 (
+        echo Error: could not install WCRT to "%WPM_INSTALL_DIR%"
+        exit /b 1
+    )
 )
 
 for %%F in ("%SOURCE_ROOT%README.md" "%SOURCE_ROOT%LICENSE.txt" "%SOURCE_ROOT%THIRD_PARTY_NOTICES.md") do (
