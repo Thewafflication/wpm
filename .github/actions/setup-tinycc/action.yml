@@ -19,6 +19,8 @@ runs:
         if (-not (Test-Path -LiteralPath $wpm)) {
           throw "The latest WPM release was not installed at $wpm."
         }
+        & $wpm repo add 'https://github.com/Thewafflication/tcc_package/releases/latest/download'
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         & $wpm config set prerelease true --package tinycc
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         & $wpm install tinycc
