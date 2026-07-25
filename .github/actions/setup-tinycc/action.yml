@@ -23,6 +23,14 @@ runs:
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         & $wpm config set prerelease true --package tinycc
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+        $tinyccPublicKey = Join-Path $env:RUNNER_TEMP 'tinycc-wpm-release.public'
+        Invoke-WebRequest -UseBasicParsing `
+          -Uri 'https://github.com/Thewafflication/tcc_package/releases/latest/download/wpm-release.public' `
+          -OutFile $tinyccPublicKey
+        & $wpm trust add $tinyccPublicKey
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
         & $wpm install tinycc
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
