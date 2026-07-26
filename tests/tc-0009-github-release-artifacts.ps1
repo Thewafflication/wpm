@@ -15,6 +15,7 @@ $started = Get-Date
 $releaseWorkflow = Join-Path $PSScriptRoot '..\.github\workflows\release.yml'
 $testReportWorkflow = Join-Path $PSScriptRoot '..\.github\workflows\test-reports.yml'
 $toolchainAction = Join-Path $PSScriptRoot '..\.github\actions\setup-tinycc\action.yml'
+$tinyccToolchain = Join-Path $PSScriptRoot '..\cmake\toolchains\tcc-x86-xp.cmake'
 $cmakePresets = Join-Path $PSScriptRoot '..\CMakePresets.json'
 $xpWorkflow = Join-Path $PSScriptRoot '..\.github\workflows\xp-release.yml'
 $results = @(
@@ -118,6 +119,12 @@ $results = @(
                     $preset.cacheVariables.WPM_WINDOWS_XP_COMPAT -ne 'OFF') {
                     throw "$name must use TinyCC with WCRT and without the custom XP runtime."
                 }
+            }
+            $toolchain = Get-Content -Raw -LiteralPath $tinyccToolchain
+            if ($toolchain -notmatch 'TinyCCArchiver\.ps1' -or
+                $toolchain -notmatch '\\"<CMAKE_C_COMPILER>\\"' -or
+                $toolchain -match 'tcc-ar\.cmd') {
+                throw 'TinyCC archive rules must preserve compiler paths containing spaces.'
             }
             if (Test-Path -LiteralPath $xpWorkflow) { throw 'The custom XP runtime workflow must not be restored.' }
             'Every supported Windows architecture is configured for TinyCC and WCRT.'

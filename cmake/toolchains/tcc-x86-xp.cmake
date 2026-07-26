@@ -47,16 +47,18 @@ else()
 endif()
 
 set(CMAKE_C_COMPILER "${WPM_TCC_ROOT}/${WPM_TCC_DRIVER}" CACHE FILEPATH "TinyCC compiler")
-get_filename_component(WPM_TCC_ARCHIVER
-  "${CMAKE_CURRENT_LIST_DIR}/../tcc-ar.cmd"
+get_filename_component(WPM_TCC_ARCHIVER_SCRIPT
+  "${CMAKE_CURRENT_LIST_DIR}/../TinyCCArchiver.ps1"
   ABSOLUTE
 )
-set(CMAKE_AR "${WPM_TCC_ARCHIVER}" CACHE FILEPATH "TinyCC archiver wrapper")
+find_program(WPM_POWERSHELL_EXECUTABLE powershell.exe REQUIRED)
+set(CMAKE_AR "${WPM_POWERSHELL_EXECUTABLE}" CACHE FILEPATH "PowerShell used by the TinyCC archiver")
 
 # TinyCC exposes its archive writer through `tcc -ar`, rather than through a
-# separate ar.exe program.
-set(CMAKE_C_ARCHIVE_CREATE "<CMAKE_AR> \"<CMAKE_C_COMPILER>\" rc <TARGET> <OBJECTS>")
-set(CMAKE_C_ARCHIVE_APPEND "<CMAKE_AR> \"<CMAKE_C_COMPILER>\" r <TARGET> <OBJECTS>")
+# separate ar.exe program. Invoke the PowerShell script directly so a compiler
+# installed below Program Files remains one quoted argument across cmd.exe.
+set(CMAKE_C_ARCHIVE_CREATE "<CMAKE_AR> -NoProfile -ExecutionPolicy Bypass -File \"${WPM_TCC_ARCHIVER_SCRIPT}\" \"<CMAKE_C_COMPILER>\" rc <TARGET> <OBJECTS>")
+set(CMAKE_C_ARCHIVE_APPEND "<CMAKE_AR> -NoProfile -ExecutionPolicy Bypass -File \"${WPM_TCC_ARCHIVER_SCRIPT}\" \"<CMAKE_C_COMPILER>\" r <TARGET> <OBJECTS>")
 set(CMAKE_C_ARCHIVE_FINISH "")
 
 if(NOT EXISTS "${CMAKE_C_COMPILER}")
