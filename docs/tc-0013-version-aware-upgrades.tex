@@ -38,7 +38,7 @@
 \item Successful upgrades retain both prior and new archives, clean staging, and create an audit record linking old and new versions.
 \item A failed script preserves prior state, does not retain the candidate as successfully installed, cleans staging, creates a failure audit, and produces a nonzero result.
 \item Multi-package processing continues after a failure, reports each identity as upgraded, current, or failed, and returns nonzero when any identity fails.
-\item WPM self-upgrade uses a cached candidate executable to complete replacement after the original process releases the installed executable.
+\item WPM self-upgrade uses a unique cached candidate executable to complete replacement after the original process releases the installed executable, even when a stale non-overwritable legacy cache entry exists.
 \item Self-upgrade reports \texttt{scheduled} in the invoking process and records install-script output plus the final result in its persistent log.
 \item The cached candidate accepts the legacy eight-argument self-upgrade handoff used by earlier WPM releases.
 \item The cached candidate starts and completes installation without a private sidecar runtime.

@@ -287,7 +287,11 @@ try {
 
     $results += New-WpmManualStep -Name 'Install WPM baseline for isolated self-upgrade validation' -Action {
         Install-Baseline $packages.Self '1.0.0' $wpmArchitecture
-        'WPM baseline installed after the upgrade-all scenarios completed.'
+        $legacyCache = Join-Path $dataDir "cache\self-upgrade\wpm-$wpmArchitecture-2.0.0.exe"
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $legacyCache) | Out-Null
+        Copy-Item -LiteralPath $WpmExe -Destination $legacyCache
+        (Get-Item -LiteralPath $legacyCache).IsReadOnly = $true
+        'WPM baseline installed with a stale, non-overwritable legacy cache entry.'
     }
 
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Complete WPM self-upgrade through cached executable handoff' -Arguments @('upgrade','wpm','--offline','--allow-unsigned') -Assert {
@@ -301,7 +305,11 @@ try {
             Start-Sleep -Milliseconds 100
         }
         if (-not (Test-Path -LiteralPath $markerPath) -or (Get-Content -Raw -LiteralPath $markerPath) -notmatch 'self-2\.0\.0') { $log = if (Test-Path -LiteralPath $logPath) { Get-Content -Raw -LiteralPath $logPath } else { '<missing>' }; throw "Cached WPM handoff did not complete the installation. Log: $log" }
-        if (-not (Test-Path -LiteralPath (Join-Path $dataDir "cache\self-upgrade\wpm-$wpmArchitecture-2.0.0.exe"))) { throw 'Candidate WPM executable was not retained in the self-upgrade cache.' }
+        $cachedCandidates = @(Get-ChildItem -LiteralPath (Join-Path $dataDir 'cache\self-upgrade') -Filter wpm.exe -File -Recurse)
+        if (-not $cachedCandidates) { throw 'Candidate WPM executable was not retained in a unique self-upgrade cache directory.' }
+        $legacyCache = Join-Path $dataDir "cache\self-upgrade\wpm-$wpmArchitecture-2.0.0.exe"
+        if (-not (Get-Item -LiteralPath $legacyCache).IsReadOnly) { throw 'Self-upgrade unexpectedly replaced the stale legacy cache entry.' }
+        (Get-Item -LiteralPath $legacyCache).IsReadOnly = $false
         $deadline = [DateTime]::UtcNow.AddSeconds(60)
         while ([DateTime]::UtcNow -lt $deadline) {
             if ((Test-Path -LiteralPath $logPath) -and (Get-Content -Raw -LiteralPath $logPath) -match "Result: wpm $wpmArchitecture upgraded") { break }

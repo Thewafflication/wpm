@@ -184,7 +184,8 @@ multiple-version package model.
 
 When upgrading the `wpm` package itself, the running installed executable shall
 not attempt to overwrite itself. After validating the candidate package, WPM
-shall copy the candidate `wpm.exe` beneath `cache\self-upgrade`, copy any
+shall copy the candidate `wpm.exe` into a collision-resistant handoff directory
+beneath `cache\self-upgrade`, copy any
 optional sidecar runtime supplied by a legacy package, launch the cached
 executable as a detached completion process, and exit. Official Release
 packages shall contain a self-contained `wpm.exe` that can start from the cache

@@ -1425,7 +1425,8 @@ int wpm_archive_schedule_self_upgrade(const char* archive_path, int allow_unsign
     const char* old_version) {
     char archive_full[WPM_PATH_SIZE], root[WPM_PATH_SIZE], temp[WPM_PATH_SIZE];
     char stage[WPM_PATH_SIZE], staged_exe[WPM_PATH_SIZE], staged_runtime[WPM_PATH_SIZE], cache[WPM_PATH_SIZE];
-    char handoff_dir[WPM_PATH_SIZE], handoff_exe[WPM_PATH_SIZE], handoff_runtime[WPM_PATH_SIZE];
+    char handoff_root[WPM_PATH_SIZE], handoff_dir[WPM_PATH_SIZE];
+    char handoff_exe[WPM_PATH_SIZE], handoff_runtime[WPM_PATH_SIZE];
     char audit_dir[WPM_PATH_SIZE], log_path[WPM_PATH_SIZE];
     char signing_key[65] = "", command[WPM_PATH_SIZE * 2];
     wpm_package_metadata metadata;
@@ -1439,15 +1440,17 @@ int wpm_archive_schedule_self_upgrade(const char* archive_path, int allow_unsign
         !join_path(staged_exe, sizeof(staged_exe), stage, "wpm.exe") ||
         !join_path(staged_runtime, sizeof(staged_runtime), stage, "wcrt.dll") ||
         !join_path(cache, sizeof(cache), root, "cache") ||
-        !join_path(handoff_dir, sizeof(handoff_dir), cache, "self-upgrade") ||
+        !join_path(handoff_root, sizeof(handoff_root), cache, "self-upgrade") ||
+        snprintf(handoff_dir, sizeof(handoff_dir), "%s\\%s-%s-%lu", handoff_root,
+            expected_arch, expected_version, (unsigned long)GetCurrentProcessId()) < 0 ||
+        !join_path(handoff_exe, sizeof(handoff_exe), handoff_dir, "wpm.exe") ||
         !join_path(handoff_runtime, sizeof(handoff_runtime), handoff_dir, "wcrt.dll") ||
         !join_path(audit_dir, sizeof(audit_dir), root, "audit") ||
         snprintf(log_path, sizeof(log_path), "%s\\self-upgrade-%s-%s.log", audit_dir,
             expected_arch, expected_version) < 0 ||
-        snprintf(handoff_exe, sizeof(handoff_exe), "%s\\wpm-%s-%s.exe",
-            handoff_dir, expected_arch, expected_version) < 0 ||
         !create_directories(temp) || !create_directories(cache) || !create_directories(audit_dir) ||
-        !create_directories(handoff_dir) || !remove_directory_tree_with_retry(stage)) return 0;
+        !create_directories(handoff_root) || !create_directories(handoff_dir) ||
+        !remove_directory_tree_with_retry(stage)) return 0;
     DeleteFileA(log_path);
     memset(&metadata, 0, sizeof(metadata));
     strcpy_s(metadata.name, sizeof(metadata.name), "wpm");
@@ -1469,11 +1472,13 @@ int wpm_archive_schedule_self_upgrade(const char* archive_path, int allow_unsign
         goto cleanup;
     }
     if (!CopyFileA(staged_exe, handoff_exe, FALSE)) {
-        printf("Error: could not cache the WPM self-upgrade executable.\n");
+        printf("Error: could not cache the WPM self-upgrade executable (Windows error %lu).\n",
+            (unsigned long)GetLastError());
         goto cleanup;
     }
     if (file_exists_at_path(staged_runtime) && !CopyFileA(staged_runtime, handoff_runtime, FALSE)) {
-        printf("Error: could not cache the optional WPM runtime dependency.\n");
+        printf("Error: could not cache the optional WPM runtime dependency (Windows error %lu).\n",
+            (unsigned long)GetLastError());
         goto cleanup;
     }
     if (snprintf(command, sizeof(command), "\"%s\" --complete-self-upgrade \"%s\" %lu \"%s\" \"%s\" \"%s\" %d \"%s\"",
