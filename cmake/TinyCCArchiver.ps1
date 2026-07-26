@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory = $true, Position = 0)]
-    [string] $TinyCC,
+    [string] $TinyCCBase64,
 
     [Parameter(Mandatory = $true, Position = 1)]
     [string] $Mode,
@@ -10,6 +10,10 @@ param(
 
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]] $Inputs
+)
+
+$TinyCC = [Text.Encoding]::UTF8.GetString(
+    [Convert]::FromBase64String($TinyCCBase64)
 )
 
 $objects = foreach ($inputItem in $Inputs) {

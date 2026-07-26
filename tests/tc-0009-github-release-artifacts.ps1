@@ -122,7 +122,8 @@ $results = @(
             }
             $toolchain = Get-Content -Raw -LiteralPath $tinyccToolchain
             if ($toolchain -notmatch 'TinyCCArchiver\.ps1' -or
-                $toolchain -notmatch '\\"<CMAKE_C_COMPILER>\\"' -or
+                $toolchain -notmatch 'WPM_TCC_COMPILER_BASE64' -or
+                $toolchain -notmatch 'ToBase64String' -or
                 $toolchain -match 'tcc-ar\.cmd') {
                 throw 'TinyCC archive rules must preserve compiler paths containing spaces.'
             }
