@@ -17,6 +17,9 @@ packaged `setup.cmd`, propagate failure, and remove temporary content after
 success or failure. The bootstrap process's initial trust anchor is GitHub
 HTTPS.
 
+The bootstrapper shall report concise default progress while checking the
+latest release, downloading, extracting, validating, and installing WPM.
+
 `setup.cmd` shall:
 
 - install the executable supplied as its first argument, or `wpm.exe` beside

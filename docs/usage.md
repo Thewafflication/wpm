@@ -267,6 +267,14 @@ and `.wpm/wpmignore.txt`; `.wpm/index.csv` is not indexed.
 
 ### `install.cmd` and `remove.cmd`
 
+For directory-based applications, put deployable files beneath a top-level
+`payload` directory and keep `.wpm` beside it. On a single Windows volume,
+`install.cmd` can rename `payload` into its final location instead of copying
+every file. Do not rename the staging root: WPM owns it and the running script is
+located there. Installation scripts should move an existing destination aside,
+restore it on failure, and fall back to copying when the destination is on a
+different volume.
+
 Windows command scripts that define how the package is installed and removed.
 The generated scripts are templates for package authors to customize.
 

@@ -30,6 +30,22 @@ typedef struct wpm_package_metadata {
 } wpm_package_metadata;
 
 static int wpm_verbose = 0;
+static int wpm_progress_current = 1;
+static int wpm_progress_total = 1;
+
+void wpm_archive_set_progress(int current, int total) {
+    wpm_progress_current = current > 0 ? current : 1;
+    wpm_progress_total = total > 0 ? total : 1;
+}
+
+static void print_package_progress(const char* package_name, const char* phase) {
+    if (wpm_progress_total > 1) {
+        printf("[%d of %d] %s: %s...\n", wpm_progress_current, wpm_progress_total, package_name, phase);
+    }
+    else {
+        printf("%s: %s...\n", package_name, phase);
+    }
+}
 
 static ULONGLONG wpm_tick_count(void) {
 #if defined(_WIN32_WINNT) && _WIN32_WINNT < 0x0600
@@ -961,7 +977,7 @@ static int is_safe_archive_path(const char* path) {
     return 1;
 }
 
-static int create_parent_directory(const char* path) {
+static int create_parent_directory(const char* path, char* previous_parent, size_t previous_parent_size) {
     char parent[WPM_PATH_SIZE];
     char* separator;
 
@@ -969,12 +985,15 @@ static int create_parent_directory(const char* path) {
     separator = strrchr(parent, '\\');
     if (!separator) return 1;
     *separator = '\0';
-    return create_directories(parent);
+    if (_stricmp(parent, previous_parent) == 0) return 1;
+    if (!create_directories(parent)) return 0;
+    return strcpy_s(previous_parent, previous_parent_size, parent) == 0;
 }
 
 int wpm_archive_extract(const char* archive_path, const char* destination_dir) {
     mz_zip_archive zip;
     mz_uint file_count;
+    char previous_parent[WPM_PATH_SIZE] = "";
     int success = 0;
 
     verbose_log("Extracting archive: %s", archive_path);
@@ -1025,7 +1044,7 @@ int wpm_archive_extract(const char* archive_path, const char* destination_dir) {
         }
         else {
             verbose_log("Extracting file: %s", destination_path);
-            if (!create_parent_directory(destination_path) ||
+            if (!create_parent_directory(destination_path, previous_parent, sizeof(previous_parent)) ||
                 !mz_zip_reader_extract_to_file(&zip, i, destination_path, 0)) {
                 printf("Error: could not extract file: %s\n", destination_path);
                 goto cleanup;
@@ -1046,28 +1065,74 @@ static int file_exists_at_path(const char* path) {
         (attributes & FILE_ATTRIBUTE_DIRECTORY) == 0;
 }
 
-static int index_contains_path(const char* index_path, const char* archive_path) {
+typedef struct wpm_index_paths {
+    char** items;
+    size_t count;
+} wpm_index_paths;
+
+static int compare_index_paths(const void* left, const void* right) {
+    return _stricmp(*(const char* const*)left, *(const char* const*)right);
+}
+
+static void free_index_paths(wpm_index_paths* paths) {
+    for (size_t i = 0; i < paths->count; i++) free(paths->items[i]);
+    free(paths->items);
+    paths->items = NULL;
+    paths->count = 0;
+}
+
+static int load_index_paths(const char* index_path, wpm_index_paths* paths) {
     char line[WPM_PATH_SIZE + WPM_BLAKE2B_HEX_SIZE + 64];
     FILE* index = wpm_fopen(index_path, "r");
+    memset(paths, 0, sizeof(*paths));
     if (!index) return 0;
 
     while (fgets(line, sizeof(line), index)) {
         char* comma;
+        char* item;
+        char** resized;
         trim_line(line);
+        if (_stricmp(line, "filename,size,hash,algorithm") == 0) continue;
         comma = strchr(line, ',');
-        if (comma) *comma = '\0';
+        if (!comma) continue;
+        *comma = '\0';
         normalize_archive_separators(line);
-        if (_stricmp(line, archive_path) == 0) {
+        item = (char*)malloc(strlen(line) + 1);
+        if (!item) {
             fclose(index);
-            return 1;
+            free_index_paths(paths);
+            return 0;
         }
+        strcpy_s(item, strlen(line) + 1, line);
+        resized = (char**)realloc(paths->items, (paths->count + 1) * sizeof(*paths->items));
+        if (!resized) {
+            free(item);
+            fclose(index);
+            free_index_paths(paths);
+            return 0;
+        }
+        paths->items = resized;
+        paths->items[paths->count++] = item;
     }
-
+    if (ferror(index)) {
+        fclose(index);
+        free_index_paths(paths);
+        return 0;
+    }
     fclose(index);
-    return 0;
+    if (paths->count > 1) {
+        qsort(paths->items, paths->count, sizeof(*paths->items), compare_index_paths);
+    }
+    return 1;
 }
 
-static int verify_index_completeness(const char* destination_dir, const char* relative_dir, const char* index_path) {
+static int index_contains_path(const wpm_index_paths* paths, const char* archive_path) {
+    const char* key = archive_path;
+    if (paths->count == 0) return 0;
+    return bsearch(&key, paths->items, paths->count, sizeof(*paths->items), compare_index_paths) != NULL;
+}
+
+static int verify_index_completeness(const char* destination_dir, const char* relative_dir, const wpm_index_paths* paths) {
     char search_dir[WPM_PATH_SIZE];
     char search_pattern[WPM_PATH_SIZE];
     WIN32_FIND_DATAA entry;
@@ -1091,13 +1156,13 @@ static int verify_index_completeness(const char* destination_dir, const char* re
         }
         normalize_archive_separators(relative_path);
         if (entry.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-            if (!verify_index_completeness(destination_dir, relative_path, index_path)) {
+            if (!verify_index_completeness(destination_dir, relative_path, paths)) {
                 FindClose(search);
                 return 0;
             }
         } else if (_stricmp(relative_path, ".wpm/index.csv") != 0 &&
                    _stricmp(relative_path, ".wpm/signature.json") != 0 &&
-                   !index_contains_path(index_path, relative_path)) {
+                   !index_contains_path(paths, relative_path)) {
             printf("Error: package contains unindexed file: %s.\n", relative_path);
             FindClose(search);
             return 0;
@@ -1217,9 +1282,17 @@ static int verify_package_index(const char* destination_dir) {
     fclose(index);
     {
         char signature_path[WPM_PATH_SIZE];
+        wpm_index_paths paths;
+        int complete;
         if (!join_path(signature_path, sizeof(signature_path), destination_dir, ".wpm\\signature.json")) return 0;
-        return !file_exists_at_path(signature_path) ||
-            verify_index_completeness(destination_dir, "", index_path);
+        if (!file_exists_at_path(signature_path)) return 1;
+        if (!load_index_paths(index_path, &paths)) {
+            printf("Error: could not load package index paths.\n");
+            return 0;
+        }
+        complete = verify_index_completeness(destination_dir, "", &paths);
+        free_index_paths(&paths);
+        return complete;
     }
 }
 
@@ -1394,6 +1467,8 @@ int wpm_archive_install(const char* archive_path, int allow_unsigned) {
     char stored_archive_path[WPM_PATH_SIZE];
     char signing_key_id[65];
     wpm_package_metadata metadata;
+    wpm_package_metadata display_metadata;
+    const char* display_name;
     char* extension;
     int success = 0;
 
@@ -1411,6 +1486,8 @@ int wpm_archive_install(const char* archive_path, int allow_unsigned) {
         printf("Error: package archive must have a name.\n");
         return 0;
     }
+    display_name = read_archive_package_metadata(archive_full_path, &display_metadata)
+        ? display_metadata.name : package_name;
 
     if (!wpm_get_data_root(data_root, sizeof(data_root)) ||
         !join_path(temp_root, sizeof(temp_root), data_root, "temp") ||
@@ -1432,11 +1509,14 @@ int wpm_archive_install(const char* archive_path, int allow_unsigned) {
 
     verbose_log("Using staging directory: %s", staging_path);
 
+    print_package_progress(display_name, "Extracting package");
     if (!wpm_archive_extract(archive_full_path, staging_path)) goto cleanup;
+    print_package_progress(display_name, "Validating package");
     if (!wpm_validate_package_signature(staging_path, allow_unsigned, signing_key_id, sizeof(signing_key_id))) goto cleanup;
     if (!verify_package_index(staging_path)) goto cleanup;
     if (!read_package_metadata(staging_path, &metadata)) goto cleanup;
     if (!installed_architecture_is_compatible(&metadata)) goto cleanup;
+    print_package_progress(display_name, "Installing package");
     if (!run_package_script(staging_path, ".wpm\\install.cmd", "install", NULL)) goto cleanup;
     if (_stricmp(archive_full_path, stored_archive_path) != 0) {
         verbose_log("Storing archive: %s", stored_archive_path);
@@ -1521,10 +1601,12 @@ int wpm_archive_schedule_self_upgrade(const char* archive_path, int allow_unsign
     strcpy_s(metadata.name, sizeof(metadata.name), "wpm");
     strcpy_s(metadata.version, sizeof(metadata.version), expected_version);
     strcpy_s(metadata.arch, sizeof(metadata.arch), expected_arch);
+    print_package_progress("wpm", "Extracting package");
     if (!wpm_archive_extract(archive_full, stage)) {
         write_upgrade_audit(root, &metadata, old_version, path_basename(archive_full), signing_key, 1, "self-upgrade-extraction", 0);
         goto cleanup;
     }
+    print_package_progress("wpm", "Validating package");
     if (!wpm_validate_package_signature(stage, allow_unsigned, signing_key, sizeof(signing_key)) ||
         !verify_package_index(stage) || !read_package_metadata(stage, &metadata)) {
         write_upgrade_audit(root, &metadata, old_version, path_basename(archive_full), signing_key, 1, "self-upgrade-validation", 0);
@@ -1586,10 +1668,12 @@ int wpm_archive_upgrade(const char* archive_path, int allow_unsigned,
         !join_path(store, sizeof(store), root, "packages") || !join_path(stage, sizeof(stage), temp, base) ||
         !join_path(stored, sizeof(stored), store, base) || !create_directories(temp) ||
         !create_directories(store) || !remove_directory_tree_with_retry(stage)) return 0;
+    print_package_progress(expected_name, "Extracting package");
     if (!wpm_archive_extract(archive_full, stage)) {
         write_upgrade_audit(root, &metadata, old_version, base, signing_key, 1, "extraction", 0);
         goto cleanup;
     }
+    print_package_progress(expected_name, "Validating package");
     if (!wpm_validate_package_signature(stage, allow_unsigned, signing_key, sizeof(signing_key))) {
         write_upgrade_audit(root, &metadata, old_version, base, signing_key, 1, "signature-validation", 0);
         goto cleanup;
@@ -1612,6 +1696,7 @@ int wpm_archive_upgrade(const char* archive_path, int allow_unsigned,
         write_upgrade_audit(root, &metadata, old_version, base, signing_key, 1, "architecture", 0);
         goto cleanup;
     }
+    print_package_progress(expected_name, "Installing package");
     if (!run_package_script(stage, ".wpm\\install.cmd", "upgrade install", &script_exit)) {
         write_upgrade_audit(root, &metadata, old_version, base, signing_key, 1, "install-script", script_exit);
         printf("Warning: package-maintainer recovery may be required.\n");

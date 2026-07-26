@@ -96,6 +96,11 @@ try {
             'trust add',
             'verify \$archive',
             '& \$setup \$wpm',
+            'Checking the latest WPM release',
+            'Downloading WPM \$packageVersion for \$arch',
+            'Extracting WPM package',
+            'Validating WPM package',
+            'Installing WPM',
             'Remove-Item -LiteralPath \$work -Recurse -Force'
         )) {
             if ($bootstrap -notmatch $pattern) { throw "install.cmd is missing bootstrap behavior: $pattern" }

@@ -6,6 +6,10 @@ The `wpm install` command shall install a ZIP package archive.
 
 When invoked with a valid package archive, the application shall:
 
+- report the package name with the default progress phases
+  `<name>: Extracting package...`, `<name>: Validating package...`, and
+  `<name>: Installing package...`, prefixing each phase with `[n of total]`
+  when one command processes multiple packages,
 - extract archive contents to `%ProgramData%\WPM\temp\<archive-name>`, where
   `<archive-name>` is the ZIP file name without its `.zip` extension,
 - preserve nested archive paths during extraction,

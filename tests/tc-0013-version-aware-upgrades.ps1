@@ -189,7 +189,11 @@ try {
     }
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Bypass upgrade-all prompt with -y and show install-script output' -Arguments @('upgrade','--all','--arch','arm64','-y','--offline','--allow-unsigned') -Assert {
         param($ExitCode,$Output)
-        if ($ExitCode -ne 0 -or $Output -notmatch '(?i)planned upgrades' -or $Output -notmatch 'install-script:confirmed-2\.0\.0' -or $Output -notmatch '(?i)upgraded') { throw "Confirmed upgrade-all failed or hid script output. $Output" }
+        if ($ExitCode -ne 0 -or $Output -notmatch '(?i)planned upgrades' -or
+            $Output -notmatch [regex]::Escape("$($packages.Confirm): Extracting package...") -or
+            $Output -notmatch [regex]::Escape("$($packages.Confirm): Validating package...") -or
+            $Output -notmatch [regex]::Escape("$($packages.Confirm): Installing package...") -or
+            $Output -notmatch 'install-script:confirmed-2\.0\.0' -or $Output -notmatch '(?i)upgraded') { throw "Confirmed upgrade-all failed or hid script output. $Output" }
     }
 
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Reject unsigned upgrade before script execution' -Arguments @('upgrade',$packages.Architecture,'--offline') -Assert {

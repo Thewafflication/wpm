@@ -13,6 +13,7 @@ typedef struct wpm_package_info {
 int wpm_get_data_root(char* result, size_t result_size);
 int wpm_initialize_data_directories(void);
 void wpm_set_verbose(int enabled);
+void wpm_archive_set_progress(int current, int total);
 int wpm_archive_build(const char* source_dir, const char* output_dir, int update_index, const char* private_key);
 int wpm_archive_extract(const char* archive_path, const char* destination_dir);
 int wpm_archive_verify(const char* archive_path);

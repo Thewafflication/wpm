@@ -228,6 +228,7 @@ int main(int argc, char *argv[])
 
         case CMD_INSTALL: {
             int package_count = 0;
+            int package_number = 0;
             int allow_unsigned = 0;
             const char* selected_arch = NULL;
             const char* selected_version = NULL;
@@ -247,6 +248,7 @@ int main(int argc, char *argv[])
                 if (strcmp(argv[i], "--verbose") == 0 || strcmp(argv[i], "--offline") == 0 || strcmp(argv[i], "--allow-unsigned") == 0) continue;
                 if (strcmp(argv[i], "--arch") == 0 || strcmp(argv[i], "--version") == 0) { i++; continue; }
                 extension = strrchr(argv[i], '.');
+                wpm_archive_set_progress(++package_number, package_count);
                 if (extension && _stricmp(extension, ".zip") == 0) {
                     if (selected_arch || selected_version) { printf("Error: --arch and --version are not valid for ZIP-path installation.\n"); return 1; }
                     if (!wpm_archive_install(argv[i], allow_unsigned)) return 1;

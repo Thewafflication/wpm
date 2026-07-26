@@ -22,6 +22,7 @@ powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command ^
     "try {" ^
     "  New-Item -ItemType Directory -Path $work | Out-Null;" ^
     "  $indexPath = Join-Path $work 'index.json';" ^
+    "  Write-Host 'Checking the latest WPM release...';" ^
     "  Invoke-WebRequest -UseBasicParsing -Uri ($releaseBase + '/index.json') -OutFile $indexPath;" ^
     "  $index = Get-Content -Raw -LiteralPath $indexPath | ConvertFrom-Json;" ^
     "  if ($index.version -ne 1) { throw 'Unsupported WPM repository index schema.' };" ^
@@ -36,6 +37,7 @@ powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command ^
     "  Invoke-WebRequest -UseBasicParsing -Uri ($releaseBase + '/' + $asset) -OutFile $archive;" ^
     "  Invoke-WebRequest -UseBasicParsing -Uri ($releaseBase + '/wpm-release.public') -OutFile $publicKey;" ^
     "  $package = Join-Path $work 'package';" ^
+    "  Write-Host 'Extracting WPM package...';" ^
     "  Expand-Archive -LiteralPath $archive -DestinationPath $package;" ^
     "  $wpm = Join-Path $package 'wpm.exe';" ^
     "  $setup = Join-Path $package 'setup.cmd';" ^
@@ -43,9 +45,11 @@ powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command ^
     "  $previousData = $env:WPM_DATA_DIR;" ^
     "  try {" ^
     "    $env:WPM_DATA_DIR = Join-Path $work 'validation';" ^
+    "    Write-Host 'Validating WPM package...';" ^
     "    & $wpm trust add $publicKey; if ($LASTEXITCODE -ne 0) { throw 'Could not establish temporary release-key trust.' };" ^
     "    & $wpm verify $archive; if ($LASTEXITCODE -ne 0) { throw 'Downloaded WPM package validation failed.' };" ^
     "  } finally { if ($null -eq $previousData) { Remove-Item Env:WPM_DATA_DIR -ErrorAction SilentlyContinue } else { $env:WPM_DATA_DIR = $previousData } };" ^
+    "  Write-Host 'Installing WPM...';" ^
     "  & $setup $wpm; if ($LASTEXITCODE -ne 0) { throw \"WPM setup failed with exit code $LASTEXITCODE.\" };" ^
     "  Write-Host 'WPM installation completed. Open a new command window and run wpm --version.';" ^
     "} catch { Write-Error $_; exit 1 } finally { if (Test-Path -LiteralPath $work) { Remove-Item -LiteralPath $work -Recurse -Force } }"

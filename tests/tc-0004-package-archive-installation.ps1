@@ -101,7 +101,10 @@ try {
             if (Test-Path -LiteralPath $stagingDir) {
                 throw "install did not remove staging directory $stagingDir"
             }
-            if ($Output -notmatch 'Extracting file:' -or $Output -notmatch 'Verifying file:' -or
+            if ($Output -notmatch [regex]::Escape("$packageName`: Extracting package...") -or
+                $Output -notmatch [regex]::Escape("$packageName`: Validating package...") -or
+                $Output -notmatch [regex]::Escape("$packageName`: Installing package...") -or
+                $Output -notmatch 'Extracting file:' -or $Output -notmatch 'Verifying file:' -or
                 $Output -notmatch 'Running install script:' -or $Output -notmatch 'Storing archive:') {
                 throw 'Expected verbose installation progress.'
             }
