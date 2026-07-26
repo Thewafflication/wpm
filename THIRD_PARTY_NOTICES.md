@@ -6,8 +6,8 @@ WPM includes the following third-party software.
 
 - Project: Waughtal C Run Time (WCRT)
 - License: GPL-3.0-or-later
-- Usage: the optional TinyCC/WCRT build copies the installed `wcrt.dll` beside
-  `wpm.exe`; WCRT source is not bundled in this repository
+- Usage: TinyCC/WCRT builds link the installed static library and console
+  startup object; WCRT source is not bundled in this repository
 - License text: `LICENSE.txt` and the `LICENSE.txt` included with the installed
   WCRT package
 

@@ -433,6 +433,81 @@ static int read_package_metadata(const char* source_dir, wpm_package_metadata* m
     return 1;
 }
 
+static int read_archive_package_metadata(const char* archive_path, wpm_package_metadata* metadata) {
+    mz_zip_archive zip;
+    mz_zip_archive_file_stat stat;
+    char* text = NULL;
+    char* current;
+    int file_index;
+    int result = 0;
+
+    memset(&zip, 0, sizeof(zip));
+    if (!mz_zip_reader_init_file(&zip, archive_path, 0)) return 0;
+
+    file_index = mz_zip_reader_locate_file(&zip, ".wpm/package.txt", NULL, 0);
+    if (file_index < 0 || !mz_zip_reader_file_stat(&zip, (mz_uint)file_index, &stat) ||
+        stat.m_uncomp_size > 1024 * 1024) goto cleanup;
+
+    text = malloc((size_t)stat.m_uncomp_size + 1);
+    if (!text || !mz_zip_reader_extract_to_mem(&zip, (mz_uint)file_index, text,
+        (size_t)stat.m_uncomp_size, 0)) goto cleanup;
+    text[(size_t)stat.m_uncomp_size] = '\0';
+
+    metadata->name[0] = '\0';
+    metadata->version[0] = '\0';
+    metadata->arch[0] = '\0';
+    metadata->debug = 0;
+    current = text;
+    while (*current) {
+        char* line = current;
+        char* end = strpbrk(current, "\r\n");
+        char* equals;
+        char* key;
+        char* value;
+
+        if (end) {
+            *end = '\0';
+            current = end + 1;
+            while (*current == '\r' || *current == '\n') current++;
+        }
+        else current += strlen(current);
+
+        trim_line(line);
+        if (line[0] == '\0' || line[0] == '#') continue;
+        equals = strchr(line, '=');
+        if (!equals) continue;
+        *equals = '\0';
+        key = line;
+        value = equals + 1;
+        trim_line(key);
+        trim_line(value);
+
+        if (_stricmp(key, "name") == 0) {
+            if (strlen(value) >= sizeof(metadata->name)) goto cleanup;
+            strcpy_s(metadata->name, sizeof(metadata->name), value);
+        }
+        else if (_stricmp(key, "version") == 0) {
+            if (strlen(value) >= sizeof(metadata->version)) goto cleanup;
+            strcpy_s(metadata->version, sizeof(metadata->version), value);
+        }
+        else if (_stricmp(key, "arch") == 0) {
+            if (strlen(value) >= sizeof(metadata->arch)) goto cleanup;
+            strcpy_s(metadata->arch, sizeof(metadata->arch), value);
+        }
+        else if (_stricmp(key, "debug") == 0 &&
+            !parse_bool_metadata_value(value, &metadata->debug)) goto cleanup;
+    }
+
+    result = is_safe_metadata_value(metadata->name) &&
+        is_safe_metadata_value(metadata->version) &&
+        is_safe_metadata_value(metadata->arch);
+
+cleanup:
+    free(text);
+    mz_zip_reader_end(&zip);
+    return result;
+}
+
 static int write_installation_audit(const char* data_root, const char* archive_name,
                                     const wpm_package_metadata* metadata, const char* signing_key_id) {
     char audit_dir[WPM_PATH_SIZE];
@@ -1236,23 +1311,13 @@ static int run_package_script(
 }
 
 int wpm_archive_inspect(const char* archive_path, wpm_package_info* info) {
-    char root[WPM_PATH_SIZE], temp[WPM_PATH_SIZE], stage[WPM_PATH_SIZE];
     wpm_package_metadata metadata;
-    int result = 0;
-    if (!archive_path || !info || !wpm_get_data_root(root, sizeof(root)) ||
-        !join_path(temp, sizeof(temp), root, "temp") ||
-        snprintf(stage, sizeof(stage), "%s\\inspect-%lu-%llu", temp,
-            (unsigned long)GetCurrentProcessId(), (unsigned long long)wpm_tick_count()) < 0 ||
-        !create_directories(temp) || !remove_directory_tree_with_retry(stage)) return 0;
-    if (wpm_archive_extract(archive_path, stage) && read_package_metadata(stage, &metadata)) {
-        strcpy_s(info->name, sizeof(info->name), metadata.name);
-        strcpy_s(info->version, sizeof(info->version), metadata.version);
-        strcpy_s(info->arch, sizeof(info->arch), metadata.arch);
-        strcpy_s(info->archive_name, sizeof(info->archive_name), path_basename(archive_path));
-        result = 1;
-    }
-    if (!remove_directory_tree_with_retry(stage)) result = 0;
-    return result;
+    if (!archive_path || !info || !read_archive_package_metadata(archive_path, &metadata)) return 0;
+    strcpy_s(info->name, sizeof(info->name), metadata.name);
+    strcpy_s(info->version, sizeof(info->version), metadata.version);
+    strcpy_s(info->arch, sizeof(info->arch), metadata.arch);
+    strcpy_s(info->archive_name, sizeof(info->archive_name), path_basename(archive_path));
+    return 1;
 }
 
 int wpm_archive_verify(const char* archive_path) {

@@ -175,10 +175,11 @@ try {
         "Seeded $($entries.Count) repository entries."
     }
 
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Update repositories and report available package upgrades' -Arguments @('update','--offline') -Assert {
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Update repositories and report available package upgrades without extracting installed payloads' -Arguments @('update','--offline','--verbose') -Assert {
         param($ExitCode,$Output)
         if ($ExitCode -ne 0 -or $Output -notmatch '(?i)planned upgrades|can be upgraded' -or $Output -notmatch [regex]::Escape($packages.Confirm)) { throw "Update availability report was incomplete. $Output" }
         if ($Output -notmatch "(?i)non-SemVer version 'ef32a57'" -or $Output -notmatch [regex]::Escape((Join-Path $dataDir "packages\$($packages.Legacy)-any-ef32a57.zip"))) { throw 'Legacy installed-record diagnostic was not actionable.' }
+        if ($Output -match '(?i)Extracting archive:|Creating directory:.*inspect-') { throw 'Update extracted an installed package payload while reading metadata.' }
     }
     $results += New-WpmManualStep -Name 'Decline prompted upgrade-all plan' -Action {
         $output = @('n') | & $WpmExe upgrade --all --arch arm64 --offline --allow-unsigned 2>&1

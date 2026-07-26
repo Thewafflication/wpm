@@ -72,7 +72,9 @@ runs:
           Where-Object {
             (Test-Path -LiteralPath (Join-Path $_.FullName 'bin\wcrt.dll')) -and
             (Test-Path -LiteralPath (Join-Path $_.FullName 'include\stdio.h')) -and
-            (Test-Path -LiteralPath (Join-Path $_.FullName 'lib\wcrt.def'))
+            (Test-Path -LiteralPath (Join-Path $_.FullName 'lib\wcrt.def')) -and
+            (Test-Path -LiteralPath (Join-Path $_.FullName 'lib\libwcrt.a')) -and
+            (Test-Path -LiteralPath (Join-Path $_.FullName 'lib\wcrt-startup-console.o'))
           } |
           Sort-Object Name -Descending |
           Select-Object -First 1 -ExpandProperty FullName

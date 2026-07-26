@@ -163,8 +163,12 @@ $results = @(
             }
             $cmake = Get-Content -Raw -LiteralPath $wpmCmake
             if ($cmake -notmatch 'WPM_WCRT_ROOT}/lib/libwcrt\.a' -or
+                $cmake -notmatch 'WPM_WCRT_ROOT}/lib/wcrt-startup-console\.o' -or
                 $cmake -match 'WPM_WCRT_ROOT}/lib/wcrt\.def') {
-                throw 'WPM must link WCRT statically so release executables are self-contained.'
+                throw 'WPM must link the static WCRT library and console startup object.'
+            }
+            if (Test-Path -LiteralPath (Join-Path (Split-Path -Parent $wpmCmake) 'tcc_compat\wcrt_start.c')) {
+                throw 'WPM must use the WCRT-provided console startup object.'
             }
             if (Test-Path -LiteralPath $xpWorkflow) { throw 'The custom XP runtime workflow must not be restored.' }
             'Every supported Windows architecture is configured for TinyCC and WCRT.'

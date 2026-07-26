@@ -62,7 +62,8 @@ if(WPM_USE_WCRT)
       if(EXISTS "${WPM_WCRT_INSTALLATION}/bin/wcrt.dll" AND
          EXISTS "${WPM_WCRT_INSTALLATION}/include/stdio.h" AND
          EXISTS "${WPM_WCRT_INSTALLATION}/lib/wcrt.def" AND
-         EXISTS "${WPM_WCRT_INSTALLATION}/lib/libwcrt.a")
+         EXISTS "${WPM_WCRT_INSTALLATION}/lib/libwcrt.a" AND
+         EXISTS "${WPM_WCRT_INSTALLATION}/lib/wcrt-startup-console.o")
         set(WPM_WCRT_ROOT "${WPM_WCRT_INSTALLATION}")
         break()
       endif()
@@ -70,8 +71,21 @@ if(WPM_USE_WCRT)
   endif()
 
   if(NOT WPM_WCRT_ROOT)
-    message(FATAL_ERROR "WCRT was not found. Install it or set WPM_WCRT_ROOT.")
+    message(FATAL_ERROR "WCRT 0.9.3 or newer was not found. Install it or set WPM_WCRT_ROOT.")
   endif()
+
+  foreach(WPM_WCRT_REQUIRED_FILE
+      "bin/wcrt.dll"
+      "include/stdio.h"
+      "include/errno.h"
+      "lib/libwcrt.a"
+      "lib/wcrt-startup-console.o")
+    if(NOT EXISTS "${WPM_WCRT_ROOT}/${WPM_WCRT_REQUIRED_FILE}")
+      message(FATAL_ERROR
+        "The WCRT SDK at ${WPM_WCRT_ROOT} is missing ${WPM_WCRT_REQUIRED_FILE}. "
+        "Install WCRT 0.9.3 or newer with the console startup object.")
+    endif()
+  endforeach()
 
   message(STATUS "Using WCRT from ${WPM_WCRT_ROOT}")
   set(WPM_WCRT_GENERATED_INCLUDE_DIR "${CMAKE_BINARY_DIR}/wcrt-include")
