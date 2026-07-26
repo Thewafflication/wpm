@@ -313,11 +313,11 @@ try {
     }
 
     $results += New-WpmManualStep -Name 'Accept the legacy self-upgrade handoff protocol' -Action {
-        $handoffExe = Join-Path $dataDir "cache\self-upgrade\wpm-$wpmArchitecture-2.0.0.exe"
         $archive = Join-Path $dataDir "cache\packages\wpm-$wpmArchitecture-2.0.0.zip"
-        $output = & $handoffExe --complete-self-upgrade $archive 0 2.0.0 $wpmArchitecture 1.0.0 1 2>&1 | Out-String
-        if ($LASTEXITCODE -ne 0) {
-            throw "Legacy eight-argument self-upgrade handoff failed. $output"
+        $output = & $WpmExe --complete-self-upgrade $archive 0 2.0.0 $wpmArchitecture 1.0.0 1 2>&1 | Out-String
+        $legacyExitCode = $LASTEXITCODE
+        if ($legacyExitCode -ne 0) {
+            throw "Legacy eight-argument self-upgrade handoff failed with exit code $legacyExitCode. $output"
         }
         if ($output -notmatch 'install-script:self-2\.0\.0') {
             throw "Legacy handoff did not run the package install script. $output"
