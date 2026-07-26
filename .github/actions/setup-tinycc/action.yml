@@ -46,8 +46,14 @@ runs:
         Invoke-WebRequest -UseBasicParsing `
           -Uri 'https://github.com/Thewafflication/wcrt/releases/latest/download/wpm-release.public' `
           -OutFile $wcrtPublicKey
-        & $wpm trust add $wcrtPublicKey
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        $tinyccKeyHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $tinyccPublicKey).Hash
+        $wcrtKeyHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $wcrtPublicKey).Hash
+        if ($wcrtKeyHash -eq $tinyccKeyHash) {
+          Write-Output 'WCRT uses the already trusted TinyCC signing key.'
+        } else {
+          & $wpm trust add $wcrtPublicKey
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        }
 
         & $wpm install wcrt --arch '${{ inputs.architecture }}'
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

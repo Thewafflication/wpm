@@ -100,6 +100,9 @@ $results = @(
             foreach ($pattern in @(
                 'architecture:',
                 'Thewafflication/wcrt/releases/latest/download',
+                'Get-FileHash.+\$tinyccPublicKey',
+                'Get-FileHash.+\$wcrtPublicKey',
+                '\$wcrtKeyHash -eq \$tinyccKeyHash',
                 'trust add \$wcrtPublicKey',
                 'install wcrt --arch',
                 'WCRT architecture mismatch',
