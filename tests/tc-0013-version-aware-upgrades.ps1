@@ -59,6 +59,7 @@ $dataDir = Join-Path $testRoot 'wpm-data'
 $sourceRoot = Join-Path $testRoot 'sources'
 $outputDir = Join-Path $testRoot 'archives'
 $markerDir = Join-Path $testRoot 'markers'
+$legacyDataDir = Join-Path $testRoot 'legacy-wpm-data'
 $repository = 'https://upgrade.example.test'
 $previousDataDir = $env:WPM_DATA_DIR
 $wpmArchitecture = Get-WpmArchitecture $WpmExe
@@ -314,13 +315,23 @@ try {
 
     $results += New-WpmManualStep -Name 'Accept the legacy self-upgrade handoff protocol' -Action {
         $archive = Join-Path $dataDir "cache\packages\wpm-$wpmArchitecture-2.0.0.zip"
-        $output = & $WpmExe --complete-self-upgrade $archive 0 2.0.0 $wpmArchitecture 1.0.0 1 2>&1 | Out-String
-        $legacyExitCode = $LASTEXITCODE
+        try {
+            $env:WPM_DATA_DIR = $legacyDataDir
+            $output = & $WpmExe --complete-self-upgrade $archive 0 2.0.0 $wpmArchitecture 1.0.0 1 2>&1 | Out-String
+            $legacyExitCode = $LASTEXITCODE
+        }
+        finally {
+            $env:WPM_DATA_DIR = $dataDir
+        }
         if ($legacyExitCode -ne 0) {
             throw "Legacy eight-argument self-upgrade handoff failed with exit code $legacyExitCode. $output"
         }
         if ($output -notmatch 'install-script:self-2\.0\.0') {
             throw "Legacy handoff did not run the package install script. $output"
+        }
+        $legacyStagingItems = @(Get-ChildItem -LiteralPath (Join-Path $legacyDataDir 'temp') -Force -ErrorAction SilentlyContinue)
+        if ($legacyStagingItems.Count -ne 0) {
+            throw 'Legacy self-upgrade staging content was not cleaned.'
         }
         'Legacy eight-argument self-upgrade handoff completed.'
     }
