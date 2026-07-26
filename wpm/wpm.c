@@ -418,9 +418,14 @@ void print_version()
         WPM_SODIUM_VERSION,
         WPM_SODIUM_COMMIT,
         WPM_SODIUM_DIRTY ? ", dirty" : "");
+#ifdef WPM_HAS_WCRT
     if (GetModuleHandleA("wcrt.dll")) {
         print_windows_dependency_version("wcrt", "wcrt.dll", "runtime library");
     }
+    else {
+        printf("  wcrt %s (runtime library)\n", WPM_WCRT_VERSION);
+    }
+#endif
     print_windows_dependency_version("urlmon", "urlmon.dll", "Windows system library");
     print_windows_dependency_version("advapi32", "advapi32.dll", "Windows system library");
 }

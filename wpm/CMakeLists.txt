@@ -94,6 +94,12 @@ set_property(TARGET wpm PROPERTY C_STANDARD_REQUIRED ON)
 set_property(TARGET wpm PROPERTY C_EXTENSIONS OFF)
 
 target_compile_definitions(wpm PRIVATE SODIUM_STATIC WPM_TARGET_ARCH="${wpm_arch}")
+if(WPM_USE_WCRT)
+  target_compile_definitions(wpm PRIVATE
+    WPM_HAS_WCRT=1
+    WPM_WCRT_VERSION="${WPM_WCRT_VERSION}"
+  )
+endif()
 target_link_libraries(wpm PRIVATE miniz libsodium)
 if(CMAKE_C_COMPILER_ID STREQUAL "TinyCC")
   # Use explicit import definitions so cross-architecture builds don't depend
