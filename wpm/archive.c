@@ -523,6 +523,16 @@ static int calculate_file_blake2b(const char* path, char* hex, size_t hex_size) 
     return 1;
 }
 
+static int remove_directory_tree_with_retry(const char* path) {
+    unsigned int attempt;
+
+    for (attempt = 0; attempt < 100; attempt++) {
+        if (remove_directory_tree(path)) return 1;
+        Sleep(50);
+    }
+    return remove_directory_tree(path);
+}
+
 static int get_file_size_bytes(const char* path, unsigned long long* size) {
     DWORD file_size_low;
     DWORD file_size_high = 0;
@@ -1437,7 +1447,7 @@ int wpm_archive_schedule_self_upgrade(const char* archive_path, int allow_unsign
         snprintf(handoff_exe, sizeof(handoff_exe), "%s\\wpm-%s-%s.exe",
             handoff_dir, expected_arch, expected_version) < 0 ||
         !create_directories(temp) || !create_directories(cache) || !create_directories(audit_dir) ||
-        !create_directories(handoff_dir) || !remove_directory_tree(stage)) return 0;
+        !create_directories(handoff_dir) || !remove_directory_tree_with_retry(stage)) return 0;
     DeleteFileA(log_path);
     memset(&metadata, 0, sizeof(metadata));
     strcpy_s(metadata.name, sizeof(metadata.name), "wpm");
@@ -1481,7 +1491,7 @@ int wpm_archive_schedule_self_upgrade(const char* archive_path, int allow_unsign
     printf("Self-upgrade output: %s\n", log_path);
     result = 1;
 cleanup:
-    if (!remove_directory_tree(stage)) result = 0;
+    if (!remove_directory_tree_with_retry(stage)) result = 0;
     return result;
 }
 
@@ -1503,7 +1513,7 @@ int wpm_archive_upgrade(const char* archive_path, int allow_unsigned,
     if (!wpm_get_data_root(root, sizeof(root)) || !join_path(temp, sizeof(temp), root, "temp") ||
         !join_path(store, sizeof(store), root, "packages") || !join_path(stage, sizeof(stage), temp, base) ||
         !join_path(stored, sizeof(stored), store, base) || !create_directories(temp) ||
-        !create_directories(store) || !remove_directory_tree(stage)) return 0;
+        !create_directories(store) || !remove_directory_tree_with_retry(stage)) return 0;
     if (!wpm_archive_extract(archive_full, stage)) {
         write_upgrade_audit(root, &metadata, old_version, base, signing_key, 1, "extraction", 0);
         goto cleanup;
@@ -1546,7 +1556,7 @@ int wpm_archive_upgrade(const char* archive_path, int allow_unsigned,
     }
     success = 1;
 cleanup:
-    if (!remove_directory_tree(stage)) success = 0;
+    if (!remove_directory_tree_with_retry(stage)) success = 0;
     if (!success) {
         return 0;
     }
