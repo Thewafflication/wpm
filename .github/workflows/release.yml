@@ -154,12 +154,21 @@ jobs:
         shell: pwsh
         run: cmake --build --preset ${{ matrix.build_preset }}
 
+      - name: Verify self-contained Release executable
+        shell: pwsh
+        run: |
+          $probe = Join-Path $env:RUNNER_TEMP 'wpm-self-contained'
+          New-Item -ItemType Directory -Force -Path $probe | Out-Null
+          Copy-Item -LiteralPath "bin/${{ matrix.arch }}/Release/wpm.exe" -Destination "$probe/wpm.exe"
+          & "$probe/wpm.exe" --version
+          if ($LASTEXITCODE -ne 0) { throw 'The Release executable requires an unavailable sidecar runtime.' }
+
       - name: Prepare Release executable
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path release | Out-Null
           Copy-Item -LiteralPath "bin/${{ matrix.arch }}/Release/wpm.exe" -Destination "release/wpm-${{ matrix.arch }}.exe"
-          Copy-Item -LiteralPath "bin/${{ matrix.arch }}/Release/wcrt.dll" -Destination "release/wcrt-${{ matrix.arch }}.dll"
+          Copy-Item -LiteralPath "$env:WPM_WCRT_ROOT/bin/wcrt.dll" -Destination "release/wcrt-${{ matrix.arch }}.dll"
 
       - name: Upload Release executable
         uses: actions/upload-artifact@v7
@@ -269,9 +278,50 @@ jobs:
             release/install.cmd
           if-no-files-found: error
 
+  upgrade-compatibility:
+    name: Upgrade ${{ matrix.arch }} from previous release
+    needs: package
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86
+            runner: windows-2022
+          - arch: x64
+            runner: windows-2022
+          - arch: arm64
+            runner: windows-11-arm
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Download candidate Release packages
+        uses: actions/download-artifact@v8
+        with:
+          name: wpm-release-packages
+          path: release
+
+      - name: Verify upgrade from previous published release
+        shell: pwsh
+        run: |
+          $previousVersion = git tag --merged HEAD^ --sort=-version:refname |
+            Where-Object { $_ -match '^\d+\.\d+\.\d+$' } |
+            Select-Object -First 1
+          if (-not $previousVersion) { throw 'No previous release tag was found.' }
+          tests/verify-previous-release-upgrade.ps1 `
+            -PreviousVersion $previousVersion `
+            -CandidateVersion '${{ github.ref_name }}' `
+            -Architecture '${{ matrix.arch }}' `
+            -CandidatePackage "release/packages/wpm-${{ matrix.arch }}-${{ github.ref_name }}.zip" `
+            -PublicKey release/keys/wpm-release.public
+
   publish:
     name: Publish GitHub Release
-    needs: package
+    needs: upgrade-compatibility
     runs-on: ubuntu-latest
 
     steps:

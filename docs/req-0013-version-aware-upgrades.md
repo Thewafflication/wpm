@@ -184,9 +184,14 @@ multiple-version package model.
 
 When upgrading the `wpm` package itself, the running installed executable shall
 not attempt to overwrite itself. After validating the candidate package, WPM
-shall copy the candidate `wpm.exe` and its matching `wcrt.dll` beneath
-`cache\self-upgrade`, launch that cached executable as a detached completion
-process, and exit. The completion
+shall copy the candidate `wpm.exe` beneath `cache\self-upgrade`, copy any
+optional sidecar runtime supplied by a legacy package, launch the cached
+executable as a detached completion process, and exit. Official Release
+packages shall contain a self-contained `wpm.exe` that can start from the cache
+without a sidecar runtime. This preserves compatibility with earlier WPM
+versions whose handoff logic copies only the executable. A Release package
+shall still carry a compatibility sidecar when the immediately previous
+supported release requires that file to validate or schedule its handoff. The completion
 process shall wait for the invoking WPM process to terminate before repeating
 normal package validation and installation. The completed upgrade shall retain
 the candidate archive and create the normal upgrade audit record. The invoking
@@ -195,6 +200,12 @@ persistent self-upgrade output log. That log shall contain package-script output
 and the completion process's final `upgraded` or `failed` result.
 The completion process shall also accept the legacy eight-argument handoff
 protocol used by earlier WPM releases; that protocol has no output-log path.
+
+Before an official release is published, every supported architecture shall
+complete an isolated self-upgrade from the immediately previous published WPM
+release to the candidate package. The test shall use the previous release's
+executable to select, validate, cache, launch, and install the candidate; merely
+invoking the candidate's completion command is insufficient.
 
 Package installation and upgrade scripts shall inherit WPM's standard input,
 output, and error streams so their diagnostics are visible to an interactive

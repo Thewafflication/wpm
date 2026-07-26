@@ -7,7 +7,7 @@
 \begin{document}
 \def\TCID{TC-0013}
 \def\TCTitle{Version-aware package installation and upgrades}
-\def\TCPurpose{Verify installed-state discovery, exact architecture and version selectors, configurable prerelease eligibility, SemVer ordering, upgrade validation and auditing, failure recovery, and best-effort multi-package behavior.}
+\def\TCPurpose{Verify installed-state discovery, exact architecture and version selectors, configurable prerelease eligibility, SemVer ordering, upgrade validation and auditing, failure recovery, self-contained cached handoff, and best-effort multi-package behavior.}
 \def\TCPriority{\TCPriorityHigh}
 \def\TCRequirementRef{REQ-0013}
 \def\TCPreconditions{A built WPM executable is available. The test uses an isolated WPM data-root override and controlled offline repository caches.}
@@ -24,7 +24,7 @@
 \item Attempt an any/specific installed-architecture conflict and verify that any candidates do not upgrade specific installed identities.
 \item reject an unsigned upgrade before script execution, then explicitly permit it for the positive lifecycle scenarios.
 \item Run a multi-package upgrade in which the first package script fails and a later package succeeds.
-\item Upgrade WPM itself and verify that a validated candidate executable is launched from cache, waits for the invoking WPM process to exit, and completes installation.
+\item Upgrade WPM itself with no sidecar runtime in the candidate package and verify that the validated, self-contained executable is launched from cache, waits for the invoking WPM process to exit, and completes installation.
 \item Inspect retained archives, staging cleanup, successful and failed upgrade audit records, command summaries, and exit statuses.
 \end{enumerate}}
 \def\TCExpectedResult{\par\begin{enumerate}
@@ -41,6 +41,7 @@
 \item WPM self-upgrade uses a cached candidate executable to complete replacement after the original process releases the installed executable.
 \item Self-upgrade reports \texttt{scheduled} in the invoking process and records install-script output plus the final result in its persistent log.
 \item The cached candidate accepts the legacy eight-argument self-upgrade handoff used by earlier WPM releases.
+\item The cached candidate starts and completes installation without a private sidecar runtime.
 \end{enumerate}}
 \def\TCPostConditions{All temporary package sources, archives, repository caches, deployment markers, configuration, audit data, and WPM data directories are removed.}
 \TCTemplate

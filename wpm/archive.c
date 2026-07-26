@@ -1463,15 +1463,17 @@ int wpm_archive_schedule_self_upgrade(const char* archive_path, int allow_unsign
         goto cleanup;
     }
     if (_stricmp(metadata.name, "wpm") != 0 || strcmp(metadata.version, expected_version) != 0 ||
-        _stricmp(metadata.arch, expected_arch) != 0 || !file_exists_at_path(staged_exe) ||
-        !file_exists_at_path(staged_runtime)) {
+        _stricmp(metadata.arch, expected_arch) != 0 || !file_exists_at_path(staged_exe)) {
         printf("Error: WPM self-upgrade package metadata or executable does not match the selected candidate.\n");
         write_upgrade_audit(root, &metadata, old_version, path_basename(archive_full), signing_key, 1, "self-upgrade-metadata", 0);
         goto cleanup;
     }
-    if (!CopyFileA(staged_exe, handoff_exe, FALSE) ||
-        !CopyFileA(staged_runtime, handoff_runtime, FALSE)) {
-        printf("Error: could not cache the WPM self-upgrade executable and WCRT runtime.\n");
+    if (!CopyFileA(staged_exe, handoff_exe, FALSE)) {
+        printf("Error: could not cache the WPM self-upgrade executable.\n");
+        goto cleanup;
+    }
+    if (file_exists_at_path(staged_runtime) && !CopyFileA(staged_runtime, handoff_runtime, FALSE)) {
+        printf("Error: could not cache the optional WPM runtime dependency.\n");
         goto cleanup;
     }
     if (snprintf(command, sizeof(command), "\"%s\" --complete-self-upgrade \"%s\" %lu \"%s\" \"%s\" \"%s\" %d \"%s\"",

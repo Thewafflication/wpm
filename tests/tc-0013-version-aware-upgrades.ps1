@@ -104,9 +104,6 @@ function New-PackageArchive {
     )
     if ($IncludeWpmExe) {
         Copy-Item -LiteralPath $WpmExe -Destination (Join-Path $source 'wpm.exe')
-        $runtimeDll = Join-Path (Split-Path -Parent $WpmExe) 'wcrt.dll'
-        if (-not (Test-Path -LiteralPath $runtimeDll)) { throw 'WCRT runtime is required for a WPM self-upgrade package.' }
-        Copy-Item -LiteralPath $runtimeDll -Destination (Join-Path $source 'wcrt.dll')
     }
     $build = & $WpmExe build $source $outputDir 2>&1
     if ($LASTEXITCODE -ne 0) { throw "Could not build $Name $Arch $Version. $($build -join "`n")" }
@@ -305,7 +302,6 @@ try {
         }
         if (-not (Test-Path -LiteralPath $markerPath) -or (Get-Content -Raw -LiteralPath $markerPath) -notmatch 'self-2\.0\.0') { $log = if (Test-Path -LiteralPath $logPath) { Get-Content -Raw -LiteralPath $logPath } else { '<missing>' }; throw "Cached WPM handoff did not complete the installation. Log: $log" }
         if (-not (Test-Path -LiteralPath (Join-Path $dataDir "cache\self-upgrade\wpm-$wpmArchitecture-2.0.0.exe"))) { throw 'Candidate WPM executable was not retained in the self-upgrade cache.' }
-        if (-not (Test-Path -LiteralPath (Join-Path $dataDir 'cache\self-upgrade\wcrt.dll'))) { throw 'Candidate WCRT runtime was not retained in the self-upgrade cache.' }
         $deadline = [DateTime]::UtcNow.AddSeconds(60)
         while ([DateTime]::UtcNow -lt $deadline) {
             if ((Test-Path -LiteralPath $logPath) -and (Get-Content -Raw -LiteralPath $logPath) -match "Result: wpm $wpmArchitecture upgraded") { break }

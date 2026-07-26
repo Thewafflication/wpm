@@ -14,7 +14,7 @@ margin=1in
 \def\TCTitle{GitHub Release artifact workflow}
 
 \def\TCPurpose{
-	Verify that the tag-triggered GitHub workflow uses the protected durable release key and validates each signed Release package before publication.
+	Verify that the tag-triggered GitHub workflow produces self-contained executables, uses the protected durable release key, validates each signed Release package, and gates publication on upgrades from the previous release.
 }
 
 \def\TCPriority{\TCPriorityHigh}
@@ -30,7 +30,7 @@ margin=1in
 }
 
 \def\TCInputData{
-	The checked-in \texttt{.github/workflows/release.yml} workflow definition.
+	The checked-in \texttt{.github/workflows/release.yml} workflow definition and previous-release upgrade verification script.
 }
 
 \def\TCProcedure{
@@ -42,6 +42,8 @@ margin=1in
 		\item Validate that packaging downloads the successful x86 verification artifact and does not rebuild x86 Debug.
 		\item Validate that the protected release environment supplies the durable private key without publishing it.
 		\item Validate that each finished package is verified with the checked-in durable public key before upload.
+		\item Validate that every Release executable starts without a sidecar WCRT DLL.
+		\item Validate that each architecture upgrades from the immediately previous published package before publication.
 		\item Validate that \texttt{install.cmd} is included in the release artifacts.
 	\end{enumerate}
 }
@@ -54,6 +56,7 @@ margin=1in
 		\item On a tag run, the Release workflow verifies, packages, and publishes the assets.
 		\item Publication depends on successful signature and package-content validation of all three archives.
 		\item The executable used as package builder is the same artifact that produced the x86 verification evidence.
+		\item Publication depends on successful previous-release upgrades for x86, x64, and ARM64.
 	\end{enumerate}
 }
 

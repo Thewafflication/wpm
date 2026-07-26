@@ -63,8 +63,8 @@ cmake --build --preset build-x64-release
 ```
 
 Replace `x64` with `x86` or `arm64` as needed. ARM64 tests must run on an ARM64
-Windows host. Keep the matching `wcrt.dll` beside `wpm.exe` when copying or
-packaging a build.
+Windows host. WCRT is linked statically so `wpm.exe` remains self-contained for
+installation and self-upgrade handoffs.
 
 ## Official release signing key
 

@@ -17,6 +17,8 @@ $testReportWorkflow = Join-Path $PSScriptRoot '..\.github\workflows\test-reports
 $toolchainAction = Join-Path $PSScriptRoot '..\.github\actions\setup-tinycc\action.yml'
 $tinyccToolchain = Join-Path $PSScriptRoot '..\cmake\toolchains\tcc-x86-xp.cmake'
 $cmakePresets = Join-Path $PSScriptRoot '..\CMakePresets.json'
+$wpmCmake = Join-Path $PSScriptRoot '..\wpm\CMakeLists.txt'
+$previousReleaseUpgradeTest = Join-Path $PSScriptRoot 'verify-previous-release-upgrade.ps1'
 $xpWorkflow = Join-Path $PSScriptRoot '..\.github\workflows\xp-release.yml'
 $results = @(
     New-WpmManualStep `
@@ -45,6 +47,10 @@ $results = @(
                 'WPM_PACKAGE_SIGNING_KEY=\$env:WPM_RELEASE_KEY_PATH',
                 'trust add release_keys/wpm-release\.public',
                 'wpm\.exe verify \$package\.FullName',
+                'name: Verify self-contained Release executable',
+                'name: Upgrade \$\{\{ matrix\.arch \}\} from previous release',
+                'verify-previous-release-upgrade\.ps1',
+                'needs: upgrade-compatibility',
                 '\$packages = Get-ChildItem -LiteralPath release/packages -Filter ''wpm-\*\.zip''',
                 'release/packages/wpm-\*\.zip',
                 'release/keys/wpm-release\.public',
@@ -58,6 +64,17 @@ $results = @(
             }
             if ($workflow -match '(?m)^\s*- name: Generate ephemeral release signing key') {
                 throw 'Release workflow still generates an ephemeral release signing key.'
+            }
+            $upgradeTest = Get-Content -Raw -LiteralPath $previousReleaseUpgradeTest
+            foreach ($pattern in @(
+                'releases/download/\$PreviousVersion',
+                'upgrade wpm --arch \$Architecture --version \$CandidateVersion --offline',
+                'Result: wpm \$Architecture upgraded',
+                '\$installedExecutable --version'
+            )) {
+                if ($upgradeTest -notmatch $pattern) {
+                    throw "Previous-release upgrade gate is missing required behavior: $pattern"
+                }
             }
             if ($workflow -match 'tcc-x86-xp|WPM_WINDOWS_XP_COMPAT') {
                 throw 'Release workflow must use WCRT rather than the custom XP runtime.'
@@ -141,6 +158,11 @@ $results = @(
                 $toolchain -notmatch 'ToBase64String' -or
                 $toolchain -match 'tcc-ar\.cmd') {
                 throw 'TinyCC archive rules must preserve compiler paths containing spaces.'
+            }
+            $cmake = Get-Content -Raw -LiteralPath $wpmCmake
+            if ($cmake -notmatch 'WPM_WCRT_ROOT}/lib/libwcrt\.a' -or
+                $cmake -match 'WPM_WCRT_ROOT}/lib/wcrt\.def') {
+                throw 'WPM must link WCRT statically so release executables are self-contained.'
             }
             if (Test-Path -LiteralPath $xpWorkflow) { throw 'The custom XP runtime workflow must not be restored.' }
             'Every supported Windows architecture is configured for TinyCC and WCRT.'

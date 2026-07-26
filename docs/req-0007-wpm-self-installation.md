@@ -21,8 +21,8 @@ HTTPS.
 
 - install the executable supplied as its first argument, or `wpm.exe` beside
   the script when no argument is supplied;
-- install `wcrt.dll` beside the executable when the supplied WPM build includes
-  that runtime dependency;
+- preserve compatibility with legacy packages that include an optional
+  `wcrt.dll` sidecar, while official Release executables remain self-contained;
 - install the executable to the native architecture's Program Files directory
   (using `%ProgramW6432%` when available) under `WPM\wpm.exe` by default;
 - install `README.md`, `LICENSE.txt`, and `THIRD_PARTY_NOTICES.md` beside the

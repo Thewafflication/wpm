@@ -61,7 +61,8 @@ if(WPM_USE_WCRT)
     foreach(WPM_WCRT_INSTALLATION IN LISTS WPM_WCRT_INSTALLATIONS)
       if(EXISTS "${WPM_WCRT_INSTALLATION}/bin/wcrt.dll" AND
          EXISTS "${WPM_WCRT_INSTALLATION}/include/stdio.h" AND
-         EXISTS "${WPM_WCRT_INSTALLATION}/lib/wcrt.def")
+         EXISTS "${WPM_WCRT_INSTALLATION}/lib/wcrt.def" AND
+         EXISTS "${WPM_WCRT_INSTALLATION}/lib/libwcrt.a")
         set(WPM_WCRT_ROOT "${WPM_WCRT_INSTALLATION}")
         break()
       endif()

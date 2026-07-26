@@ -31,7 +31,15 @@ The index shall be available through GitHub's stable latest-release asset URL:
 `https://github.com/Thewafflication/wpm/releases/latest/download/index.json`.
 
 No release assets shall be published when verification or any architecture
-build fails.
+build fails. Each Release executable shall start successfully when copied into
+an otherwise empty directory, without `wcrt.dll` or another private sidecar
+runtime. After signed package validation and before publication, the workflow
+shall use the immediately previous published x86, x64, and ARM64 WPM packages
+to perform isolated upgrades to their matching candidate packages. Publication
+shall not proceed unless all three previous-release upgrades complete and the
+installed executables report the candidate version. Candidate packages shall
+retain any compatibility sidecar required by the immediately previous release,
+even when the candidate executable no longer depends on that sidecar.
 
 The package job shall obtain the durable release private key only from the
 protected GitHub `release` environment after any configured approval. It shall
@@ -54,4 +62,5 @@ to a tagged source revision.
 Verified by:
 
 - TC-0009 - GitHub Release artifact workflow
+- TC-0013 - Version-aware package installation and upgrades
 - the tag-triggered GitHub Release workflow
