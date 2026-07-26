@@ -51,8 +51,8 @@ get_filename_component(WPM_TCC_ARCHIVER_SCRIPT
   "${CMAKE_CURRENT_LIST_DIR}/../TinyCCArchiver.ps1"
   ABSOLUTE
 )
-find_program(WPM_POWERSHELL_EXECUTABLE powershell.exe REQUIRED)
-set(CMAKE_AR "${WPM_POWERSHELL_EXECUTABLE}" CACHE FILEPATH "PowerShell used by the TinyCC archiver")
+find_program(WPM_TCC_ARCHIVER_POWERSHELL_EXECUTABLE powershell.exe REQUIRED)
+set(CMAKE_AR "${WPM_TCC_ARCHIVER_POWERSHELL_EXECUTABLE}" CACHE FILEPATH "PowerShell used by the TinyCC archiver")
 
 # TinyCC exposes its archive writer through `tcc -ar`, rather than through a
 # separate ar.exe program. Invoke the PowerShell script directly so a compiler

@@ -39,8 +39,18 @@ function Invoke-WpmTestStep {
         [scriptblock]$Assert
     )
 
-    $outputLines = & $WpmExe @Arguments 2>&1
-    $exitCode = $LASTEXITCODE
+    # Windows PowerShell 5 wraps native stderr as ErrorRecord objects. With a
+    # caller's ErrorActionPreference set to Stop, expected stderr would abort
+    # the test before its assertion can inspect output and the process status.
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $outputLines = & $WpmExe @Arguments 2>&1
+        $exitCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
     $output = ($outputLines -join "`n")
     $status = 'Pass'
     $diagnostic = ''
