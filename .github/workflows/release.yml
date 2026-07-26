@@ -71,8 +71,10 @@ jobs:
           fetch-depth: 0
           submodules: recursive
 
-      - name: Set up latest WPM and TinyCC
+      - name: Set up latest WPM, TinyCC, and WCRT
         uses: ./.github/actions/setup-tinycc
+        with:
+          architecture: ${{ matrix.arch }}
 
       - name: Configure verification build
         shell: pwsh
@@ -133,8 +135,10 @@ jobs:
           fetch-depth: 0
           submodules: recursive
 
-      - name: Set up latest WPM and TinyCC
+      - name: Set up latest WPM, TinyCC, and WCRT
         uses: ./.github/actions/setup-tinycc
+        with:
+          architecture: ${{ matrix.arch }}
 
       - name: Configure
         shell: pwsh
@@ -155,12 +159,15 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path release | Out-Null
           Copy-Item -LiteralPath "bin/${{ matrix.arch }}/Release/wpm.exe" -Destination "release/wpm-${{ matrix.arch }}.exe"
+          Copy-Item -LiteralPath "bin/${{ matrix.arch }}/Release/wcrt.dll" -Destination "release/wcrt-${{ matrix.arch }}.dll"
 
       - name: Upload Release executable
         uses: actions/upload-artifact@v7
         with:
           name: wpm-${{ matrix.arch }}-release-executable
-          path: release/wpm-${{ matrix.arch }}.exe
+          path: |
+            release/wpm-${{ matrix.arch }}.exe
+            release/wcrt-${{ matrix.arch }}.dll
           if-no-files-found: error
 
   package:
@@ -207,6 +214,7 @@ jobs:
             cmake `
               "-DWPM_EXECUTABLE=$PWD/bin/x86/Debug/wpm.exe" `
               "-DWPM_PACKAGE_EXECUTABLE=$PWD/release-binaries/wpm-$architecture.exe" `
+              "-DWPM_PACKAGE_RUNTIME_DLL=$PWD/release-binaries/wcrt-$architecture.dll" `
               "-DWPM_PACKAGE_STAGING_DIR=$PWD/out/release-package/$architecture" `
               "-DWPM_PACKAGE_OUTPUT_DIR=$PWD/release/packages" `
               "-DWPM_PACKAGE_ARCH=$architecture" `

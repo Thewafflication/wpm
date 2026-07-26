@@ -73,8 +73,10 @@ jobs:
           fetch-depth: 0
           submodules: recursive
 
-      - name: Set up latest WPM and TinyCC
+      - name: Set up latest WPM, TinyCC, and WCRT
         uses: ./.github/actions/setup-tinycc
+        with:
+          architecture: ${{ matrix.arch }}
 
       - name: Configure
         shell: pwsh
@@ -146,7 +148,12 @@ jobs:
           "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
 
           '```text' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
-          & bin/${{ matrix.arch }}/Debug/wpm.exe --version --verbose | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          $wpmExecutable = 'bin/${{ matrix.arch }}/Debug/wpm.exe'
+          if (Test-Path -LiteralPath $wpmExecutable) {
+            & $wpmExecutable --version --verbose | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          } else {
+            'Version unavailable: the build did not produce wpm.exe.' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          }
           '```' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
 
           @"

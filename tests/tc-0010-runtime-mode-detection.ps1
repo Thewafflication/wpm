@@ -17,6 +17,7 @@ $portableDir = Join-Path ([IO.Path]::GetTempPath()) "wpm-portable-$testId"
 $managedProgramFiles = Join-Path ([IO.Path]::GetTempPath()) "wpm-managed-program-files-$testId"
 $portableExe = Join-Path $portableDir 'wpm.exe'
 $managedExe = Join-Path $managedProgramFiles 'WPM\wpm.exe'
+$runtimeDll = Join-Path (Split-Path -Parent $WpmExe) 'wcrt.dll'
 $previousDataDir = $env:WPM_DATA_DIR
 $previousProgramW6432 = $env:ProgramW6432
 $portableAcl = $null
@@ -28,6 +29,10 @@ try {
     New-Item -ItemType Directory -Force -Path $portableDir, (Split-Path -Parent $managedExe) | Out-Null
     Copy-Item -LiteralPath $WpmExe -Destination $portableExe
     Copy-Item -LiteralPath $WpmExe -Destination $managedExe
+    if (Test-Path -LiteralPath $runtimeDll) {
+        Copy-Item -LiteralPath $runtimeDll -Destination (Join-Path $portableDir 'wcrt.dll')
+        Copy-Item -LiteralPath $runtimeDll -Destination (Join-Path (Split-Path -Parent $managedExe) 'wcrt.dll')
+    }
 
     $results += Invoke-WpmTestStep `
         -WpmExe $portableExe `
@@ -69,7 +74,8 @@ try {
         -Assert {
             param($ExitCode, $Output)
             if ($ExitCode -ne 0) { throw "Expected exit code 0, got $ExitCode." }
-            if ((Get-ChildItem -Force -LiteralPath $portableDir).Count -ne 1) {
+            $expectedPortableFiles = if (Test-Path -LiteralPath $runtimeDll) { 2 } else { 1 }
+            if ((Get-ChildItem -Force -LiteralPath $portableDir).Count -ne $expectedPortableFiles) {
                 throw 'WPM wrote mutable state beside the read-only portable executable.'
             }
             foreach ($directory in @($dataDir, (Join-Path $dataDir 'packages'), (Join-Path $dataDir 'temp'), (Join-Path $dataDir 'cache'), (Join-Path $dataDir 'config'))) {

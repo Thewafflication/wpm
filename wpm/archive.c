@@ -1414,8 +1414,9 @@ int wpm_archive_schedule_self_upgrade(const char* archive_path, int allow_unsign
     const char* expected_version, const char* expected_arch,
     const char* old_version) {
     char archive_full[WPM_PATH_SIZE], root[WPM_PATH_SIZE], temp[WPM_PATH_SIZE];
-    char stage[WPM_PATH_SIZE], staged_exe[WPM_PATH_SIZE], cache[WPM_PATH_SIZE];
-    char handoff_dir[WPM_PATH_SIZE], handoff_exe[WPM_PATH_SIZE], audit_dir[WPM_PATH_SIZE], log_path[WPM_PATH_SIZE];
+    char stage[WPM_PATH_SIZE], staged_exe[WPM_PATH_SIZE], staged_runtime[WPM_PATH_SIZE], cache[WPM_PATH_SIZE];
+    char handoff_dir[WPM_PATH_SIZE], handoff_exe[WPM_PATH_SIZE], handoff_runtime[WPM_PATH_SIZE];
+    char audit_dir[WPM_PATH_SIZE], log_path[WPM_PATH_SIZE];
     char signing_key[65] = "", command[WPM_PATH_SIZE * 2];
     wpm_package_metadata metadata;
     STARTUPINFOA startup;
@@ -1426,8 +1427,10 @@ int wpm_archive_schedule_self_upgrade(const char* archive_path, int allow_unsign
         snprintf(stage, sizeof(stage), "%s\\self-upgrade-stage-%lu", temp,
             (unsigned long)GetCurrentProcessId()) < 0 ||
         !join_path(staged_exe, sizeof(staged_exe), stage, "wpm.exe") ||
+        !join_path(staged_runtime, sizeof(staged_runtime), stage, "wcrt.dll") ||
         !join_path(cache, sizeof(cache), root, "cache") ||
         !join_path(handoff_dir, sizeof(handoff_dir), cache, "self-upgrade") ||
+        !join_path(handoff_runtime, sizeof(handoff_runtime), handoff_dir, "wcrt.dll") ||
         !join_path(audit_dir, sizeof(audit_dir), root, "audit") ||
         snprintf(log_path, sizeof(log_path), "%s\\self-upgrade-%s-%s.log", audit_dir,
             expected_arch, expected_version) < 0 ||
@@ -1450,13 +1453,15 @@ int wpm_archive_schedule_self_upgrade(const char* archive_path, int allow_unsign
         goto cleanup;
     }
     if (_stricmp(metadata.name, "wpm") != 0 || strcmp(metadata.version, expected_version) != 0 ||
-        _stricmp(metadata.arch, expected_arch) != 0 || !file_exists_at_path(staged_exe)) {
+        _stricmp(metadata.arch, expected_arch) != 0 || !file_exists_at_path(staged_exe) ||
+        !file_exists_at_path(staged_runtime)) {
         printf("Error: WPM self-upgrade package metadata or executable does not match the selected candidate.\n");
         write_upgrade_audit(root, &metadata, old_version, path_basename(archive_full), signing_key, 1, "self-upgrade-metadata", 0);
         goto cleanup;
     }
-    if (!CopyFileA(staged_exe, handoff_exe, FALSE)) {
-        printf("Error: could not cache the WPM self-upgrade executable.\n");
+    if (!CopyFileA(staged_exe, handoff_exe, FALSE) ||
+        !CopyFileA(staged_runtime, handoff_runtime, FALSE)) {
+        printf("Error: could not cache the WPM self-upgrade executable and WCRT runtime.\n");
         goto cleanup;
     }
     if (snprintf(command, sizeof(command), "\"%s\" --complete-self-upgrade \"%s\" %lu \"%s\" \"%s\" \"%s\" %d \"%s\"",

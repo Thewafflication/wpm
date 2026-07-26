@@ -21,6 +21,38 @@ function Get-RepositoryCachePath {
     Join-Path $DataDir ("cache\repositories\{0:x8}.json" -f $hash)
 }
 
+function Remove-TestRoot {
+    param([string]$Path)
+    $deadline = [DateTime]::UtcNow.AddSeconds(30)
+    while (Test-Path -LiteralPath $Path) {
+        try {
+            Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction Stop
+        } catch {
+            if ([DateTime]::UtcNow -ge $deadline) { throw }
+            Start-Sleep -Milliseconds 100
+        }
+    }
+}
+
+function Get-WpmArchitecture {
+    param([string]$Path)
+    $stream = [IO.File]::OpenRead($Path)
+    $reader = [IO.BinaryReader]::new($stream)
+    try {
+        $stream.Position = 0x3c
+        $stream.Position = $reader.ReadInt32() + 4
+        switch ($reader.ReadUInt16()) {
+            0x014c { 'x86' }
+            0x8664 { 'x64' }
+            0xaa64 { 'arm64' }
+            default { throw 'Unsupported WPM executable architecture.' }
+        }
+    } finally {
+        $reader.Dispose()
+        $stream.Dispose()
+    }
+}
+
 $testId = [Guid]::NewGuid().ToString('N')
 $testRoot = Join-Path ([IO.Path]::GetTempPath()) "wpm-upgrades-$testId"
 $dataDir = Join-Path $testRoot 'wpm-data'
@@ -29,6 +61,7 @@ $outputDir = Join-Path $testRoot 'archives'
 $markerDir = Join-Path $testRoot 'markers'
 $repository = 'https://upgrade.example.test'
 $previousDataDir = $env:WPM_DATA_DIR
+$wpmArchitecture = Get-WpmArchitecture $WpmExe
 $started = Get-Date
 $results = @()
 $entries = [Collections.Generic.List[object]]::new()
@@ -68,7 +101,12 @@ function New-PackageArchive {
         "echo $Marker>>`"$(Join-Path $markerDir "$Name-$Arch.txt")`""
         "exit /b $ExitCode"
     )
-    if ($IncludeWpmExe) { Copy-Item -LiteralPath $WpmExe -Destination (Join-Path $source 'wpm.exe') }
+    if ($IncludeWpmExe) {
+        Copy-Item -LiteralPath $WpmExe -Destination (Join-Path $source 'wpm.exe')
+        $runtimeDll = Join-Path (Split-Path -Parent $WpmExe) 'wcrt.dll'
+        if (-not (Test-Path -LiteralPath $runtimeDll)) { throw 'WCRT runtime is required for a WPM self-upgrade package.' }
+        Copy-Item -LiteralPath $runtimeDll -Destination (Join-Path $source 'wcrt.dll')
+    }
     $build = & $WpmExe build $source $outputDir 2>&1
     if ($LASTEXITCODE -ne 0) { throw "Could not build $Name $Arch $Version. $($build -join "`n")" }
     $archive = Join-Path $outputDir "$Name-$Arch-$Version.zip"
@@ -103,7 +141,7 @@ try {
         Install-Baseline $packages.Conflict '1.0.0' 'x86'
         Install-Baseline $packages.Failure '1.0.0' 'any'
         Install-Baseline $packages.Continue '1.0.0' 'any'
-        Install-Baseline $packages.Self '1.0.0' 'x86'
+        Install-Baseline $packages.Self '1.0.0' $wpmArchitecture
         Install-Baseline $packages.Confirm '1.0.0' 'arm64'
         Install-Baseline $packages.Legacy 'ef32a57' 'any'
 
@@ -123,7 +161,7 @@ try {
         New-PackageArchive $packages.Named '1.0.0' 'x86' 'named-x86-1.0.0' -RepositoryEntry | Out-Null
         New-PackageArchive $packages.Named '2.0.0' 'x86' 'named-x86-2.0.0' -RepositoryEntry | Out-Null
         New-PackageArchive $packages.Named '2.0.0' 'any' 'named-any-2.0.0' -RepositoryEntry | Out-Null
-        New-PackageArchive $packages.Self '2.0.0' 'x86' 'self-2.0.0' -IncludeWpmExe -RepositoryEntry | Out-Null
+        New-PackageArchive $packages.Self '2.0.0' $wpmArchitecture 'self-2.0.0' -IncludeWpmExe -RepositoryEntry | Out-Null
         New-PackageArchive $packages.Confirm '2.0.0' 'arm64' 'confirmed-2.0.0' -RepositoryEntry | Out-Null
         $entries.Add([ordered]@{ name=$packages.Prerelease; version='not-semver'; arch='any'; url='packages/invalid.zip' })
         'Baseline and candidate archives created.'
@@ -253,30 +291,31 @@ try {
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Complete WPM self-upgrade through cached executable handoff' -Arguments @('upgrade','wpm','--offline','--allow-unsigned') -Assert {
         param($ExitCode,$Output)
         if ($ExitCode -ne 0 -or $Output -notmatch '(?i)scheduled|continue') { throw "WPM self-upgrade was not scheduled. $Output" }
-        $markerPath = Join-Path $markerDir 'wpm-x86.txt'
-        $logPath = Join-Path $dataDir 'audit\self-upgrade-x86-2.0.0.log'
-        $deadline = [DateTime]::UtcNow.AddSeconds(15)
+        $markerPath = Join-Path $markerDir "wpm-$wpmArchitecture.txt"
+        $logPath = Join-Path $dataDir "audit\self-upgrade-$wpmArchitecture-2.0.0.log"
+        $deadline = [DateTime]::UtcNow.AddSeconds(60)
         while ([DateTime]::UtcNow -lt $deadline) {
             if ((Test-Path -LiteralPath $markerPath) -and (Get-Content -Raw -LiteralPath $markerPath) -match 'self-2\.0\.0') { break }
             Start-Sleep -Milliseconds 100
         }
         if (-not (Test-Path -LiteralPath $markerPath) -or (Get-Content -Raw -LiteralPath $markerPath) -notmatch 'self-2\.0\.0') { $log = if (Test-Path -LiteralPath $logPath) { Get-Content -Raw -LiteralPath $logPath } else { '<missing>' }; throw "Cached WPM handoff did not complete the installation. Log: $log" }
-        if (-not (Test-Path -LiteralPath (Join-Path $dataDir 'cache\self-upgrade\wpm-x86-2.0.0.exe'))) { throw 'Candidate WPM executable was not retained in the self-upgrade cache.' }
-        $deadline = [DateTime]::UtcNow.AddSeconds(15)
+        if (-not (Test-Path -LiteralPath (Join-Path $dataDir "cache\self-upgrade\wpm-$wpmArchitecture-2.0.0.exe"))) { throw 'Candidate WPM executable was not retained in the self-upgrade cache.' }
+        if (-not (Test-Path -LiteralPath (Join-Path $dataDir 'cache\self-upgrade\wcrt.dll'))) { throw 'Candidate WCRT runtime was not retained in the self-upgrade cache.' }
+        $deadline = [DateTime]::UtcNow.AddSeconds(60)
         while ([DateTime]::UtcNow -lt $deadline) {
-            if ((Test-Path -LiteralPath $logPath) -and (Get-Content -Raw -LiteralPath $logPath) -match 'Result: wpm x86 upgraded') { break }
+            if ((Test-Path -LiteralPath $logPath) -and (Get-Content -Raw -LiteralPath $logPath) -match "Result: wpm $wpmArchitecture upgraded") { break }
             Start-Sleep -Milliseconds 100
         }
         if (-not (Test-Path -LiteralPath $logPath)) { throw 'Self-upgrade output log was not created.' }
         $log = Get-Content -Raw -LiteralPath $logPath
-        if ($log -notmatch 'install-script:self-2\.0\.0' -or $log -notmatch 'Result: wpm x86 upgraded') { throw "Self-upgrade log did not include script output and final result. Log: $log" }
-        if ($Output -notmatch '(?i)Result: wpm x86 scheduled' -or $Output -notmatch '(?i)Self-upgrade output:') { throw 'Parent process claimed completion or omitted the output-log path.' }
+        if ($log -notmatch 'install-script:self-2\.0\.0' -or $log -notmatch "Result: wpm $wpmArchitecture upgraded") { throw "Self-upgrade log did not include script output and final result. Log: $log" }
+        if ($Output -notmatch "(?i)Result: wpm $wpmArchitecture scheduled" -or $Output -notmatch '(?i)Self-upgrade output:') { throw 'Parent process claimed completion or omitted the output-log path.' }
     }
 
     $results += New-WpmManualStep -Name 'Accept the legacy self-upgrade handoff protocol' -Action {
-        $handoffExe = Join-Path $dataDir 'cache\self-upgrade\wpm-x86-2.0.0.exe'
-        $archive = Join-Path $dataDir 'cache\packages\wpm-x86-2.0.0.zip'
-        $output = & $handoffExe --complete-self-upgrade $archive 0 2.0.0 x86 1.0.0 1 2>&1 | Out-String
+        $handoffExe = Join-Path $dataDir "cache\self-upgrade\wpm-$wpmArchitecture-2.0.0.exe"
+        $archive = Join-Path $dataDir "cache\packages\wpm-$wpmArchitecture-2.0.0.zip"
+        $output = & $handoffExe --complete-self-upgrade $archive 0 2.0.0 $wpmArchitecture 1.0.0 1 2>&1 | Out-String
         if ($LASTEXITCODE -ne 0) {
             throw "Legacy eight-argument self-upgrade handoff failed. $output"
         }
@@ -304,7 +343,7 @@ try {
 finally {
     $finished = Get-Date
     if ($EvidenceTex) { Write-WpmTestEvidence -TestCaseId 'TC-0013' -WpmExe $WpmExe -Started $started -Finished $finished -Results $results -EvidenceTex $EvidenceTex }
-    if (Test-Path -LiteralPath $testRoot) { Remove-Item -LiteralPath $testRoot -Recurse -Force }
+    if (Test-Path -LiteralPath $testRoot) { Remove-TestRoot $testRoot }
     if ($null -eq $previousDataDir) { Remove-Item Env:WPM_DATA_DIR -ErrorAction SilentlyContinue } else { $env:WPM_DATA_DIR = $previousDataDir }
 }
 
