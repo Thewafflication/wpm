@@ -15,6 +15,7 @@ When invoked with no command-line arguments, the application shall:
 When invoked with the `--version` option, the application shall:
 
 - display the WPM version and the version and commit of each bundled dependency,
+- display the version of each loaded, non-system runtime dependency,
 - terminate normally, and
 - return an exit code of `0`.
 

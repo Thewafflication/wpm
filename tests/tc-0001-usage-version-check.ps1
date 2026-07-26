@@ -77,6 +77,9 @@ $results = @(
                 $Output -notmatch 'Runtime mode: portable') {
                 throw 'Expected combined version, dependency, and runtime information.'
             }
+            if ($expectsWcrt -and $Output -notmatch 'wcrt \d+\.\d+\.\d+\.\d+ \(runtime library\)') {
+                throw 'Expected the WCRT runtime dependency version in combined verbose version output.'
+            }
         }
 )
 $finished = Get-Date
