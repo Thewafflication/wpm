@@ -91,6 +91,21 @@ $results = @(
                 $workflow -notmatch 'architecture: \$\{\{ matrix\.arch \}\}') {
                 throw 'Test-report workflow does not resolve dependency metadata once for all architecture jobs.'
             }
+            foreach ($pattern in @(
+                'name: Build unsigned Debug WPM package',
+                "if: steps\.verify\.outputs\.exit_code == '0'",
+                'WPM_DATA_DIR.+wpm-debug-package-\$\{\{ matrix\.arch \}\}',
+                'WPM_PACKAGE_EXECUTABLE=.*bin/\$\{\{ matrix\.arch \}\}/Debug/wpm\.exe',
+                'WPM_PACKAGE_DEBUG=true',
+                'name: wpm-windows-\$\{\{ matrix\.arch \}\}-debug',
+                'debug-packages/wpm-\$\{\{ matrix\.arch \}\}-debug-\*\.zip',
+                'name: Upload failed test diagnostics',
+                "if: steps\.verify\.outputs\.exit_code != '0'"
+            )) {
+                if ($workflow -notmatch $pattern) {
+                    throw "Test-report workflow is missing conditional Debug packaging configuration: $pattern"
+                }
+            }
             'Test-report builds check out complete Git history for version generation.'
         }
 

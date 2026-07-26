@@ -113,8 +113,38 @@ jobs:
         shell: pwsh
         run: tests/summarize-build-warnings.ps1 -LogPath bin/${{ matrix.arch }}/Debug/verification-build.log
 
-      - name: Upload complete test report artifact
-        if: always()
+      - name: Build unsigned Debug WPM package
+        if: steps.verify.outputs.exit_code == '0'
+        shell: pwsh
+        run: |
+          $env:WPM_DATA_DIR = Join-Path $env:RUNNER_TEMP 'wpm-debug-package-${{ matrix.arch }}'
+          cmake `
+            "-DWPM_EXECUTABLE=$PWD/bin/${{ matrix.arch }}/Debug/wpm.exe" `
+            "-DWPM_PACKAGE_EXECUTABLE=$PWD/bin/${{ matrix.arch }}/Debug/wpm.exe" `
+            "-DWPM_PACKAGE_STAGING_DIR=$PWD/out/debug-package/${{ matrix.arch }}" `
+            "-DWPM_PACKAGE_OUTPUT_DIR=$PWD/debug-packages" `
+            "-DWPM_PACKAGE_ARCH=${{ matrix.arch }}" `
+            -DWPM_PACKAGE_DEBUG=true `
+            "-DWPM_SETUP_SCRIPT=$PWD/setup.cmd" `
+            "-DWPM_REMOVE_SCRIPT=$PWD/remove.cmd" `
+            "-DWPM_REPORT_DIR=$PWD/bin/${{ matrix.arch }}/Debug" `
+            "-DWPM_DOCS_DIR=$PWD/docs" `
+            "-DWPM_README_FILE=$PWD/README.md" `
+            "-DWPM_LICENSE_FILE=$PWD/LICENSE.txt" `
+            "-DWPM_THIRD_PARTY_NOTICES_FILE=$PWD/THIRD_PARTY_NOTICES.md" `
+            -P cmake/BuildSelfPackage.cmake
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload unsigned Debug WPM package
+        if: steps.verify.outputs.exit_code == '0'
+        uses: actions/upload-artifact@v7
+        with:
+          name: wpm-windows-${{ matrix.arch }}-debug
+          path: debug-packages/wpm-${{ matrix.arch }}-debug-*.zip
+          if-no-files-found: error
+
+      - name: Upload failed test diagnostics
+        if: steps.verify.outputs.exit_code != '0'
         uses: actions/upload-artifact@v7
         with:
           name: wpm-test-report-windows-${{ matrix.arch }}-debug
@@ -180,7 +210,11 @@ jobs:
           }
 
           @"
-          The generated executable, debug symbols, build log, and TeX reports are attached to this workflow run as the architecture-specific test-report artifact. Distributable packages are produced only by the tag-triggered Release workflow.
+          $(if ($overallStatus -eq 'PASS') {
+            'The tests passed. An unsigned, architecture-specific Debug WPM package containing the executable, runtime, documentation, and TeX reports is attached to this workflow run.'
+          } else {
+            'The tests failed. The generated executable, debug symbols, build log, and TeX reports are attached to this workflow run as the architecture-specific diagnostics artifact.'
+          })
           "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
 
           if ($overallStatus -ne 'PASS') {
