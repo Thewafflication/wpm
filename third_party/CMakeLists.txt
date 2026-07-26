@@ -60,6 +60,15 @@ if(NOT TARGET miniz)
     "${MINIZ_SOURCE_DIR}/miniz_tdef.c"
   )
 
+  if(WPM_WINDOWS_XP_COMPAT OR WPM_USE_WCRT)
+    target_sources(miniz PRIVATE
+      "${CMAKE_SOURCE_DIR}/wpm/tcc_compat/utime.c"
+    )
+    if(WPM_USE_WCRT)
+      target_sources(miniz PRIVATE "${CMAKE_SOURCE_DIR}/wpm/tcc_compat/wcrt_stat.c")
+    endif()
+  endif()
+
   generate_export_header(miniz)
 
   target_include_directories(miniz PUBLIC
@@ -106,6 +115,14 @@ endforeach()
 
 list(REMOVE_DUPLICATES libsodium_sources)
 
+if(CMAKE_C_COMPILER_ID STREQUAL "TinyCC")
+  # The internal random implementation is not selected by the Windows build,
+  # and assumes a Unix unistd.h whenever the compiler is not MSVC/Borland.
+  list(FILTER libsodium_sources EXCLUDE REGEX
+    "/randombytes/internal/randombytes_internal_random\\.c$"
+  )
+endif()
+
 if(NOT libsodium_sources)
   message(FATAL_ERROR "Unable to discover libsodium sources from ${LIBSODIUM_MSVC_PROJECT}")
 endif()
@@ -113,6 +130,16 @@ endif()
 if(NOT TARGET libsodium)
   set(LIBSODIUM_GENERATED_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/libsodium/include")
   file(MAKE_DIRECTORY "${LIBSODIUM_GENERATED_INCLUDE_DIR}/sodium")
+  if(CMAKE_C_COMPILER_ID STREQUAL "TinyCC")
+    # libsodium includes this header for Windows, but the APIs used by this
+    # translation unit are already declared by TinyCC's windows.h.
+    file(WRITE "${LIBSODIUM_GENERATED_INCLUDE_DIR}/wincrypt.h" "#pragma once\n")
+    if(WPM_USE_WCRT)
+      # This header is included unconditionally by libsodium's cross-platform
+      # RNG source, but none of its declarations are used by the Windows path.
+      file(WRITE "${LIBSODIUM_GENERATED_INCLUDE_DIR}/fcntl.h" "#pragma once\n")
+    endif()
+  endif()
   configure_file(
     "${LIBSODIUM_SOURCE_DIR}/builds/msvc/version.h"
     "${LIBSODIUM_GENERATED_INCLUDE_DIR}/sodium/version.h"

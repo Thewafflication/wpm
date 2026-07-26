@@ -3,7 +3,11 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <windows.h>
-#include <aclapi.h>
+#ifdef __TINYC__
+# include "tcc_compat/aclapi.h"
+#else
+# include <aclapi.h>
+#endif
 #include "sodium.h"
 #include "archive.h"
 #include "signing.h"
@@ -23,7 +27,7 @@ static int key_id(const unsigned char* public_key, char* out, size_t size) { uns
 static int field(const char* text, const char* name, char* out, size_t size) { const char* p=strstr(text,name); size_t n; if(!p) return 0; p+=strlen(name); if(*p=='=') p++; n=strcspn(p,"\r\n\""); if(n==0 || n>=size) return 0; memcpy(out,p,n);out[n]=0;return 1; }
 static int occurrences(const char* text,const char* value){int count=0;size_t n=strlen(value);while((text=strstr(text,value))!=NULL){count++;text+=n;}return count;}
 static int has_data_override(void){char value[PATH_SIZE];DWORD n=GetEnvironmentVariableA("WPM_DATA_DIR",value,sizeof(value));return n>0&&n<sizeof(value);}
-static int elevated(void){HANDLE token=NULL;TOKEN_ELEVATION elevation;DWORD size=0;int result=0;if(OpenProcessToken(GetCurrentProcess(),TOKEN_QUERY,&token)&&GetTokenInformation(token,TokenElevation,&elevation,sizeof(elevation),&size))result=elevation.TokenIsElevated!=0;if(token)CloseHandle(token);return result;}
+static int elevated(void){SID_IDENTIFIER_AUTHORITY authority=SECURITY_NT_AUTHORITY;PSID administrators=NULL;BOOL member=FALSE;if(!AllocateAndInitializeSid(&authority,2,SECURITY_BUILTIN_DOMAIN_RID,DOMAIN_ALIAS_RID_ADMINS,0,0,0,0,0,0,&administrators))return 0;CheckTokenMembership(NULL,administrators,&member);FreeSid(administrators);return member!=FALSE;}
 static int may_change_machine_trust(void){if(has_data_override()||elevated())return 1;printf("Error: administrator elevation is required to modify the machine trust store.\n");return 0;}
 static int protect_private_key(const char* path){HANDLE token=NULL;DWORD size=0;PTOKEN_USER user=NULL;EXPLICIT_ACCESSA access;PACL acl=NULL;DWORD error;int ok=0;if(!OpenProcessToken(GetCurrentProcess(),TOKEN_QUERY,&token))goto done;GetTokenInformation(token,TokenUser,NULL,0,&size);if(GetLastError()!=ERROR_INSUFFICIENT_BUFFER||(user=(PTOKEN_USER)malloc(size))==NULL||!GetTokenInformation(token,TokenUser,user,size,&size))goto done;ZeroMemory(&access,sizeof(access));access.grfAccessPermissions=GENERIC_ALL;access.grfAccessMode=SET_ACCESS;access.grfInheritance=NO_INHERITANCE;access.Trustee.TrusteeForm=TRUSTEE_IS_SID;access.Trustee.TrusteeType=TRUSTEE_IS_USER;access.Trustee.ptstrName=(LPSTR)user->User.Sid;if(SetEntriesInAclA(1,&access,NULL,&acl)!=ERROR_SUCCESS)goto done;error=SetNamedSecurityInfoA((LPSTR)path,SE_FILE_OBJECT,DACL_SECURITY_INFORMATION|PROTECTED_DACL_SECURITY_INFORMATION,NULL,NULL,acl,NULL);ok=error==ERROR_SUCCESS;done:if(acl)LocalFree(acl);if(user)free(user);if(token)CloseHandle(token);return ok;}
 static int load_private(const char* path, unsigned char* secret) { unsigned char* text;size_t n;char b64[256];size_t out=0;int ok=0; if(!read_all(path,&text,&n))return 0; if(strstr((char*)text,"wpm-private-key-v1") && field((char*)text,"secret-key",b64,sizeof(b64)) && sodium_base642bin(secret,crypto_sign_SECRETKEYBYTES,b64,strlen(b64),NULL,&out,NULL,sodium_base64_VARIANT_ORIGINAL)==0 && out==crypto_sign_SECRETKEYBYTES)ok=1; sodium_memzero(text,n);free(text);return ok; }

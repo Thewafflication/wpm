@@ -1,0 +1,3 @@
+LIBRARY urlmon.dll
+EXPORTS
+URLDownloadToFileA

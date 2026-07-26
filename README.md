@@ -49,6 +49,23 @@ issue-reporting guidance.
 WPM uses third-party open-source software. See
 [Third-Party Notices](THIRD_PARTY_NOTICES.md) for attribution and licenses.
 
+## Building
+
+All supported Windows builds use TinyCC and link their C library calls to WCRT.
+The standard x86, x64, and ARM64 presets find the newest package beneath
+`%ProgramFiles%\WCRT`, or use
+`WPM_WCRT_ROOT` when that CMake or environment variable is set. The selected
+WCRT package must match the requested architecture.
+
+```powershell
+cmake --preset x64-release
+cmake --build --preset build-x64-release
+```
+
+Replace `x64` with `x86` or `arm64` as needed. ARM64 tests must run on an ARM64
+Windows host. Keep the matching `wcrt.dll` beside `wpm.exe` when copying or
+packaging a build.
+
 ## Official release signing key
 
 Official WPM packages are signed with the durable public key in

@@ -184,8 +184,9 @@ multiple-version package model.
 
 When upgrading the `wpm` package itself, the running installed executable shall
 not attempt to overwrite itself. After validating the candidate package, WPM
-shall copy the candidate `wpm.exe` beneath `cache\self-upgrade`, launch that
-cached executable as a detached completion process, and exit. The completion
+shall copy the candidate `wpm.exe` and its matching `wcrt.dll` beneath
+`cache\self-upgrade`, launch that cached executable as a detached completion
+process, and exit. The completion
 process shall wait for the invoking WPM process to terminate before repeating
 normal package validation and installation. The completed upgrade shall retain
 the candidate archive and create the normal upgrade audit record. The invoking

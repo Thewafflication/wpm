@@ -58,6 +58,48 @@ static const char* path_basename(const char* path);
 static int normalized_full_path(const char* path, char* result, size_t result_size);
 static int join_path(char* result, size_t result_size, const char* left, const char* right);
 
+static size_t wpm_zip_read_file(void* opaque, mz_uint64 offset, void* buffer, size_t size) {
+    HANDLE file = (HANDLE)opaque;
+    LARGE_INTEGER position;
+    DWORD bytes_to_read;
+    DWORD bytes_read = 0;
+
+    if (size > MAXDWORD) size = MAXDWORD;
+    position.QuadPart = (LONGLONG)offset;
+    bytes_to_read = (DWORD)size;
+    if (!SetFilePointerEx(file, position, NULL, FILE_BEGIN) ||
+        !ReadFile(file, buffer, bytes_to_read, &bytes_read, NULL)) {
+        return 0;
+    }
+    return (size_t)bytes_read;
+}
+
+static int wpm_zip_add_file(mz_zip_archive* zip, const char* archive_path, const char* source_path) {
+    HANDLE file;
+    LARGE_INTEGER size;
+    DWORD size_high = 0;
+    DWORD size_low;
+    mz_bool added;
+
+    file = CreateFileA(source_path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING,
+        FILE_ATTRIBUTE_NORMAL, NULL);
+    if (file == INVALID_HANDLE_VALUE) return 0;
+    SetLastError(NO_ERROR);
+    size_low = GetFileSize(file, &size_high);
+    if (size_low == INVALID_FILE_SIZE && GetLastError() != NO_ERROR) {
+        CloseHandle(file);
+        return 0;
+    }
+    size.HighPart = (LONG)size_high;
+    size.LowPart = size_low;
+
+    added = mz_zip_writer_add_read_buf_callback(zip, archive_path, wpm_zip_read_file,
+        file, (mz_uint64)size.QuadPart, NULL, NULL, 0, MZ_BEST_COMPRESSION,
+        NULL, 0, NULL, 0);
+    CloseHandle(file);
+    return added != MZ_FALSE;
+}
+
 int wpm_get_data_root(char* result, size_t result_size) {
     char configured_root[WPM_PATH_SIZE];
     char program_data[WPM_PATH_SIZE];
@@ -437,9 +479,13 @@ static int calculate_file_blake2b(const char* path, char* hex, size_t hex_size) 
     verbose_log("Computing BLAKE2b hash: %s", path);
     file = wpm_fopen(path, "rb");
 
-    if (!file) return 0;
+    if (!file) {
+        verbose_log("Could not open hash input");
+        return 0;
+    }
     if (!ensure_sodium_ready() ||
         crypto_generichash_init(&state, NULL, 0, sizeof(hash)) != 0) {
+        verbose_log("Could not initialize BLAKE2b state");
         fclose(file);
         return 0;
     }
@@ -448,12 +494,14 @@ static int calculate_file_blake2b(const char* path, char* hex, size_t hex_size) 
         size_t bytes_read = fread(buffer, 1, sizeof(buffer), file);
         if (bytes_read > 0) {
             if (crypto_generichash_update(&state, buffer, bytes_read) != 0) {
+                verbose_log("Could not update BLAKE2b state");
                 fclose(file);
                 return 0;
             }
         }
         if (bytes_read < sizeof(buffer)) {
             if (ferror(file)) {
+                verbose_log("Hash input reported a read error after %lu bytes", (unsigned long)bytes_read);
                 fclose(file);
                 return 0;
             }
@@ -462,16 +510,32 @@ static int calculate_file_blake2b(const char* path, char* hex, size_t hex_size) 
     }
 
     if (crypto_generichash_final(&state, hash, sizeof(hash)) != 0) {
+        verbose_log("Could not finalize BLAKE2b state");
         fclose(file);
         return 0;
     }
 
     sodium_bin2hex(hex, hex_size, hash, sizeof(hash));
-    return fclose(file) == 0;
+    if (fclose(file) != 0) {
+        verbose_log("Could not close hash input");
+        return 0;
+    }
+    return 1;
+}
+
+static int remove_directory_tree_with_retry(const char* path) {
+    unsigned int attempt;
+
+    for (attempt = 0; attempt < 100; attempt++) {
+        if (remove_directory_tree(path)) return 1;
+        Sleep(50);
+    }
+    return remove_directory_tree(path);
 }
 
 static int get_file_size_bytes(const char* path, unsigned long long* size) {
-    LARGE_INTEGER file_size;
+    DWORD file_size_low;
+    DWORD file_size_high = 0;
     HANDLE file = CreateFileA(
         path,
         GENERIC_READ,
@@ -483,13 +547,15 @@ static int get_file_size_bytes(const char* path, unsigned long long* size) {
     );
 
     if (file == INVALID_HANDLE_VALUE) return 0;
-    if (!GetFileSizeEx(file, &file_size)) {
+    SetLastError(NO_ERROR);
+    file_size_low = GetFileSize(file, &file_size_high);
+    if (file_size_low == INVALID_FILE_SIZE && GetLastError() != NO_ERROR) {
         CloseHandle(file);
         return 0;
     }
 
     CloseHandle(file);
-    *size = (unsigned long long)file_size.QuadPart;
+    *size = ((unsigned long long)file_size_high << 32) | file_size_low;
     return 1;
 }
 
@@ -554,6 +620,7 @@ static int write_index_entries(
         else {
             char source_full_path[WPM_PATH_SIZE];
             char blake2b[WPM_BLAKE2B_HEX_SIZE];
+            char index_line[WPM_PATH_SIZE + WPM_BLAKE2B_HEX_SIZE + 64];
             unsigned long long file_size;
 
             if (!normalized_full_path(source_path, source_full_path, sizeof(source_full_path))) {
@@ -566,7 +633,9 @@ static int write_index_entries(
 
             if (!get_file_size_bytes(source_path, &file_size) ||
                 !calculate_file_blake2b(source_path, blake2b, sizeof(blake2b)) ||
-                fprintf(index, "%s,%llu,%s,blake2b\n", archive_path, file_size, blake2b) < 0) {
+                snprintf(index_line, sizeof(index_line), "%s,%llu,%s,blake2b\n",
+                         archive_path, file_size, blake2b) < 0 ||
+                fputs(index_line, index) < 0) {
                 FindClose(search);
                 return 0;
             }
@@ -708,14 +777,7 @@ static int add_directory_to_zip(
 
             verbose_log("Adding file to archive: %s", archive_path);
 
-            if (!mz_zip_writer_add_file(
-                    zip,
-                    archive_path,
-                    source_path,
-                    NULL,
-                    0,
-                    MZ_BEST_COMPRESSION
-                )) {
+            if (!wpm_zip_add_file(zip, archive_path, source_path)) {
                 FindClose(search);
                 return 0;
             }
@@ -1181,7 +1243,7 @@ int wpm_archive_inspect(const char* archive_path, wpm_package_info* info) {
         !join_path(temp, sizeof(temp), root, "temp") ||
         snprintf(stage, sizeof(stage), "%s\\inspect-%lu-%llu", temp,
             (unsigned long)GetCurrentProcessId(), (unsigned long long)wpm_tick_count()) < 0 ||
-        !create_directories(temp) || !remove_directory_tree(stage)) return 0;
+        !create_directories(temp) || !remove_directory_tree_with_retry(stage)) return 0;
     if (wpm_archive_extract(archive_path, stage) && read_package_metadata(stage, &metadata)) {
         strcpy_s(info->name, sizeof(info->name), metadata.name);
         strcpy_s(info->version, sizeof(info->version), metadata.version);
@@ -1189,7 +1251,7 @@ int wpm_archive_inspect(const char* archive_path, wpm_package_info* info) {
         strcpy_s(info->archive_name, sizeof(info->archive_name), path_basename(archive_path));
         result = 1;
     }
-    if (!remove_directory_tree(stage)) result = 0;
+    if (!remove_directory_tree_with_retry(stage)) result = 0;
     return result;
 }
 
@@ -1209,7 +1271,7 @@ int wpm_archive_verify(const char* archive_path) {
         !join_path(temp_root, sizeof(temp_root), data_root, "temp") ||
         snprintf(staging_path, sizeof(staging_path), "%s\\verify-%lu-%llu", temp_root,
             (unsigned long)GetCurrentProcessId(), (unsigned long long)wpm_tick_count()) < 0 ||
-        !create_directories(temp_root) || !remove_directory_tree(staging_path)) {
+        !create_directories(temp_root) || !remove_directory_tree_with_retry(staging_path)) {
         printf("Error: could not prepare package verification staging.\n");
         return 0;
     }
@@ -1221,7 +1283,7 @@ int wpm_archive_verify(const char* archive_path) {
     success = 1;
 
 cleanup:
-    if (!remove_directory_tree(staging_path)) {
+    if (!remove_directory_tree_with_retry(staging_path)) {
         printf("Error: could not remove verification staging directory: %s\n", staging_path);
         success = 0;
     }
@@ -1298,7 +1360,7 @@ int wpm_archive_install(const char* archive_path, int allow_unsigned) {
         printf("Error: could not create WPM data directories.\n");
         return 0;
     }
-    if (!remove_directory_tree(staging_path)) {
+    if (!remove_directory_tree_with_retry(staging_path)) {
         printf("Error: could not clear staging directory: %s\n", staging_path);
         return 0;
     }
@@ -1327,7 +1389,7 @@ int wpm_archive_install(const char* archive_path, int allow_unsigned) {
     success = 1;
 
 cleanup:
-    if (!remove_directory_tree(staging_path)) {
+    if (!remove_directory_tree_with_retry(staging_path)) {
         printf("Error: could not remove staging directory: %s\n", staging_path);
         success = 0;
     }
@@ -1362,8 +1424,9 @@ int wpm_archive_schedule_self_upgrade(const char* archive_path, int allow_unsign
     const char* expected_version, const char* expected_arch,
     const char* old_version) {
     char archive_full[WPM_PATH_SIZE], root[WPM_PATH_SIZE], temp[WPM_PATH_SIZE];
-    char stage[WPM_PATH_SIZE], staged_exe[WPM_PATH_SIZE], cache[WPM_PATH_SIZE];
-    char handoff_dir[WPM_PATH_SIZE], handoff_exe[WPM_PATH_SIZE], audit_dir[WPM_PATH_SIZE], log_path[WPM_PATH_SIZE];
+    char stage[WPM_PATH_SIZE], staged_exe[WPM_PATH_SIZE], staged_runtime[WPM_PATH_SIZE], cache[WPM_PATH_SIZE];
+    char handoff_dir[WPM_PATH_SIZE], handoff_exe[WPM_PATH_SIZE], handoff_runtime[WPM_PATH_SIZE];
+    char audit_dir[WPM_PATH_SIZE], log_path[WPM_PATH_SIZE];
     char signing_key[65] = "", command[WPM_PATH_SIZE * 2];
     wpm_package_metadata metadata;
     STARTUPINFOA startup;
@@ -1374,15 +1437,17 @@ int wpm_archive_schedule_self_upgrade(const char* archive_path, int allow_unsign
         snprintf(stage, sizeof(stage), "%s\\self-upgrade-stage-%lu", temp,
             (unsigned long)GetCurrentProcessId()) < 0 ||
         !join_path(staged_exe, sizeof(staged_exe), stage, "wpm.exe") ||
+        !join_path(staged_runtime, sizeof(staged_runtime), stage, "wcrt.dll") ||
         !join_path(cache, sizeof(cache), root, "cache") ||
         !join_path(handoff_dir, sizeof(handoff_dir), cache, "self-upgrade") ||
+        !join_path(handoff_runtime, sizeof(handoff_runtime), handoff_dir, "wcrt.dll") ||
         !join_path(audit_dir, sizeof(audit_dir), root, "audit") ||
         snprintf(log_path, sizeof(log_path), "%s\\self-upgrade-%s-%s.log", audit_dir,
             expected_arch, expected_version) < 0 ||
         snprintf(handoff_exe, sizeof(handoff_exe), "%s\\wpm-%s-%s.exe",
             handoff_dir, expected_arch, expected_version) < 0 ||
         !create_directories(temp) || !create_directories(cache) || !create_directories(audit_dir) ||
-        !create_directories(handoff_dir) || !remove_directory_tree(stage)) return 0;
+        !create_directories(handoff_dir) || !remove_directory_tree_with_retry(stage)) return 0;
     DeleteFileA(log_path);
     memset(&metadata, 0, sizeof(metadata));
     strcpy_s(metadata.name, sizeof(metadata.name), "wpm");
@@ -1398,13 +1463,15 @@ int wpm_archive_schedule_self_upgrade(const char* archive_path, int allow_unsign
         goto cleanup;
     }
     if (_stricmp(metadata.name, "wpm") != 0 || strcmp(metadata.version, expected_version) != 0 ||
-        _stricmp(metadata.arch, expected_arch) != 0 || !file_exists_at_path(staged_exe)) {
+        _stricmp(metadata.arch, expected_arch) != 0 || !file_exists_at_path(staged_exe) ||
+        !file_exists_at_path(staged_runtime)) {
         printf("Error: WPM self-upgrade package metadata or executable does not match the selected candidate.\n");
         write_upgrade_audit(root, &metadata, old_version, path_basename(archive_full), signing_key, 1, "self-upgrade-metadata", 0);
         goto cleanup;
     }
-    if (!CopyFileA(staged_exe, handoff_exe, FALSE)) {
-        printf("Error: could not cache the WPM self-upgrade executable.\n");
+    if (!CopyFileA(staged_exe, handoff_exe, FALSE) ||
+        !CopyFileA(staged_runtime, handoff_runtime, FALSE)) {
+        printf("Error: could not cache the WPM self-upgrade executable and WCRT runtime.\n");
         goto cleanup;
     }
     if (snprintf(command, sizeof(command), "\"%s\" --complete-self-upgrade \"%s\" %lu \"%s\" \"%s\" \"%s\" %d \"%s\"",
@@ -1424,7 +1491,7 @@ int wpm_archive_schedule_self_upgrade(const char* archive_path, int allow_unsign
     printf("Self-upgrade output: %s\n", log_path);
     result = 1;
 cleanup:
-    if (!remove_directory_tree(stage)) result = 0;
+    if (!remove_directory_tree_with_retry(stage)) result = 0;
     return result;
 }
 
@@ -1446,7 +1513,7 @@ int wpm_archive_upgrade(const char* archive_path, int allow_unsigned,
     if (!wpm_get_data_root(root, sizeof(root)) || !join_path(temp, sizeof(temp), root, "temp") ||
         !join_path(store, sizeof(store), root, "packages") || !join_path(stage, sizeof(stage), temp, base) ||
         !join_path(stored, sizeof(stored), store, base) || !create_directories(temp) ||
-        !create_directories(store) || !remove_directory_tree(stage)) return 0;
+        !create_directories(store) || !remove_directory_tree_with_retry(stage)) return 0;
     if (!wpm_archive_extract(archive_full, stage)) {
         write_upgrade_audit(root, &metadata, old_version, base, signing_key, 1, "extraction", 0);
         goto cleanup;
@@ -1489,7 +1556,7 @@ int wpm_archive_upgrade(const char* archive_path, int allow_unsigned,
     }
     success = 1;
 cleanup:
-    if (!remove_directory_tree(stage)) success = 0;
+    if (!remove_directory_tree_with_retry(stage)) success = 0;
     if (!success) {
         return 0;
     }
@@ -1535,7 +1602,7 @@ int wpm_archive_remove(const char* package_name) {
         printf("Error: stored package archive not found: %s\n", stored_archive_path);
         return 0;
     }
-    if (!create_directories(temp_root) || !remove_directory_tree(staging_path)) {
+    if (!create_directories(temp_root) || !remove_directory_tree_with_retry(staging_path)) {
         printf("Error: could not prepare removal staging directory.\n");
         return 0;
     }
@@ -1550,7 +1617,7 @@ int wpm_archive_remove(const char* package_name) {
     success = 1;
 
 cleanup:
-    if (!remove_directory_tree(staging_path)) {
+    if (!remove_directory_tree_with_retry(staging_path)) {
         printf("Error: could not remove staging directory: %s\n", staging_path);
         success = 0;
     }

@@ -24,7 +24,7 @@ add_custom_target(wpm_version_header ALL
   VERBATIM
 )
 
-add_executable (wpm
+set(wpm_sources
   "wpm.c"
   "archive.c"
   "archive.h"
@@ -36,13 +36,33 @@ add_executable (wpm
   "repository.h"
   "signing.c"
   "signing.h"
-  "${WPM_VERSION_RESOURCE}"
   "${WPM_ICON_FILE}"
   "${WPM_ICON_SOURCE}"
 )
 
+# TinyCC does not include a Windows resource compiler. The executable remains
+# functional, but this experimental artifact has no embedded version/icon yet.
+if(NOT CMAKE_C_COMPILER_ID STREQUAL "TinyCC")
+  list(APPEND wpm_sources "${WPM_VERSION_RESOURCE}")
+else()
+  list(APPEND wpm_sources "tcc_compat/secure_crt.c")
+  if(WPM_USE_WCRT)
+    list(APPEND wpm_sources "tcc_compat/wcrt_start.c")
+  elseif(WPM_WINDOWS_XP_COMPAT)
+    list(APPEND wpm_sources "tcc_compat/xp_crt.c")
+  endif()
+endif()
+
+add_executable(wpm ${wpm_sources})
+
 set_source_files_properties("${WPM_VERSION_RESOURCE}" PROPERTIES GENERATED TRUE)
+set_source_files_properties("${WPM_VERSION_HEADER}" PROPERTIES GENERATED TRUE)
 set_source_files_properties("${WPM_ICON_FILE}" "${WPM_ICON_SOURCE}" PROPERTIES HEADER_FILE_ONLY TRUE)
+
+# TinyCC does not emit dependency files for included headers. Make the generated
+# metadata dependency explicit so a version change recompiles wpm.c in the same
+# build invocation that regenerates version.h.
+set_property(SOURCE "wpm.c" APPEND PROPERTY OBJECT_DEPENDS "${WPM_VERSION_HEADER}")
 
 add_dependencies(wpm wpm_version_header)
 
@@ -76,9 +96,40 @@ set_property(TARGET wpm PROPERTY C_STANDARD_REQUIRED ON)
 set_property(TARGET wpm PROPERTY C_EXTENSIONS OFF)
 
 target_compile_definitions(wpm PRIVATE SODIUM_STATIC WPM_TARGET_ARCH="${wpm_arch}")
-target_link_libraries(wpm PRIVATE miniz libsodium urlmon advapi32 version)
+target_link_libraries(wpm PRIVATE miniz libsodium)
+if(CMAKE_C_COMPILER_ID STREQUAL "TinyCC")
+  # Use explicit import definitions so cross-architecture builds don't depend
+  # on matching system DLLs being installed on the build host.
+  target_link_options(wpm PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/tcc_compat/urlmon.def"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tcc_compat/advapi32.def"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tcc_compat/version.def"
+  )
+  if(wpm_arch STREQUAL "x86")
+    get_filename_component(tcc_bin_dir "${CMAKE_C_COMPILER}" DIRECTORY)
+    target_link_libraries(wpm PRIVATE "${tcc_bin_dir}/lib/i386-win32-libtcc1.a")
+  elseif(wpm_arch STREQUAL "arm64")
+    get_filename_component(tcc_bin_dir "${CMAKE_C_COMPILER}" DIRECTORY)
+    target_link_libraries(wpm PRIVATE "${tcc_bin_dir}/lib/arm64-win32-libtcc1.a")
+  endif()
+  if(WPM_USE_WCRT)
+    target_link_options(wpm PRIVATE
+      -nostdlib
+      "${WPM_TCC_ROOT}/lib/kernel32.def"
+      "${WPM_WCRT_ROOT}/lib/wcrt.def"
+    )
+    add_custom_command(TARGET wpm POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${WPM_WCRT_ROOT}/bin/wcrt.dll"
+        "$<TARGET_FILE_DIR:wpm>/wcrt.dll"
+      VERBATIM
+    )
+  endif()
+else()
+  target_link_libraries(wpm PRIVATE urlmon advapi32 version)
+endif()
 
-if(MSVC AND wpm_arch STREQUAL "x86")
+if(MSVC AND WPM_WINDOWS_XP_COMPAT)
   if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.13)
     target_link_options(wpm PRIVATE /SUBSYSTEM:CONSOLE,5.01)
   else()
@@ -116,6 +167,7 @@ if(BUILD_TESTING)
   set(WPM_TEST_CASE_COUNT 0)
   macro(wpm_add_test_case test_id test_slug test_script test_tex)
     math(EXPR WPM_TEST_CASE_COUNT "${WPM_TEST_CASE_COUNT} + 1")
+    list(APPEND WPM_TEST_NAMES ${test_id})
     add_test(
       NAME ${test_id}
       COMMAND ${WPM_POWERSHELL_EXECUTABLE}
@@ -204,6 +256,12 @@ if(BUILD_TESTING)
   wpm_add_test_case(TC-0011 tc-0011 tc-0011-https-repositories.ps1 tc-0011-https-repositories.tex)
   wpm_add_test_case(TC-0012 tc-0012 tc-0012-package-signing-and-validation.ps1 tc-0012-package-signing-and-validation.tex)
   wpm_add_test_case(TC-0013 tc-0013 tc-0013-version-aware-upgrades.ps1 tc-0013-version-aware-upgrades.tex)
+
+  if(WPM_USE_WCRT)
+    set_tests_properties(${WPM_TEST_NAMES} PROPERTIES
+      ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:wpm>"
+    )
+  endif()
 
   add_custom_target(check
     COMMAND ${CMAKE_CTEST_COMMAND} --build-config $<CONFIG> --output-on-failure

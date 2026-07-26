@@ -1,0 +1,10 @@
+LIBRARY advapi32.dll
+EXPORTS
+AllocateAndInitializeSid
+CheckTokenMembership
+FreeSid
+GetTokenInformation
+OpenProcessToken
+SetEntriesInAclA
+SetNamedSecurityInfoA
+SystemFunction036

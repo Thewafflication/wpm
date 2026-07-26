@@ -4,7 +4,11 @@
 #include <ctype.h>
 #include <limits.h>
 #include <windows.h>
-#include <urlmon.h>
+#ifdef __TINYC__
+# include "tcc_compat/urlmon.h"
+#else
+# include <urlmon.h>
+#endif
 #include "archive.h"
 #include "helpers.h"
 #include "repository.h"
