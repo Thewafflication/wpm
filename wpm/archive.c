@@ -1243,7 +1243,7 @@ int wpm_archive_inspect(const char* archive_path, wpm_package_info* info) {
         !join_path(temp, sizeof(temp), root, "temp") ||
         snprintf(stage, sizeof(stage), "%s\\inspect-%lu-%llu", temp,
             (unsigned long)GetCurrentProcessId(), (unsigned long long)wpm_tick_count()) < 0 ||
-        !create_directories(temp) || !remove_directory_tree(stage)) return 0;
+        !create_directories(temp) || !remove_directory_tree_with_retry(stage)) return 0;
     if (wpm_archive_extract(archive_path, stage) && read_package_metadata(stage, &metadata)) {
         strcpy_s(info->name, sizeof(info->name), metadata.name);
         strcpy_s(info->version, sizeof(info->version), metadata.version);
@@ -1251,7 +1251,7 @@ int wpm_archive_inspect(const char* archive_path, wpm_package_info* info) {
         strcpy_s(info->archive_name, sizeof(info->archive_name), path_basename(archive_path));
         result = 1;
     }
-    if (!remove_directory_tree(stage)) result = 0;
+    if (!remove_directory_tree_with_retry(stage)) result = 0;
     return result;
 }
 
@@ -1271,7 +1271,7 @@ int wpm_archive_verify(const char* archive_path) {
         !join_path(temp_root, sizeof(temp_root), data_root, "temp") ||
         snprintf(staging_path, sizeof(staging_path), "%s\\verify-%lu-%llu", temp_root,
             (unsigned long)GetCurrentProcessId(), (unsigned long long)wpm_tick_count()) < 0 ||
-        !create_directories(temp_root) || !remove_directory_tree(staging_path)) {
+        !create_directories(temp_root) || !remove_directory_tree_with_retry(staging_path)) {
         printf("Error: could not prepare package verification staging.\n");
         return 0;
     }
@@ -1283,7 +1283,7 @@ int wpm_archive_verify(const char* archive_path) {
     success = 1;
 
 cleanup:
-    if (!remove_directory_tree(staging_path)) {
+    if (!remove_directory_tree_with_retry(staging_path)) {
         printf("Error: could not remove verification staging directory: %s\n", staging_path);
         success = 0;
     }
@@ -1360,7 +1360,7 @@ int wpm_archive_install(const char* archive_path, int allow_unsigned) {
         printf("Error: could not create WPM data directories.\n");
         return 0;
     }
-    if (!remove_directory_tree(staging_path)) {
+    if (!remove_directory_tree_with_retry(staging_path)) {
         printf("Error: could not clear staging directory: %s\n", staging_path);
         return 0;
     }
@@ -1389,7 +1389,7 @@ int wpm_archive_install(const char* archive_path, int allow_unsigned) {
     success = 1;
 
 cleanup:
-    if (!remove_directory_tree(staging_path)) {
+    if (!remove_directory_tree_with_retry(staging_path)) {
         printf("Error: could not remove staging directory: %s\n", staging_path);
         success = 0;
     }
@@ -1602,7 +1602,7 @@ int wpm_archive_remove(const char* package_name) {
         printf("Error: stored package archive not found: %s\n", stored_archive_path);
         return 0;
     }
-    if (!create_directories(temp_root) || !remove_directory_tree(staging_path)) {
+    if (!create_directories(temp_root) || !remove_directory_tree_with_retry(staging_path)) {
         printf("Error: could not prepare removal staging directory.\n");
         return 0;
     }
@@ -1617,7 +1617,7 @@ int wpm_archive_remove(const char* package_name) {
     success = 1;
 
 cleanup:
-    if (!remove_directory_tree(staging_path)) {
+    if (!remove_directory_tree_with_retry(staging_path)) {
         printf("Error: could not remove staging directory: %s\n", staging_path);
         success = 0;
     }

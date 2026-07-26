@@ -347,7 +347,9 @@ try {
         $auditText = (Get-ChildItem -LiteralPath (Join-Path $dataDir 'audit') -Filter '*.upgrade.txt' | Get-Content -Raw) -join "`n"
         if ($auditText -notmatch '(?m)^old-version=1\.0\.0$' -or $auditText -notmatch '(?m)^new-version=2\.0\.0$') { throw 'Successful upgrade audit did not link versions.' }
         $stagingItems = @(Get-ChildItem -LiteralPath (Join-Path $dataDir 'temp') -Force -ErrorAction SilentlyContinue)
-        if ($stagingItems.Count -ne 0) { throw 'Upgrade staging content was not cleaned.' }
+        if ($stagingItems.Count -ne 0) {
+            throw "Upgrade staging content was not cleaned: $($stagingItems.Name -join ', ')"
+        }
         'Retained archives, audit linkage, and staging cleanup verified.'
     }
 }
