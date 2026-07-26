@@ -48,6 +48,8 @@ $results = @(
                 'trust add release_keys/wpm-release\.public',
                 'wpm\.exe verify \$package\.FullName',
                 'name: Verify self-contained Release executable',
+                'runs-on: \$\{\{ matrix\.runner \}\}',
+                'runner: windows-11-arm',
                 'name: Upgrade \$\{\{ matrix\.arch \}\} from previous release',
                 'verify-previous-release-upgrade\.ps1',
                 'needs: upgrade-compatibility',

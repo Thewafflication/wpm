@@ -113,18 +113,21 @@ jobs:
   build:
     name: Build ${{ matrix.arch }} Release
     needs: [verify, dependency-metadata]
-    runs-on: windows-2022
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - arch: x86
+            runner: windows-2022
             configure_preset: x86-release
             build_preset: build-x86-release
           - arch: x64
+            runner: windows-2022
             configure_preset: x64-release
             build_preset: build-x64-release
           - arch: arm64
+            runner: windows-11-arm
             configure_preset: arm64-release
             build_preset: build-arm64-release
 
