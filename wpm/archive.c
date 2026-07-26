@@ -1634,11 +1634,19 @@ int wpm_archive_schedule_self_upgrade(const char* archive_path, int allow_unsign
     memset(&startup, 0, sizeof(startup));
     memset(&process, 0, sizeof(process));
     startup.cb = sizeof(startup);
-    if (!CreateProcessA(handoff_exe, command, NULL, NULL, FALSE,
-        DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP, NULL, NULL, &startup, &process)) {
+    startup.dwFlags = STARTF_USESTDHANDLES;
+    startup.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
+    startup.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
+    startup.hStdError = GetStdHandle(STD_ERROR_HANDLE);
+    if (!CreateProcessA(handoff_exe, command, NULL, NULL, TRUE,
+        CREATE_NEW_PROCESS_GROUP, NULL, NULL, &startup, &process)) {
         printf("Error: could not launch the cached WPM self-upgrade executable.\n");
         goto cleanup;
     }
+    verbose_log("Self-upgrade invoking process PID: %lu", (unsigned long)GetCurrentProcessId());
+    verbose_log("Self-upgrade completion process PID: %lu", (unsigned long)process.dwProcessId);
+    verbose_log("Completion process will wait for PID %lu to exit",
+        (unsigned long)GetCurrentProcessId());
     CloseHandle(process.hThread);
     CloseHandle(process.hProcess);
     printf("Scheduled WPM self-upgrade to %s; installation will continue after this process exits.\n", expected_version);

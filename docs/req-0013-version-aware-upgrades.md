@@ -187,7 +187,10 @@ not attempt to overwrite itself. After validating the candidate package, WPM
 shall copy the candidate `wpm.exe` into a collision-resistant handoff directory
 beneath `cache\self-upgrade`, copy any
 optional sidecar runtime supplied by a legacy package, launch the cached
-executable as a detached completion process, and exit. Official Release
+executable as an independent completion process that inherits the caller's
+standard streams, and exit. The completion process shall report when it begins
+waiting for the invoking process, when it begins installation, and its final
+`upgraded` or `failed` result. Official Release
 packages shall contain a self-contained `wpm.exe` that can start from the cache
 without a sidecar runtime. This preserves compatibility with earlier WPM
 versions whose handoff logic copies only the executable. A Release package

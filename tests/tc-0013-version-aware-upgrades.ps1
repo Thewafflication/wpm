@@ -299,9 +299,19 @@ try {
         'WPM baseline installed with a stale, non-overwritable legacy cache entry.'
     }
 
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Complete WPM self-upgrade through cached executable handoff' -Arguments @('upgrade','wpm','--offline','--allow-unsigned') -Assert {
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Complete WPM self-upgrade through cached executable handoff' -Arguments @('upgrade','wpm','--offline','--allow-unsigned','--verbose') -Assert {
         param($ExitCode,$Output)
         if ($ExitCode -ne 0 -or $Output -notmatch '(?i)scheduled|continue') { throw "WPM self-upgrade was not scheduled. $Output" }
+        if ($Output -notmatch 'Self-upgrade invoking process PID: \d+' -or
+            $Output -notmatch 'Self-upgrade completion process PID: \d+' -or
+            $Output -notmatch 'Completion process will wait for PID \d+ to exit') {
+            throw "Verbose self-upgrade output did not identify the handoff processes. $Output"
+        }
+        if ($Output -notmatch 'WPM self-upgrade handoff started \(PID \d+\)' -or
+            $Output -notmatch 'completing the self-upgrade now' -or
+            $Output -notmatch "Result: wpm $wpmArchitecture upgraded") {
+            throw "The self-upgrade completion process did not report its progress. $Output"
+        }
         $markerPath = Join-Path $markerDir "wpm-$wpmArchitecture.txt"
         $logPath = Join-Path $dataDir "audit\self-upgrade-$wpmArchitecture-2.0.0.log"
         $deadline = [DateTime]::UtcNow.AddSeconds(60)
