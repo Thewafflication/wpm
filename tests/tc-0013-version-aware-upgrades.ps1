@@ -142,7 +142,6 @@ try {
         Install-Baseline $packages.Conflict '1.0.0' 'x86'
         Install-Baseline $packages.Failure '1.0.0' 'any'
         Install-Baseline $packages.Continue '1.0.0' 'any'
-        Install-Baseline $packages.Self '1.0.0' $wpmArchitecture
         Install-Baseline $packages.Confirm '1.0.0' 'arm64'
         Install-Baseline $packages.Legacy 'ef32a57' 'any'
 
@@ -287,6 +286,11 @@ try {
         $failureAudit = Get-ChildItem -LiteralPath (Join-Path $dataDir 'audit') -Filter '*.upgrade-failed.txt' -ErrorAction SilentlyContinue
         if (-not $failureAudit) { throw 'Failed upgrade audit was not created.' }
         if ((Get-Content -Raw -LiteralPath $failureAudit[-1].FullName) -notmatch '(?m)^exit-code=23$') { throw 'Failed audit did not record the script exit code.' }
+    }
+
+    $results += New-WpmManualStep -Name 'Install WPM baseline for isolated self-upgrade validation' -Action {
+        Install-Baseline $packages.Self '1.0.0' $wpmArchitecture
+        'WPM baseline installed after the upgrade-all scenarios completed.'
     }
 
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Complete WPM self-upgrade through cached executable handoff' -Arguments @('upgrade','wpm','--offline','--allow-unsigned') -Assert {
