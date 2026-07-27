@@ -157,6 +157,12 @@ prevent selection from otherwise usable entries.
 
 ### Upgrade execution
 
+For an interactive `upgrade --all`, WPM shall accept `y` or `yes` followed by
+Enter on standard input and proceed with the displayed plan. Any other response
+or end-of-file shall cancel without changing packages. `-y` and `--yes` shall
+continue to bypass the prompt for unattended use. Confirmation shall work with
+both a Windows console input handle and redirected standard input.
+
 For each package identity selected for upgrade, WPM shall:
 
 1. determine its current installed version,

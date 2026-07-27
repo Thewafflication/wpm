@@ -48,6 +48,33 @@ separate legacy x86/Windows 2000 investigation described in
 environment is available. Measure large-index and large-package operations to
 identify unacceptable regressions.
 
+## Lessons learned
+
+### Interactive prompt tests must distinguish input from EOF
+
+The `upgrade --all` confirmation defect found after WPM 1.0.13 demonstrated
+that a negative prompt test can pass for the wrong reason. The original test
+piped `n` through PowerShell and observed cancellation, but end-of-file also
+selects the safe default and produces the same result. The test therefore did
+not prove that WPM had read any standard input. A real user later supplied an
+affirmative response and exposed that the CRT input path returned EOF.
+
+For every consequential yes/no prompt:
+
+- test both acceptance and rejection; a rejection-only test is insufficient;
+- launch the process with a genuinely redirected standard-input handle, write
+  the exact input including its line ending, and close the writer;
+- assert observable side effects as well as output and exit status, proving the
+  affirmative response was consumed rather than bypassed;
+- retain a separate unattended-option test such as `-y`, because bypassing a
+  prompt does not exercise prompt input; and
+- where console behavior is platform-sensitive, supplement redirected-input
+  coverage with a genuine Windows console-input test.
+
+Shell object pipelines are convenient but shall not be treated as proof of
+native standard-input behavior unless the test independently demonstrates that
+the child consumed the supplied bytes.
+
 ## Execution model
 
 - Fast deterministic tests remain mandatory in pull-request and release CI.

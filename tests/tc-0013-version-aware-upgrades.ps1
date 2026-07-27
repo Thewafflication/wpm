@@ -127,6 +127,41 @@ function Install-Baseline {
     if ($LASTEXITCODE -ne 0) { throw "Could not install baseline $Name $Arch $Version. $($output -join "`n")" }
 }
 
+function Invoke-WpmWithStandardInput {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$InputText,
+
+        [Parameter(Mandatory = $true)]
+        [string[]]$Arguments
+    )
+
+    $start = [Diagnostics.ProcessStartInfo]::new()
+    $start.FileName = $WpmExe
+    $start.UseShellExecute = $false
+    $start.RedirectStandardInput = $true
+    $start.RedirectStandardOutput = $true
+    $start.RedirectStandardError = $true
+    foreach ($argument in $Arguments) { $null = $start.ArgumentList.Add($argument) }
+    $start.Environment['WPM_DATA_DIR'] = $dataDir
+    $process = [Diagnostics.Process]::new()
+    $process.StartInfo = $start
+    try {
+        if (-not $process.Start()) { throw 'Could not start WPM with redirected standard input.' }
+        $stdout = $process.StandardOutput.ReadToEndAsync()
+        $stderr = $process.StandardError.ReadToEndAsync()
+        $process.StandardInput.Write($InputText)
+        $process.StandardInput.Close()
+        $process.WaitForExit()
+        [pscustomobject]@{
+            ExitCode = $process.ExitCode
+            Output = (($stdout.GetAwaiter().GetResult(), $stderr.GetAwaiter().GetResult()) -join "`n").Trim()
+        }
+    } finally {
+        $process.Dispose()
+    }
+}
+
 try {
     $env:WPM_DATA_DIR = $dataDir
     New-Item -ItemType Directory -Force -Path $sourceRoot, $outputDir, $markerDir | Out-Null
@@ -183,10 +218,29 @@ try {
         if ($Output -match '(?i)Extracting archive:|Creating directory:.*inspect-') { throw 'Update extracted an installed package payload while reading metadata.' }
     }
     $results += New-WpmManualStep -Name 'Decline prompted upgrade-all plan' -Action {
-        $output = @('n') | & $WpmExe upgrade --all --arch arm64 --offline --allow-unsigned 2>&1
-        if ($LASTEXITCODE -ne 0 -or ($output -join "`n") -notmatch '(?i)planned upgrades|proceed' -or ($output -join "`n") -notmatch '(?i)cancelled') { throw "Prompted cancellation failed. $($output -join "`n")" }
+        $result = Invoke-WpmWithStandardInput -InputText "n`r`n" -Arguments @('upgrade','--all','--arch','arm64','--offline','--allow-unsigned')
+        if ($result.ExitCode -ne 0 -or $result.Output -notmatch '(?i)planned upgrades|proceed' -or $result.Output -notmatch '(?i)cancelled') { throw "Prompted cancellation failed. $($result.Output)" }
         if ((Get-Content -Raw -LiteralPath (Join-Path $markerDir "$($packages.Confirm)-arm64.txt")) -match 'confirmed-2\.0\.0') { throw 'Declined upgrade executed its install script.' }
         'Upgrade plan was declined without changes.'
+    }
+    $results += New-WpmManualStep -Name 'Accept prompted upgrade-all plan with y on standard input' -Action {
+        $result = Invoke-WpmWithStandardInput -InputText "y`r`n" -Arguments @('upgrade','--all','--arch','arm64','--offline','--allow-unsigned')
+        $text = $result.Output
+        if ($result.ExitCode -ne 0 -or $text -notmatch '(?i)planned upgrades|proceed' -or
+            $text -match '(?i)cancelled' -or $text -notmatch 'install-script:confirmed-2\.0\.0' -or
+            $text -notmatch '(?i)upgraded') {
+            throw "Prompted acceptance with y on standard input failed. $text"
+        }
+        if ((Get-Content -Raw -LiteralPath (Join-Path $markerDir "$($packages.Confirm)-arm64.txt")) -notmatch 'confirmed-2\.0\.0') {
+            throw 'Accepted prompted upgrade did not execute its install script.'
+        }
+        'Upgrade plan was accepted with y on standard input.'
+    }
+    $results += New-WpmManualStep -Name 'Seed another upgrade candidate for unattended confirmation' -Action {
+        New-PackageArchive $packages.Confirm '3.0.0' 'arm64' 'confirmed-3.0.0' -RepositoryEntry | Out-Null
+        $path = Get-RepositoryCachePath $dataDir $repository
+        @{ version=1; packages=@($entries) } | ConvertTo-Json -Depth 5 -Compress | Set-Content -LiteralPath $path -NoNewline
+        'Seeded the unattended-confirmation candidate.'
     }
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Bypass upgrade-all prompt with -y and show install-script output' -Arguments @('upgrade','--all','--arch','arm64','-y','--offline','--allow-unsigned') -Assert {
         param($ExitCode,$Output)
@@ -194,7 +248,7 @@ try {
             $Output -notmatch [regex]::Escape("$($packages.Confirm): Extracting package...") -or
             $Output -notmatch [regex]::Escape("$($packages.Confirm): Validating package...") -or
             $Output -notmatch [regex]::Escape("$($packages.Confirm): Installing package...") -or
-            $Output -notmatch 'install-script:confirmed-2\.0\.0' -or $Output -notmatch '(?i)upgraded') { throw "Confirmed upgrade-all failed or hid script output. $Output" }
+            $Output -notmatch 'install-script:confirmed-3\.0\.0' -or $Output -notmatch '(?i)upgraded') { throw "Confirmed upgrade-all failed or hid script output. $Output" }
     }
 
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Reject unsigned upgrade before script execution' -Arguments @('upgrade',$packages.Architecture,'--offline') -Assert {

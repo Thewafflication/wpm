@@ -177,7 +177,22 @@ static int installed_is_latest(installed_entry* installed,int count,int index){i
 static int conflicting_any(installed_entry* installed,int count,int index){if(_stricmp(installed[index].arch,"any")!=0)return 0;for(int j=0;j<count;j++)if(index!=j&&_stricmp(installed[index].name,installed[j].name)==0&&_stricmp(installed[j].arch,"any")!=0)return 1;return 0;}
 static package_entry* newer_candidate(package_entry* entries,int entry_count,installed_entry* item,const char* exact_version){package_entry*selected=select_candidate(entries,entry_count,item->name,item->arch,exact_version,0);int valid;if(!selected||semver_compare(selected->version,item->version,&valid)<=0||!valid)return NULL;return selected;}
 static int print_upgrade_plan(installed_entry* installed,int installed_count,package_entry* entries,int entry_count,const char* arch){int count=0;for(int i=0;i<installed_count;i++){package_entry*selected;if((arch&&_stricmp(arch,installed[i].arch)!=0)||!installed_is_latest(installed,installed_count,i)||conflicting_any(installed,installed_count,i))continue;selected=newer_candidate(entries,entry_count,&installed[i],NULL);if(!selected)continue;if(!count)printf("Planned upgrades:\n");printf("  %s %s: %s -> %s\n",installed[i].name,installed[i].arch,installed[i].version,selected->version);count++;}return count;}
-static int confirm_upgrade_plan(int assume_yes){char answer[16];if(assume_yes)return 1;printf("Proceed with these upgrades? [y/N]: ");fflush(stdout);if(!fgets(answer,sizeof(answer),stdin))return 0;answer[strcspn(answer,"\r\n")]=0;return _stricmp(answer,"y")==0||_stricmp(answer,"yes")==0;}
+static int confirm_upgrade_plan(int assume_yes){
+    char answer[16];
+    HANDLE input;
+    DWORD read = 0;
+    size_t end;
+    if(assume_yes)return 1;
+    printf("Proceed with these upgrades? [y/N]: ");
+    fflush(stdout);
+    input=GetStdHandle(STD_INPUT_HANDLE);
+    if(input==NULL||input==INVALID_HANDLE_VALUE||
+        !ReadFile(input,answer,sizeof(answer)-1,&read,NULL)||read==0)return 0;
+    answer[read]='\0';
+    end=strcspn(answer,"\r\n");
+    answer[end]='\0';
+    return _stricmp(answer,"y")==0||_stricmp(answer,"yes")==0;
+}
 
 static int count_upgrade_candidates(installed_entry* installed,int installed_count,package_entry* entries,int entry_count,const char** package_names,int package_count,int all,const char* arch,const char* version){int count=0;for(int i=0;i<installed_count;i++){package_entry*selected;int valid;if(!all&&!requested(installed[i].name,package_names,package_count))continue;if(arch&&_stricmp(arch,installed[i].arch)!=0)continue;if(!installed_is_latest(installed,installed_count,i)||conflicting_any(installed,installed_count,i))continue;selected=select_candidate(entries,entry_count,installed[i].name,installed[i].arch,version,0);if(selected&&semver_compare(selected->version,installed[i].version,&valid)>0&&valid)count++;}return count;}
 

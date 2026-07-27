@@ -17,7 +17,7 @@
 \item Build and locally install baseline packages whose metadata creates independent x86, x64, and any installed identities.
 \item Configure a controlled repository and seed its offline index and package cache with exact-architecture, any-architecture, stable, prerelease, selected-version, successful, and failing candidates.
 \item Refresh repository data and verify that update reports eligible installed-package upgrades without applying them.
-\item Decline an \texttt{upgrade --all} plan, then repeat with \texttt{-y} and verify that the plan, install-script output, and results remain visible.
+\item Decline an \texttt{upgrade --all} plan, accept a second plan by supplying \texttt{y} on standard input, then repeat with \texttt{-y} and verify that the plan, install-script output, and results remain visible.
 \item Upgrade a package having installed x86 and x64 identities without an architecture selector.
 \item Exercise named installation and upgrade with \texttt{--arch} and \texttt{--version}, including unavailable, equal, lower, and ZIP-path selector rejection.
 \item Read and change the global prerelease setting, add and remove a per-package override, and perform stable and prerelease upgrades.
@@ -29,6 +29,7 @@
 \end{enumerate}}
 \def\TCExpectedResult{\par\begin{enumerate}
 \item Installed identities are discovered from package metadata and the highest retained SemVer is treated as current.
+\item Interactive \texttt{upgrade --all} accepts \texttt{y} from redirected standard input, while \texttt{n} cancels and \texttt{-y} bypasses the prompt.
 \item x86 and x64 identities are upgraded independently; candidates must exactly match the installed architecture and an any candidate is ignored for a specific identity.
 \item Named installation selectors choose the exact requested artifact. Upgrade selectors choose only a strictly newer exact version and never downgrade, reinstall, or silently fall back.
 \item An any installation cannot coexist with specific architectures of the same package, and inconsistent state is diagnosed.
