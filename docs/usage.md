@@ -226,6 +226,8 @@ phase, so its self-upgrade log identifies the operation active during a stall.
 In verbose mode it records each registry key, value name and type, safe intended
 data, Path update decision, and `reg.exe` exit code. Package scripts receive
 `WPM_VERBOSE=1` while verbose diagnostics are enabled.
+If the persistent Path already contains a WPM entry, setup leaves the value
+untouched and avoids an unnecessary system-registry write.
 
 Prerelease candidates are disabled by default. Configure the global policy or
 a package override with:

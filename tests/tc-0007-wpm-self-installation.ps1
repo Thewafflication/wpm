@@ -183,11 +183,23 @@ try {
     }
 
     $results += New-WpmManualStep -Name 'Repeat user-scoped WPM installation' -Action {
-        Invoke-CmdScript -Script $setupCmd -Arguments @('--user', $WpmExe)
+        $previousVerbose = $env:WPM_VERBOSE
+        try {
+            $env:WPM_VERBOSE = '1'
+            $repeatOutput = Invoke-CmdScript -Script $setupCmd -Arguments @('--user', $WpmExe)
+        } finally {
+            if ($null -eq $previousVerbose) { Remove-Item Env:WPM_VERBOSE -ErrorAction SilentlyContinue }
+            else { $env:WPM_VERBOSE = $previousVerbose }
+        }
         $environment = Get-WpmTestEnvironment
         $pathEntries = [regex]::Matches([string]$environment.Path, [regex]::Escape('%WPM%')).Count
         if ($pathEntries -ne 1) {
             throw "Repeated setup created $pathEntries %WPM% Path entries."
+        }
+        if ($repeatOutput -notmatch 'Path decision: retain existing WPM entry' -or
+            $repeatOutput -notmatch 'no registry write is needed' -or
+            $repeatOutput -match 'action=append-%WPM%') {
+            throw "Repeated setup did not skip the unnecessary Path registry write. $repeatOutput"
         }
     }
 

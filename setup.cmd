@@ -113,6 +113,7 @@ if /I "%WPM_INSTALL_SCOPE%"=="user" (
 )
 
 set "WPM_PATH="
+set "WPM_PATH_CHANGED=0"
 echo Reading the persistent Path...
 if /I "%WPM_VERBOSE%"=="1" echo   Registry operation: key="%WPM_ENVIRONMENT_REGISTRY_KEY%" value=Path action=query
 for /f "tokens=1,2,*" %%A in ('reg query "%WPM_ENVIRONMENT_REGISTRY_KEY%" /v Path 2^>nul ^| find /I "Path"') do set "WPM_PATH=%%C"
@@ -120,17 +121,22 @@ echo;!WPM_PATH!;| findstr /I /C:"WPM" >nul
 if errorlevel 1 (
     if /I "%WPM_VERBOSE%"=="1" echo   Path decision: append %%WPM%%
     set "WPM_PATH=!WPM_PATH!;%%WPM%%"
+    set "WPM_PATH_CHANGED=1"
 ) else (
     if /I "%WPM_VERBOSE%"=="1" echo   Path decision: retain existing WPM entry
 )
-echo Configuring the persistent Path...
-if /I "%WPM_VERBOSE%"=="1" echo   Registry operation: key="%WPM_ENVIRONMENT_REGISTRY_KEY%" value=Path type=REG_EXPAND_SZ
-reg add "%WPM_ENVIRONMENT_REGISTRY_KEY%" /v Path /t REG_EXPAND_SZ /d "!WPM_PATH!" /f >nul
-set "WPM_REGISTRY_EXIT=!errorlevel!"
-if /I "%WPM_VERBOSE%"=="1" echo   Registry result: Path value exit code !WPM_REGISTRY_EXIT!
-if not "!WPM_REGISTRY_EXIT!"=="0" (
-    echo Error: could not add %%WPM%% to the system Path. Run setup from an elevated command prompt.
-    exit /b 1
+if "!WPM_PATH_CHANGED!"=="1" (
+    echo Configuring the persistent Path...
+    if /I "%WPM_VERBOSE%"=="1" echo   Registry operation: key="%WPM_ENVIRONMENT_REGISTRY_KEY%" value=Path type=REG_EXPAND_SZ action=append-%%WPM%%
+    reg add "%WPM_ENVIRONMENT_REGISTRY_KEY%" /v Path /t REG_EXPAND_SZ /d "!WPM_PATH!" /f >nul
+    set "WPM_REGISTRY_EXIT=!errorlevel!"
+    if /I "%WPM_VERBOSE%"=="1" echo   Registry result: Path value exit code !WPM_REGISTRY_EXIT!
+    if not "!WPM_REGISTRY_EXIT!"=="0" (
+        echo Error: could not add %%WPM%% to the system Path. Run setup from an elevated command prompt.
+        exit /b 1
+    )
+) else (
+    echo Persistent Path already contains %%WPM%%; no registry write is needed.
 )
 
 echo WPM executable, licenses, and documentation installed to "%WPM_INSTALL_DIR%"

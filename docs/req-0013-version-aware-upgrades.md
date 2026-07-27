@@ -223,6 +223,8 @@ direct child processes, and a command for inspecting the script process.
 WPM shall expose verbose mode to package scripts through `WPM_VERBOSE=1`. WPM's
 setup script shall use it to report registry targets, intended changes, Path
 update decisions, and completed registry-operation exit codes.
+The setup script shall not rewrite the persistent Path when a WPM entry is
+already present.
 
 ### Current packages and failed upgrades
 

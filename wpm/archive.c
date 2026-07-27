@@ -1338,9 +1338,9 @@ static void report_script_children(DWORD script_pid) {
     create_snapshot = kernel32 ? (wpm_create_process_snapshot_fn)GetProcAddress(kernel32,
         "CreateToolhelp32Snapshot") : NULL;
     process_first = kernel32 ? (wpm_process_first_fn)GetProcAddress(kernel32,
-        "Process32FirstA") : NULL;
+        "Process32First") : NULL;
     process_next = kernel32 ? (wpm_process_next_fn)GetProcAddress(kernel32,
-        "Process32NextA") : NULL;
+        "Process32Next") : NULL;
     if (!create_snapshot || !process_first || !process_next) {
         verbose_log("Process inspection APIs are unavailable");
         return;
