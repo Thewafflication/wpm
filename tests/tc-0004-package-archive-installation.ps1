@@ -94,6 +94,11 @@ try {
             if ($Output -notmatch '(?s)--- install script output ---.*--- end install script output \(exit code 0\) ---') {
                 throw 'install.cmd output was not framed with its completion status.'
             }
+            if ($Output -notmatch 'WPM process PID: \d+' -or
+                $Output -notmatch 'install script process PID: \d+' -or
+                $Output -notmatch 'WPM PID \d+ is waiting for install script PID \d+') {
+                throw 'Verbose install output did not identify the package-script process relationship.'
+            }
             Assert-FileContent $deploymentFile 'hello from wpm'
             if (-not (Test-Path -LiteralPath $storedArchivePath -PathType Leaf)) {
                 throw "install did not store $storedArchivePath"

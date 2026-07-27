@@ -1369,6 +1369,12 @@ static int run_package_script(
         return 0;
     }
 
+    verbose_log("WPM process PID: %lu", (unsigned long)GetCurrentProcessId());
+    verbose_log("%s script process PID: %lu", action_name,
+        (unsigned long)process_info.dwProcessId);
+    verbose_log("WPM PID %lu is waiting for %s script PID %lu",
+        (unsigned long)GetCurrentProcessId(), action_name,
+        (unsigned long)process_info.dwProcessId);
     WaitForSingleObject(process_info.hProcess, INFINITE);
     if (!GetExitCodeProcess(process_info.hProcess, &exit_code)) exit_code = 1;
     printf("--- end %s script output (exit code %lu) ---\n", action_name, (unsigned long)exit_code);

@@ -213,7 +213,9 @@ invoking the candidate's completion command is insufficient.
 
 Package installation and upgrade scripts shall inherit WPM's standard input,
 output, and error streams so their diagnostics are visible to an interactive
-caller or captured by normal output redirection.
+caller or captured by normal output redirection. Verbose output shall identify
+the WPM process ID, package-script process ID, and the wait relationship between
+them before WPM waits for script completion.
 
 ### Current packages and failed upgrades
 

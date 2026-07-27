@@ -214,6 +214,10 @@ script output and the final `upgraded` or `failed` result in that log.
 With `--verbose`, the scheduling output also identifies the invoking process,
 the independent completion process, and the process ID the completion process is
 waiting for before it replaces the installed executable.
+Verbose package installation, upgrade, and removal output likewise identifies
+the WPM process, the launched package-script process, and which process WPM is
+waiting for. This makes a stalled package script inspectable from another
+terminal or Task Manager.
 
 Prerelease candidates are disabled by default. Configure the global policy or
 a package override with:
