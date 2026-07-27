@@ -99,6 +99,7 @@ function New-PackageArchive {
     Set-Content -LiteralPath (Join-Path $source '.wpm\install.cmd') -Value @(
         '@echo off'
         "echo install-script:$Marker"
+        'echo wpm-verbose:%WPM_VERBOSE%'
         "echo $Marker>>`"$(Join-Path $markerDir "$Name-$Arch.txt")`""
         "exit /b $ExitCode"
     )
@@ -312,6 +313,10 @@ try {
             $Output -notmatch "Result: wpm $wpmArchitecture upgraded") {
             throw "The self-upgrade completion process did not report its progress. $Output"
         }
+        if ($Output -notmatch 'upgrade install script process PID: \d+' -or
+            $Output -notmatch 'WPM PID \d+ is waiting for upgrade install script PID \d+') {
+            throw "Verbose mode was not propagated to the self-upgrade completion process. $Output"
+        }
         $markerPath = Join-Path $markerDir "wpm-$wpmArchitecture.txt"
         $logPath = Join-Path $dataDir "audit\self-upgrade-$wpmArchitecture-2.0.0.log"
         $deadline = [DateTime]::UtcNow.AddSeconds(60)
@@ -332,7 +337,9 @@ try {
         }
         if (-not (Test-Path -LiteralPath $logPath)) { throw 'Self-upgrade output log was not created.' }
         $log = Get-Content -Raw -LiteralPath $logPath
-        if ($log -notmatch 'install-script:self-2\.0\.0' -or $log -notmatch "Result: wpm $wpmArchitecture upgraded") { throw "Self-upgrade log did not include script output and final result. Log: $log" }
+        if ($log -notmatch 'install-script:self-2\.0\.0' -or
+            $log -notmatch 'wpm-verbose:1' -or
+            $log -notmatch "Result: wpm $wpmArchitecture upgraded") { throw "Self-upgrade log did not include verbose script context, script output, and final result. Log: $log" }
         if ($Output -notmatch "(?i)Result: wpm $wpmArchitecture scheduled" -or $Output -notmatch '(?i)Self-upgrade output:') { throw 'Parent process claimed completion or omitted the output-log path.' }
     }
 

@@ -29,6 +29,23 @@ typedef struct wpm_package_metadata {
     int debug;
 } wpm_package_metadata;
 
+typedef struct wpm_process_entry {
+    DWORD dwSize;
+    DWORD cntUsage;
+    DWORD th32ProcessID;
+    ULONG_PTR th32DefaultHeapID;
+    DWORD th32ModuleID;
+    DWORD cntThreads;
+    DWORD th32ParentProcessID;
+    LONG pcPriClassBase;
+    DWORD dwFlags;
+    CHAR szExeFile[MAX_PATH];
+} wpm_process_entry;
+
+typedef HANDLE (WINAPI *wpm_create_process_snapshot_fn)(DWORD, DWORD);
+typedef BOOL (WINAPI *wpm_process_first_fn)(HANDLE, wpm_process_entry*);
+typedef BOOL (WINAPI *wpm_process_next_fn)(HANDLE, wpm_process_entry*);
+
 static int wpm_verbose = 0;
 static int wpm_progress_current = 1;
 static int wpm_progress_total = 1;
@@ -1308,6 +1325,48 @@ static int is_valid_package_name(const char* package_name) {
     return 1;
 }
 
+static void report_script_children(DWORD script_pid) {
+    HANDLE snapshot;
+    HMODULE kernel32;
+    wpm_create_process_snapshot_fn create_snapshot;
+    wpm_process_first_fn process_first;
+    wpm_process_next_fn process_next;
+    wpm_process_entry process;
+    int found = 0;
+
+    kernel32 = GetModuleHandleA("kernel32.dll");
+    create_snapshot = kernel32 ? (wpm_create_process_snapshot_fn)GetProcAddress(kernel32,
+        "CreateToolhelp32Snapshot") : NULL;
+    process_first = kernel32 ? (wpm_process_first_fn)GetProcAddress(kernel32,
+        "Process32FirstA") : NULL;
+    process_next = kernel32 ? (wpm_process_next_fn)GetProcAddress(kernel32,
+        "Process32NextA") : NULL;
+    if (!create_snapshot || !process_first || !process_next) {
+        verbose_log("Process inspection APIs are unavailable");
+        return;
+    }
+    snapshot = create_snapshot(0x00000002, 0);
+    if (snapshot == INVALID_HANDLE_VALUE) {
+        verbose_log("Could not inspect child processes of script PID %lu (Windows error %lu)",
+            (unsigned long)script_pid, (unsigned long)GetLastError());
+        return;
+    }
+    memset(&process, 0, sizeof(process));
+    process.dwSize = sizeof(process);
+    if (process_first(snapshot, &process)) {
+        do {
+            if (process.th32ParentProcessID == script_pid) {
+                verbose_log("Script child process: PID %lu, executable %s",
+                    (unsigned long)process.th32ProcessID, process.szExeFile);
+                found = 1;
+            }
+        } while (process_next(snapshot, &process));
+    }
+    if (!found) verbose_log("Script PID %lu has no visible direct child process",
+        (unsigned long)script_pid);
+    CloseHandle(snapshot);
+}
+
 static int run_package_script(
     const char* staging_dir,
     const char* script_name,
@@ -1320,6 +1379,9 @@ static int run_package_script(
     STARTUPINFOA startup_info;
     PROCESS_INFORMATION process_info;
     DWORD exit_code;
+    DWORD wait_result;
+    DWORD wait_interval;
+    DWORD elapsed = 0;
     int written;
 
     if (!join_path(script_path, sizeof(script_path), staging_dir, script_name)) {
@@ -1375,7 +1437,20 @@ static int run_package_script(
     verbose_log("WPM PID %lu is waiting for %s script PID %lu",
         (unsigned long)GetCurrentProcessId(), action_name,
         (unsigned long)process_info.dwProcessId);
-    WaitForSingleObject(process_info.hProcess, INFINITE);
+    wait_interval = wpm_verbose ? 10000 : INFINITE;
+    do {
+        wait_result = WaitForSingleObject(process_info.hProcess, wait_interval);
+        if (wait_result == WAIT_TIMEOUT) {
+            elapsed += wait_interval;
+            verbose_log("%s script PID %lu is still running after %lu seconds",
+                action_name, (unsigned long)process_info.dwProcessId,
+                (unsigned long)(elapsed / 1000));
+            report_script_children(process_info.dwProcessId);
+            verbose_log("Debug with: tasklist /FI \"PID eq %lu\" /V",
+                (unsigned long)process_info.dwProcessId);
+            wait_interval = 30000;
+        }
+    } while (wait_result == WAIT_TIMEOUT);
     if (!GetExitCodeProcess(process_info.hProcess, &exit_code)) exit_code = 1;
     printf("--- end %s script output (exit code %lu) ---\n", action_name, (unsigned long)exit_code);
     if (result_exit_code) *result_exit_code = exit_code;
@@ -1634,9 +1709,10 @@ int wpm_archive_schedule_self_upgrade(const char* archive_path, int allow_unsign
             (unsigned long)GetLastError());
         goto cleanup;
     }
-    if (snprintf(command, sizeof(command), "\"%s\" --complete-self-upgrade \"%s\" %lu \"%s\" \"%s\" \"%s\" %d \"%s\"",
+    if (snprintf(command, sizeof(command), "\"%s\" --complete-self-upgrade \"%s\" %lu \"%s\" \"%s\" \"%s\" %d \"%s\"%s",
         handoff_exe, archive_full, (unsigned long)GetCurrentProcessId(), expected_version,
-        expected_arch, old_version, allow_unsigned ? 1 : 0, log_path) < 0) goto cleanup;
+        expected_arch, old_version, allow_unsigned ? 1 : 0, log_path,
+        wpm_verbose ? " --verbose" : "") < 0) goto cleanup;
     memset(&startup, 0, sizeof(startup));
     memset(&process, 0, sizeof(process));
     startup.cb = sizeof(startup);

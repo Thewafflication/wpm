@@ -104,11 +104,14 @@ int main(int argc, char *argv[])
         print_usage(0);
         return 0;
 	}
-    if ((argc == 8 || argc == 9) && strcmp(argv[1], "--complete-self-upgrade") == 0) {
+    if ((argc == 8 || argc == 9 || argc == 10) && strcmp(argv[1], "--complete-self-upgrade") == 0) {
         DWORD parent_id = (DWORD)strtoul(argv[3], NULL, 10);
         int completed;
-        const char* self_upgrade_log_path = argc == 9 ? argv[8] : NULL;
+        int completion_verbose = strcmp(argv[argc - 1], "--verbose") == 0;
+        const char* self_upgrade_log_path = argc >= 9 && strcmp(argv[8], "--verbose") != 0 ? argv[8] : NULL;
         FILE* self_upgrade_log = NULL;
+        wpm_set_verbose(completion_verbose);
+        SetEnvironmentVariableA("WPM_VERBOSE", completion_verbose ? "1" : NULL);
         if (self_upgrade_log_path) {
             if (fopen_s(&self_upgrade_log, self_upgrade_log_path, "a") != 0) return 1;
             fprintf(self_upgrade_log, "Completing WPM self-upgrade: %s %s -> %s\n", argv[5], argv[6], argv[4]);
@@ -174,6 +177,7 @@ int main(int argc, char *argv[])
 
 	Command cmd = parse_command(argv[command_index]);
     wpm_set_verbose(verbose);
+	SetEnvironmentVariableA("WPM_VERBOSE", verbose ? "1" : NULL);
 	wpm_repo_set_verbose(verbose);
 	if (verbose) print_runtime_mode();
 	if (!wpm_initialize_data_directories()) return 1;

@@ -202,6 +202,8 @@ the candidate archive and create the normal upgrade audit record. The invoking
 process shall report the result as `scheduled`, not `upgraded`, and identify a
 persistent self-upgrade output log. That log shall contain package-script output
 and the completion process's final `upgraded` or `failed` result.
+When the invoking command is verbose, the completion process shall remain
+verbose so its package-script process and wait diagnostics remain visible.
 The completion process shall also accept the legacy eight-argument handoff
 protocol used by earlier WPM releases; that protocol has no output-log path.
 
@@ -215,7 +217,12 @@ Package installation and upgrade scripts shall inherit WPM's standard input,
 output, and error streams so their diagnostics are visible to an interactive
 caller or captured by normal output redirection. Verbose output shall identify
 the WPM process ID, package-script process ID, and the wait relationship between
-them before WPM waits for script completion.
+them before WPM waits for script completion. While a package script remains
+blocked, verbose output shall periodically report its elapsed runtime, visible
+direct child processes, and a command for inspecting the script process.
+WPM shall expose verbose mode to package scripts through `WPM_VERBOSE=1`. WPM's
+setup script shall use it to report registry targets, intended changes, Path
+update decisions, and completed registry-operation exit codes.
 
 ### Current packages and failed upgrades
 

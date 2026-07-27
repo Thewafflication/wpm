@@ -213,11 +213,19 @@ path to a persistent output log. The completion process records installation
 script output and the final `upgraded` or `failed` result in that log.
 With `--verbose`, the scheduling output also identifies the invoking process,
 the independent completion process, and the process ID the completion process is
-waiting for before it replaces the installed executable.
+waiting for before it replaces the installed executable. Verbose mode continues
+through the completion handoff, including the final upgrade install script.
 Verbose package installation, upgrade, and removal output likewise identifies
 the WPM process, the launched package-script process, and which process WPM is
 waiting for. This makes a stalled package script inspectable from another
-terminal or Task Manager.
+terminal or Task Manager. After ten seconds, and every thirty seconds
+thereafter, verbose output reports how long the script has run, its visible
+direct child processes, and a ready-to-run `tasklist` debugging command.
+WPM's own setup script also announces each persistent environment and registry
+phase, so its self-upgrade log identifies the operation active during a stall.
+In verbose mode it records each registry key, value name and type, safe intended
+data, Path update decision, and `reg.exe` exit code. Package scripts receive
+`WPM_VERBOSE=1` while verbose diagnostics are enabled.
 
 Prerelease candidates are disabled by default. Configure the global policy or
 a package override with:

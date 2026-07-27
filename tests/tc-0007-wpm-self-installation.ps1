@@ -79,6 +79,17 @@ try {
             (Get-Content -Raw -LiteralPath $setupCmd) -notmatch 'LocalAppData') {
             throw 'setup.cmd does not provide a user-scoped installation mode.'
         }
+        $setup = Get-Content -Raw -LiteralPath $setupCmd
+        foreach ($diagnostic in @(
+            'WPM_VERBOSE',
+            'Registry operation:.*value=WPM',
+            'Registry operation:.*value=WPM_DATA_DIR',
+            'Registry operation:.*value=Path',
+            'Path decision:',
+            'Registry result:.*exit code'
+        )) {
+            if ($setup -notmatch $diagnostic) { throw "setup.cmd is missing verbose registry diagnostic: $diagnostic" }
+        }
     }
 
     $results += New-WpmManualStep -Name 'Validate latest-release bootstrap installer contract' -Action {
