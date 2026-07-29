@@ -98,9 +98,9 @@ A meta-package may contain little or no deployable content.
 Example:
 
 web-stack
-├── bundle=postgresql
-├── bundle=nginx
-└── bundle=php
++-- bundle=postgresql
++-- bundle=nginx
+`-- bundle=php
 
 Installing the meta-package causes WPM to deploy all bundled packages.
 

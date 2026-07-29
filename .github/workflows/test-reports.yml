@@ -92,6 +92,10 @@ jobs:
         shell: pwsh
         run: tests/verify-traceability.ps1
 
+      - name: Verify WSP adoption
+        shell: pwsh
+        run: tests/verify-wsp-adoption.ps1
+
       - name: Run tests and generate TeX reports
         id: verify
         shell: pwsh

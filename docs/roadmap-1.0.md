@@ -154,7 +154,7 @@ behavior.
 
 </details>
 
-## 🚧 Milestone 6: Release Hardening — In Progress
+## Milestone 6: Release Hardening - In Progress
 
 - Complete requirements-to-test traceability for all 1.0 commands. The
   baseline matrix is in `traceability-1.0.md` and CI enforces its artifact

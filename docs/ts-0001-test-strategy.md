@@ -35,14 +35,19 @@ the review and release-gate evidence remain explicit.
 
 ## 4. Test levels and verification methods
 
-| Level | Principal method | Scope and evidence |
-| --- | --- | --- |
-| Static verification | Inspection and static analysis | Requirement structure, traceability, C style, workflow structure, version resources, and build warnings |
-| Component and command | Automated test | Individual CLI operations and controlled error paths |
-| Integration | Automated test | Archives, signing, trust stores, repositories, scripts, filesystem permissions, and upgrade state |
-| System | Automated test and demonstration | End-to-end package lifecycle using the built WPM executable |
-| Release | Inspection, test, and analysis | Architecture matrix, signed packages, prior-release upgrade, artifact identity, and release evidence |
-| Security | Negative test, fault injection, inspection, and analysis | Malformed input, denied trust, tampering, traversal, failed scripts, recovery, and audit records |
+- **Static verification - inspection and static analysis:** requirement
+  structure, traceability, C style, workflows, version resources, and warnings.
+- **Component and command - automated test:** individual CLI operations and
+  controlled error paths.
+- **Integration - automated test:** archives, signing, trust stores,
+  repositories, scripts, permissions, and upgrade state.
+- **System - automated test and demonstration:** end-to-end package lifecycle
+  using the built WPM executable.
+- **Release - inspection, test, and analysis:** architecture matrix, signed
+  packages, prior-release upgrade, artifact identity, and release evidence.
+- **Security - negative test, fault injection, inspection, and analysis:**
+  malformed input, denied trust, tampering, traversal, failed scripts, recovery,
+  and audit records.
 
 Test specifications identify the selected ISO/IEC/IEEE 29119-4-oriented
 technique or explain why a named technique is not applicable.
@@ -97,13 +102,14 @@ or release-matrix result.
 
 ## 8. Supported release matrix
 
-| Dimension | Required release entries |
-| --- | --- |
-| Architecture | x86, x64, ARM64 |
-| Operating system | Supported Windows 10 or Windows 11 compatible with the architecture; the exact runner image and OS build are recorded in evidence |
-| Build configuration | Debug for complete verification and reports; Release for distributable artifact construction and smoke execution |
-| Toolchain | Project-selected TinyCC with the matching WCRT package |
-| Dependency baseline | Pinned Git submodules and recorded external package versions |
+- **Architecture:** x86, x64, and ARM64.
+- **Operating system:** supported Windows 10 or Windows 11 compatible with the
+  architecture; evidence records the exact runner image and OS build.
+- **Build configuration:** Debug for complete verification and reports; Release
+  for distributable construction and smoke execution.
+- **Toolchain:** project-selected TinyCC with the matching WCRT package.
+- **Dependency baseline:** pinned Git submodules and recorded external package
+  versions.
 
 Every applicable entry shall pass its required gates. Equivalence between
 Windows 10 and Windows 11 may be used for architecture-independent behavior

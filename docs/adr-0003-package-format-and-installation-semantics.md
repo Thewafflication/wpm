@@ -122,8 +122,8 @@ Packages MAY act as deployment containers.
 Example:
 
 foo.zip
-├── foo.msi
-└── .wpm/
++-- foo.msi
+`-- .wpm/
 
 install.cmd MAY invoke:
 

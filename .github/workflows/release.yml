@@ -9,6 +9,15 @@ permissions:
   contents: write
 
 jobs:
+  documentation:
+    uses: ./.github/workflows/documentation.yml
+    with:
+      version: ${{ github.ref_name }}
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+
   dependency-metadata:
     name: Resolve dependency metadata
     runs-on: windows-2022
@@ -89,6 +98,10 @@ jobs:
       - name: Verify requirements traceability
         shell: pwsh
         run: tests/verify-traceability.ps1
+
+      - name: Verify WSP adoption
+        shell: pwsh
+        run: tests/verify-wsp-adoption.ps1
 
       - name: Run verification suite
         shell: pwsh
@@ -327,7 +340,7 @@ jobs:
 
   publish:
     name: Publish GitHub Release
-    needs: upgrade-compatibility
+    needs: [upgrade-compatibility, documentation]
     runs-on: ubuntu-latest
 
     steps:
@@ -336,6 +349,12 @@ jobs:
         with:
           name: wpm-release-packages
           path: release
+
+      - name: Download release documentation
+        uses: actions/download-artifact@v8
+        with:
+          name: wpm-release-documentation
+          path: release-documentation
 
       - name: Create release package index
         shell: pwsh
@@ -365,3 +384,5 @@ jobs:
             release/index.json
             release/keys/wpm-release.public
             release/install.cmd
+            release-documentation/wpm-engineering-documentation.pdf
+            release-documentation/SHA256SUMS

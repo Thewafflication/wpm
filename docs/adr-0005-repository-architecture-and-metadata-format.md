@@ -94,14 +94,14 @@ Example:
 
 ```text
 repo/
-├── index.json
-├── index.sig
-├── packages/
-│   ├── foo/
-│   │   ├── 1.0.0.zip
-│   │   └── 1.1.0.zip
-│   └── bar/
-└── keys/
++-- index.json
++-- index.sig
++-- packages/
+|   +-- foo/
+|   |   +-- 1.0.0.zip
+|   |   `-- 1.1.0.zip
+|   `-- bar/
+`-- keys/
 ```
 
 Provider implementations SHALL present this structure consistently regardless

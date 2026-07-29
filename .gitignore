@@ -36,6 +36,8 @@ bld/
 # LaTeX generated artifacts
 *.aux
 *.pdf
+/output/pdf/
+/tmp/pdfs/
 *.synctex.gz
 
 # Visual Studio 2015/2017 cache/options directory

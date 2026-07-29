@@ -19,16 +19,23 @@ are privileged administrative activities.
 
 ### Protected assets
 
-| Asset | Required protection | Adverse consequence |
-| --- | --- | --- |
-| WPM executable and release packages | Authenticity and integrity | Execution of substituted package-manager code |
-| Package signing private keys | Confidentiality and authorized use | Forged packages accepted under a trusted identity |
-| Trusted and revoked public-key records | Integrity and authorized mutation | Unauthorized trust or reactivation of a revoked signer |
-| Package archives and indexes | Integrity, authenticity, and bounded processing | Tampered content, path escape, or resource exhaustion |
-| Repository configuration and caches | Integrity and provenance | Unintended source selection or stale/misleading candidates |
-| Installed-package archive records | Integrity and availability | Incorrect removal, upgrade, or installed-state decisions |
-| Audit and failure records | Integrity and availability | Lost attribution, diagnosis, or recovery evidence |
-| Credentials and proxy or repository secrets | Confidentiality | Unauthorized external access |
+- **WPM executable and release packages.** Protect authenticity and integrity;
+  substitution can execute attacker-controlled package-manager code.
+- **Package-signing private keys.** Protect confidentiality and authorized use;
+  compromise can forge packages under a trusted identity.
+- **Trusted and revoked public-key records.** Protect integrity and authorized
+  mutation; compromise can authorize a signer or reactivate a revoked key.
+- **Package archives and indexes.** Protect integrity and authenticity and
+  enforce bounded processing; failures can enable tampering, path escape, or
+  resource exhaustion.
+- **Repository configuration and caches.** Protect integrity and provenance;
+  compromise can alter source selection or present stale candidates.
+- **Installed-package archive records.** Protect integrity and availability;
+  corruption can cause incorrect removal, upgrade, or installed-state decisions.
+- **Audit and failure records.** Protect integrity and availability so
+  attribution, diagnosis, and recovery evidence remain usable.
+- **Credentials and repository or proxy secrets.** Protect confidentiality to
+  prevent unauthorized external access.
 
 ### Assumptions
 
@@ -50,15 +57,20 @@ are privileged administrative activities.
 
 ## 2. Security goals and derived requirements
 
-| Goal | Derived requirements | Principal verification |
-| --- | --- | --- |
-| Keep archive writes inside controlled staging | REQ-0004, REQ-0012 | TC-0004, TC-0012, source inspection |
-| Detect missing, added, modified, or truncated package content | REQ-0005, REQ-0012 | TC-0005, TC-0012 |
-| Execute packages only after required authorization and validation | REQ-0004, REQ-0012 | TC-0004, TC-0012 |
-| Separate repository transport from package trust | REQ-0011, REQ-0012 | TC-0011, TC-0012 |
-| Prevent silent architecture changes, downgrade, or invalid upgrade state | REQ-0013 | TC-0013 |
-| Preserve installation, failure, signer, and upgrade evidence | REQ-0012, REQ-0013 | TC-0012, TC-0013 |
-| Protect release identity and signing inputs | REQ-0009, REQ-0012 | TC-0009, TC-0012, workflow inspection |
+- **Keep archive writes inside controlled staging:** REQ-0004 and REQ-0012;
+  verified by TC-0004, TC-0012, and source inspection.
+- **Detect missing, added, modified, or truncated package content:** REQ-0005
+  and REQ-0012; verified by TC-0005 and TC-0012.
+- **Execute packages only after authorization and validation:** REQ-0004 and
+  REQ-0012; verified by TC-0004 and TC-0012.
+- **Separate repository transport from package trust:** REQ-0011 and REQ-0012;
+  verified by TC-0011 and TC-0012.
+- **Prevent silent architecture changes, downgrade, or invalid upgrade state:**
+  REQ-0013; verified by TC-0013.
+- **Preserve installation, failure, signer, and upgrade evidence:** REQ-0012
+  and REQ-0013; verified by TC-0012 and TC-0013.
+- **Protect release identity and signing inputs:** REQ-0009 and REQ-0012;
+  verified by TC-0009, TC-0012, and workflow inspection.
 
 These project requirements derive the applicable `WSP-SEC-0001` through
 `WSP-SEC-0014` obligations into the WPM baseline. Requirement changes follow
@@ -96,34 +108,87 @@ the controlled traceability and impact-analysis process.
 
 ### Trust boundaries and privileged operations
 
-| Boundary | Entry points | Required decision before crossing |
-| --- | --- | --- |
-| Network to repository cache | HTTPS repository commands | TLS validation, response bounds, format validation, and cache isolation |
-| Archive to staging filesystem | Build, install, verify, remove, and upgrade | Canonical path containment, type/size checks, and controlled extraction |
-| Staged content to execution | Install, remove, and upgrade scripts | Index validation, signature/trust policy, metadata validation, and explicit operation |
-| User context to machine trust | `wpm trust add/revoke` | Administrative authorization and exact key identity validation |
-| CI source to published release | Release workflow | Pinned source/dependencies, matrix gates, protected signing input, and artifact verification |
-| Current process to upgrade handoff | WPM self-upgrade | Candidate validation, cached handoff identity, audit logging, and recovery record |
+- **Network to repository cache:** HTTPS repository commands cross only after
+  TLS validation, response bounds, format validation, and cache isolation.
+- **Archive to staging filesystem:** build, install, verify, remove, and upgrade
+  cross only after canonical containment, type/size checks, and controlled
+  extraction.
+- **Staged content to execution:** install, remove, and upgrade scripts cross
+  only after index validation, signature/trust policy, metadata validation, and
+  an explicit operation.
+- **User context to machine trust:** `wpm trust add/revoke` crosses only after
+  administrative authorization and exact key-identity validation.
+- **CI source to published release:** the release workflow crosses only after
+  pinned inputs, matrix gates, protected signing input, and artifact verification.
+- **Current process to upgrade handoff:** self-upgrade crosses only after
+  candidate validation, cached handoff identity, audit logging, and a recovery
+  record.
 
 Network location, repository ownership, successful TLS, file ownership, or
 successful parsing alone never crosses a package-trust boundary.
 
 ## 4. Threat analysis and control traceability
 
-| Threat | Scenario and consequence | Preventive/detective controls | Verification | Residual risk |
-| --- | --- | --- | --- | --- |
-| WPM-THR-001 Archive path escape | Traversal, absolute, UNC, reserved-device, alternate-separator, or canonicalization tricks write outside staging | Reject unsafe entry names; canonical containment checks; bounded staging root | TC-0004, TC-0012; archive-source inspection | OS/filesystem parsing differences may expose untested aliases |
-| WPM-THR-002 Package tampering | An attacker changes, adds, removes, or truncates archived content | BLAKE2b file index, size checks, completeness validation, Ed25519 signature over the index | TC-0005 and TC-0012 | A trusted signer can intentionally publish harmful content |
-| WPM-THR-003 Repository compromise | A repository serves substituted metadata or packages | HTTPS transport, package signature verification, explicit local signer trust, offline verification | TC-0011 and TC-0012 | Availability, hiding, replay, and stale-cache attacks remain possible within version policy |
-| WPM-THR-004 Signing-key compromise | A stolen private key signs malicious packages | Private keys stay outside the repository; protected release secret; explicit revocation; durable key IDs | TC-0009, TC-0012; release inspection | Previously trusted packages and undiscovered compromise remain risks |
-| WPM-THR-005 Trust-store mutation | An unprivileged actor adds or reactivates a key | Administrative authorization, separate active/revoked records, exact key-ID validation | TC-0012 | A compromised administrator or OS can alter local trust |
-| WPM-THR-006 Malformed or excessive input | Crafted archives, metadata, URLs, indexes, or arguments cause memory, disk, or CPU exhaustion or parser confusion | Length/range/format checks, bounded metadata reads, controlled temporary roots, fail-closed parsing | TC-0002 through TC-0006 and TC-0010 through TC-0013 | Very large valid packages can still consume substantial resources |
-| WPM-THR-007 Privileged script abuse | An authorized package script modifies arbitrary system state | Validation before execution, explicit operation/warning, signer attribution, audit records | TC-0004, TC-0012, TC-0013 | Script behavior is intentionally outside the WPM sandbox boundary |
-| WPM-THR-008 Downgrade or candidate confusion | Architecture, prerelease, priority, or SemVer ambiguity selects an unintended package | Exact identity rules, SemVer precedence, architecture filtering, controlled prerelease policy, explicit downgrade rules | TC-0011 and TC-0013 | Repository freshness and operator override can affect selection |
-| WPM-THR-009 Interrupted upgrade | Script or handoff failure leaves deployed software and WPM records inconsistent | Prevalidation, retained archives, failure audit, best-effort continuation rules, explicit recovery state | TC-0013 and previous-release upgrade verification | Arbitrary scripts prevent universal transactional rollback |
-| WPM-THR-010 Secret disclosure | Keys or credentials appear in source, logs, arguments, artifacts, or diagnostics | No committed release private key; memory clearing for key material; protected CI secret; diagnostic review | TC-0009, TC-0012; secret and artifact inspection | Endpoint compromise can expose secrets during authorized use |
-| WPM-THR-011 Build or dependency substitution | Modified compiler, runtime, submodule, or dependency changes release behavior | Pinned submodules, recorded dependency versions, controlled setup, architecture matrix, release verification | TC-0009; workflow and dependency inspection | External package distribution remains a supply-chain dependency |
-| WPM-THR-012 Evidence deletion or forgery | Audit or test evidence is altered, omitted, or overwritten | Fail-closed audit writes where required, retained failure evidence, immutable CI/release association, artifact checksums/signatures | TC-0012, TC-0013; release-record inspection | A local administrator can alter local audit files |
+Each threat record identifies its scenario, controls, verification, and residual
+risk.
+
+- **WPM-THR-001 - Archive path escape.** Traversal, absolute, UNC,
+  reserved-device, separator, or canonicalization tricks may write outside
+  staging. Reject unsafe names, require canonical containment, and use a bounded
+  staging root. Verify with TC-0004, TC-0012, and archive-source inspection.
+  Residual risk: OS/filesystem differences may expose untested aliases.
+- **WPM-THR-002 - Package tampering.** An attacker may add, remove, change, or
+  truncate content. Use BLAKE2b indexes, size/completeness checks, and an Ed25519
+  signature over the index. Verify with TC-0005 and TC-0012. Residual risk: a
+  trusted signer can intentionally publish harmful content.
+- **WPM-THR-003 - Repository compromise.** A repository may substitute metadata
+  or packages. Use HTTPS, package signatures, local signer trust, and offline
+  verification. Verify with TC-0011 and TC-0012. Residual risk: availability,
+  hiding, replay, and stale-cache attacks remain possible within version policy.
+- **WPM-THR-004 - Signing-key compromise.** A stolen private key may sign
+  malicious packages. Keep keys outside the repository, protect the release
+  secret, support revocation, and use durable key IDs. Verify with TC-0009,
+  TC-0012, and release inspection. Residual risk: undiscovered compromise and
+  previously trusted packages remain risks.
+- **WPM-THR-005 - Trust-store mutation.** An unprivileged actor may add or
+  reactivate a key. Require administrative authorization, separate active and
+  revoked records, and validate exact key IDs. Verify with TC-0012. Residual
+  risk: a compromised administrator or OS can alter local trust.
+- **WPM-THR-006 - Malformed or excessive input.** Crafted archives, metadata,
+  URLs, indexes, or arguments may exhaust resources or confuse parsers. Enforce
+  length/range/format checks, bounded reads, controlled temporary roots, and
+  fail-closed parsing. Verify with TC-0002 through TC-0006 and TC-0010 through
+  TC-0013. Residual risk: large valid packages still consume resources.
+- **WPM-THR-007 - Privileged script abuse.** An authorized script may modify
+  arbitrary system state. Validate before execution, require an explicit
+  operation/warning, and record signer attribution and audit data. Verify with
+  TC-0004, TC-0012, and TC-0013. Residual risk: script behavior is intentionally
+  outside WPM's sandbox boundary.
+- **WPM-THR-008 - Downgrade or candidate confusion.** Architecture, prerelease,
+  priority, or SemVer ambiguity may select unintended content. Enforce exact
+  identities, SemVer, architecture filtering, prerelease policy, and downgrade
+  rules. Verify with TC-0011 and TC-0013. Residual risk: repository freshness
+  and operator override affect selection.
+- **WPM-THR-009 - Interrupted upgrade.** Script or handoff failure may leave
+  deployed software and WPM records inconsistent. Use prevalidation, retained
+  archives, failure audits, continuation rules, and explicit recovery state.
+  Verify with TC-0013 and prior-release upgrade tests. Residual risk: arbitrary
+  scripts prevent universal rollback.
+- **WPM-THR-010 - Secret disclosure.** Keys or credentials may enter source,
+  logs, arguments, artifacts, or diagnostics. Keep release keys uncommitted,
+  clear key material, protect CI secrets, and inspect diagnostics. Verify with
+  TC-0009, TC-0012, and artifact inspection. Residual risk: endpoint compromise
+  can expose secrets during authorized use.
+- **WPM-THR-011 - Build or dependency substitution.** Modified tools,
+  submodules, or dependencies may change release behavior. Pin submodules,
+  record versions, control setup, run the architecture matrix, and verify the
+  release. Verify with TC-0009 and workflow/dependency inspection. Residual risk:
+  external package distribution remains a supply-chain dependency.
+- **WPM-THR-012 - Evidence deletion or forgery.** Evidence may be altered,
+  omitted, or overwritten. Use fail-closed required audit writes, retained
+  failures, immutable CI/release association, and checksums/signatures. Verify
+  with TC-0012, TC-0013, and release-record inspection. Residual risk: a local
+  administrator can alter local audit files.
 
 ## 5. Security control design
 
@@ -218,13 +283,21 @@ part of release review and WSP baseline upgrades.
 
 ## 6. Residual-risk decisions
 
-| Risk | Decision | Basis and compensating control | Review trigger |
-| --- | --- | --- | --- |
-| Trusted package scripts have administrator-equivalent effect | Accepted | Explicit trust, validation, warning, signer attribution, and audit; sandboxing is a non-goal | New sandbox requirement or material abuse case |
-| Local administrators can alter trust and audit files | Accepted | Administrative authorization is the local security boundary; release evidence is separately protected | Multi-user trust policy or remote administration feature |
-| No universal rollback for arbitrary scripts | Accepted | Prevalidation, retained archives, failure audit, and package-specific recovery | Direct-install or transaction metadata design |
-| HTTPS and repositories can withhold or replay available content | Accepted with controls | Signatures prevent unauthorized content; SemVer and explicit policy constrain selection | Repository snapshot or transparency-log design |
-| CI cannot cover every Windows patch, policy, filesystem, or antivirus product | Accepted | Architecture matrix, supported-platform policy, fault injection, and field defect response | New support claim or compatibility defect pattern |
+- **Trusted scripts have administrator-equivalent effect - Accepted.** Explicit
+  trust, validation, warning, attribution, and audit compensate; sandboxing is a
+  non-goal. Review on a new sandbox requirement or material abuse case.
+- **Local administrators can alter trust and audit files - Accepted.** The
+  administrator is the local security boundary; release evidence is separately
+  protected. Review for multi-user trust or remote administration.
+- **No universal rollback for arbitrary scripts - Accepted.** Prevalidation,
+  retained archives, failure audits, and package-specific recovery compensate.
+  Review when direct-install or transaction metadata is designed.
+- **Repositories can withhold or replay content - Accepted with controls.**
+  Signatures prevent unauthorized content; SemVer and policy constrain
+  selection. Review for snapshots or transparency logs.
+- **CI cannot cover every Windows environment - Accepted.** The architecture
+  matrix, support policy, fault injection, and field response compensate. Review
+  for a new support claim or recurring compatibility defect.
 
 No residual-risk decision authorizes bypassing a required release gate without
 the deviation record defined by `docs/ts-0001-test-strategy.md`.

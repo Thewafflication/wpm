@@ -1,0 +1,136 @@
+name: Documentation PDF
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      version:
+        description: Document version for release builds
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and verify documentation
+    runs-on: windows-2022
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Install documentation toolchain
+        shell: pwsh
+        run: |
+          function Install-ChocolateyPackage {
+            param([Parameter(Mandatory)][string]$Name)
+            for ($attempt = 1; $attempt -le 3; $attempt++) {
+              choco install $Name --yes --no-progress
+              if ($LASTEXITCODE -eq 0) { return }
+              if ($attempt -eq 3) {
+                throw "Chocolatey failed to install $Name after 3 attempts."
+              }
+              Start-Sleep -Seconds 15
+            }
+          }
+          Install-ChocolateyPackage pandoc
+          Install-ChocolateyPackage miktex
+          Install-ChocolateyPackage poppler
+          $machinePath = [Environment]::GetEnvironmentVariable('Path', 'Machine')
+          $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+          $env:Path = "$machinePath;$userPath"
+          "PATH=$env:Path" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          initexmf --admin --set-config-value=[MPM]AutoInstall=1
+          if ($LASTEXITCODE -ne 0) { throw 'MiKTeX configuration failed.' }
+          python -m pip install --disable-pip-version-check pypdf==6.10.0
+          if ($LASTEXITCODE -ne 0) { throw 'pypdf installation failed.' }
+          Get-Command pandoc, pdflatex, pdftoppm, python -ErrorAction Stop
+
+      - name: Run pinned WSP common-tool tests
+        shell: pwsh
+        run: wsp/tools/tests/run-tests.ps1
+
+      - name: Build controlled PDF
+        id: document
+        shell: pwsh
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          $version = if ($env:REQUESTED_VERSION) {
+            $env:REQUESTED_VERSION
+          } else {
+            (git describe --tags --always --dirty).Trim()
+          }
+          "version=$version" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          wsp/tools/Build-Documentation.ps1 `
+            -RepositoryRoot . `
+            -ManifestPath documentation/documentation-manifest.json `
+            -Version $version
+
+      - name: Generate SHA-256 checksum
+        shell: pwsh
+        run: |
+          wsp/tools/New-ArtifactChecksum.ps1 `
+            -Path output/pdf/wpm-engineering-documentation.pdf `
+            -OutputPath output/pdf/SHA256SUMS
+
+      - name: Verify PDF structure and identity
+        shell: pwsh
+        run: |
+          python tests/verify-release-documentation.py `
+            --pdf output/pdf/wpm-engineering-documentation.pdf `
+            --checksum output/pdf/SHA256SUMS `
+            --version '${{ steps.document.outputs.version }}'
+
+      - name: Render every page for visual review
+        shell: pwsh
+        run: |
+          $render = 'tmp/pdfs/rendered'
+          New-Item -ItemType Directory -Force -Path $render | Out-Null
+          pdftoppm -png -r 120 `
+            output/pdf/wpm-engineering-documentation.pdf `
+            "$render/page"
+          if ($LASTEXITCODE -ne 0) { throw 'PDF rendering failed.' }
+          if (-not (Get-ChildItem $render -Filter 'page-*.png')) {
+            throw 'PDF rendering produced no page images.'
+          }
+
+      - name: Attest PDF build provenance
+        if: github.event_name != 'pull_request'
+        uses: actions/attest@v4
+        with:
+          subject-path: output/pdf/wpm-engineering-documentation.pdf
+
+      - name: Verify PDF build provenance
+        if: github.event_name != 'pull_request'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh attestation verify
+          output/pdf/wpm-engineering-documentation.pdf
+          --repo ${{ github.repository }}
+
+      - name: Upload documentation evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: wpm-release-documentation
+          path: |
+            output/pdf/wpm-engineering-documentation.pdf
+            output/pdf/SHA256SUMS
+            tmp/pdfs/rendered/*.png
+          if-no-files-found: error
+          retention-days: 90

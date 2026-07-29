@@ -46,6 +46,12 @@ fault-injection testing that complements regular CI.
 See the [WSP adoption record](docs/wsp-adoption.md) for the pinned engineering
 process baseline, selected profiles, and integration status.
 
+See the [release-documentation procedure](documentation/README.md) for PDF
+construction, verification, visual review, checksums, and publication control.
+
+See the [project process](docs/project-process.md) for planning, review,
+verification, release, support, and improvement controls.
+
 See the [support policy](docs/support-policy.md) for supported releases and
 issue-reporting guidance.
 
