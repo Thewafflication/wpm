@@ -1,11 +1,23 @@
 # REQ-0008: Package Removal
 
-## Description
+**Content type:** Project requirements
 
+**Status:** Accepted
+
+**Source:** ADR-0003 package lifecycle
+
+## Scope
+
+Applies when WPM removes a package represented by a retained archive.
+
+## Requirement
+
+**REQ-0008.001**
 The `wpm remove` command shall remove a retained package archive identified by
 its archive name, with or without the `.zip` extension. The archive name
 identifies one exact stored package version.
 
+**REQ-0008.002**
 When invoked with a stored package archive, the application shall:
 
 - locate `%ProgramData%\WPM\packages\<archive-name>.zip`,
@@ -26,6 +38,24 @@ Keeping the archive when removal fails permits a later retry.
 
 ## Verification
 
+**Method:** Automated test and inspection
+
+**References:** TC-0008 and `tests/tc-0008-*.ps1`
+
 Verified by:
 
 - TC-0008 - Package removal
+
+## Relationships
+
+- **Derived from:** The source and architecture decisions identified above.
+- **Depends on:** Applicable package, trust, repository, and lifecycle decisions cited by this requirement.
+- **Conflicts with:** None identified.
+
+## Tailoring
+
+None. Applicability changes require the normal WSP adoption and requirement-change process.
+
+## Implementation Record
+
+`wpm/main.c` and `tests/tc-0008-package-removal.ps1` currently implement and verify this requirement.

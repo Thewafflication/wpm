@@ -1,46 +1,65 @@
 # REQ-0013: Version-Aware Upgrades
 
-## Description
+**Content type:** Project requirements
 
+**Status:** Accepted
+
+**Source:** ADR-0004 version and dependency semantics
+
+## Scope
+
+Applies to installed-state discovery, candidate selection, version comparison,
+package upgrades, and upgrade recovery on supported Windows targets.
+
+## Requirement
+
+**REQ-0013.001**
 WPM shall implement `wpm upgrade` as a version-aware package lifecycle
 operation. Upgrade selection shall use installed package metadata, configured
 HTTPS repositories, and Semantic Versioning 2.0 precedence.
 
 ### Package identity and installed-state discovery
 
+**REQ-0013.002**
 The retained ZIP archives beneath `%ProgramData%\WPM\packages` (or the
 equivalent directory beneath `WPM_DATA_DIR`) shall be the authoritative local
 records of installed packages. WPM shall read each retained archive's
 `.wpm\package.txt` rather than infer package identity from its file name.
 
+**REQ-0013.003**
 An installed package identity consists of its case-insensitive package name and
 its declared architecture. Supported architectures are `any`, `x86`, `x64`,
 and `arm64`. Multiple specific architectures of the same package may coexist,
 but an `any` installation shall not coexist with an architecture-specific
 installation of the same package.
 
+**REQ-0013.004**
 Installation of an `any` package shall fail when a specific architecture of
 that package is installed. Installation of a specific architecture shall fail
 when the `any` architecture of that package is installed. The diagnostic shall
 identify the conflict and require the conflicting installation to be removed
 first.
 
+**REQ-0013.005**
 If legacy or externally modified state contains both `any` and specific
 architectures for one package, WPM shall warn that the installed state is
 inconsistent. Broad upgrade operations shall process the specific
 architectures and ignore the `any` record. An explicit request to upgrade the
 conflicting `any` identity shall fail until the conflict is resolved.
 
+**REQ-0013.006**
 When more than one retained version exists for the same package identity, the
 highest valid SemVer precedence shall be its current installed version for
 upgrade selection. Older retained versions shall remain independent,
 version-specific records and shall not be modified by an upgrade.
 
+**REQ-0013.007**
 An invalid or unreadable installed record shall be reported and shall not be
 silently interpreted as another package or version.
 
 ### Command forms and selectors
 
+**REQ-0013.008**
 WPM shall support:
 
 ```text
@@ -48,26 +67,31 @@ wpm upgrade <package...> [--arch <any|x86|x64|arm64>] [--version <semver>]
 wpm upgrade --all [--arch <any|x86|x64|arm64>] [-y|--yes]
 ```
 
+**REQ-0013.009**
 Package operands identify installed packages by metadata name. A ZIP path or
 archive file name is not an upgrade operand. Duplicate package operands shall
 be processed once.
 
+**REQ-0013.010**
 Without `--arch`, WPM shall evaluate every installed architecture of each
 named package independently. `--arch` shall restrict the operation to the
 specified installed architecture. The operation shall fail for a named package
 when the requested architecture is not installed.
 
+**REQ-0013.011**
 Without `--version`, WPM shall select the highest eligible newer version.
 `--version` shall require the exact valid SemVer version specified and shall
 not fall back to another version. The requested version must have greater
 SemVer precedence than the current installed version; `upgrade` shall not
 perform a downgrade or reinstall a version of equal precedence.
 
+**REQ-0013.012**
 `--all` shall discover and evaluate every valid installed package identity.
 Package operands and `--all` are mutually exclusive. `--version` shall not be
 accepted with `--all`. `--arch` may restrict `--all` to one installed
 architecture.
 
+**REQ-0013.013**
 `--offline`, `--allow-unsigned`, and `--verbose` shall retain their existing
 repository, signature-validation, and reporting meanings during upgrades.
 Before an `--all` upgrade changes any package, WPM shall display every planned
@@ -78,23 +102,27 @@ displayed plan without prompting; they shall not suppress the plan itself.
 
 ### Installation selectors
 
+**REQ-0013.014**
 Named installation shall additionally support:
 
 ```text
 wpm install <package...> [--arch <any|x86|x64|arm64>] [--version <semver>]
 ```
 
+**REQ-0013.015**
 Without `--arch`, named installation shall use the existing native-system
 architecture selection with `any` as a compatible fallback. `--arch` shall
 select only the exact requested repository architecture, permitting, for
 example, deliberate installation of an x86 package on an x64 system.
 
+**REQ-0013.016**
 Without `--version`, named installation shall select the highest eligible
 version. `--version` shall select only the exact valid SemVer version and shall
 fail rather than fall back when that version is unavailable or ineligible.
 Installation may explicitly select a version older than other repository
 versions because it is not an upgrade operation.
 
+**REQ-0013.017**
 A selector applies to every package operand in the same invocation. Different
 selectors for different packages require separate invocations. `--arch` and
 `--version` shall be rejected for ZIP-path installation because a local archive
@@ -102,18 +130,21 @@ already specifies its identity.
 
 ### Architecture-aware upgrade selection
 
+**REQ-0013.018**
 An upgrade candidate's architecture shall exactly equal the installed package
 identity's architecture. WPM shall not use an `any` candidate as a fallback
 for an installed `x86`, `x64`, or `arm64` package, and shall not use a specific
 architecture candidate for an installed `any` package. Upgrade shall not
 implicitly migrate a package between architectures.
 
+**REQ-0013.019**
 Thus, when both x86 and x64 identities are installed, an unqualified upgrade
 shall resolve and upgrade each independently when an eligible candidate exists.
 One identity may be upgraded while another is current or fails.
 
 ### Prerelease configuration
 
+**REQ-0013.020**
 Prerelease candidates shall be disabled by default. WPM shall provide a global
 setting and an optional case-insensitive per-package override:
 
@@ -125,12 +156,14 @@ wpm config get prerelease --package <name>
 wpm config unset prerelease --package <name>
 ```
 
+**REQ-0013.021**
 Configuration shall be stored beneath the WPM data root's `config` directory.
 A per-package value shall take precedence over the global value. Removing an
 override shall restore inheritance from the global value. A package-specific
 `get` shall report the effective value and whether it comes from a package
 override or the global setting.
 
+**REQ-0013.022**
 When prereleases are disabled for a package, prerelease repository candidates
 shall be excluded from install and upgrade selection. Stable candidates remain
 eligible even when the installed version is a prerelease, allowing an
@@ -142,12 +175,14 @@ diagnostic.
 
 ### Semantic version selection
 
+**REQ-0013.023**
 Repository and installed versions participating in selection shall be valid
 Semantic Versioning 2.0 versions. WPM shall compare their precedence according
 to SemVer 2.0, including numeric and lexical prerelease identifier rules.
 Build metadata shall not affect precedence and a build-metadata difference
 alone shall not cause an upgrade.
 
+**REQ-0013.024**
 After architecture and prerelease filtering, WPM shall choose the candidate
 with the highest version precedence. When equivalent versions occur in more
 than one repository, the highest numeric repository priority shall win; equal
@@ -157,12 +192,14 @@ prevent selection from otherwise usable entries.
 
 ### Upgrade execution
 
+**REQ-0013.025**
 For an interactive `upgrade --all`, WPM shall accept `y` or `yes` followed by
 Enter on standard input and proceed with the displayed plan. Any other response
 or end-of-file shall cancel without changing packages. `-y` and `--yes` shall
 continue to bypass the prompt for unattended use. Confirmation shall work with
 both a Windows console input handle and redirected standard input.
 
+**REQ-0013.026**
 For each package identity selected for upgrade, WPM shall:
 
 1. determine its current installed version,
@@ -179,15 +216,18 @@ For each package identity selected for upgrade, WPM shall:
    versions, archive names, verification result, and signing key, and
 10. remove the staging directory after success or failure.
 
+**REQ-0013.027**
 All available validation shall complete before `install.cmd` is invoked. WPM
 shall not invoke the prior version's `remove.cmd` as part of upgrade. Package
 maintainers remain responsible for making `install.cmd` safely perform any
 software-specific replacement or migration.
 
+**REQ-0013.028**
 The prior retained archive shall not be deleted after a successful upgrade.
 It remains a version-specific removal and audit record consistent with WPM's
 multiple-version package model.
 
+**REQ-0013.029**
 When upgrading the `wpm` package itself, the running installed executable shall
 not attempt to overwrite itself. After validating the candidate package, WPM
 shall copy the candidate `wpm.exe` into a collision-resistant handoff directory
@@ -213,12 +253,14 @@ verbose so its package-script process and wait diagnostics remain visible.
 The completion process shall also accept the legacy eight-argument handoff
 protocol used by earlier WPM releases; that protocol has no output-log path.
 
+**REQ-0013.030**
 Before an official release is published, every supported architecture shall
 complete an isolated self-upgrade from the immediately previous published WPM
 release to the candidate package. The test shall use the previous release's
 executable to select, validate, cache, launch, and install the candidate; merely
 invoking the candidate's completion command is insufficient.
 
+**REQ-0013.031**
 Package installation and upgrade scripts shall inherit WPM's standard input,
 output, and error streams so their diagnostics are visible to an interactive
 caller or captured by normal output redirection. Verbose output shall identify
@@ -234,22 +276,26 @@ already present.
 
 ### Current packages and failed upgrades
 
+**REQ-0013.032**
 When no eligible candidate has greater precedence than the current installed
 version, WPM shall report that identity as current, perform no package download
 or script execution, and treat the result as a successful no-op. Verbose output
 shall identify when otherwise matching prereleases were excluded by
 configuration.
 
+**REQ-0013.033**
 If acquisition or validation fails, WPM shall not invoke `install.cmd` or
 record the candidate as installed. If `install.cmd` fails, WPM shall not retain
 the candidate as a successfully installed package. In either case, prior
 archives and audit records shall remain intact and the staging directory shall
 be removed.
 
+**REQ-0013.034**
 WPM shall write a failed-upgrade audit record when an upgrade attempt has
 selected a candidate. It shall include the package identity, old and candidate
 versions, failure phase, and script exit code when applicable.
 
+**REQ-0013.035**
 WPM cannot guarantee rollback of arbitrary changes made by package scripts. A
 script failure shall warn that package-maintainer recovery may be required. If
 archive retention or audit recording fails after `install.cmd` succeeds, WPM
@@ -258,11 +304,13 @@ software was rolled back.
 
 ### Multiple-package results
 
+**REQ-0013.036**
 Packages and architectures shall be processed independently. Failure of one
 identity shall not prevent later identities in the invocation from being
 attempted. WPM shall produce a final result for each identity as `upgraded`,
 `current`, or `failed`.
 
+**REQ-0013.037**
 The process exit status shall be zero only when every selected identity is
 either upgraded or current. Any failed identity shall produce a nonzero exit
 status. Multi-package upgrade is best-effort and shall not claim transactionality
@@ -284,6 +332,24 @@ recovery reporting are therefore enforceable, while universal rollback is not.
 
 ## Verification
 
+**Method:** Automated test and inspection
+
+**References:** TC-0013 and `tests/tc-0013-*.ps1`
+
 Verified by:
 
 - TC-0013 - Version-aware package installation and upgrades
+
+## Relationships
+
+- **Derived from:** The source and architecture decisions identified above.
+- **Depends on:** Applicable package, trust, repository, and lifecycle decisions cited by this requirement.
+- **Conflicts with:** None identified.
+
+## Tailoring
+
+None. Applicability changes require the normal WSP adoption and requirement-change process.
+
+## Implementation Record
+
+`wpm/main.c` and `tests/tc-0013-version-aware-upgrades.ps1` currently implement and verify this requirement.

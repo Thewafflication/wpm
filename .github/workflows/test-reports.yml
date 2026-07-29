@@ -142,6 +142,7 @@ jobs:
           name: wpm-windows-${{ matrix.arch }}-debug
           path: debug-packages/wpm-${{ matrix.arch }}-debug-*.zip
           if-no-files-found: error
+          retention-days: 90
 
       - name: Upload failed test diagnostics
         if: steps.verify.outputs.exit_code != '0'
@@ -150,6 +151,7 @@ jobs:
           name: wpm-test-report-windows-${{ matrix.arch }}-debug
           path: bin/${{ matrix.arch }}/Debug/
           if-no-files-found: error
+          retention-days: 90
 
       - name: Publish GitHub summary
         shell: pwsh

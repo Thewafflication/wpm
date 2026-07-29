@@ -1,9 +1,21 @@
 # REQ-0004: Package Installation
 
-## Description
+**Content type:** Project requirements
 
+**Status:** Accepted
+
+**Source:** ADR-0003 package lifecycle
+
+## Scope
+
+Applies to local package-archive installation on supported Windows targets.
+
+## Requirement
+
+**REQ-0004.001**
 The `wpm install` command shall install a ZIP package archive.
 
+**REQ-0004.002**
 When invoked with a valid package archive, the application shall:
 
 - report the package name with the default progress phases
@@ -26,15 +38,18 @@ When invoked with a valid package archive, the application shall:
   `%ProgramData%\WPM\packages\<archive-name>.zip`, and
 - remove the staging directory after the installation succeeds or fails.
 
+**REQ-0004.003**
 The package store shall retain the archive using its original archive file name
 at `%ProgramData%\WPM\packages\<archive-name>.zip`. The stored archive is the
 local record used by future package-management operations; it is not an
 extraction destination or a software deployment location.
 
+**REQ-0004.004**
 `install.cmd` is responsible for deploying software from the staging directory
 to its required location. WPM shall not impose a deployment location on the
 package.
 
+**REQ-0004.005**
 When invoked with `--verbose`, the command shall additionally report archive
 extraction, per-file index verification and hashing, script execution, and
 archive storage operations.
@@ -48,6 +63,24 @@ without treating the staging directory as an installed package location.
 
 ## Verification
 
+**Method:** Automated test and inspection
+
+**References:** TC-0004 and `tests/tc-0004-*.ps1`
+
 Verified by:
 
 - TC-0004 - Package archive installation
+
+## Relationships
+
+- **Derived from:** The source and architecture decisions identified above.
+- **Depends on:** Applicable package, trust, repository, and lifecycle decisions cited by this requirement.
+- **Conflicts with:** None identified.
+
+## Tailoring
+
+None. Applicability changes require the normal WSP adoption and requirement-change process.
+
+## Implementation Record
+
+`wpm/main.c` and `tests/tc-0004-package-archive-installation.ps1` currently implement and verify this requirement.

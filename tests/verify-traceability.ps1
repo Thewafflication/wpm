@@ -7,6 +7,7 @@ $ErrorActionPreference = 'Stop'
 $docs = Join-Path $RepositoryRoot 'docs'
 $cmake = Get-Content -Raw -LiteralPath (Join-Path $RepositoryRoot 'wpm/CMakeLists.txt')
 $failures = [System.Collections.Generic.List[string]]::new()
+$allRequirementIds = [System.Collections.Generic.List[string]]::new()
 $requiredTestCaseFields = @(
     'TCID',
     'TCTitle',
@@ -43,6 +44,46 @@ foreach ($id in $requirements) {
     $script = Get-ChildItem -LiteralPath (Join-Path $RepositoryRoot 'tests') -Filter "$slug-*.ps1"
 
     if ($requirement -notmatch [regex]::Escape($testId)) { $failures.Add("REQ-$id does not reference $testId.") }
+    foreach ($pattern in @(
+        '(?m)^\*\*Content type:\*\* Project requirements\r?$',
+        '(?m)^\*\*Status:\*\* (Proposed|Accepted|Deprecated|Superseded|Rejected)',
+        '(?m)^\*\*Source:\*\* .+\r?$',
+        '(?m)^## Scope\r?$',
+        '(?m)^## Requirement\r?$',
+        '(?m)^## Rationale\r?$',
+        '(?m)^## Verification\r?$',
+        '(?m)^\*\*Method:\*\* .+',
+        '(?m)^\*\*References:\*\* .+',
+        '(?m)^## Relationships\r?$',
+        '(?m)^## Tailoring\r?$',
+        '(?m)^## Implementation Record\r?$'
+    )) {
+        if ($requirement -notmatch $pattern) {
+            $failures.Add("REQ-$id is missing required WSP structure matching: $pattern")
+        }
+    }
+
+    $subordinateIds = [regex]::Matches(
+        $requirement,
+        "(?m)^\*\*(REQ-$id\.\d{3})\*\*\r?$"
+    ) | ForEach-Object { $_.Groups[1].Value }
+    foreach ($subordinateId in $subordinateIds) {
+        $allRequirementIds.Add($subordinateId)
+    }
+    if ($subordinateIds.Count -eq 0) {
+        $failures.Add("REQ-$id has no identified subordinate obligations.")
+    }
+
+    $requirementSection = [regex]::Match(
+        $requirement,
+        '(?s)(?<=## Requirement\r?\n).*?(?=\r?\n## (?:Rationale|Verification))'
+    ).Value
+    foreach ($block in [regex]::Split($requirementSection, '(?:\r?\n){2,}')) {
+        if ($block -match '(?i)\b(shall|must)\b' -and
+            $block -notmatch "(?m)^\*\*REQ-$id\.\d{3}\*\*\r?$") {
+            $failures.Add("REQ-$id contains an unidentified normative obligation: $($block.Substring(0, [Math]::Min(80, $block.Length)))")
+        }
+    }
     if ($tex.Count -ne 1) { $failures.Add("REQ-$id must have exactly one $slug test specification.") }
     if ($script.Count -ne 1) { $failures.Add("REQ-$id must have exactly one $slug automated test.") }
     if ($tex.Count -eq 1) {
@@ -59,6 +100,14 @@ foreach ($id in $requirements) {
         }
     }
     if ($cmake -notmatch [regex]::Escape("wpm_add_test_case($testId")) { $failures.Add("$testId is not registered with CTest.") }
+}
+
+$duplicateRequirementIds = $allRequirementIds |
+    Group-Object |
+    Where-Object Count -gt 1 |
+    ForEach-Object Name
+if ($duplicateRequirementIds) {
+    $failures.Add("Duplicate subordinate requirement identifiers: $($duplicateRequirementIds -join ', ')")
 }
 
 if ($failures.Count) {

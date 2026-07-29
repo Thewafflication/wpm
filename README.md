@@ -49,6 +49,9 @@ process baseline, selected profiles, and integration status.
 See the [support policy](docs/support-policy.md) for supported releases and
 issue-reporting guidance.
 
+Report suspected vulnerabilities through the private process in the
+[security policy](SECURITY.md).
+
 WPM uses third-party open-source software. See
 [Third-Party Notices](THIRD_PARTY_NOTICES.md) for attribution and licenses.
 

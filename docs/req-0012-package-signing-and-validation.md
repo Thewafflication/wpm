@@ -1,13 +1,26 @@
 # REQ-0012: Package Signing and Validation
 
-## Description
+**Content type:** Project requirements
 
+**Status:** Accepted
+
+**Source:** ADR-0001 and ADR-0002 trust model
+
+## Scope
+
+Applies to key generation, signing, trust management, package validation,
+installation authorization, and related audit records.
+
+## Requirement
+
+**REQ-0012.001**
 WPM shall authenticate package contents with detached Ed25519 signatures before
 installation. The existing package index remains the package-content manifest;
 this requirement adds author identity and trust validation to it.
 
 ### Signed package format
 
+**REQ-0012.002**
 A signed package shall contain `.wpm/index.csv` and a UTF-8
 `.wpm/signature.json` file. `signature.json` shall use this version-1 schema:
 
@@ -21,6 +34,7 @@ A signed package shall contain `.wpm/index.csv` and a UTF-8
 }
 ```
 
+**REQ-0012.003**
 The signed payload shall be the exact bytes of `.wpm/index.csv` as stored in
 the ZIP archive. The index shall list every archive entry except
 `.wpm/index.csv` and `.wpm/signature.json`; WPM shall reject a signed package
@@ -28,6 +42,7 @@ when an entry is missing from the index or an unindexed entry is present. This
 makes the signature cover the package metadata, scripts, and every deployable
 file without a recursive signature structure.
 
+**REQ-0012.004**
 The key identifier shall be the lowercase hexadecimal BLAKE2b-256 digest of
 the 32-byte Ed25519 public key. WPM shall reject malformed signature metadata,
 unsupported schema versions or algorithms, invalid Base64, duplicate signature
@@ -36,6 +51,7 @@ verification.
 
 ### Signing
 
+**REQ-0012.005**
 `wpm keygen <private-key-file> <public-key-file> [--default]` shall generate a
 new Ed25519 key pair. It shall require both parent directories to exist,
 refuse to overwrite either output file, and restrict the private-key file to
@@ -44,6 +60,7 @@ identifier and public-key file path, but shall never display the private key.
 When `--default` is specified, WPM shall designate the generated private key
 as the default signing key.
 
+**REQ-0012.006**
 `wpm key default <private-key-file>` shall validate an existing private-key
 file and designate it as the default signing key. `wpm key default --clear`
 shall remove that designation. WPM shall store only the absolute private-key
@@ -51,12 +68,14 @@ path and the derived key identifier in `config\signing-key.txt` beneath the
 WPM data root; it shall not copy or retain the private key. Default signing-key
 configuration is independent of the machine trust store.
 
+**REQ-0012.007**
 `wpm build <source_dir> [output_dir] --sign <private-key-file>` shall create a
 signed package. It shall first generate the package index, sign its exact
 bytes with the supplied Ed25519 private key, and add `signature.json` to the
 archive. The build shall fail without producing a successful package if the
 key file is malformed, unsupported, or cannot sign.
 
+**REQ-0012.008**
 When `--sign` is omitted and a default signing key is configured, `wpm build`
 shall use that key. `--sign` shall take precedence over the configured default.
 When no default is configured, builds without `--sign` remain supported for
@@ -64,6 +83,7 @@ development and produce unsigned packages. If a configured default is missing,
 malformed, or no longer matches its recorded key identifier, the build shall
 fail rather than silently producing an unsigned package.
 
+**REQ-0012.009**
 A private-key file shall be UTF-8 text in this format:
 
 ```text
@@ -72,11 +92,13 @@ algorithm=ed25519
 secret-key=<base64-encoded 64-byte Ed25519 secret key>
 ```
 
+**REQ-0012.010**
 WPM shall not write, retain, display, or package private-key material except
 when explicitly creating a new private-key file through `wpm keygen`.
 
 ### Trust store and management
 
+**REQ-0012.011**
 Trusted public keys shall be stored under `trust` beneath the WPM data root
 (`%ProgramData%\WPM` by default or `WPM_DATA_DIR` when overridden). WPM shall
 provide these commands:
@@ -85,6 +107,7 @@ provide these commands:
 - `wpm trust list` displays each key identifier and status.
 - `wpm trust revoke <key-id>` permanently marks an existing key revoked.
 
+**REQ-0012.012**
 Only an elevated administrator may add or revoke keys in the default data
 root. When `WPM_DATA_DIR` explicitly selects an alternate data root, WPM may
 modify that isolated trust store without elevation to support test automation
@@ -97,6 +120,7 @@ algorithm=ed25519
 public-key=<base64-encoded 32-byte Ed25519 public key>
 ```
 
+**REQ-0012.013**
 WPM shall derive the key identifier itself. Adding an already-active key shall
 succeed as an idempotent operation and report that the key is already trusted.
 WPM shall reject malformed key files and attempts to revoke an unknown key.
@@ -107,6 +131,7 @@ add or trust a signing key.
 
 ### Installation validation
 
+**REQ-0012.014**
 Before extraction, script execution, or package-store retention, `wpm install`
 shall validate each local or repository-downloaded package as follows:
 
@@ -120,6 +145,7 @@ shall validate each local or repository-downloaded package as follows:
 4. Extract to the normal staging directory and verify the complete package
    index before running `.wpm\install.cmd`.
 
+**REQ-0012.015**
 If any validation step fails, WPM shall return a nonzero exit status, execute
 no package script, retain no package archive, and remove its staging directory.
 Signature verification shall work without repository access once the package
@@ -127,6 +153,7 @@ and trusted public key are available.
 
 ### Read-only package verification
 
+**REQ-0012.016**
 `wpm verify <package...>` shall apply the same signature, trust-store, complete
 index, and package-metadata validation used before installation. It shall
 reject unsigned packages and shall not provide an unsigned override. It shall
@@ -135,6 +162,7 @@ upgrade audit record, and remove its staging directory after success or
 failure. Each valid package shall produce a confirmation containing its
 declared name, version, architecture, and signing-key identifier.
 
+**REQ-0012.017**
 Unsigned packages shall be rejected by default. An elevated administrator may
 install a package with no signature file only by specifying
 `wpm install <package...> --allow-unsigned`. When `WPM_DATA_DIR` explicitly
@@ -143,6 +171,7 @@ for test automation and non-machine deployments. WPM shall emit a prominent
 warning for every package accepted this way. `--allow-unsigned` shall not
 bypass a malformed, invalid, unknown-key, or revoked-key signature.
 
+**REQ-0012.018**
 For each successful installation, WPM shall record the package name, version,
 archive name, installation timestamp, signing-key identifier (or `unsigned`),
 and verification result beneath the WPM data root.
@@ -160,7 +189,25 @@ avoids repeatedly passing a key path during routine builds.
 
 ## Verification
 
+**Method:** Automated test and inspection
+
+**References:** TC-0012 and `tests/tc-0012-*.ps1`
+
 Verified by:
 
 - TC-0012 - Package signing, trust, and installation validation
 - the release workflow, which signs the WPM self-package with its release key
+
+## Relationships
+
+- **Derived from:** The source and architecture decisions identified above.
+- **Depends on:** Applicable package, trust, repository, and lifecycle decisions cited by this requirement.
+- **Conflicts with:** None identified.
+
+## Tailoring
+
+None. Applicability changes require the normal WSP adoption and requirement-change process.
+
+## Implementation Record
+
+`wpm/main.c` and `tests/tc-0012-package-signing-and-validation.ps1` currently implement and verify this requirement.

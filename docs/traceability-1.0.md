@@ -5,6 +5,11 @@ test specification and automated implementation. CI also runs
 `tests/verify-traceability.ps1`, which rejects missing, duplicate, unregistered,
 or back-reference-free artifacts.
 
+Each `REQ-NNNN` row covers the identified subordinate obligations in that
+requirement document (`REQ-NNNN.001`, `REQ-NNNN.002`, and so on). The controlled
+test specification references the parent requirement and verifies the listed
+subordinate obligations through its procedure and objective expected results.
+
 | Requirement | Test case | Primary command or release behavior |
 | --- | --- | --- |
 | REQ-0001 | TC-0001 | usage, version, and command-line invocation |
