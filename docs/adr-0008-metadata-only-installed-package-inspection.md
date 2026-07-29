@@ -1,6 +1,8 @@
 # ADR-0008: Metadata-Only Installed Package Inspection
 
-Status: Accepted
+**Status:** Accepted
+
+**Date:** 2026-07-26
 
 ## Context
 
@@ -17,6 +19,20 @@ output, and visible delays during routine update checks.
 Package inspection and package verification have different purposes. Inspection
 identifies an installed package for version selection. Verification establishes
 the integrity and authenticity of an archive before deployment.
+
+## Decision Drivers
+
+- Routine update checks must not scale with installed payload size.
+- Inspection of untrusted archives must use bounded resources.
+- Identity lookup must remain distinct from authenticity verification.
+- The retained archive should remain the installed-state authority.
+
+## Considered Options
+
+1. Read bounded metadata directly from the retained ZIP.
+2. Extract every archive before reading metadata.
+3. Add a separate installed-package database.
+4. Trust repository metadata as the installed-state record.
 
 ## Decision
 
@@ -77,3 +93,12 @@ access resolves the immediate performance problem without that consistency cost.
 - The metadata parser is used across both directory-backed and archive-backed
   reads and must remain behaviorally consistent.
 
+### Follow-up
+
+- Preserve the 1 MiB bound and safe-value validation in negative tests.
+- Keep full authentication mandatory for deployment and explicit verification.
+
+## References
+
+- REQ-0013 and TC-0013
+- ADR-0001 and ADR-0009

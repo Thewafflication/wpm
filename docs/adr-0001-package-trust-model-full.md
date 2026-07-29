@@ -1,6 +1,8 @@
 # ADR-0001: Package Trust Model
 
-Status: Accepted
+**Status:** Accepted
+
+**Date:** 2026-06-15
 
 ## Context
 
@@ -10,6 +12,19 @@ package repositories.
 Package signatures provide integrity verification, but signatures alone do not
 establish trust. WPM requires a trust model that defines how signing keys are
 accepted, trusted, rotated, and revoked.
+
+## Decision Drivers
+
+- Repository compromise must not establish package trust.
+- Administrators need explicit and auditable trust control.
+- Verification must work offline and support key revocation.
+
+## Considered Options
+
+1. Explicit local trust store for signing keys.
+2. Repository-established trust.
+3. Trust on first use.
+4. Signature validation without signer authorization.
 
 ## Decision
 
@@ -22,6 +37,13 @@ A package signature is considered valid only when:
 3. The signing key has not been revoked.
 
 Signature verification without trust verification is insufficient.
+
+## Rationale
+
+The trust store separates authorization from distribution. Repository trust or
+trust on first use would allow a compromised distribution path to authorize a
+new signer, while signature-only validation establishes integrity but not
+authority.
 
 ## Trust Store
 
@@ -143,3 +165,14 @@ Tradeoffs:
 
 The design prioritizes security and explicit administrative control over
 convenience.
+
+### Follow-up
+
+- Keep trust commands, audit records, rotation guidance, and negative tests
+  synchronized with this decision.
+
+## References
+
+- REQ-0012 and TC-0012
+- ADR-0002: Repository Trust and Key Distribution
+- `docs/dfs.md`

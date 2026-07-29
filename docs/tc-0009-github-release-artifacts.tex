@@ -1,12 +1,11 @@
-\def\StandaloneLibrary{}
-\input{iso_iec_ieee29119-3_2021.tex}
-
 \documentclass[letterpaper]{article}
 
 \usepackage[
 letterpaper,
 margin=1in
 ]{geometry}
+
+\input{wsp/testing/test-case-library.tex}
 
 \begin{document}
 \def\TCID{TC-0009}
@@ -20,6 +19,12 @@ margin=1in
 \def\TCPriority{\TCPriorityHigh}
 
 \def\TCRequirementRef{REQ-0009}
+
+\def\TCDesignRef{ADR-0007 automated test strategy and verification artifacts}
+\def\TCFeatureRef{\texttt{.github/workflows/release.yml} and \texttt{tests/tc-0009-github-release-artifacts.ps1}}
+\def\TCTestTechnique{Checklist-based inspection and decision-table testing of architecture-specific release jobs and gates.}
+\def\TCAssumptions{GitHub evaluates the workflow using the checked-in workflow schema and protected repository configuration.}
+\def\TCInitialState{The workflow source is loaded from the source revision under test; no release execution is assumed.}
 
 \def\TCPreconditions{
 	The source repository contains the GitHub Release workflow.

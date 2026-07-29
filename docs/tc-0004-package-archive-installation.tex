@@ -1,12 +1,11 @@
-\def\StandaloneLibrary{}
-\input{iso_iec_ieee29119-3_2021.tex}
-
 \documentclass[letterpaper]{article}
 
 \usepackage[
 letterpaper,
 margin=1in
 ]{geometry}
+
+\input{wsp/testing/test-case-library.tex}
 
 \begin{document}
 \def\TCID{TC-0004}
@@ -20,6 +19,12 @@ margin=1in
 \def\TCPriority{\TCPriorityHigh}
 
 \def\TCRequirementRef{REQ-0004}
+
+\def\TCDesignRef{ADR-0003 package format and installation semantics}
+\def\TCFeatureRef{\texttt{wpm/main.c} and \texttt{tests/tc-0004-package-archive-installation.ps1}}
+\def\TCTestTechnique{State-transition testing of staged, verified, installed, and retained package states.}
+\def\TCAssumptions{The package installation script is permitted to write inside the isolated deployment root.}
+\def\TCInitialState{The package is not installed and no retained archive exists in the isolated data root.}
 
 \def\TCPreconditions{
 	A valid package archive exists and the WPM data directory is writable.

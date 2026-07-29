@@ -1,12 +1,11 @@
-\def\StandaloneLibrary{}
-\input{iso_iec_ieee29119-3_2021.tex}
-
 \documentclass[letterpaper]{article}
 
 \usepackage[
 letterpaper,
 margin=1in
 ]{geometry}
+
+\input{wsp/testing/test-case-library.tex}
 
 \begin{document}
 \def\TCID{TC-0002}
@@ -20,6 +19,12 @@ margin=1in
 \def\TCPriority{\TCPriorityHigh}
 
 \def\TCRequirementRef{REQ-0002}
+
+\def\TCDesignRef{ADR-0003 package format and installation semantics}
+\def\TCFeatureRef{\texttt{wpm/main.c} and \texttt{tests/tc-0002-package-initialization.ps1}}
+\def\TCTestTechnique{Equivalence partitioning across valid names, invalid names, and pre-existing project content.}
+\def\TCAssumptions{The test process can create and remove directories beneath its temporary root.}
+\def\TCInitialState{The isolated temporary root contains no package project from an earlier execution.}
 
 \def\TCPreconditions{
 	A writable temporary package directory is available.

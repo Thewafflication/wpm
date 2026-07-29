@@ -1,8 +1,6 @@
-\def\StandaloneLibrary{}
-\input{iso_iec_ieee29119-3_2021.tex}
-
 \documentclass[letterpaper]{article}
 \usepackage[letterpaper,margin=1in]{geometry}
+\input{wsp/testing/test-case-library.tex}
 
 \begin{document}
 \def\TCID{TC-0011}
@@ -10,6 +8,11 @@
 \def\TCPurpose{Verify repository configuration, cached index discovery, architecture filtering, offline installation, and repository precedence.}
 \def\TCPriority{\TCPriorityHigh}
 \def\TCRequirementRef{REQ-0011}
+\def\TCDesignRef{ADR-0002 repository trust and key distribution and ADR-0005 repository architecture and metadata format}
+\def\TCFeatureRef{\texttt{wpm/main.c} and \texttt{tests/tc-0011-https-repositories.ps1}}
+\def\TCTestTechnique{Decision-table testing of repository priority, cache availability, architecture compatibility, and offline mode.}
+\def\TCAssumptions{Controlled cache contents represent the repository responses needed by the offline scenarios.}
+\def\TCInitialState{The isolated WPM data root has no repository configuration or cached package state.}
 \def\TCPreconditions{A built WPM executable is available.}
 \def\TCEnvironment{Local Windows developer workstation or CI worker.}
 \def\TCInputData{Two controlled package archives and corresponding cached repository indexes, including a candidate whose architecture is incompatible with the WPM executable under test.}

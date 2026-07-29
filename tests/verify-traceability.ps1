@@ -7,6 +7,24 @@ $ErrorActionPreference = 'Stop'
 $docs = Join-Path $RepositoryRoot 'docs'
 $cmake = Get-Content -Raw -LiteralPath (Join-Path $RepositoryRoot 'wpm/CMakeLists.txt')
 $failures = [System.Collections.Generic.List[string]]::new()
+$requiredTestCaseFields = @(
+    'TCID',
+    'TCTitle',
+    'TCPurpose',
+    'TCPriority',
+    'TCRequirementRef',
+    'TCDesignRef',
+    'TCFeatureRef',
+    'TCTestTechnique',
+    'TCPreconditions',
+    'TCEnvironment',
+    'TCAssumptions',
+    'TCInputData',
+    'TCInitialState',
+    'TCProcedure',
+    'TCExpectedResult',
+    'TCPostConditions'
+)
 
 $requirements = Get-ChildItem -LiteralPath $docs -Filter 'req-*.md' |
     ForEach-Object { if ($_.BaseName -match '^req-(\d{4})') { $Matches[1] } } |
@@ -30,6 +48,15 @@ foreach ($id in $requirements) {
     if ($tex.Count -eq 1) {
         $contents = Get-Content -Raw -LiteralPath $tex.FullName
         if ($contents -notmatch [regex]::Escape("REQ-$id")) { $failures.Add("$($tex.Name) does not reference REQ-$id.") }
+        if ($contents -notmatch [regex]::Escape('\input{wsp/testing/test-case-library.tex}')) {
+            $failures.Add("$($tex.Name) does not use the pinned WSP test-case library.")
+        }
+        foreach ($field in $requiredTestCaseFields) {
+            $definition = "\\def\\$field\s*\{(?s:.+?)\}"
+            if ($contents -notmatch $definition) {
+                $failures.Add("$($tex.Name) does not define a non-empty $field field.")
+            }
+        }
     }
     if ($cmake -notmatch [regex]::Escape("wpm_add_test_case($testId")) { $failures.Add("$testId is not registered with CTest.") }
 }

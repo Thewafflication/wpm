@@ -1,6 +1,8 @@
 # ADR-0006: Package Relationships and Deployment Coordination
 
-Status: Accepted
+**Status:** Accepted
+
+**Date:** 2026-06-15
 
 ## Context
 
@@ -11,11 +13,37 @@ WPM focuses on deployment coordination.
 
 Packages are deployment units rather than filesystem ownership units.
 
+## Decision Drivers
+
+- Deployments need simple required, recommended, conflicting, and bundled
+  relationships.
+- Packages may need controlled data exchange during coordinated deployment.
+- Planning must remain understandable and deterministic.
+- Current requirements do not justify a general SAT solver.
+
+## Considered Options
+
+1. Typed relationships with an explicit deployment context.
+2. Full SAT-based dependency and capability resolution.
+3. Manual package ordering with no relationship model.
+4. Orchestration hidden entirely inside meta-package scripts.
+
+## Decision
+
+WPM SHALL provide typed relationships and a deployment context using
+deterministic planning rather than a general SAT solver.
+
 ## Core Principle
 
 WPM SHALL coordinate package deployments.
 
 WPM SHALL NOT attempt to implement a complex SAT-based dependency solver.
+
+## Rationale
+
+Typed relationships cover WPM's coordination goals with predictable behavior
+and modest complexity. SAT-based resolution adds unneeded cost, while manual or
+script-only orchestration hides relationships from planning and verification.
 
 ## Relationship Types
 
@@ -158,3 +186,13 @@ Tradeoffs:
 - More package maintainer responsibility
 
 WPM prioritizes coordinated deployment over dependency graph optimization.
+
+### Follow-up
+
+- Derive requirements and tests before implementing relationship types.
+- Revisit solver complexity only when concrete constraints require it.
+
+## References
+
+- ADR-0003 and ADR-0004
+- `docs/roadmap-2.0.md`

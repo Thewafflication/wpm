@@ -43,6 +43,9 @@ under investigation that are not yet supported releases.
 See the [quality testing program](docs/quality-testing.md) for long-running and
 fault-injection testing that complements regular CI.
 
+See the [WSP adoption record](docs/wsp-adoption.md) for the pinned engineering
+process baseline, selected profiles, and integration status.
+
 See the [support policy](docs/support-policy.md) for supported releases and
 issue-reporting guidance.
 

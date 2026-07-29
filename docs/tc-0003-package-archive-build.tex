@@ -1,12 +1,11 @@
-\def\StandaloneLibrary{}
-\input{iso_iec_ieee29119-3_2021.tex}
-
 \documentclass[letterpaper]{article}
 
 \usepackage[
 letterpaper,
 margin=1in
 ]{geometry}
+
+\input{wsp/testing/test-case-library.tex}
 
 \begin{document}
 \def\TCID{TC-0003}
@@ -20,6 +19,12 @@ margin=1in
 \def\TCPriority{\TCPriorityHigh}
 
 \def\TCRequirementRef{REQ-0003}
+
+\def\TCDesignRef{ADR-0003 package format and installation semantics}
+\def\TCFeatureRef{\texttt{wpm/main.c} and \texttt{tests/tc-0003-package-archive-build.ps1}}
+\def\TCTestTechnique{Use-case testing of a controlled package source and archive-output partition.}
+\def\TCAssumptions{The controlled source tree is readable and the output directory is writable.}
+\def\TCInitialState{No output archive with the expected identity exists.}
 
 \def\TCPreconditions{
 	A writable temporary source directory and output directory are available.

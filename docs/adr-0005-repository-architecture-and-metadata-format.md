@@ -1,6 +1,8 @@
 # ADR-0005: Repository Architecture and Metadata Format
 
-Status: Accepted
+**Status:** Accepted
+
+**Date:** 2026-06-15
 
 ## Context
 
@@ -20,6 +22,20 @@ Repositories must support:
 The repository architecture SHALL remain independent from the package trust
 model defined in ADR-0001 and ADR-0002.
 
+## Decision Drivers
+
+- One logical repository must work across online, offline, and local transports.
+- Transport choice must not determine package trust.
+- Metadata needs schema evolution, caching, priorities, and mirrors.
+- Air-gapped and simple-hosting scenarios must remain viable.
+
+## Considered Options
+
+1. Provider abstraction over a common JSON repository model.
+2. Separate formats for each transport.
+3. Git-only distribution.
+4. A centralized online service without local providers.
+
 ## Decision
 
 WPM SHALL implement repositories through a provider abstraction layer.
@@ -33,6 +49,12 @@ Trust SHALL be established exclusively through:
 3. Manifest verification
 
 Repository transport mechanisms SHALL be interchangeable.
+
+## Rationale
+
+A provider abstraction isolates transport behavior while preserving one
+metadata, caching, priority, and verification model. Transport-specific or
+centralized designs would not meet all local, air-gapped, SMB, and HTTPS uses.
 
 ## Repository Providers
 
@@ -355,3 +377,13 @@ Tradeoffs:
 
 The design prioritizes flexibility, offline capability, and explicit trust
 verification over repository-specific assumptions.
+
+### Follow-up
+
+- Version and validate the repository schema.
+- Require equivalent trust and offline-behavior tests for new providers.
+
+## References
+
+- REQ-0011, REQ-0013, TC-0011, and TC-0013
+- ADR-0001 and ADR-0002

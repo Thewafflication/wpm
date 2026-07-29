@@ -1,6 +1,8 @@
 # ADR-0003: Package Format and Installation Semantics
 
-Status: Accepted
+**Status:** Accepted
+
+**Date:** 2026-06-15
 
 ## Context
 
@@ -9,6 +11,25 @@ system. WPM is not responsible for enforcing a universal installation layout.
 
 Package maintainers are responsible for installation behavior, installation
 location, upgrade behavior, and removal behavior.
+
+## Decision Drivers
+
+- WPM must support heterogeneous Windows deployment technologies.
+- Packages need a consistent envelope for metadata and verification.
+- Scripts need flexibility without weakening pre-execution checks.
+- Installed-state records must survive staging cleanup.
+
+## Considered Options
+
+1. Verified ZIP envelope with maintainer-controlled lifecycle scripts.
+2. WPM-owned filesystem layout and file ownership.
+3. MSI-only packages.
+4. Unstructured archives without required metadata.
+
+## Decision
+
+WPM SHALL use a structured ZIP envelope, verify it in temporary staging, and
+delegate deployment and removal to package-maintainer scripts.
 
 ## Core Principle
 
@@ -29,6 +50,12 @@ Package maintainers manage:
 - Removal scripts
 - Upgrade logic
 - Software deployment strategy
+
+## Rationale
+
+The structured envelope supplies stable metadata and verification hooks while
+allowing MSI, services, drivers, registry changes, and portable layouts. A
+universal WPM-owned layout would exclude or distort common Windows deployments.
 
 ## Package Structure
 
@@ -147,3 +174,14 @@ Tradeoffs:
 - More responsibility on package maintainers
 
 WPM prioritizes deployment orchestration over filesystem ownership.
+
+### Follow-up
+
+- Keep format requirements and lifecycle tests synchronized with this decision.
+- Define any direct-install transaction model in a superseding ADR.
+
+## References
+
+- REQ-0002 through REQ-0004 and REQ-0006 through REQ-0008
+- TC-0002 through TC-0004 and TC-0006 through TC-0008
+- ADR-0009: Package Installation Performance

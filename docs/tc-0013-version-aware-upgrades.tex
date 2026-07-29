@@ -1,8 +1,6 @@
-\def\StandaloneLibrary{}
-\input{iso_iec_ieee29119-3_2021.tex}
-
 \documentclass[letterpaper]{article}
 \usepackage[letterpaper,margin=1in]{geometry}
+\input{wsp/testing/test-case-library.tex}
 
 \begin{document}
 \def\TCID{TC-0013}
@@ -10,6 +8,11 @@
 \def\TCPurpose{Verify installed-state discovery, exact architecture and version selectors, configurable prerelease eligibility, SemVer ordering, upgrade validation and auditing, failure recovery, self-contained cached handoff, and best-effort multi-package behavior.}
 \def\TCPriority{\TCPriorityHigh}
 \def\TCRequirementRef{REQ-0013}
+\def\TCDesignRef{ADR-0004 dependency resolution and version constraints}
+\def\TCFeatureRef{\texttt{wpm/main.c} and \texttt{tests/tc-0013-version-aware-upgrades.ps1}}
+\def\TCTestTechnique{Decision-table, boundary-value, and state-transition testing of SemVer ordering, selectors, architectures, and upgrade outcomes.}
+\def\TCAssumptions{Controlled offline indexes and package archives are authoritative for candidate-selection scenarios.}
+\def\TCInitialState{The isolated data root contains only the baseline packages installed by this test before upgrade evaluation.}
 \def\TCPreconditions{A built WPM executable is available. The test uses an isolated WPM data-root override and controlled offline repository caches.}
 \def\TCEnvironment{Local Windows developer workstation or CI worker.}
 \def\TCInputData{Temporary packages covering x86, x64, and any architectures; stable and prerelease SemVer versions; successful and failing install scripts; controlled repository indexes; and an isolated prerelease configuration.}

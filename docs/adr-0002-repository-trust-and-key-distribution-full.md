@@ -1,6 +1,8 @@
 # ADR-0002: Repository Trust and Key Distribution
 
-Status: Accepted
+**Status:** Accepted
+
+**Date:** 2026-06-15
 
 ## Context
 
@@ -11,6 +13,20 @@ a root of trust.
 
 A compromised repository must not be able to distribute malicious packages
 that are accepted by WPM.
+
+## Decision Drivers
+
+- Repository compromise must not authorize malicious packages.
+- Multiple maintainers must be able to share distribution infrastructure.
+- Registration and signer authorization must remain separate operations.
+- Package verification must remain available offline.
+
+## Considered Options
+
+1. Trust package-signing keys independently from repositories.
+2. Treat configured repositories as roots of trust.
+3. Use one repository-wide signing authority.
+4. Depend only on transport security and checksums.
 
 ## Decision
 
@@ -25,6 +41,13 @@ Package acceptance SHALL be based on:
 3. Successful manifest verification
 
 Repository ownership SHALL NOT automatically establish package trust.
+
+## Rationale
+
+Independent signer trust limits repository compromise to distribution and
+metadata attacks unless a trusted key is also compromised. Repository-wide or
+transport-based trust would combine distribution and authorization in one
+failure domain.
 
 ## Repository Registration
 
@@ -135,3 +158,12 @@ Tradeoffs:
 - Additional onboarding for maintainers
 
 The design favors explicit cryptographic trust over repository-based trust.
+
+### Follow-up
+
+- Preserve explicit bootstrap and offline-verification coverage.
+
+## References
+
+- REQ-0011, REQ-0012, TC-0011, and TC-0012
+- ADR-0001 and ADR-0005

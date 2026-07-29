@@ -1,6 +1,8 @@
 # ADR-0007: Automated Test Strategy and Verification Artifacts
 
-Status: Accepted
+**Status:** Accepted
+
+**Date:** 2026-07-08
 
 ## Context
 
@@ -16,6 +18,20 @@ The project contains multiple documentation types, each serving a distinct purpo
 - Test Reports provide evidence that verification has been successfully executed.
 
 A consistent strategy is required to maintain traceability between these artifacts.
+
+## Decision Drivers
+
+- Every requirement needs reviewable objective evidence.
+- Test specifications and reports must not drift apart.
+- Release architectures require repeatable CI execution.
+- Failures must retain useful audit and diagnostic artifacts.
+
+## Considered Options
+
+1. Structured LaTeX specifications with automated execution and reports.
+2. Procedures duplicated manually into execution reports.
+3. Automated scripts without controlled specifications.
+4. Primarily manual release checklists.
 
 ## Decision
 
@@ -107,3 +123,16 @@ Using LaTeX for test cases allows the same source document to be reused througho
 - Test case authors must understand the project LaTeX template.
 - CI infrastructure is required.
 - Release builds require longer execution time due to complete verification.
+
+### Follow-up
+
+- Validate requirement/test back-references and required fields in CI.
+- Retain failure evidence and architecture-specific release reports.
+- Keep the test strategy synchronized with the supported matrix.
+
+## References
+
+- `docs/ts-0001-test-strategy.md`
+- `docs/traceability-1.0.md`
+- `tests/verify-traceability.ps1`
+- WSP-TEST-0001 through WSP-TEST-0015

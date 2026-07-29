@@ -1,12 +1,11 @@
-\def\StandaloneLibrary{}
-\input{iso_iec_ieee29119-3_2021.tex}
-
 \documentclass[letterpaper]{article}
 
 \usepackage[
 letterpaper,
 margin=1in
 ]{geometry}
+
+\input{wsp/testing/test-case-library.tex}
 
 \begin{document}
 \def\TCID{TC-0005}
@@ -21,6 +20,12 @@ margin=1in
 \def\TCPriority{\TCPriorityHigh}
 
 \def\TCRequirementRef{REQ-0005}
+
+\def\TCDesignRef{ADR-0001 package trust model and ADR-0002 repository trust and key distribution}
+\def\TCFeatureRef{\texttt{wpm/main.c} and \texttt{tests/tc-0005-package-index-signature-verification.ps1}}
+\def\TCTestTechnique{Error guessing and fault injection using authentic and deliberately tampered indexed files.}
+\def\TCAssumptions{The cryptographic dependency reports deterministic verification results for controlled inputs.}
+\def\TCInitialState{The isolated repository contains only freshly generated index and package artifacts.}
 
 \def\TCPreconditions{
 	A writable temporary source directory, output directory, and installation

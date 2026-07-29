@@ -1,8 +1,6 @@
-\def\StandaloneLibrary{}
-\input{iso_iec_ieee29119-3_2021.tex}
-
 \documentclass[letterpaper]{article}
 \usepackage[letterpaper,margin=1in]{geometry}
+\input{wsp/testing/test-case-library.tex}
 
 \begin{document}
 \def\TCID{TC-0010}
@@ -10,6 +8,11 @@
 \def\TCPurpose{Verify managed and portable runtime detection plus portable execution from a read-only executable directory.}
 \def\TCPriority{\TCPriorityHigh}
 \def\TCRequirementRef{REQ-0010}
+\def\TCDesignRef{Not applicable; runtime-mode behavior is controlled directly by REQ-0010.}
+\def\TCFeatureRef{\texttt{wpm/main.c} and \texttt{tests/tc-0010-runtime-mode-detection.ps1}}
+\def\TCTestTechnique{Decision-table testing of managed and portable locations combined with filesystem permission states.}
+\def\TCAssumptions{The test account can create the simulated managed and portable directory structures.}
+\def\TCInitialState{No WPM data directories exist in the isolated test roots.}
 \def\TCPreconditions{A built WPM executable is available and temporary test directories are writable.}
 \def\TCEnvironment{Local Windows developer workstation. Future target: Windows Container.}
 \def\TCInputData{The built WPM executable, copied to simulated managed and portable locations.}

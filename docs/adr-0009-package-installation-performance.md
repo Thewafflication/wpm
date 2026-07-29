@@ -1,8 +1,8 @@
 # ADR-0009: Package installation performance
 
-## Status
+**Status:** Accepted
 
-Accepted.
+**Date:** 2026-07-26
 
 ## Context
 
@@ -30,6 +30,20 @@ package's final location. It is chosen by the package's arbitrary `install.cmd`,
 and WPM has no generic transaction or rollback contract for partially installed
 files.
 
+## Decision Drivers
+
+- Installation must preserve extraction and verification before execution.
+- Completeness checks must scale to packages with many files.
+- Common layouts should avoid redundant filesystem traversal.
+- Package-controlled destinations prevent assumed atomic moves or rollback.
+
+## Considered Options
+
+1. Optimize bookkeeping and indexed-path lookup while preserving staging.
+2. Install directly to a destination inferred by WPM.
+3. Let scripts rename a verified top-level payload when safe.
+4. Remove per-file verification to reduce installation time.
+
 ## Decision
 
 WPM SHALL:
@@ -52,6 +66,13 @@ script and is owned by WPM. A future WPM-managed direct-install feature requires
 explicit destination and rollback metadata; it must not infer those properties
 from package-specific script contents.
 
+## Rationale
+
+Caching the last extraction parent and loading the index once removes repeated
+work without changing the trust boundary. Staging preserves verification before
+execution. Direct installation or reduced verification lacks the destination,
+transaction, and rollback contract needed to be safe.
+
 ## Consequences
 
 Completeness checking changes from repeatedly reading the index for every file
@@ -62,3 +83,13 @@ The dominant MyPal costs—decompression, hashing, antivirus scanning, and stagi
 cleanup—remain. Repackaging MyPal beneath `payload` and renaming that directory
 would remove its script's full payload copy. The MyPal package recipe is not held
 in this repository, so that change must be made where its archive is assembled.
+
+### Follow-up
+
+- Retain performance coverage for high-file-count packages.
+- Require a new ADR and metadata contract before WPM manages direct installation.
+
+## References
+
+- REQ-0003, REQ-0004, TC-0003, and TC-0004
+- ADR-0003 and ADR-0008

@@ -1,12 +1,11 @@
-\def\StandaloneLibrary{}
-\input{iso_iec_ieee29119-3_2021.tex}
-
 \documentclass[letterpaper]{article}
 
 \usepackage[
 letterpaper,
 margin=1in
 ]{geometry}
+
+\input{wsp/testing/test-case-library.tex}
 
 \begin{document}
 \def\TCID{TC-0001}
@@ -20,6 +19,12 @@ margin=1in
 \def\TCPriority{\TCPriorityHigh}
 
 \def\TCRequirementRef{REQ-0001}
+
+\def\TCDesignRef{Not applicable; this test verifies the public command-line interface.}
+\def\TCFeatureRef{\texttt{wpm/main.c} and \texttt{tests/tc-0001-usage-version-check.ps1}}
+\def\TCTestTechnique{Use-case testing with equivalence partitions for no-argument and version-query invocation.}
+\def\TCAssumptions{The executable was produced from the source revision under test.}
+\def\TCInitialState{No WPM process from an earlier execution is running.}
 
 \def\TCPreconditions{
 	None.

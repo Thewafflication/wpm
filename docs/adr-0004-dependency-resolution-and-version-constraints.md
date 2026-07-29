@@ -1,10 +1,26 @@
 # ADR-0004: Dependency Resolution and Version Constraints
 
-Status: Accepted
+**Status:** Accepted
+
+**Date:** 2026-06-15
 
 ## Context
 
 WPM supports both tagged releases and Git-derived development builds.
+
+## Decision Drivers
+
+- Release and development versions need one parseable representation.
+- Ordering must be deterministic and use established semantics.
+- Published versions must distinguish clean releases from dirty builds.
+- Dependency constraints need an extensible syntax.
+
+## Considered Options
+
+1. Semantic Versioning 2.0 with prerelease and build metadata.
+2. Lexicographic arbitrary versions.
+3. Date-based versions.
+4. A project-specific numeric scheme.
 
 ## Decision
 
@@ -47,6 +63,12 @@ Both are less than
 
 WPM SHALL compare versions according to SemVer 2.0.
 
+## Rationale
+
+Semantic Versioning provides a documented precedence model and expresses stable
+and prerelease identities while retaining non-precedence build provenance.
+Custom, lexical, or date-based schemes would require additional ecosystem rules.
+
 ## Dirty Builds
 
 Versions containing 'dirty' MUST NOT be published to repositories.
@@ -84,3 +106,25 @@ Available:
 
 Result:
 Upgrade permitted.
+
+## Consequences
+
+### Positive
+
+- Stable and development identities share a standard syntax.
+- Selection and dependency resolution can be deterministic.
+
+### Negative
+
+- Build metadata cannot order otherwise equal SemVer versions.
+- Package authors must follow SemVer prerelease rules.
+
+### Follow-up
+
+- Maintain boundary and precedence tests for parsing and selection.
+- Record expanded dependency-range semantics before implementation.
+
+## References
+
+- REQ-0013 and TC-0013
+- Semantic Versioning 2.0.0

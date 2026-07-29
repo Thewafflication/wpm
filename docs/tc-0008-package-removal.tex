@@ -1,12 +1,11 @@
-\def\StandaloneLibrary{}
-\input{iso_iec_ieee29119-3_2021.tex}
-
 \documentclass[letterpaper]{article}
 
 \usepackage[
 letterpaper,
 margin=1in
 ]{geometry}
+
+\input{wsp/testing/test-case-library.tex}
 
 \begin{document}
 \def\TCID{TC-0008}
@@ -20,6 +19,12 @@ margin=1in
 \def\TCPriority{\TCPriorityHigh}
 
 \def\TCRequirementRef{REQ-0008}
+
+\def\TCDesignRef{ADR-0003 package format and installation semantics}
+\def\TCFeatureRef{\texttt{wpm/main.c} and \texttt{tests/tc-0008-package-removal.ps1}}
+\def\TCTestTechnique{State-transition testing from installed to removed, including retained-archive cleanup.}
+\def\TCAssumptions{The retained package contains the controlled removal script created by the test.}
+\def\TCInitialState{The controlled package is installed and its archive is retained in the isolated data root.}
 
 \def\TCPreconditions{
 	A valid package archive with installation and removal scripts can be installed into a writable WPM data directory.

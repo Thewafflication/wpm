@@ -1,12 +1,11 @@
-\def\StandaloneLibrary{}
-\input{iso_iec_ieee29119-3_2021.tex}
-
 \documentclass[letterpaper]{article}
 
 \usepackage[
 letterpaper,
 margin=1in
 ]{geometry}
+
+\input{wsp/testing/test-case-library.tex}
 
 \begin{document}
 \def\TCID{TC-0007}
@@ -21,6 +20,12 @@ margin=1in
 \def\TCPriority{\TCPriorityHigh}
 
 \def\TCRequirementRef{REQ-0007}
+
+\def\TCDesignRef{ADR-0003 package format and installation semantics}
+\def\TCFeatureRef{\texttt{setup.cmd}, \texttt{remove.cmd}, and \texttt{tests/tc-0007-wpm-self-installation.ps1}}
+\def\TCTestTechnique{State-transition testing of absent, installed, upgraded, and removed WPM states.}
+\def\TCAssumptions{The test account may execute the maintainer scripts within the isolated installation root.}
+\def\TCInitialState{The isolated installation and data roots contain no prior WPM deployment.}
 
 \def\TCPreconditions{
 	A built \texttt{wpm.exe} is available and temporary installation and data
