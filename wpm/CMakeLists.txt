@@ -26,6 +26,8 @@ add_custom_target(wpm_version_header ALL
 
 set(wpm_sources
   "wpm.c"
+  "logging.c"
+  "logging.h"
   "archive.c"
   "archive.h"
   "init.c"
@@ -52,6 +54,11 @@ else()
 endif()
 
 add_executable(wpm ${wpm_sources})
+
+add_subdirectory("${CMAKE_SOURCE_DIR}/wsp/tools/logging" "${CMAKE_BINARY_DIR}/wsp-logging")
+if(WPM_USE_WCRT)
+  target_compile_definitions(wsp_logging PRIVATE WSP_LOG_NO_TTY=1)
+endif()
 
 set_source_files_properties("${WPM_VERSION_RESOURCE}" PROPERTIES GENERATED TRUE)
 set_source_files_properties("${WPM_VERSION_HEADER}" PROPERTIES GENERATED TRUE)
@@ -100,7 +107,7 @@ if(WPM_USE_WCRT)
     WPM_WCRT_VERSION="${WPM_WCRT_VERSION}"
   )
 endif()
-target_link_libraries(wpm PRIVATE miniz libsodium)
+target_link_libraries(wpm PRIVATE miniz libsodium wsp::logging)
 if(CMAKE_C_COMPILER_ID STREQUAL "TinyCC")
   # Use explicit import definitions so cross-architecture builds don't depend
   # on matching system DLLs being installed on the build host.

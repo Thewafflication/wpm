@@ -12,6 +12,7 @@
 #include "archive.h"
 #include "helpers.h"
 #include "repository.h"
+#include "logging.h"
 
 #define PATH_SIZE 4096
 #define MAX_REPOSITORIES 32

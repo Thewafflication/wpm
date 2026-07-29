@@ -1,3 +1,10 @@
+$wspLoggingModule = Join-Path $PSScriptRoot '..\wsp\tools\logging\Wsp.Logging.psm1'
+Import-Module $wspLoggingModule -Force
+Set-WspLogConfiguration -ConsoleLevel Info -FileLevel Debug -Color Auto
+if ($env:WPM_TEST_LOG_FILE) {
+    Set-WspLogFile -Path $env:WPM_TEST_LOG_FILE
+}
+
 function Escape-Latex {
     param([AllowNull()][string]$Value)
 
@@ -211,9 +218,15 @@ function Complete-WpmTestRun {
 
     $overallStatus = if ($Results.Status -contains 'Fail') { 'Fail' } else { 'Pass' }
     foreach ($result in $Results) {
-        Write-Output "[$($result.Status)] $($result.Command) exited $($result.ExitCode)"
+        $message = "$($result.Command) exited $($result.ExitCode)"
+        if ($result.Status -eq 'Pass') {
+            Write-WspPass $message
+        }
+        else {
+            Write-WspError $message
+        }
         if ($result.Diagnostic) {
-            Write-Output "  $($result.Diagnostic)"
+            Write-WspError $result.Diagnostic
         }
     }
 

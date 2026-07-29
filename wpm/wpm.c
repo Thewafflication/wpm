@@ -5,6 +5,7 @@
 #include "archive.h"
 #include "helpers.h"
 #include "init.h"
+#include "logging.h"
 #include "repository.h"
 #include "signing.h"
 #include <stdlib.h>
@@ -129,6 +130,9 @@ int main(int argc, char *argv[])
         printf("Invoking WPM process has exited; completing the self-upgrade now.\n");
         fflush(stdout);
         if (!wpm_initialize_data_directories()) return 1;
+        if (!wpm_log_initialize()) {
+            fprintf(stderr, "Warning: WPM could not initialize its operational log.\n");
+        }
         completed = wpm_archive_upgrade(argv[2], atoi(argv[7]) != 0,
             "wpm", argv[4], argv[5], argv[6]);
         printf("Result: wpm %s %s\n", argv[5], completed ? "upgraded" : "failed");
@@ -181,6 +185,9 @@ int main(int argc, char *argv[])
 	wpm_repo_set_verbose(verbose);
 	if (verbose) print_runtime_mode();
 	if (!wpm_initialize_data_directories()) return 1;
+	if (!wpm_log_initialize()) {
+        fprintf(stderr, "Warning: WPM could not initialize its operational log.\n");
+    }
 	
     switch (cmd) {
         case CMD_BUILD: {

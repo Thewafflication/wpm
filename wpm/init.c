@@ -4,6 +4,7 @@
 #include <windows.h>
 
 #include "init.h"
+#include "logging.h"
 #include "helpers.h"
 #include "helpers.h"
 

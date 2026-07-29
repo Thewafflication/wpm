@@ -46,6 +46,12 @@ fault-injection testing that complements regular CI.
 See the [WSP adoption record](docs/wsp-adoption.md) for the pinned engineering
 process baseline, selected profiles, and integration status.
 
+WPM uses WSP's shared logging adapters in both the C executable and its
+PowerShell test harness. Operational command output is appended to the
+`audit\wpm.log` file under WPM's data directory. Set `WPM_LOG_FILE` to select
+another application log, and set `WPM_TEST_LOG_FILE` to retain timestamped
+test-run summaries.
+
 See the [release-documentation procedure](documentation/README.md) for PDF
 construction, verification, visual review, checksums, and publication control.
 

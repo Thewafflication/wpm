@@ -11,6 +11,7 @@
 #include "sodium.h"
 #include "archive.h"
 #include "signing.h"
+#include "logging.h"
 #include "helpers.h"
 
 #define fopen(path, mode) wpm_fopen((path), (mode))

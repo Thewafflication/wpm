@@ -6,6 +6,7 @@
 #include <windows.h>
 
 #include "archive.h"
+#include "logging.h"
 #include "helpers.h"
 #include "miniz.h"
 #include "sodium.h"
