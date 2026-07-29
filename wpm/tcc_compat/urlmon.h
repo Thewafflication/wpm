@@ -1,3 +1,4 @@
+/** @file urlmon.h @brief TinyCC declarations for URLMon APIs. */
 #pragma once
 
 /* Minimal URL Moniker declaration for TinyCC's compact WinAPI headers. */

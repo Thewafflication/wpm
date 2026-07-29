@@ -1,3 +1,4 @@
+/** @file secure_crt.c @brief TinyCC secure CRT implementations. */
 #include <errno.h>
 #include <ctype.h>
 #include <limits.h>

@@ -1,3 +1,4 @@
+/** @file xp_crt.c @brief Windows XP CRT compatibility implementations. */
 #include <stdio.h>
 
 /* TinyCC's current headers target newer MSVCRT versions and emit an import

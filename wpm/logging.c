@@ -1,3 +1,4 @@
+/** @file logging.c @brief WSP-backed operational logging integration. */
 #define WPM_LOGGING_IMPLEMENTATION
 #include "logging.h"
 

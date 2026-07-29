@@ -1,3 +1,4 @@
+/** @file archive.c @brief Package archive operations. */
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>

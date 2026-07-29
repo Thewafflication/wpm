@@ -1,3 +1,4 @@
+/** @file wcrt_compat.h @brief WCRT-backed TinyCC compatibility definitions. */
 #ifndef WPM_WCRT_COMPAT_H
 #define WPM_WCRT_COMPAT_H
 

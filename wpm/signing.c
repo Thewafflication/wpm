@@ -1,3 +1,4 @@
+/** @file signing.c @brief Package signing and trust-store operations. */
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>

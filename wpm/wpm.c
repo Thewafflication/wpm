@@ -1,6 +1,7 @@
 ﻿// wpm.cpp : Defines the entry point for the application.
 //
 
+/** @file wpm.c @brief WPM command-line parsing and process entry point. */
 #include "wpm.h"
 #include "archive.h"
 #include "helpers.h"

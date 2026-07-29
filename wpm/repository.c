@@ -1,3 +1,4 @@
+/** @file repository.c @brief Repository and package resolution operations. */
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>

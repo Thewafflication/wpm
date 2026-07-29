@@ -1,3 +1,4 @@
+/** @file aclapi.h @brief TinyCC declarations for Windows ACL APIs. */
 #pragma once
 
 /* Minimal ACL API surface used by WPM. TinyCC's compact WinAPI headers omit

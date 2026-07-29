@@ -115,7 +115,7 @@ baseline approval while any required disposition remains Deferred.
 | `WSP-SEC-0012` | Applicable | Security requirements/threats map to tests, inspection, and analysis |
 | `WSP-SEC-0013` | Applicable | Security review process and controlled private finding record |
 | `WSP-SEC-0014` | Applicable | `SECURITY.md`, support policy, and DFS vulnerability response |
-| `WSP-CSTYLE-0001` | Deferred | Add Doxygen `@file` comments to all 19 in-scope C/header files |
+| `WSP-CSTYLE-0001` | Applicable | Doxygen `@file` comments cover all 21 project-owned C/header files |
 | `WSP-CSTYLE-0002` | Deferred | Document every function contract or approved declaration reference |
 | `WSP-CSTYLE-0003` | Deferred | Document public and non-obvious internal entities |
 | `WSP-CSTYLE-0004` | Deferred | Eliminate or individually tailor 415 lines over 80 characters |
@@ -181,9 +181,10 @@ is recorded by updating the corresponding matrix row.
 - **`WSP-TEST-0009` — Deferred.** CI retains failures, but does not enforce
   failure-to-fix-to-rerun linkage. Ninety-day failed-job artifacts compensate
   until the validator or release process preserves and links that chain.
-- **`WSP-CSTYLE-0001`--`0005` — Deferred.** Existing C predates WSP
-  documentation and line-length rules. C99 lint, compiler warnings, tests, and
-  review compensate until all in-scope files pass 80-column and Doxygen gates.
+- **`WSP-CSTYLE-0002`--`0005` — Deferred.** Existing C predates WSP function
+  and entity documentation and line-length rules. C99 lint, compiler warnings,
+  tests, and review compensate until all in-scope files pass the 80-column and
+  Doxygen gates.
 - **`WSP-WINRES-0005`, `0010`--`0012` — Deferred.** Generated resources are
   partial and final artifacts lack complete architecture checks. Generated
   version identity and PE compatibility checks compensate until all required

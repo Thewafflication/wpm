@@ -1,3 +1,4 @@
+/** @file helpers.c @brief Shared file and environment helpers. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

@@ -1,3 +1,4 @@
+/** @file wcrt_stat.c @brief TinyCC file-status compatibility implementation. */
 #include <windows.h>
 #include <string.h>
 

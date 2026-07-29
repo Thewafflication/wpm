@@ -1,3 +1,4 @@
+/** @file utime.c @brief TinyCC file-time compatibility implementation. */
 #include <errno.h>
 #ifdef _CRTIMP
 #undef _CRTIMP

@@ -1,3 +1,4 @@
+/** @file init.c @brief Package project initialization operations. */
 #include <ctype.h>
 #include <stdio.h>
 #include <string.h>
