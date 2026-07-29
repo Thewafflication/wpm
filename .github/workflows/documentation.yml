@@ -95,6 +95,22 @@ jobs:
             --checksum output/pdf/SHA256SUMS `
             --version '${{ steps.document.outputs.version }}'
 
+      - name: Add documentation to job summary
+        shell: pwsh
+        run: |
+          $checksum = (Get-Content -LiteralPath output/pdf/SHA256SUMS -Raw).Trim()
+          @(
+            '## Engineering documentation'
+            ''
+            'The verified PDF is available in the `wpm-release-documentation` artifact.'
+            ''
+            '**SHA-256**'
+            ''
+            '```text'
+            $checksum
+            '```'
+          ) | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+
       - name: Render every page for visual review
         shell: pwsh
         run: |
@@ -124,13 +140,12 @@ jobs:
           output/pdf/wpm-engineering-documentation.pdf
           --repo ${{ github.repository }}
 
-      - name: Upload documentation evidence
+      - name: Upload documentation PDF
         uses: actions/upload-artifact@v7
         with:
           name: wpm-release-documentation
           path: |
             output/pdf/wpm-engineering-documentation.pdf
             output/pdf/SHA256SUMS
-            tmp/pdfs/rendered/*.png
           if-no-files-found: error
           retention-days: 90
