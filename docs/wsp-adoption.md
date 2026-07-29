@@ -5,11 +5,11 @@
 **Project:** Waughtal Package Manager (WPM)
 
 **WSP baseline:** Immutable commit
-`44f591d6416d18252596d8c9fb45f8fbaa65d08a`
+`0f66aa65fd820799468818ae57897f2940fb6037`
 
 **Submodule path:** `wsp/`
 
-**Pinned commit:** `44f591d6416d18252596d8c9fb45f8fbaa65d08a`
+**Pinned commit:** `0f66aa65fd820799468818ae57897f2940fb6037`
 
 **Status:** Proposed
 
@@ -206,6 +206,7 @@ through `WSP-PSP-0009`.
 | Date | WSP baseline | Project change | Summary |
 | --- | --- | --- | --- |
 | 2026-07-28 | `44f591d6416d18252596d8c9fb45f8fbaa65d08a` | Initial integration | Proposed adoption and profile selection |
+| 2026-07-28 | `0f66aa65fd820799468818ae57897f2940fb6037` | WPM testing feedback | Added native standard-input testing guidance and WCRT regression expectations |
 
 The current baseline, pinned commit, and `wsp` gitlink shall agree. An upgrade
 entry shall reference the adopting-project change that reviewed the new WSP

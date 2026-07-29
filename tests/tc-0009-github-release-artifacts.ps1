@@ -52,7 +52,7 @@ $results = @(
                 'runner: windows-11-arm',
                 'name: Upgrade \$\{\{ matrix\.arch \}\} from previous release',
                 'verify-previous-release-upgrade\.ps1',
-                'needs: upgrade-compatibility',
+                'needs:\s*\[[^\]]*upgrade-compatibility[^\]]*\]',
                 '\$packages = Get-ChildItem -LiteralPath release/packages -Filter ''wpm-\*\.zip''',
                 'release/packages/wpm-\*\.zip',
                 'release/keys/wpm-release\.public',
