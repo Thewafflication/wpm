@@ -9,7 +9,7 @@
 
 **Submodule path:** `wsp/`
 
-**Pinned commit:** `0f66aa65fd820799468818ae57897f2940fb6037`
+**Pinned commit:** `3ed0758083fcc2c439499f251bf245007a8f54a5`
 
 **Status:** Proposed
 
@@ -101,6 +101,9 @@ baseline approval while any required disposition remains Deferred.
 | `WSP-TEST-0013` | Applicable | x86, x64, and ARM64 release matrix in strategy and workflows |
 | `WSP-TEST-0014` | Applicable | Explicit 90-day workflow retention and release attachment policy |
 | `WSP-TEST-0015` | Applicable | Every TC identifies its selected test-design technique |
+| `WSP-TEST-0016` | Deferred | To be implemented |
+| `WSP-TEST-0017` | Applicable | Using a arm64 runner to test arm64 build |
+| `WSP-TEST-0018` | Deferred | To be implemented |
 | `WSP-SEC-0001` | Applicable | DFS scope, assets, assumptions, consequences, and non-goals |
 | `WSP-SEC-0002` | Applicable | Controlled `docs/dfs.md` with review triggers and traceability |
 | `WSP-SEC-0003` | Applicable | DFS trust actors, inputs, boundaries, entry points, and operations |
@@ -208,6 +211,7 @@ through `WSP-PSP-0009`.
 | --- | --- | --- | --- |
 | 2026-07-28 | `44f591d6416d18252596d8c9fb45f8fbaa65d08a` | Initial integration | Proposed adoption and profile selection |
 | 2026-07-28 | `0f66aa65fd820799468818ae57897f2940fb6037` | WPM testing feedback | Added native standard-input testing guidance and WCRT regression expectations |
+| 2026-07-31 | `3ed0758083fcc2c439499f251bf245007a8f54a5` |  Added color and defaullt c flags |
 
 The current baseline, pinned commit, and `wsp` gitlink shall agree. An upgrade
 entry shall reference the adopting-project change that reviewed the new WSP
