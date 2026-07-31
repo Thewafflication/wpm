@@ -215,15 +215,16 @@ if(BUILD_TESTING)
         COMMAND ${WPM_POWERSHELL_EXECUTABLE}
           -NoProfile
           -ExecutionPolicy Bypass
-          -File ${CMAKE_SOURCE_DIR}/tests/generate-test-report.ps1
+          -File ${CMAKE_SOURCE_DIR}/wsp/tools/New-TestReport.ps1
           -TestCaseTex ${CMAKE_SOURCE_DIR}/docs/${test_tex}
           -EvidenceTex "${WPM_${test_slug}_EVIDENCE_TEX}"
           -OutputTex "${WPM_${test_slug}_REPORT_TEX}"
+          -TestCaseLibrary ${CMAKE_SOURCE_DIR}/wsp/testing/test-case-library.tex
         DEPENDS
           "${WPM_${test_slug}_EVIDENCE_TEX}"
-          ${CMAKE_SOURCE_DIR}/tests/generate-test-report.ps1
+          ${CMAKE_SOURCE_DIR}/wsp/tools/New-TestReport.ps1
           ${CMAKE_SOURCE_DIR}/docs/${test_tex}
-          ${CMAKE_SOURCE_DIR}/docs/iso_iec_ieee29119-3_2021.tex
+          ${CMAKE_SOURCE_DIR}/wsp/testing/test-case-library.tex
         COMMENT "Generating ${test_id} LaTeX test report"
         VERBATIM
       )
@@ -237,16 +238,17 @@ if(BUILD_TESTING)
           COMMAND ${WPM_POWERSHELL_EXECUTABLE}
             -NoProfile
             -ExecutionPolicy Bypass
-            -File ${CMAKE_SOURCE_DIR}/tests/generate-test-report.ps1
+            -File ${CMAKE_SOURCE_DIR}/wsp/tools/New-TestReport.ps1
             -TestCaseTex ${CMAKE_SOURCE_DIR}/docs/${test_tex}
             -EvidenceTex "${WPM_${test_slug}_EVIDENCE_TEX}"
             -OutputTex "${WPM_${test_slug}_REPORT_TEX}"
+            -TestCaseLibrary ${CMAKE_SOURCE_DIR}/wsp/testing/test-case-library.tex
             -PdfLatex "${WPM_PDFLATEX_EXECUTABLE}"
           DEPENDS
             "${WPM_${test_slug}_EVIDENCE_TEX}"
-            ${CMAKE_SOURCE_DIR}/tests/generate-test-report.ps1
+            ${CMAKE_SOURCE_DIR}/wsp/tools/New-TestReport.ps1
             ${CMAKE_SOURCE_DIR}/docs/${test_tex}
-            ${CMAKE_SOURCE_DIR}/docs/iso_iec_ieee29119-3_2021.tex
+            ${CMAKE_SOURCE_DIR}/wsp/testing/test-case-library.tex
           COMMENT "Generating ${test_id} PDF test report"
           VERBATIM
         )
@@ -274,12 +276,18 @@ if(BUILD_TESTING)
     )
   endif()
 
+  if(WPM_BUILD_TEST_REPORTS AND WPM_PDFLATEX_EXECUTABLE)
+    set(WPM_TEST_REPORT_OUTPUTS ${WPM_TEST_REPORT_PDF_OUTPUTS})
+  else()
+    set(WPM_TEST_REPORT_OUTPUTS ${WPM_TEST_REPORT_TEX_OUTPUTS})
+  endif()
+
   add_custom_target(check
     COMMAND ${CMAKE_CTEST_COMMAND} --build-config $<CONFIG> --output-on-failure
     DEPENDS
       wpm
       wpm-third-party
-      ${WPM_TEST_REPORT_TEX_OUTPUTS}
+      ${WPM_TEST_REPORT_OUTPUTS}
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     COMMENT "Running WPM tests"
   )
@@ -305,7 +313,11 @@ if(BUILD_TESTING)
       COMMENT "Validating generated test evidence"
       VERBATIM
     )
-    add_dependencies(verify test-reports)
+    if(WPM_PDFLATEX_EXECUTABLE)
+      add_dependencies(verify test-report-pdfs)
+    else()
+      add_dependencies(verify test-reports)
+    endif()
   else()
     add_custom_target(verify)
     add_dependencies(verify check)

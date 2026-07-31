@@ -387,8 +387,10 @@ Debug verification builds do not produce distributable packages. Signed,
 architecture-specific packages are built from Release executables only by the
 tag-triggered Release workflow.
 
-The optional `test-report-pdfs` target requires a local `pdflatex`
-installation and is not required for the standard test artifact.
+When `pdflatex` is available, the standard `check` and `verify` targets generate
+PDF reports before evaluating the collected test status. This preserves reports
+for failed test runs. Without `pdflatex`, they generate LaTeX reports instead.
+The `test-report-pdfs` target can also be used to request PDFs directly.
 
 ### Visual Studio CMake presets
 

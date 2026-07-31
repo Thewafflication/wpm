@@ -30,6 +30,7 @@ int _stricmp(const char *left, const char *right)
     return _strnicmp(left, right, (size_t)-1);
 }
 
+#ifndef WPM_HAS_WCRT
 static int append_character(char *destination, size_t size, size_t *length, char value)
 {
     if (*length + 1 >= size) return 0;
@@ -136,6 +137,7 @@ overflow:
     destination[destination_size - 1] = '\0';
     return -1;
 }
+#endif
 
 int fopen_s(FILE **stream, const char *file_name, const char *mode)
 {
