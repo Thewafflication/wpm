@@ -30,7 +30,6 @@ int _stricmp(const char *left, const char *right)
     return _strnicmp(left, right, (size_t)-1);
 }
 
-#ifndef WPM_HAS_WCRT
 static int append_character(char *destination, size_t size, size_t *length, char value)
 {
     if (*length + 1 >= size) return 0;
@@ -69,7 +68,11 @@ static int append_unsigned(char *destination, size_t size, size_t *length,
     return 1;
 }
 
+#ifdef WPM_HAS_WCRT
+int wpm_snprintf(char *destination, size_t destination_size, const char *format, ...)
+#else
 int snprintf(char *destination, size_t destination_size, const char *format, ...)
+#endif
 {
     size_t length = 0;
     va_list arguments;
@@ -137,8 +140,6 @@ overflow:
     destination[destination_size - 1] = '\0';
     return -1;
 }
-#endif
-
 int fopen_s(FILE **stream, const char *file_name, const char *mode)
 {
     if (stream == NULL || file_name == NULL || mode == NULL) return EINVAL;

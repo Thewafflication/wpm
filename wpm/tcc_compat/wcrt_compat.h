@@ -54,7 +54,8 @@ __declspec(dllimport) extern int wcrt_errno;
 
 int _stricmp(const char *left, const char *right);
 int _strnicmp(const char *left, const char *right, size_t count);
-int snprintf(char *destination, size_t destination_size, const char *format, ...);
+int wpm_snprintf(char *destination, size_t destination_size, const char *format, ...);
+#define snprintf wpm_snprintf
 int fopen_s(FILE **stream, const char *file_name, const char *mode);
 int strcpy_s(char *destination, size_t destination_size, const char *source);
 int strncpy_s(char *destination, size_t destination_size,

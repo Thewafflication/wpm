@@ -13,6 +13,7 @@ $WpmExe = (Resolve-Path -LiteralPath $WpmExe).Path
 
 $started = Get-Date
 $expectsWcrt = Test-Path -LiteralPath (Join-Path (Split-Path -Parent $WpmExe) 'wcrt.dll')
+$wcrtVersionPattern = 'wcrt \d+\.\d+\.\d+(?:\.\d+)? \(runtime library\)'
 $results = @(
     Invoke-WpmTestStep `
         -WpmExe $WpmExe `
@@ -44,7 +45,7 @@ $results = @(
                 $Output -notmatch 'advapi32 \d+\.\d+\.\d+\.\d+ \(Windows system library\)') {
                 throw 'Expected dependency version information in output.'
             }
-            if ($expectsWcrt -and $Output -notmatch 'wcrt \d+\.\d+\.\d+\.\d+ \(runtime library\)') {
+            if ($expectsWcrt -and $Output -notmatch $wcrtVersionPattern) {
                 throw 'Expected the WCRT runtime dependency version in output.'
             }
         }
@@ -77,7 +78,7 @@ $results = @(
                 $Output -notmatch 'Runtime mode: portable') {
                 throw 'Expected combined version, dependency, and runtime information.'
             }
-            if ($expectsWcrt -and $Output -notmatch 'wcrt \d+\.\d+\.\d+\.\d+ \(runtime library\)') {
+            if ($expectsWcrt -and $Output -notmatch $wcrtVersionPattern) {
                 throw 'Expected the WCRT runtime dependency version in combined verbose version output.'
             }
         }

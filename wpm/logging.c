@@ -4,13 +4,16 @@
 
 #include "archive.h"
 #include "helpers.h"
+#ifndef WPM_DISABLE_OPERATIONAL_LOG
 #include "wsp_log.h"
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <windows.h>
 
+#ifndef WPM_DISABLE_OPERATIONAL_LOG
 static wsp_logger wpm_logger;
 static int wpm_logger_initialized;
 
@@ -27,9 +30,13 @@ static wsp_log_level wpm_log_level_for_message(const char* message)
         strncmp(message, "Upgraded ", 9) == 0) return WSP_LOG_PASS;
     return WSP_LOG_INFO;
 }
+#endif
 
 int wpm_log_initialize(void)
 {
+#ifdef WPM_DISABLE_OPERATIONAL_LOG
+    return 1;
+#else
     char data_root[4096];
     char log_directory[4096];
     char log_path[4096];
@@ -51,16 +58,25 @@ int wpm_log_initialize(void)
     }
     wpm_logger_initialized = 1;
     return 1;
+#endif
 }
 
 void wpm_log_close(void)
 {
+#ifndef WPM_DISABLE_OPERATIONAL_LOG
     if (wpm_logger_initialized) wsp_log_close(&wpm_logger);
     wpm_logger_initialized = 0;
+#endif
 }
 
 int wpm_vprintf(const char* format, va_list arguments)
 {
+#ifdef WPM_DISABLE_OPERATIONAL_LOG
+    /* Some supported CRTs do not provide a deep-copyable va_list. Replaying
+       one argument list for both console and file formatting corrupts the
+       cursor and can crash after otherwise successful commands. */
+    return vprintf(format, arguments);
+#else
     char message[8192];
     size_t length;
     int result;
@@ -74,9 +90,12 @@ int wpm_vprintf(const char* format, va_list arguments)
         while (length > 0 && (message[length - 1] == '\n' || message[length - 1] == '\r')) {
             message[--length] = '\0';
         }
-        if (length > 0) wsp_log_write(&wpm_logger, wpm_log_level_for_message(message), "%s", message);
+        if (length > 0) {
+            wsp_log_write(&wpm_logger, wpm_log_level_for_message(message), "%s", message);
+        }
     }
     return result;
+#endif
 }
 
 int wpm_printf(const char* format, ...)

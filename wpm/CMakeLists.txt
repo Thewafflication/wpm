@@ -55,9 +55,13 @@ endif()
 
 add_executable(wpm ${wpm_sources})
 
-add_subdirectory("${CMAKE_SOURCE_DIR}/wsp/tools/logging" "${CMAKE_BINARY_DIR}/wsp-logging")
 if(WPM_USE_WCRT)
-  target_compile_definitions(wsp_logging PRIVATE WSP_LOG_NO_TTY=1)
+  # WSP logging uses the host CRT's FILE ABI, which cannot safely exchange
+  # streams with WCRT-backed WPM builds.
+  target_compile_definitions(wpm PRIVATE WPM_DISABLE_OPERATIONAL_LOG=1)
+else()
+  add_subdirectory("${CMAKE_SOURCE_DIR}/wsp/tools/logging" "${CMAKE_BINARY_DIR}/wsp-logging")
+  target_link_libraries(wpm PRIVATE wsp::logging)
 endif()
 
 set_source_files_properties("${WPM_VERSION_RESOURCE}" PROPERTIES GENERATED TRUE)
@@ -107,7 +111,7 @@ if(WPM_USE_WCRT)
     WPM_WCRT_VERSION="${WPM_WCRT_VERSION}"
   )
 endif()
-target_link_libraries(wpm PRIVATE miniz libsodium wsp::logging)
+target_link_libraries(wpm PRIVATE miniz libsodium)
 if(CMAKE_C_COMPILER_ID STREQUAL "TinyCC")
   # Use explicit import definitions so cross-architecture builds don't depend
   # on matching system DLLs being installed on the build host.
@@ -276,18 +280,12 @@ if(BUILD_TESTING)
     )
   endif()
 
-  if(WPM_BUILD_TEST_REPORTS AND WPM_PDFLATEX_EXECUTABLE)
-    set(WPM_TEST_REPORT_OUTPUTS ${WPM_TEST_REPORT_PDF_OUTPUTS})
-  else()
-    set(WPM_TEST_REPORT_OUTPUTS ${WPM_TEST_REPORT_TEX_OUTPUTS})
-  endif()
-
   add_custom_target(check
     COMMAND ${CMAKE_CTEST_COMMAND} --build-config $<CONFIG> --output-on-failure
     DEPENDS
       wpm
       wpm-third-party
-      ${WPM_TEST_REPORT_OUTPUTS}
+      ${WPM_TEST_REPORT_TEX_OUTPUTS}
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     COMMENT "Running WPM tests"
   )
@@ -313,11 +311,7 @@ if(BUILD_TESTING)
       COMMENT "Validating generated test evidence"
       VERBATIM
     )
-    if(WPM_PDFLATEX_EXECUTABLE)
-      add_dependencies(verify test-report-pdfs)
-    else()
-      add_dependencies(verify test-reports)
-    endif()
+    add_dependencies(verify test-reports)
   else()
     add_custom_target(verify)
     add_dependencies(verify check)

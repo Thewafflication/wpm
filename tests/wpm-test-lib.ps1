@@ -127,6 +127,7 @@ function Write-WpmTestEvidence {
         [datetime]$Finished,
 
         [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
         [object[]]$Results,
 
         [Parameter(Mandatory = $true)]
@@ -135,7 +136,7 @@ function Write-WpmTestEvidence {
 
     $evidencePath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($EvidenceTex)
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $evidencePath) | Out-Null
-    $overallStatus = if ($Results.Status -contains 'Fail') { 'Fail' } else { 'Pass' }
+    $overallStatus = if ($Results.Count -eq 0 -or $Results.Status -contains 'Fail') { 'Fail' } else { 'Pass' }
 
     $lines = [System.Collections.Generic.List[string]]::new()
     $lines.Add('\section*{Automated Execution Results}')
@@ -211,12 +212,13 @@ function Format-WpmEvidenceText {
 function Complete-WpmTestRun {
     param(
         [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
         [object[]]$Results,
 
         [switch]$NoFailOnFailure
     )
 
-    $overallStatus = if ($Results.Status -contains 'Fail') { 'Fail' } else { 'Pass' }
+    $overallStatus = if ($Results.Count -eq 0 -or $Results.Status -contains 'Fail') { 'Fail' } else { 'Pass' }
     foreach ($result in $Results) {
         $message = "$($result.Command) exited $($result.ExitCode)"
         if ($result.Status -eq 'Pass') {

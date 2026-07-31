@@ -199,7 +199,7 @@ jobs:
           "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
 
           foreach ($row in $rows) {
-            $status = 'UNKNOWN'
+            $status = 'NOT RUN'
             $report = "bin/${{ matrix.arch }}/Debug/$($row[1])-report.tex"
             $evidence = "bin/${{ matrix.arch }}/Debug/$($row[1])-execution-evidence.tex"
             if (Test-Path -LiteralPath $evidence) {
@@ -209,9 +209,15 @@ jobs:
               }
             }
 
-            $indicator = if ($status -eq 'PASS') { '🟢' } else { '🔴' }
+            $indicator = switch ($status) {
+              'PASS' { '🟢' }
+              'FAIL' { '🔴' }
+              default { '⚪' }
+            }
 
-            "| $($row[0]) | $indicator **$status** | $report |" |
+            $reportLink = if (Test-Path -LiteralPath $report) { $report } else { 'Not generated' }
+
+            "| $($row[0]) | $indicator **$status** | $reportLink |" |
               Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
           }
 
@@ -219,7 +225,7 @@ jobs:
           $(if ($overallStatus -eq 'PASS') {
             'The tests passed. An unsigned, architecture-specific Debug WPM package containing the executable, runtime, documentation, and TeX reports is attached to this workflow run.'
           } else {
-            'The tests failed. The generated executable, debug symbols, build log, and TeX reports are attached to this workflow run as the architecture-specific diagnostics artifact.'
+            'Verification failed. FAIL rows contain completed failing tests; NOT RUN rows have no execution evidence because the build stopped before those tests completed. The generated executable, debug symbols, build log, and available TeX reports are attached to the architecture-specific diagnostics artifact.'
           })
           "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
 
