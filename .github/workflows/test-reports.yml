@@ -92,6 +92,10 @@ jobs:
         shell: pwsh
         run: tests/verify-traceability.ps1
 
+      - name: Test traceability validator
+        shell: pwsh
+        run: tests/verify-traceability-validator.ps1
+
       - name: Verify WSP adoption
         shell: pwsh
         run: tests/verify-wsp-adoption.ps1

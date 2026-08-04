@@ -255,6 +255,15 @@ if(BUILD_TESTING)
     endif()
   endmacro()
 
+  add_test(
+    NAME traceability-validator
+    COMMAND ${WPM_POWERSHELL_EXECUTABLE}
+      -NoProfile
+      -ExecutionPolicy Bypass
+      -File ${CMAKE_SOURCE_DIR}/tests/verify-traceability-validator.ps1
+      -RepositoryRoot ${CMAKE_SOURCE_DIR}
+  )
+
   wpm_add_test_case(TC-0001 tc-0001 tc-0001-usage-version-check.ps1 tc-0001-usage-version-check.tex)
   wpm_add_test_case(TC-0002 tc-0002 tc-0002-package-initialization.ps1 tc-0002-package-initialization.tex)
   wpm_add_test_case(TC-0003 tc-0003 tc-0003-package-archive-build.ps1 tc-0003-package-archive-build.tex)

@@ -53,11 +53,11 @@ baseline approval while any required disposition remains Deferred.
 | WSP requirement | Disposition | Project artifact or completion note |
 | --- | --- | --- |
 | `WSP-ROB-0001` | Applicable | Input validation in `wpm/`; negative coverage in TC-0002 through TC-0013 |
-| `WSP-REQM-0001` | Applicable | Stable parent and subordinate IDs in `docs/req-*.md` |
-| `WSP-REQM-0002` | Applicable | Controlled requirement structure and reviewable obligations |
-| `WSP-REQM-0003` | Applicable | Scope, source, rationale, relationships, and implementation records |
-| `WSP-REQM-0004` | Applicable | Verification method and TC reference in every requirement document |
-| `WSP-REQM-0005` | Applicable | `docs/traceability-1.0.md` and `tests/verify-traceability.ps1` |
+| `WSP-REQM-0001` | Applicable | Stable parent and subordinate IDs in `docs/req-*.md`, including proposed REQ-0014 through REQ-0022 |
+| `WSP-REQM-0002` | Applicable | Controlled requirement structure and reviewable 1.x and proposed 2.0 obligations |
+| `WSP-REQM-0003` | Applicable | Scope, source, rationale, relationships, change impact, and implementation allocation records |
+| `WSP-REQM-0004` | Applicable | Verification method and TC reference in every requirement document; subordinate allocation in both traceability matrices |
+| `WSP-REQM-0005` | Applicable | `docs/traceability-1.0.md`, `docs/traceability-2.0.md`, and positive/negative validator coverage |
 | `WSP-REQM-0006` | Applicable | This adoption record and pinned `wsp/` gitlink |
 | `WSP-REQM-0007` | Applicable | This matrix and tailoring/deferment register |
 | `WSP-REQM-0008` | Applicable | Project process and controlled change-impact template |
@@ -79,7 +79,7 @@ baseline approval while any required disposition remains Deferred.
 | `WSP-PROC-0001` | Applicable | `docs/project-process.md` defines the WPM lifecycle and records |
 | `WSP-PROC-0002` | Applicable | Project-process role and approval table |
 | `WSP-PROC-0003` | Applicable | Proportional planning rules and Work Plan template |
-| `WSP-PROC-0004` | Applicable | Change-impact procedure and controlled template |
+| `WSP-PROC-0004` | Applicable | Change-impact procedure, controlled template, and `docs/change-impact-2.0-requirements-baseline.md` |
 | `WSP-PROC-0005` | Applicable | Review criteria, finding rules, approval, and Review Record template |
 | `WSP-PROC-0006` | Applicable | Defect/security fields, states, handling, and record templates |
 | `WSP-PROC-0007` | Deferred | Add a completed release-readiness record |
@@ -96,7 +96,7 @@ baseline approval while any required disposition remains Deferred.
 | `WSP-TEST-0008` | Applicable | Controlled statuses in WSP library and evidence validation |
 | `WSP-TEST-0009` | Deferred | Enforce durable preservation and linkage of failed runs and reruns |
 | `WSP-TEST-0010` | Applicable | CMake and PowerShell generate reports from controlled inputs |
-| `WSP-TEST-0011` | Applicable | `tests/verify-traceability.ps1` runs in CI |
+| `WSP-TEST-0011` | Applicable | Traceability and release-baseline validation plus positive/negative validator tests run in CI |
 | `WSP-TEST-0012` | Applicable | Branch, pull-request, and release workflows gate required tests |
 | `WSP-TEST-0013` | Applicable | x86, x64, and ARM64 release matrix in strategy and workflows |
 | `WSP-TEST-0014` | Applicable | Explicit 90-day workflow retention and release attachment policy |
@@ -213,6 +213,7 @@ through `WSP-PSP-0009`.
 | 2026-07-28 | `0f66aa65fd820799468818ae57897f2940fb6037` | WPM testing feedback | Added native standard-input testing guidance and WCRT regression expectations |
 | 2026-07-31 | `3ed0758083fcc2c439499f251bf245007a8f54a5` |  Added color and defaullt c flags |
 | 2026-08-04 | `2198ccab08f969a789448767fe7017b774369adc` | WSP logger portability update | Adopted portable TTY detection, C99 argument copying, and expanded logger tests; no requirement or tailoring dispositions changed |
+| 2026-08-04 | `2198ccab08f969a789448767fe7017b774369adc` | WPM 2.0 proposed requirements baseline | Added REQ-0014 through REQ-0022, proposed subordinate traceability, change impact, and validator evidence; no deferred disposition was reported complete |
 
 The current baseline, pinned commit, and `wsp` gitlink shall agree. An upgrade
 entry shall reference the adopting-project change that reviewed the new WSP

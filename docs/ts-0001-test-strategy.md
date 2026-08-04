@@ -70,10 +70,20 @@ REQ-NNNN and REQ-NNNN.nnn
  execution evidence and generated report
 ```
 
-`docs/traceability-1.0.md` defines release-baseline allocation.
+`docs/traceability-1.0.md` defines the accepted 1.x release-baseline
+allocation. `docs/traceability-2.0.md` defines subordinate-obligation
+allocation for the proposed 2.0 baseline and distinguishes Planned from
+Verified evidence. Proposed requirements may retain Planned allocation while
+their implementation slices are incomplete; they do not satisfy a release
+claim.
+
 `tests/verify-traceability.ps1` rejects malformed or duplicate identifiers,
-unidentified normative obligations, missing back-references, incomplete test
-specifications, absent runners, and unregistered CTest cases.
+unidentified normative obligations, missing back-references or 2.0 allocation,
+incomplete accepted test specifications, absent accepted runners, and
+unregistered accepted CTest cases. The `-ReleaseBaseline 2.0` gate additionally
+rejects Proposed requirements, Planned rows, missing controlled test artifacts,
+and missing objective evidence. `tests/verify-traceability-validator.ps1`
+provides positive and negative tests of these rules.
 
 Matching numbers do not establish coverage by themselves. Reviewers shall
 confirm that procedures and expected results cover the allocated obligations.
@@ -199,7 +209,8 @@ artifacts, or release attachments protect release evidence from silent change.
 
 - Requirements baseline: `docs/req-*.md`
 - Test specifications: `docs/tc-*.tex`
-- Traceability: `docs/traceability-1.0.md`
+- Traceability: `docs/traceability-1.0.md` and
+  `docs/traceability-2.0.md`
 - Security design: `docs/dfs.md`
 - Verification ADR: `docs/adr-0007-automated-test-strategy-and-verification-artifacts.md`
 - WSP test baseline: `wsp/testing/test-strategy.md`
