@@ -17,7 +17,7 @@ if ($Describe) {
         @{ Requirement='REQ-0023.002'; Technique='structure-based static'; Profile='Fast'; Expected='Every new ADR contains required relationships and non-goals.' },
         @{ Requirement='REQ-0023.003'; Technique='classification-tree static'; Profile='Fast'; Expected='DFS assets, boundaries, threats, controls, verification, and risks are complete.' },
         @{ Requirement='REQ-0023.004'; Technique='bidirectional trace inspection'; Profile='Fast'; Expected='Requirements reference governing ADRs and scoped 1.x supersession.' },
-        @{ Requirement='REQ-0023.005'; Technique='negative mutation fixture'; Profile='Fast'; Expected='Every architecture/security omission and changed WSP pin is rejected.' },
+        @{ Requirement='REQ-0023.005'; Technique='line-ending equivalence and negative mutation fixture'; Profile='Fast'; Expected='LF and CRLF controlled text validate identically, while every architecture/security omission and changed WSP pin is rejected.' },
         @{ Requirement='REQ-0023.006'; Technique='negative mutation and process-status fixture'; Profile='Fast'; Expected='Every missing or incomplete planned artifact is rejected, while a fully successful top-level validator returns zero after expected negative children and cleanup.' }
     )
     $rationales = @{
@@ -118,7 +118,7 @@ function Assert-ArchitectureBaseline {
     }
     foreach ($entry in $adrExpectations.GetEnumerator()) {
         Assert-Contains -Text $Text -Path $entry.Key `
-            -Pattern '(?m)^\*\*Status:\*\* Accepted$' `
+            -Pattern '(?m)^\*\*Status:\*\* Accepted\r?$' `
             -Description 'Accepted status'
         foreach ($literal in $entry.Value) {
             Assert-Contains -Text $Text -Path $entry.Key `
@@ -197,7 +197,7 @@ function Assert-ArchitectureBaseline {
         -Description 'REQ-0023 bidirectional traceability'
     Assert-Contains -Text $Text `
         -Path 'docs/req-0023-architecture-and-security-consistency.md' `
-        -Pattern '(?m)^\*\*REQ-0023\.006\*\*$' `
+        -Pattern '(?m)^\*\*REQ-0023\.006\*\*\r?$' `
         -Description 'the planned-test baseline requirement'
     foreach ($term in @(
         'wpm.test-plan.v1',
@@ -258,6 +258,14 @@ if ($wspStatus) { throw 'The pinned wsp gitlink or worktree is modified.' }
 $results += New-WpmManualStep -Name 'Validate the controlled architecture and DFS baseline' -Action {
     Assert-ArchitectureBaseline -Text $controlledText -WspCommit $actualWspCommit
     'Accepted ADR dispositions, relationships, DFS coverage, manifest, traceability, and WSP pin are consistent.'
+}
+$results += New-WpmManualStep -Name 'Validate equivalent CRLF controlled text' -Action {
+    $crlfText = @{}
+    foreach ($key in $controlledText.Keys) {
+        $crlfText[$key] = $controlledText[$key] -replace '(?<!\r)\n', "`r`n"
+    }
+    Assert-ArchitectureBaseline -Text $crlfText -WspCommit $actualWspCommit
+    'The complete controlled baseline is equivalent with CRLF line endings.'
 }
 $results += New-WpmManualStep -Name 'Reject a missing accepted-ADR disposition' -Action {
     Invoke-NegativeFixture -ControlledText $controlledText `

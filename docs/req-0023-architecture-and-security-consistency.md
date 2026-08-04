@@ -41,7 +41,9 @@ baseline supersedes without modifying the accepted 1.x requirement text.
 An automated static runner shall reject a missing required architecture or DFS
 artifact, missing bidirectional reference, missing explicit non-goal, incomplete
 accepted-ADR disposition, missing documentation-manifest entry, or modification
-of the pinned `wsp/` gitlink from the adopted baseline.
+of the pinned `wsp/` gitlink from the adopted baseline. It shall interpret
+controlled Markdown consistently with LF or CRLF line endings without
+normalizing or rewriting the controlled files.
 
 **REQ-0023.006**
 Automated traceability validation shall require exactly one controlled test

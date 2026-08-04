@@ -89,6 +89,16 @@ assertions and cleanup failures still terminate nonzero. This changes only the
 test-infrastructure verdict; it does not reclassify any requirement, trace row,
 runtime result, or retained evidence.
 
+The next Windows CI report exposed a second portability defect in TC-0023:
+multiline regular expressions anchored at end-of-line accepted LF text but not
+the carriage return in CRLF checkouts. The first affected ADR caused the
+baseline assertion to fail and made subsequent negative fixtures fail for the
+same unrelated reason. REQ-0023.005 and TC-0023 now control LF/CRLF
+equivalence before implementation. The parser accepts an optional carriage
+return at line boundaries, and an in-memory CRLF fixture reruns the complete
+baseline without changing controlled files. This does not alter a product
+format, permit malformed content, or change any WSP disposition.
+
 ## Compatibility and supported platforms
 
 The runtime support matrix remains x86, x64, and ARM64 on supported Windows.
