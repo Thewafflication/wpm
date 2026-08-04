@@ -185,7 +185,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path release | Out-Null
           Copy-Item -LiteralPath "bin/${{ matrix.arch }}/Release/wpm.exe" -Destination "release/wpm-${{ matrix.arch }}.exe"
-          Copy-Item -LiteralPath "$env:WPM_WCRT_ROOT/bin/wcrt.dll" -Destination "release/wcrt-${{ matrix.arch }}.dll"
+          Copy-Item -LiteralPath "$env:WPM_WCRT_ROOT/${{ matrix.arch }}/bin/wcrt.dll" -Destination "release/wcrt-${{ matrix.arch }}.dll"
 
       - name: Upload Release executable
         uses: actions/upload-artifact@v7

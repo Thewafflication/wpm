@@ -2,25 +2,25 @@
 #ifndef WPM_WCRT_COMPAT_H
 #define WPM_WCRT_COMPAT_H
 
-#include <stddef.h>
-#include <stdio.h>
+#include <sys/stat.h>
+#include <sys/utime.h>
 #include <time.h>
 
-/* WCRT uses a 64-bit time_t on every architecture. Prevent TinyCC's MinGW
- * compatibility headers from redeclaring it as 32-bit in x86 builds. */
+/* WCRT uses a 64-bit time_t on x86. Do not let TinyCC's Windows compatibility
+ * headers subsequently redeclare it with the platform's legacy width. */
 #ifndef _TIME_T_DEFINED
 #define _TIME_T_DEFINED
 #endif
 
-#ifndef ULLONG_MAX
-#define ULLONG_MAX 18446744073709551615ULL
-#endif
+/* TinyCC-oriented dependencies use the POSIX spellings while WCRT exposes
+ * the explicit-width Microsoft interfaces. Keep this as an API mapping; the
+ * implementations come from WCRT. */
+#define stat _stat64
+#define utimbuf __utimbuf64
+#define utime _utime64
 
-__declspec(dllimport) extern int wcrt_errno;
-#ifndef errno
-#define errno wcrt_errno
-#endif
-
+/* Compatibility constants used by bundled dependencies but not yet part of
+ * WCRT's public C89 errno surface. WCRT supplies all runtime functions. */
 #ifndef EAGAIN
 #define EAGAIN 11
 #endif
@@ -51,15 +51,5 @@ __declspec(dllimport) extern int wcrt_errno;
 #ifndef EPERM
 #define EPERM 1
 #endif
-
-int _stricmp(const char *left, const char *right);
-int _strnicmp(const char *left, const char *right, size_t count);
-int wpm_snprintf(char *destination, size_t destination_size, const char *format, ...);
-#define snprintf wpm_snprintf
-int fopen_s(FILE **stream, const char *file_name, const char *mode);
-int strcpy_s(char *destination, size_t destination_size, const char *source);
-int strncpy_s(char *destination, size_t destination_size,
-              const char *source, size_t count);
-int sscanf_s(const char *buffer, const char *format, ...);
 
 #endif

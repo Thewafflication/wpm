@@ -59,11 +59,10 @@ if(WPM_USE_WCRT)
     file(GLOB WPM_WCRT_INSTALLATIONS LIST_DIRECTORIES TRUE "${WPM_WCRT_INSTALL_ROOT}/*")
     list(SORT WPM_WCRT_INSTALLATIONS COMPARE NATURAL ORDER DESCENDING)
     foreach(WPM_WCRT_INSTALLATION IN LISTS WPM_WCRT_INSTALLATIONS)
-      if(EXISTS "${WPM_WCRT_INSTALLATION}/bin/wcrt.dll" AND
+      if(EXISTS "${WPM_WCRT_INSTALLATION}/${wpm_arch}/bin/wcrt.dll" AND
          EXISTS "${WPM_WCRT_INSTALLATION}/include/stdio.h" AND
-         EXISTS "${WPM_WCRT_INSTALLATION}/lib/wcrt.def" AND
-         EXISTS "${WPM_WCRT_INSTALLATION}/lib/libwcrt.a" AND
-         EXISTS "${WPM_WCRT_INSTALLATION}/lib/wcrt-startup-console.o")
+         EXISTS "${WPM_WCRT_INSTALLATION}/${wpm_arch}/lib/libwcrt.a" AND
+         EXISTS "${WPM_WCRT_INSTALLATION}/${wpm_arch}/lib/wcrt-startup-console.o")
         set(WPM_WCRT_ROOT "${WPM_WCRT_INSTALLATION}")
         break()
       endif()
@@ -71,19 +70,35 @@ if(WPM_USE_WCRT)
   endif()
 
   if(NOT WPM_WCRT_ROOT)
-    message(FATAL_ERROR "WCRT 0.9.3 or newer was not found. Install it or set WPM_WCRT_ROOT.")
+    message(FATAL_ERROR "WCRT 0.9.5 or newer was not found. Install it or set WPM_WCRT_ROOT.")
+  endif()
+
+  set(WPM_WCRT_TARGET_ROOT "${WPM_WCRT_ROOT}/${wpm_arch}")
+  # Accept an explicitly selected legacy, single-architecture SDK as well.
+  if(EXISTS "${WPM_WCRT_ROOT}/bin/wcrt.dll")
+    set(WPM_WCRT_TARGET_ROOT "${WPM_WCRT_ROOT}")
   endif()
 
   foreach(WPM_WCRT_REQUIRED_FILE
-      "bin/wcrt.dll"
       "include/stdio.h"
       "include/errno.h"
-      "lib/libwcrt.a"
-      "lib/wcrt-startup-console.o")
+      "include/string.h"
+      "include/sys/stat.h"
+      "include/sys/utime.h")
     if(NOT EXISTS "${WPM_WCRT_ROOT}/${WPM_WCRT_REQUIRED_FILE}")
       message(FATAL_ERROR
         "The WCRT SDK at ${WPM_WCRT_ROOT} is missing ${WPM_WCRT_REQUIRED_FILE}. "
-        "Install WCRT 0.9.3 or newer with the console startup object.")
+        "Install WCRT 0.9.5 or newer.")
+    endif()
+  endforeach()
+  foreach(WPM_WCRT_REQUIRED_FILE
+      "bin/wcrt.dll"
+      "lib/libwcrt.a"
+      "lib/wcrt-startup-console.o")
+    if(NOT EXISTS "${WPM_WCRT_TARGET_ROOT}/${WPM_WCRT_REQUIRED_FILE}")
+      message(FATAL_ERROR
+        "The WCRT SDK at ${WPM_WCRT_ROOT} has no ${wpm_arch} target file "
+        "${WPM_WCRT_REQUIRED_FILE}. Install WCRT 0.9.5 or newer.")
     endif()
   endforeach()
 
@@ -102,18 +117,7 @@ if(WPM_USE_WCRT)
     endif()
   endif()
   message(STATUS "WCRT version: ${WPM_WCRT_VERSION}")
-  set(WPM_WCRT_GENERATED_INCLUDE_DIR "${CMAKE_BINARY_DIR}/wcrt-include")
-  file(MAKE_DIRECTORY "${WPM_WCRT_GENERATED_INCLUDE_DIR}")
-  file(READ "${WPM_WCRT_ROOT}/include/stdio.h" WPM_WCRT_STDIO_HEADER)
-  string(REPLACE "extern FILE __wcrt_" "__declspec(dllimport) extern FILE __wcrt_"
-    WPM_WCRT_STDIO_HEADER "${WPM_WCRT_STDIO_HEADER}")
-  file(WRITE "${WPM_WCRT_GENERATED_INCLUDE_DIR}/stdio.h" "${WPM_WCRT_STDIO_HEADER}")
-  file(READ "${WPM_WCRT_ROOT}/include/errno.h" WPM_WCRT_ERRNO_HEADER)
-  string(REPLACE "extern int wcrt_errno" "__declspec(dllimport) extern int wcrt_errno"
-    WPM_WCRT_ERRNO_HEADER "${WPM_WCRT_ERRNO_HEADER}")
-  file(WRITE "${WPM_WCRT_GENERATED_INCLUDE_DIR}/errno.h" "${WPM_WCRT_ERRNO_HEADER}")
   include_directories(BEFORE "${WPM_WCRT_ROOT}/include")
-  include_directories(BEFORE "${WPM_WCRT_GENERATED_INCLUDE_DIR}")
   add_compile_options(-include "${CMAKE_SOURCE_DIR}/wpm/tcc_compat/wcrt_compat.h")
 endif()
 

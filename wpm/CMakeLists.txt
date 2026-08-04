@@ -47,7 +47,9 @@ set(wpm_sources
 if(NOT CMAKE_C_COMPILER_ID STREQUAL "TinyCC")
   list(APPEND wpm_sources "${WPM_VERSION_RESOURCE}")
 else()
-  list(APPEND wpm_sources "tcc_compat/secure_crt.c")
+  if(NOT WPM_USE_WCRT)
+    list(APPEND wpm_sources "tcc_compat/secure_crt.c")
+  endif()
   if(WPM_WINDOWS_XP_COMPAT AND NOT WPM_USE_WCRT)
     list(APPEND wpm_sources "tcc_compat/xp_crt.c")
   endif()
@@ -121,7 +123,7 @@ if(CMAKE_C_COMPILER_ID STREQUAL "TinyCC")
     "${CMAKE_CURRENT_SOURCE_DIR}/tcc_compat/version.def"
   )
   if(WPM_USE_WCRT)
-    set(wcrt_console_startup "${WPM_WCRT_ROOT}/lib/wcrt-startup-console.o")
+    set(wcrt_console_startup "${WPM_WCRT_TARGET_ROOT}/lib/wcrt-startup-console.o")
     set_source_files_properties("${wcrt_console_startup}" PROPERTIES
       EXTERNAL_OBJECT TRUE
     )
@@ -130,7 +132,7 @@ if(CMAKE_C_COMPILER_ID STREQUAL "TinyCC")
       -nostdlib
       "${WPM_TCC_ROOT}/lib/kernel32.def"
     )
-    target_link_libraries(wpm PRIVATE "${WPM_WCRT_ROOT}/lib/libwcrt.a")
+    target_link_libraries(wpm PRIVATE "${WPM_WCRT_TARGET_ROOT}/lib/libwcrt.a")
   endif()
   get_filename_component(tcc_bin_dir "${CMAKE_C_COMPILER}" DIRECTORY)
   if(wpm_arch STREQUAL "x86")

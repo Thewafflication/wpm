@@ -70,11 +70,10 @@ runs:
         $wcrtRoot = Get-ChildItem (Join-Path $env:ProgramFiles 'WCRT') `
           -Directory -ErrorAction Stop |
           Where-Object {
-            (Test-Path -LiteralPath (Join-Path $_.FullName 'bin\wcrt.dll')) -and
+            (Test-Path -LiteralPath (Join-Path $_.FullName '${{ inputs.architecture }}\bin\wcrt.dll')) -and
             (Test-Path -LiteralPath (Join-Path $_.FullName 'include\stdio.h')) -and
-            (Test-Path -LiteralPath (Join-Path $_.FullName 'lib\wcrt.def')) -and
-            (Test-Path -LiteralPath (Join-Path $_.FullName 'lib\libwcrt.a')) -and
-            (Test-Path -LiteralPath (Join-Path $_.FullName 'lib\wcrt-startup-console.o'))
+            (Test-Path -LiteralPath (Join-Path $_.FullName '${{ inputs.architecture }}\lib\libwcrt.a')) -and
+            (Test-Path -LiteralPath (Join-Path $_.FullName '${{ inputs.architecture }}\lib\wcrt-startup-console.o'))
           } |
           Sort-Object Name -Descending |
           Select-Object -First 1 -ExpandProperty FullName
@@ -87,7 +86,7 @@ runs:
           x64 = 0x8664
           arm64 = 0xaa64
         }['${{ inputs.architecture }}']
-        $wcrtDll = Join-Path $wcrtRoot 'bin\wcrt.dll'
+        $wcrtDll = Join-Path $wcrtRoot '${{ inputs.architecture }}\bin\wcrt.dll'
         $stream = [IO.File]::OpenRead($wcrtDll)
         $reader = [IO.BinaryReader]::new($stream)
         try {
@@ -116,7 +115,7 @@ runs:
 
         & $wpm --version
         & (Join-Path $tinyccRoot 'tcc.exe') -v
-        (Get-Item -LiteralPath (Join-Path $wcrtRoot 'bin\wcrt.dll')).VersionInfo.FileVersion
+        (Get-Item -LiteralPath $wcrtDll).VersionInfo.FileVersion
         & $ninja --version
         "WPM_TCC_ROOT=$tinyccRoot" | Out-File $env:GITHUB_ENV -Append
         "WPM_WCRT_ROOT=$wcrtRoot" | Out-File $env:GITHUB_ENV -Append
