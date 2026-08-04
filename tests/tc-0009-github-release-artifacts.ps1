@@ -167,10 +167,10 @@ $results = @(
                 $cmake -match 'WPM_WCRT_TARGET_ROOT}/lib/wcrt\.def') {
                 throw 'WPM must link the static WCRT library and console startup object.'
             }
-            if (Test-Path -LiteralPath (Join-Path (Split-Path -Parent $wpmCmake) 'tcc_compat\wcrt_start.c')) {
+            if (Test-Path -LiteralPath (Join-Path (Split-Path -Parent $wpmCmake) 'tcc_support\wcrt_start.c')) {
                 throw 'WPM must use the WCRT-provided console startup object.'
             }
-            if ($cmake -match 'tcc_compat/(?:wcrt_stat|utime)\.c') {
+            if ($cmake -match 'tcc_support/(?:wcrt_stat|utime)\.c') {
                 throw 'WPM must use WCRT-provided file status and time implementations.'
             }
             if (Test-Path -LiteralPath $xpWorkflow) { throw 'The custom XP runtime workflow must not be restored.' }

@@ -46,13 +46,6 @@ set(wpm_sources
 # functional, but this experimental artifact has no embedded version/icon yet.
 if(NOT CMAKE_C_COMPILER_ID STREQUAL "TinyCC")
   list(APPEND wpm_sources "${WPM_VERSION_RESOURCE}")
-else()
-  if(NOT WPM_USE_WCRT)
-    list(APPEND wpm_sources "tcc_compat/secure_crt.c")
-  endif()
-  if(WPM_WINDOWS_XP_COMPAT AND NOT WPM_USE_WCRT)
-    list(APPEND wpm_sources "tcc_compat/xp_crt.c")
-  endif()
 endif()
 
 add_executable(wpm ${wpm_sources})
@@ -118,9 +111,9 @@ if(CMAKE_C_COMPILER_ID STREQUAL "TinyCC")
   # Use explicit import definitions so cross-architecture builds don't depend
   # on matching system DLLs being installed on the build host.
   target_link_options(wpm PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/tcc_compat/urlmon.def"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tcc_compat/advapi32.def"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tcc_compat/version.def"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tcc_support/urlmon.def"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tcc_support/advapi32.def"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tcc_support/version.def"
   )
   if(WPM_USE_WCRT)
     set(wcrt_console_startup "${WPM_WCRT_TARGET_ROOT}/lib/wcrt-startup-console.o")

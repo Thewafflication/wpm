@@ -5,7 +5,7 @@
 #include <ctype.h>
 #include <windows.h>
 #ifdef __TINYC__
-# include "tcc_compat/aclapi.h"
+# include "tcc_support/aclapi.h"
 #else
 # include <aclapi.h>
 #endif

@@ -6,7 +6,7 @@
 #include <limits.h>
 #include <windows.h>
 #ifdef __TINYC__
-# include "tcc_compat/urlmon.h"
+# include "tcc_support/urlmon.h"
 #else
 # include <urlmon.h>
 #endif

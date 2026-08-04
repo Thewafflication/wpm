@@ -40,9 +40,12 @@ endif()
 # default to a newer instruction-set baseline, and current linkers otherwise
 # stamp executables with a post-XP subsystem version.
 option(WPM_WINDOWS_XP_COMPAT "Enable Windows XP compatibility workarounds" OFF)
-option(WPM_USE_WCRT "Link TinyCC builds against WCRT instead of MSVCRT" OFF)
+option(WPM_USE_WCRT "Link TinyCC Windows builds against WCRT" OFF)
 if(WPM_WINDOWS_XP_COMPAT AND NOT (WIN32 AND wpm_arch STREQUAL "x86"))
   message(FATAL_ERROR "WPM_WINDOWS_XP_COMPAT is supported only by Windows x86 builds")
+endif()
+if(WIN32 AND CMAKE_C_COMPILER_ID STREQUAL "TinyCC" AND NOT WPM_USE_WCRT)
+  message(FATAL_ERROR "TinyCC Windows builds require WPM_USE_WCRT=ON")
 endif()
 
 if(WPM_USE_WCRT)
@@ -118,7 +121,7 @@ if(WPM_USE_WCRT)
   endif()
   message(STATUS "WCRT version: ${WPM_WCRT_VERSION}")
   include_directories(BEFORE "${WPM_WCRT_ROOT}/include")
-  add_compile_options(-include "${CMAKE_SOURCE_DIR}/wpm/tcc_compat/wcrt_compat.h")
+  add_compile_options(-include "${CMAKE_SOURCE_DIR}/wpm/tcc_support/wcrt_compat.h")
 endif()
 
 if(WPM_WINDOWS_XP_COMPAT)
