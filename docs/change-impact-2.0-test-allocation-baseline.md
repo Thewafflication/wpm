@@ -80,6 +80,15 @@ Verified, and exact retained evidence exists. Native x86/x64/ARM64, SMB,
 HTTP/TLS, USB, optical, protected-key, recovery, destructive cleanup, quality,
 signing, scanning, and release-approval evidence remains future work.
 
+CI subsequently exposed a validator completion-status defect: all controlled
+positive and negative fixtures passed, but the top-level script inherited exit
+code 1 from the last expected failing child validation. The corrective change
+updates REQ-0023.006 and TC-0023 before implementation and makes successful
+top-level completion explicitly return zero after fixture cleanup. Unexpected
+assertions and cleanup failures still terminate nonzero. This changes only the
+test-infrastructure verdict; it does not reclassify any requirement, trace row,
+runtime result, or retained evidence.
+
 ## Compatibility and supported platforms
 
 The runtime support matrix remains x86, x64, and ARM64 on supported Windows.

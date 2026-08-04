@@ -153,3 +153,8 @@ finally {
         Remove-Item -Recurse -Force -LiteralPath $fixtureRoot
     }
 }
+
+# Expected negative child validations leave LASTEXITCODE set to 1. Reaching
+# this point means every assertion and fixture cleanup succeeded; reset the
+# caller-visible native status without terminating a host that invoked us.
+$global:LASTEXITCODE = 0

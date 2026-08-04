@@ -18,7 +18,7 @@ if ($Describe) {
         @{ Requirement='REQ-0023.003'; Technique='classification-tree static'; Profile='Fast'; Expected='DFS assets, boundaries, threats, controls, verification, and risks are complete.' },
         @{ Requirement='REQ-0023.004'; Technique='bidirectional trace inspection'; Profile='Fast'; Expected='Requirements reference governing ADRs and scoped 1.x supersession.' },
         @{ Requirement='REQ-0023.005'; Technique='negative mutation fixture'; Profile='Fast'; Expected='Every architecture/security omission and changed WSP pin is rejected.' },
-        @{ Requirement='REQ-0023.006'; Technique='negative mutation fixture'; Profile='Fast'; Expected='Every missing or incomplete planned specification, runner, allocation, profile, expected result, evidence path, or gate is rejected.' }
+        @{ Requirement='REQ-0023.006'; Technique='negative mutation and process-status fixture'; Profile='Fast'; Expected='Every missing or incomplete planned artifact is rejected, while a fully successful top-level validator returns zero after expected negative children and cleanup.' }
     )
     $rationales = @{
         Fast='Deterministic static and negative-fixture validation is architecture-independent.'
@@ -288,6 +288,17 @@ $results += New-WpmManualStep -Name 'Reject a missing documentation-manifest ent
 $results += New-WpmManualStep -Name 'Reject a changed WSP baseline identity' -Action {
     Invoke-NegativeFixture -ControlledText $controlledText -Path '' -Pattern '' `
         -ExpectedFailure 'wsp gitlink' -WspCommit ('0' * 40)
+}
+$results += New-WpmManualStep -Name 'Return zero after expected negative validator children' -Action {
+    $powerShell = (Get-Process -Id $PID).Path
+    $validator = Join-Path $PSScriptRoot 'verify-traceability-validator.ps1'
+    $validatorOutput = & $powerShell -NoProfile -ExecutionPolicy Bypass `
+        -File $validator -RepositoryRoot $repositoryRoot 2>&1 | Out-String
+    $validatorExitCode = $LASTEXITCODE
+    if ($validatorExitCode -ne 0) {
+        throw "The top-level validator returned $validatorExitCode. $($validatorOutput.Trim())"
+    }
+    'The top-level validator returned zero after all expected negative children and cleanup.'
 }
 
 $finished = Get-Date

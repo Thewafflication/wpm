@@ -51,7 +51,10 @@ subordinate requirement, any Fast, PlatformMatrix, Quality,
 ManualRealEnvironment, or ReleaseGate profile, an objective expected result,
 an evidence path, or a release-gate allocation. A runner for unimplemented
 Proposed behavior shall report Blocked and shall not be registered or reported
-as passing product verification.
+as passing product verification. When all positive and negative validator
+checks produce their expected results, the top-level validator shall return
+zero even though expected negative child validations return nonzero; any
+unexpected result or cleanup failure shall return nonzero.
 
 ## Rationale
 

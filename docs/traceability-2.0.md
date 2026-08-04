@@ -96,7 +96,7 @@ every row that is not `Verified` or lacks objective evidence.
 | REQ-0023.003 | TC-0023 | Automated DFS coverage test | Planned | CI evidence not yet produced |
 | REQ-0023.004 | TC-0023 | Automated bidirectional reference test | Planned | CI evidence not yet produced |
 | REQ-0023.005 | TC-0023 | Automated positive and negative fixture test | Planned | CI evidence not yet produced |
-| REQ-0023.006 | TC-0023 | Automated planned-test baseline and negative fixture test | Planned | CI evidence not yet produced |
+| REQ-0023.006 | TC-0023 | Automated planned-test baseline, completion-status, and negative fixture test | Planned | CI evidence not yet produced |
 
 TC-0014 through TC-0022 now have controlled specifications and executable
 runner contracts. Each runner deterministically describes Fast,
