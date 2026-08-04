@@ -34,11 +34,14 @@ timeout, and partial read shall identify the affected locator and phase without
 weakening validation or corrupting an earlier usable cache.
 
 **REQ-0016.004**
-The repository commands in REQ-0016.002 shall support plain HTTP only after an
-explicit documented opt-in. HTTP shall be disabled by default; use shall
-display a clear transport-security warning in interactive and line-oriented
-output and shall record the insecure transport in diagnostics and audit data.
-Opt-in shall not authorize redirects to otherwise disallowed schemes.
+The repository commands in REQ-0016.002 shall support plain HTTP only when
+`wpm repo add <http-url> --allow-insecure-http` records an explicit Boolean
+permission scoped to that canonical repository. HTTP shall be disabled by
+default and shall have no global enable switch; use shall display a clear
+transport-security warning in interactive and line-oriented output and shall
+record the insecure transport in diagnostics and audit data. Opt-in shall not
+authorize another origin, HTTPS downgrade, or redirects to otherwise disallowed
+schemes.
 
 **REQ-0016.005**
 Local, SMB, HTTP, and HTTPS repositories shall use the same index and package
@@ -93,13 +96,15 @@ media evidence may supplement deterministic isolated tests at the release gate.
 ## Relationships
 
 - **Derived from:** `docs/roadmap-2.0.md` Milestone 3 and ADR-0005's common
-  logical repository structure.
+  logical repository structure; governed by ADR-0011.
 - **Depends on:** REQ-0011, REQ-0012, REQ-0013, REQ-0014, REQ-0015,
   WSP-ROB-0001, WSP-SEC-0003, WSP-SEC-0006, and WSP-SEC-0009.
-- **Conflicts with:** REQ-0011.001 and REQ-0011.004 currently restrict
-  repositories and package URLs to HTTPS. Implementation requires an approved
-  change to those obligations or a superseding repository-transport
-  requirement; this proposed baseline does not silently alter the 1.x contract.
+- **Supersedes for WPM 2.0:** REQ-0011.001's HTTPS-only repository restriction
+  and REQ-0011.004's HTTPS-only package-location restriction. REQ-0011 remains
+  the unchanged accepted 1.x contract; its version-1 schema, HTTPS validation,
+  cache, priority, selection, package-validation, and offline rules continue to
+  apply where REQ-0016 does not explicitly extend transport behavior.
+- **Conflicts with:** None after the scoped 2.0 supersession above and ADR-0011.
 
 ## Change Impact
 
@@ -122,5 +127,6 @@ Planned allocation is a typed repository-locator parser and narrow
 transport-neutral reader with filesystem, UNC/SMB, HTTPS, and opted-in HTTP
 adapters. Existing repository selection, cache, signature, and trust logic is
 to remain shared above the adapter boundary. TC-0016 will provide transport,
-fault, and trust evidence. No implementation is claimed by this proposed
-baseline.
+fault, and trust evidence. ADR-0011 excludes SCP from the required 2.0 provider
+set and prohibits automatic media relocation or redirect downgrade. No
+implementation is claimed by this proposed baseline.

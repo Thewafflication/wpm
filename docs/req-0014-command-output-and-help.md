@@ -59,7 +59,9 @@ WPM shall write structured, timestamped operational logging at a documented
 location. Log verbosity shall be configurable without suppressing required
 failure evidence, and a command failure shall identify the relevant log path
 when a log is available. Logs shall preserve line boundaries and severity and
-shall not contain terminal-control sequences or secrets.
+shall not contain terminal-control sequences or secrets. A stricter identified
+no-mutation requirement, including REQ-0015 dry run, shall suppress persistent
+logging and report that no durable log was created.
 
 **REQ-0014.007**
 An invalid command, option, operand, or option value shall produce a nonzero
@@ -95,7 +97,8 @@ and bounded package-script output.
 ## Relationships
 
 - **Derived from:** `docs/roadmap-2.0.md` Milestone 1 and the WSP logging and
-  visual-style adoption recorded in `docs/wsp-adoption.md`.
+  visual-style adoption recorded in `docs/wsp-adoption.md`; governed by
+  ADR-0010.
 - **Depends on:** REQ-0001 through REQ-0013 command behavior, WSP-SEC-0010,
   WSP-TEST-0005, and the accepted logging boundary in `docs/dfs.md`.
 - **Conflicts with:** None. Existing command-specific output remains valid
@@ -119,5 +122,6 @@ requirement-change process.
 
 Planned allocation is a shared presentation/logging layer used by command,
 archive, repository, signing, trust, initialization, and upgrade code; TC-0014
-will provide command-level automated verification. No 2.0 implementation or
-verification evidence is claimed by this proposed baseline.
+will provide command-level automated verification. ADR-0010 fixes the event,
+renderer, redaction, and machine-envelope boundaries. No 2.0 runtime
+implementation or verification evidence is claimed by this proposed baseline.

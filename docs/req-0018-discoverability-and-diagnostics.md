@@ -60,11 +60,11 @@ identity, version, architecture, or source.
 
 **REQ-0018.008**
 Diagnose, list, list-available, and show shall provide a documented,
-versioned machine-readable output mode with deterministic ordering, explicit
-null or absence rules, UTF-8 encoding, stable field meanings, and documented
-exit semantics. Machine-readable standard output shall contain no color,
-progress, prompts, package-script delimiters, or human prose; diagnostics and
-logs shall not corrupt it.
+versioned `--output json` mode using the `wpm.output.v1` envelope, deterministic
+ordering, explicit null or absence rules, UTF-8 encoding, stable field meanings,
+and documented exit semantics. Machine-readable standard output shall contain
+no color, progress, prompts, package-script delimiters, or human prose;
+diagnostics and logs shall not corrupt it.
 
 **REQ-0018.009**
 All inspection output shall redact private keys, credentials, tokens, URL user
@@ -94,7 +94,8 @@ secret redaction, and before/after no-mutation snapshots.
 
 ## Relationships
 
-- **Derived from:** `docs/roadmap-2.0.md` Milestone 5 and ADR-0008.
+- **Derived from:** `docs/roadmap-2.0.md` Milestone 5 and ADR-0008; presentation
+  and serialization are governed by ADR-0010.
 - **Depends on:** REQ-0010, REQ-0011, REQ-0012, REQ-0013, REQ-0014,
   REQ-0016, ADR-0008, and the DFS logging/protected-data rules.
 - **Conflicts with:** None. REQ-0010's existing minimal diagnosis remains a
@@ -119,5 +120,7 @@ impact analysis and an explicit versioning decision.
 Planned allocation is one read-only query/health model consumed by table and
 versioned machine serializers, with command parsing in the CLI dispatcher and
 metadata-only installed-state readers. TC-0018 will verify selection parity,
-schemas, remediation, ambiguity, redaction, and no mutation. No implementation
-is claimed by this proposed baseline.
+schemas, remediation, ambiguity, redaction, and no mutation. ADR-0010 defines
+the `wpm.output.v1` envelope, handled-error behavior, deterministic encoding,
+and schema evolution rule. No implementation is claimed by this proposed
+baseline.

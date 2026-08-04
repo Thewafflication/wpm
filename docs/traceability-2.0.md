@@ -4,7 +4,8 @@
 
 **Status:** Proposed
 
-**Baseline:** Proposed WPM 2.0 requirements REQ-0014 through REQ-0022
+**Baseline:** Proposed WPM 2.0 runtime requirements REQ-0014 through REQ-0022
+and accepted architecture-consistency requirement REQ-0023
 
 This matrix allocates every identified 2.0 subordinate obligation to a planned
 controlled test case and verification method. `Planned` means the requirement
@@ -90,9 +91,16 @@ every row that is not `Verified` or lacks objective evidence.
 | REQ-0022.007 | TC-0022 | Release Readiness record review | Planned | Not yet produced |
 | REQ-0022.008 | TC-0022 | Release Record and evidence review | Planned | Not yet produced |
 | REQ-0022.009 | TC-0022 | Retrospective/improvement record review | Planned | Not yet produced |
+| REQ-0023.001 | TC-0023 | Automated static test and inspection | Planned | CI evidence not yet produced |
+| REQ-0023.002 | TC-0023 | Automated ADR structure/reference test | Planned | CI evidence not yet produced |
+| REQ-0023.003 | TC-0023 | Automated DFS coverage test | Planned | CI evidence not yet produced |
+| REQ-0023.004 | TC-0023 | Automated bidirectional reference test | Planned | CI evidence not yet produced |
+| REQ-0023.005 | TC-0023 | Automated positive and negative fixture test | Planned | CI evidence not yet produced |
 
 TC-0014 through TC-0022 are planned identifiers, not completed test
 specifications or executions. Their controlled specifications, automated
 runners, non-test verification procedures, and CTest allocation are created
 with implementation slices before a requirement changes from Proposed to
-Accepted or a matrix row changes to Verified.
+Accepted or a matrix row changes to Verified. TC-0023 has a controlled
+specification, automated runner, and CTest allocation, but its rows remain
+Planned until retained CI evidence exists for the controlled merge baseline.

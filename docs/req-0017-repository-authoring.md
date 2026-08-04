@@ -37,9 +37,11 @@ and it shall atomically replace an earlier index only after complete success.
 **REQ-0017.004**
 `wpm repo index <repository>` shall support signing the resulting index with a
 configured maintainer key under the approved repository-signing design. Key
-selection, authorization, secret handling, signature identity, failure, and
-audit behavior shall follow REQ-0012 and the DFS; private key material shall
-not enter repository content, normal output, logs, or retained test artifacts.
+selection, cryptographic validation, secret handling, signature identity,
+failure, and audit behavior shall follow REQ-0012 and the DFS. Repository-index
+signer authorization shall be repository-scoped and separate from package-
+signer authorization under ADR-0012; private key material shall not enter
+repository content, normal output, logs, or retained test artifacts.
 
 **REQ-0017.005**
 `wpm repo verify <repository>` shall perform read-only validation of repository
@@ -88,11 +90,14 @@ read-only verification, and a create-copy-consume round trip.
 ## Relationships
 
 - **Derived from:** `docs/roadmap-2.0.md` Milestone 4.
+- **Governed by:** ADR-0012's local writer and index-signer authorization, and
+  ADR-0013's plan/dry-run boundary.
 - **Depends on:** REQ-0003, REQ-0005, REQ-0012, REQ-0014, REQ-0015,
   REQ-0016, ADR-0002, ADR-0005, and WSP-SEC-0008.
 - **Conflicts with:** None identified. Repository index signing requires a new
-  accepted design that remains compatible with unsigned or externally signed
-  1.x repository indexes according to their existing rules.
+  repository-scoped signer policy. ADR-0012 preserves legacy unsigned 1.x
+  consumption as an explicit lower-assurance compatibility mode while keeping
+  package validation mandatory.
 
 ## Change Impact
 
@@ -113,5 +118,6 @@ shall create and verify the directory tree that the utility consumes.
 Planned allocation is a repository-authoring module layered over existing
 archive, metadata, signing, and transport-neutral repository validation. The
 CLI dispatcher will expose four subcommands, and TC-0017 will provide atomicity,
-signing, validation, and removable-copy evidence. No implementation is claimed
-by this proposed baseline.
+signing, validation, and removable-copy evidence. ADR-0012 keeps the writer
+local-only and generated version-1 indexes deterministic and locator-neutral.
+No implementation is claimed by this proposed baseline.

@@ -214,6 +214,7 @@ through `WSP-PSP-0009`.
 | 2026-07-31 | `3ed0758083fcc2c439499f251bf245007a8f54a5` |  Added color and defaullt c flags |
 | 2026-08-04 | `2198ccab08f969a789448767fe7017b774369adc` | WSP logger portability update | Adopted portable TTY detection, C99 argument copying, and expanded logger tests; no requirement or tailoring dispositions changed |
 | 2026-08-04 | `2198ccab08f969a789448767fe7017b774369adc` | WPM 2.0 proposed requirements baseline | Added REQ-0014 through REQ-0022, proposed subordinate traceability, change impact, and validator evidence; no deferred disposition was reported complete |
+| 2026-08-04 | `2198ccab08f969a789448767fe7017b774369adc` | WPM 2.0 architecture and DFS baseline | Added ADR-0010 through ADR-0013, DFS threat/control updates, REQ/TC-0023 consistency checks, and scoped 2.0 supersession of HTTPS-only restrictions; no deferred WSP disposition was reported complete |
 
 The current baseline, pinned commit, and `wsp` gitlink shall agree. An upgrade
 entry shall reference the adopting-project change that reviewed the new WSP

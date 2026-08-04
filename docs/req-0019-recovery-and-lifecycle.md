@@ -16,10 +16,11 @@ stale operational artifacts, and legacy package records.
 
 **REQ-0019.001**
 An interrupted install, failed package script, or failed self-upgrade shall
-produce or retain a recovery record that identifies the package identity,
-operation, selected source, completed and failed phase, relevant non-secret
-paths, validation and signer state, script exit status when available,
-retained artifacts, and the next safe inspect, retry, or cleanup command.
+produce or retain a versioned `wpm.recovery.v1` recovery record that identifies
+the operation and plan digest, package identity, selected source, completed and
+failed phase, relevant non-secret paths, validation and signer state, script
+exit status when available, retained artifacts and their roles/digests,
+external-state uncertainty, and the next safe inspect, retry, or cleanup command.
 
 **REQ-0019.002**
 WPM shall provide a read-only command to inspect a failed operation from its
@@ -96,7 +97,7 @@ fixtures, and preserves linked failure/rerun evidence on x86, x64, and ARM64.
 
 ## Relationships
 
-- **Derived from:** `docs/roadmap-2.0.md` Milestone 6.
+- **Derived from:** `docs/roadmap-2.0.md` Milestone 6; governed by ADR-0013.
 - **Depends on:** REQ-0004, REQ-0007, REQ-0008, REQ-0012, REQ-0013,
   REQ-0014, REQ-0015, REQ-0018, WSP-TEST-0009, WSP-SEC-0011, and the
   accepted no-universal-rollback decision in `docs/dfs.md`.
@@ -122,5 +123,6 @@ or cleanup success.
 Planned allocation is a versioned recovery-record reader/writer, retry planner,
 and root-contained cleanup classifier shared with diagnose/show and the
 operation-plan layer. TC-0019 will supply fault, deletion-boundary, restore,
-and architecture evidence. No implementation is claimed by this proposed
-baseline.
+and architecture evidence. ADR-0013 defines `wpm.recovery.v1`, non-executable
+retry identity, additive legacy handling, and the conservative deletion root.
+No implementation is claimed by this proposed baseline.

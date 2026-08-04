@@ -40,8 +40,8 @@ Supported mutating commands shall accept `--dry-run` and shall produce the same
 resolved plan and validation diagnostics available without committing the
 operation. A dry run shall not modify installed payloads, package records,
 cache, staging, trust, repository configuration, general configuration,
-audit/recovery state, retained artifacts, or self-upgrade handoff state and
-shall not invoke package scripts.
+operational-log, audit/recovery state, retained artifacts, or self-upgrade
+handoff state and shall not invoke package scripts.
 
 **REQ-0015.005**
 WPM shall reject `--dry-run` on a command for which it cannot guarantee the
@@ -76,6 +76,8 @@ changed or ambiguous plan cannot execute without recomputation.
 ## Relationships
 
 - **Derived from:** `docs/roadmap-2.0.md` Milestone 2.
+- **Governed by:** ADR-0013's immutable plan, capability, transaction, and
+  recovery boundaries.
 - **Depends on:** REQ-0004, REQ-0008, REQ-0012, REQ-0013, REQ-0014,
   WSP-SEC-0007, and WSP-SEC-0011.
 - **Conflicts with:** None. REQ-0013's existing `upgrade --all` plan and safe
@@ -99,5 +101,7 @@ that explains why a no-mutation guarantee is infeasible.
 Planned allocation is a shared immutable operation-plan model and a mutation
 guard below command dispatch, with command-specific adapters for install,
 remove, upgrade, trust, repository, and configuration operations. TC-0015 will
-provide state-difference and process-invocation evidence. No implementation is
-claimed by this proposed baseline.
+provide state-difference and process-invocation evidence. ADR-0013 explicitly
+excludes persistent operational logging from dry run and package-script effects
+from WPM's transaction boundary. No implementation is claimed by this proposed
+baseline.
