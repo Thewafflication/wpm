@@ -5,11 +5,11 @@
 **Project:** Waughtal Package Manager (WPM)
 
 **WSP baseline:** Immutable commit
-`0f66aa65fd820799468818ae57897f2940fb6037`
+`2198ccab08f969a789448767fe7017b774369adc`
 
 **Submodule path:** `wsp/`
 
-**Pinned commit:** `3ed0758083fcc2c439499f251bf245007a8f54a5`
+**Pinned commit:** `2198ccab08f969a789448767fe7017b774369adc`
 
 **Status:** Proposed
 
@@ -212,6 +212,7 @@ through `WSP-PSP-0009`.
 | 2026-07-28 | `44f591d6416d18252596d8c9fb45f8fbaa65d08a` | Initial integration | Proposed adoption and profile selection |
 | 2026-07-28 | `0f66aa65fd820799468818ae57897f2940fb6037` | WPM testing feedback | Added native standard-input testing guidance and WCRT regression expectations |
 | 2026-07-31 | `3ed0758083fcc2c439499f251bf245007a8f54a5` |  Added color and defaullt c flags |
+| 2026-08-04 | `2198ccab08f969a789448767fe7017b774369adc` | WSP logger portability update | Adopted portable TTY detection, C99 argument copying, and expanded logger tests; no requirement or tailoring dispositions changed |
 
 The current baseline, pinned commit, and `wsp` gitlink shall agree. An upgrade
 entry shall reference the adopting-project change that reviewed the new WSP

@@ -1,5 +1,5 @@
 name: Set up latest WPM, TinyCC, and WCRT
-description: Bootstrap WPM and install TinyCC plus the architecture-matched WCRT package
+description: Bootstrap WPM and install TinyCC plus the multi-architecture WCRT package
 
 inputs:
   architecture:
@@ -55,7 +55,7 @@ runs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         }
 
-        & $wpm install wcrt --arch '${{ inputs.architecture }}'
+        & $wpm install wcrt --arch any
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
         $tinyccRoot = Get-ChildItem (Join-Path $env:ProgramFiles 'TinyCC') `

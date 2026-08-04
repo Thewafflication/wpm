@@ -129,7 +129,7 @@ $results = @(
         }
 
     New-WpmManualStep `
-        -Name 'Require TinyCC and architecture-matched WCRT in Windows CI' `
+        -Name 'Require TinyCC and multi-architecture WCRT in Windows CI' `
         -Action {
             $action = Get-Content -Raw -LiteralPath $toolchainAction
             foreach ($pattern in @(
@@ -139,7 +139,7 @@ $results = @(
                 'Get-FileHash.+\$wcrtPublicKey',
                 '\$wcrtKeyHash -eq \$tinyccKeyHash',
                 'trust add \$wcrtPublicKey',
-                'install wcrt --arch',
+                'install wcrt --arch any',
                 'WCRT architecture mismatch',
                 'WPM_WCRT_ROOT='
             )) {
@@ -174,7 +174,7 @@ $results = @(
                 throw 'WPM must use WCRT-provided file status and time implementations.'
             }
             if (Test-Path -LiteralPath $xpWorkflow) { throw 'The custom XP runtime workflow must not be restored.' }
-            'Every supported Windows architecture is configured for TinyCC and WCRT.'
+            'Every supported Windows architecture is configured from the multi-architecture WCRT package.'
         }
 )
 $finished = Get-Date
