@@ -7,18 +7,17 @@
 \def\TCTitle{Architecture and security consistency}
 \def\TCPurpose{Verify the controlled WPM 2.0 architecture, requirement, DFS, documentation-manifest, traceability, and pinned-WSP relationships without claiming proposed runtime behavior.}
 \def\TCPriority{\TCPriorityHigh}
-\def\TCRequirementRef{REQ-0023}
+\def\TCRequirementRef{REQ-0023.001 through REQ-0023.006}
 \def\TCDesignRef{ADR-0010 through ADR-0013 and \texttt{docs/dfs.md}}
 \def\TCFeatureRef{\texttt{tests/tc-0023-architecture-security-consistency.ps1}}
-\def\TCTestTechnique{Requirements-based static testing with negative mutation fixtures for omitted relationships and security coverage.}
+\def\TCTestTechnique{Requirements-based static and structure-based testing with negative mutation fixtures for omitted relationships, security coverage, planned specifications/runners, subordinate allocations, execution profiles, expected results, evidence paths, and gates.}
 \def\TCPreconditions{The repository contains the controlled documentation tree and Git metadata for the pinned \texttt{wsp/} gitlink.}
 \def\TCEnvironment{Windows x86, x64, or ARM64 with PowerShell 5.1 or newer and Git available. The test is architecture-independent.}
 \def\TCAssumptions{Repository text uses UTF-8-compatible Markdown and the adopted WSP commit is \texttt{2198ccab08f969a789448767fe7017b774369adc}.}
 \def\TCInputData{Accepted ADR-0001 through ADR-0013, REQ-0014 through REQ-0019 and REQ-0023, the DFS, architecture change-impact record, traceability matrix, documentation manifest, and WSP gitlink.}
 \def\TCInitialState{The test does not modify repository files. In-memory negative fixtures are derived from the controlled text.}
-\def\TCProcedure{\par\begin{enumerate}\item Validate every accepted-ADR review disposition and each new ADR relationship, non-goal, requirement back-reference, and manifest entry.\item Validate the affected requirement-to-ADR references, scoped REQ-0011 supersession, DFS assets/boundaries/threats/controls/verification/residual-risk terms, traceability allocation, and exact WSP gitlink.\item Remove one accepted-ADR disposition, ADR non-goal heading, requirement back-reference, DFS threat, and manifest entry in separate in-memory fixtures and require each validation to fail.\item Supply an incorrect WSP identity and require validation to fail.\end{enumerate}}
-\def\TCExpectedResult{\par\begin{enumerate}\item The controlled baseline passes with no missing or inconsistent artifact.\item Every negative fixture fails for the intended omission.\item No repository file or WSP submodule content changes and no secret is emitted.\end{enumerate}}
+\def\TCProcedure{\par\begin{enumerate}\item Validate every accepted-ADR review disposition and each new ADR relationship, non-goal, requirement back-reference, and manifest entry.\item Validate the affected requirement-to-ADR references, scoped REQ-0011 supersession, DFS assets/boundaries/threats/controls/verification/residual-risk terms, traceability allocation, exact WSP gitlink, and controlled TC-0014 through TC-0022 specifications and runner plans.\item Remove one accepted-ADR disposition, ADR non-goal heading, requirement back-reference, DFS threat, manifest entry, planned specification, runner, subordinate allocation, profile, expected result, evidence path, and gate in separate fixtures and require each validation to fail.\item Supply an incorrect WSP identity and require validation to fail.\end{enumerate}}
+\def\TCExpectedResult{\par\begin{enumerate}\item The controlled architecture, security, and planned-test baseline passes with no missing or inconsistent artifact.\item Every negative fixture fails for the intended omission.\item Unimplemented Proposed runners describe Planned allocation and report Blocked when execution is attempted; none is registered or represented as passing product verification.\item No repository file or WSP submodule content changes and no secret is emitted.\end{enumerate}}
 \def\TCPostConditions{Repository and WSP contents are unchanged; temporary in-memory fixtures are released.}
 \TCTemplate
 \end{document}
-

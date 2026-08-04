@@ -85,7 +85,7 @@ validation keep transport risk separate from package authorization.
 **Method:** Automated test, negative test, fault injection, inspection, and
 managed-environment demonstration
 
-**References:** Planned TC-0016; `docs/traceability-2.0.md`
+**References:** TC-0016; `docs/traceability-2.0.md`
 
 Planned verification covers writable and read-only local repositories,
 removable-media loss and replacement, UNC/SMB success and failure, HTTP opt-in
@@ -126,7 +126,8 @@ record; it does not remove the supported behavior.
 Planned allocation is a typed repository-locator parser and narrow
 transport-neutral reader with filesystem, UNC/SMB, HTTPS, and opted-in HTTP
 adapters. Existing repository selection, cache, signature, and trust logic is
-to remain shared above the adapter boundary. TC-0016 will provide transport,
-fault, and trust evidence. ADR-0011 excludes SCP from the required 2.0 provider
+to remain shared above the adapter boundary. TC-0016 defines transport, fault,
+trust, matrix, and real-environment verification; its runner remains Blocked
+pending implementation. ADR-0011 excludes SCP from the required 2.0 provider
 set and prohibits automatic media relocation or redirect downgrade. No
 implementation is claimed by this proposed baseline.

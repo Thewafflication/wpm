@@ -132,6 +132,31 @@ Do not claim execution results; establish an objectively verifiable test baselin
 **Gate:** All roadmap obligations have unique requirements, planned verification,
 implementation allocation, and bidirectional traceability.
 
+#### CP-00C controlled allocation record
+
+The final identifiers are REQ-0014/TC-0014 command output and help,
+REQ-0015/TC-0015 safer package changes, REQ-0016/TC-0016 repository
+transports, REQ-0017/TC-0017 repository authoring, REQ-0018/TC-0018
+discoverability and diagnostics, REQ-0019/TC-0019 recovery and lifecycle,
+REQ-0020/TC-0020 quality testing, REQ-0021/TC-0021 C99 portability/reference
+documentation, REQ-0022/TC-0022 release readiness, and accepted static
+consistency REQ-0023/TC-0023. Each TC defines Fast, PlatformMatrix, Quality,
+ManualRealEnvironment, and ReleaseGate profiles and the controlled evidence
+hierarchy in `docs/ts-0001-test-strategy.md`.
+
+TC-0014 through TC-0022 specifications and executable runner contracts are
+controlled, but their product assertions and evidence remain Planned. The
+runners return Blocked when execution is requested and are intentionally not
+registered as passing CTest product cases. CP-00C establishes allocation only;
+it does not satisfy the CP-00 gate or any roadmap completion claim without
+retained evidence.
+
+Dependency review corrected CP-03 to depend on CP-02 because REQ-0016 depends
+on the shared REQ-0015 plan/dry-run boundary, and corrected CP-08 to depend on
+CP-07 because REQ-0021 depends on REQ-0020 and the quality harness is needed to
+verify the refactoring boundary. CP-04 inherits CP-01/CP-02 through CP-03;
+CP-05 through CP-09 remain correctly ordered by their stated dependencies.
+
 ### CP-01 — Command presentation and help
 
 **Depends on:** CP-00  
@@ -201,7 +226,7 @@ durable mutation.
 
 ### CP-03 — Transport-neutral repositories
 
-**Depends on:** CP-00, CP-01; CP-02 before install acceptance tests  
+**Depends on:** CP-00, CP-01, and CP-02
 **Model:** Profile F
 
 #### Prompt CP-03A — Repository locator and local/read-only media
@@ -394,8 +419,9 @@ triaged evidence and a blocking verdict.
 
 ### CP-08 — C99 portability and reference documentation
 
-**Depends on:** Prefer after shared interfaces stabilize in CP-01 through CP-06; may run
-in parallel with CP-07  
+**Depends on:** CP-01 through CP-07; inventory may begin earlier, but broad
+refactoring waits for stable shared interfaces and the accepted quality-harness
+boundary.
 **Model:** Profile F for portability boundaries; Profile B for documentation coverage.
 
 #### Prompt CP-08A — Portable core and platform helpers

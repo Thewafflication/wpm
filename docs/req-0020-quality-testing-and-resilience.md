@@ -74,7 +74,7 @@ engineering evidence.
 **Method:** Harness self-test, controlled failing demonstration, inspection,
 and release-record review
 
-**References:** Planned TC-0020; `docs/quality-testing.md`;
+**References:** TC-0020; `docs/quality-testing.md`;
 `docs/traceability-2.0.md`
 
 Planned verification exercises harness isolation and bounds, corpus metadata,
@@ -109,6 +109,7 @@ quality gate and finding triage shall not be omitted.
 
 Planned allocation is a project-owned quality harness and corpus beneath
 `tests/` with manual/nightly/release-candidate workflow entry points and
-controlled completion records. TC-0020 will verify harness controls and gate
-semantics. No harness completion or quality result is claimed by this proposed
+controlled completion records. TC-0020 defines harness-control, matrix,
+environmental-evidence, and gate-semantics verification; its runner remains
+Blocked pending implementation. No harness completion or quality result is claimed by this proposed
 baseline.

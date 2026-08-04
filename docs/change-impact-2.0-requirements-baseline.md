@@ -24,8 +24,12 @@ accept the proposed requirements, or claim verification evidence.
   identifiers after the accepted 1.x baseline.
 - Each normative obligation has a stable subordinate identifier and one row in
   the 2.0 traceability matrix.
-- Planned TC-0014 through TC-0022 do not assert that test specifications,
-  runners, executions, or passing evidence exist.
+- At this requirements-baseline revision, planned TC-0014 through TC-0022 did
+  not assert that test specifications, runners, executions, or passing
+  evidence existed. The subsequent controlled allocation in
+  `docs/change-impact-2.0-test-allocation-baseline.md` adds specifications and
+  non-claiming runner contracts; CTest registration and execution evidence
+  remain absent while the runtime requirements are Proposed.
 - WSP-REQM-0001 through WSP-REQM-0005 gain proposed 2.0 baseline evidence.
   WSP-REQM-0010, release-process, test-evidence, C-style, and release-trust
   dispositions remain deferred until their completion evidence exists.

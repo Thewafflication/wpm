@@ -88,7 +88,7 @@ inspectable without creating a false transaction guarantee.
 **Method:** Automated test, fault injection, security inspection, and
 architecture-matrix demonstration
 
-**References:** Planned TC-0019; `docs/traceability-2.0.md`
+**References:** TC-0019; `docs/traceability-2.0.md`
 
 Planned verification injects failure at every lifecycle phase, tampers with or
 removes retained inputs, repeats retry and cleanup, exercises locked and
@@ -122,7 +122,8 @@ or cleanup success.
 
 Planned allocation is a versioned recovery-record reader/writer, retry planner,
 and root-contained cleanup classifier shared with diagnose/show and the
-operation-plan layer. TC-0019 will supply fault, deletion-boundary, restore,
-and architecture evidence. ADR-0013 defines `wpm.recovery.v1`, non-executable
+operation-plan layer. TC-0019 defines fault, deletion-boundary, restore,
+failure-retention, and architecture verification; its runner remains Blocked
+pending implementation. ADR-0013 defines `wpm.recovery.v1`, non-executable
 retry identity, additive legacy handling, and the conservative deletion root.
 No implementation is claimed by this proposed baseline.

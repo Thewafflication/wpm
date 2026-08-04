@@ -13,7 +13,9 @@ function Invoke-Validator {
     param(
         [Parameter(Mandatory)]
         [string]$Root,
-        [string]$ReleaseBaseline = ''
+        [string]$ReleaseBaseline = '',
+        [string]$RunnerPlanId = '',
+        [switch]$SkipRunnerPlanExecution
     )
 
     $arguments = @(
@@ -27,6 +29,12 @@ function Invoke-Validator {
     )
     if ($ReleaseBaseline) {
         $arguments += @('-ReleaseBaseline', $ReleaseBaseline)
+    }
+    if ($RunnerPlanId) {
+        $arguments += @('-RunnerPlanId', $RunnerPlanId)
+    }
+    if ($SkipRunnerPlanExecution) {
+        $arguments += '-SkipRunnerPlanExecution'
     }
     $output = & $powerShell @arguments 2>&1 | Out-String
     [pscustomobject]@{
@@ -57,7 +65,8 @@ try {
         throw "The controlled repository failed positive validation. $($positive.Output)"
     }
 
-    $releaseGate = Invoke-Validator -Root $RepositoryRoot -ReleaseBaseline '2.0'
+    $releaseGate = Invoke-Validator -Root $RepositoryRoot -ReleaseBaseline '2.0' `
+        -SkipRunnerPlanExecution
     Assert-FailedWith -Result $releaseGate -Pattern 'not Verified for the 2\.0 release baseline'
 
     New-Item -ItemType Directory -Path $fixtureRoot | Out-Null
@@ -71,22 +80,73 @@ try {
 
     $missingRow = $controlledMatrix -replace '(?m)^\| REQ-0014\.001 .+\r?\n', ''
     Set-Content -NoNewline -LiteralPath $matrixPath -Value $missingRow
-    Assert-FailedWith -Result (Invoke-Validator -Root $fixtureRoot) -Pattern 'REQ-0014\.001 must have exactly one'
+    Assert-FailedWith -Result (Invoke-Validator -Root $fixtureRoot -SkipRunnerPlanExecution) -Pattern 'REQ-0014\.001 must have exactly one'
 
     $duplicateRow = [regex]::Match(
         $controlledMatrix,
         '(?m)^\| REQ-0014\.001 .+$'
     ).Value
     Set-Content -NoNewline -LiteralPath $matrixPath -Value ($controlledMatrix + "`n" + $duplicateRow + "`n")
-    Assert-FailedWith -Result (Invoke-Validator -Root $fixtureRoot) -Pattern 'Duplicate WPM 2\.0 traceability rows: REQ-0014\.001'
+    Assert-FailedWith -Result (Invoke-Validator -Root $fixtureRoot -SkipRunnerPlanExecution) -Pattern 'Duplicate WPM 2\.0 traceability rows: REQ-0014\.001'
 
     $verifiedWithoutEvidence = $controlledMatrix -replace (
         '\| REQ-0014\.001 \| TC-0014 \| Automated test and inspection \| Planned \| Not yet produced \|'
     ), '| REQ-0014.001 | TC-0014 | Automated test and inspection | Verified | Not yet produced |'
     Set-Content -NoNewline -LiteralPath $matrixPath -Value $verifiedWithoutEvidence
-    Assert-FailedWith -Result (Invoke-Validator -Root $fixtureRoot) -Pattern 'REQ-0014\.001 is Verified without objective evidence'
+    Assert-FailedWith -Result (Invoke-Validator -Root $fixtureRoot -SkipRunnerPlanExecution) -Pattern 'REQ-0014\.001 is Verified without objective evidence'
 
-    Write-Host 'Traceability validator positive, release-gate, missing-row, duplicate-row, and evidence-state tests passed.'
+    Set-Content -NoNewline -LiteralPath $matrixPath -Value $controlledMatrix
+    $specPath = Join-Path $fixtureRoot 'docs/tc-0014-command-output-and-help.tex'
+    Remove-Item -LiteralPath $specPath
+    Assert-FailedWith -Result (Invoke-Validator -Root $fixtureRoot -SkipRunnerPlanExecution) `
+        -Pattern 'REQ-0014 must have exactly one tc-0014 test specification'
+    Copy-Item -LiteralPath (Join-Path $RepositoryRoot 'docs/tc-0014-command-output-and-help.tex') `
+        -Destination $specPath
+
+    $runnerPath = Join-Path $fixtureRoot 'tests/tc-0014-command-output-and-help.ps1'
+    Remove-Item -LiteralPath $runnerPath
+    Assert-FailedWith -Result (Invoke-Validator -Root $fixtureRoot -SkipRunnerPlanExecution) `
+        -Pattern 'REQ-0014 must have exactly one tc-0014 automated test'
+    Copy-Item -LiteralPath (Join-Path $RepositoryRoot 'tests/tc-0014-command-output-and-help.ps1') `
+        -Destination $runnerPath
+
+    $controlledRunner = Get-Content -Raw -LiteralPath $runnerPath
+    $missingAllocation = $controlledRunner -replace `
+        "(?m)^\s*@\{ Requirement = 'REQ-0014\.001'.*\r?\n", ''
+    Set-Content -NoNewline -LiteralPath $runnerPath -Value $missingAllocation
+    Assert-FailedWith -Result (Invoke-Validator -Root $fixtureRoot -RunnerPlanId '0014') `
+        -Pattern 'TC-0014 runner plan must allocate REQ-0014\.001 exactly once'
+
+    $missingExpected = $controlledRunner -replace `
+        "Expected = 'Every public help path", "ExpectedOmitted = 'Every public help path"
+    Set-Content -NoNewline -LiteralPath $runnerPath -Value $missingExpected
+    Assert-FailedWith -Result (Invoke-Validator -Root $fixtureRoot -RunnerPlanId '0014') `
+        -Pattern 'TC-0014 runner case REQ-0014\.001 has no objective expected result'
+
+    $libraryPath = Join-Path $fixtureRoot 'tests/wpm-2.0-planned-test-lib.ps1'
+    $controlledLibrary = Get-Content -Raw -LiteralPath $libraryPath
+    $missingProfile = $controlledRunner -replace `
+        'if \(\$Describe\)', `
+        ('$null = $plan.Profiles.Remove(''ManualRealEnvironment'')' + "`r`n" + 'if ($Describe)')
+    Set-Content -NoNewline -LiteralPath $runnerPath -Value $missingProfile
+    Assert-FailedWith -Result (Invoke-Validator -Root $fixtureRoot -RunnerPlanId '0014') `
+        -Pattern 'TC-0014 runner description is missing the ManualRealEnvironment profile'
+
+    Set-Content -NoNewline -LiteralPath $runnerPath -Value $controlledRunner
+    $missingEvidencePath = $controlledLibrary -replace `
+        'EvidencePath = "Testing/Evidence', 'EvidencePathOmitted = "Testing/Evidence'
+    Set-Content -NoNewline -LiteralPath $libraryPath -Value $missingEvidencePath
+    Assert-FailedWith -Result (Invoke-Validator -Root $fixtureRoot -RunnerPlanId '0014') `
+        -Pattern 'TC-0014 Fast profile has no evidence path'
+
+    $missingGate = $controlledLibrary -replace `
+        'Gate = \$profileDefinitions\[\$profileName\]', `
+        'GateOmitted = $profileDefinitions[$profileName]'
+    Set-Content -NoNewline -LiteralPath $libraryPath -Value $missingGate
+    Assert-FailedWith -Result (Invoke-Validator -Root $fixtureRoot -RunnerPlanId '0014') `
+        -Pattern 'TC-0014 Fast profile has no release-gate allocation'
+
+    Write-Host 'Traceability validator positive, release-gate, trace-row, evidence-state, planned-artifact, allocation, profile, expected-result, evidence-path, and gate tests passed.'
 }
 finally {
     if (Test-Path -LiteralPath $fixtureRoot) {

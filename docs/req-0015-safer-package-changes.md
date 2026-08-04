@@ -66,7 +66,7 @@ operations and make automation reviewable.
 
 **Method:** Automated test, fault injection, inspection, and demonstration
 
-**References:** Planned TC-0015; `docs/traceability-2.0.md`
+**References:** TC-0015; `docs/traceability-2.0.md`
 
 Planned verification compares filesystem, configuration, trust, cache,
 staging, audit, and process state before and after dry runs; exercises
@@ -100,8 +100,9 @@ that explains why a no-mutation guarantee is infeasible.
 
 Planned allocation is a shared immutable operation-plan model and a mutation
 guard below command dispatch, with command-specific adapters for install,
-remove, upgrade, trust, repository, and configuration operations. TC-0015 will
-provide state-difference and process-invocation evidence. ADR-0013 explicitly
+remove, upgrade, trust, repository, and configuration operations. TC-0015
+defines state-difference and process-invocation verification; its runner
+remains Blocked pending implementation. ADR-0013 explicitly
 excludes persistent operational logging from dry run and package-script effects
 from WPM's transaction boundary. No implementation is claimed by this proposed
 baseline.

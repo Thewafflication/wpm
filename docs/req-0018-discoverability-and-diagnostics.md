@@ -84,7 +84,7 @@ answers.
 
 **Method:** Automated test, schema validation, inspection, and demonstration
 
-**References:** Planned TC-0018; `docs/traceability-2.0.md`
+**References:** TC-0018; `docs/traceability-2.0.md`
 
 Planned verification covers healthy and degraded diagnosis, every required
 remediation, empty and large listings, filters, offline and stale data,
@@ -119,8 +119,9 @@ impact analysis and an explicit versioning decision.
 
 Planned allocation is one read-only query/health model consumed by table and
 versioned machine serializers, with command parsing in the CLI dispatcher and
-metadata-only installed-state readers. TC-0018 will verify selection parity,
-schemas, remediation, ambiguity, redaction, and no mutation. ADR-0010 defines
+metadata-only installed-state readers. TC-0018 defines selection-parity,
+schema, remediation, ambiguity, redaction, matrix, and no-mutation
+verification; its runner remains Blocked pending implementation. ADR-0010 defines
 the `wpm.output.v1` envelope, handled-error behavior, deterministic encoding,
 and schema evolution rule. No implementation is claimed by this proposed
 baseline.

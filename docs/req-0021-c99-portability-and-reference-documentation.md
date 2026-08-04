@@ -73,7 +73,7 @@ that are otherwise easy to violate during the broad 2.0 work.
 **Method:** Compilation, static inspection, automated coverage check, generated
 documentation, and regression test
 
-**References:** Planned TC-0021; `docs/traceability-2.0.md`
+**References:** TC-0021; `docs/traceability-2.0.md`
 
 Planned verification uses a strict C99 compiler configuration, a platform
 dependency boundary check, supported Windows builds/tests on x86, x64, and
@@ -108,6 +108,7 @@ use of C11-only features in the portable core.
 
 Planned allocation is a portable-core target plus narrow Windows platform
 modules, strict C99 CI configuration, documentation coverage validator, and
-Doxygen artifact build. TC-0021 will provide compilation, boundary, generation,
-and regression evidence. No portability or documentation-completion claim is
+Doxygen artifact build. TC-0021 defines compilation, boundary, documentation,
+generation, matrix, and regression verification; its runner remains Blocked
+pending implementation. No portability or documentation-completion claim is
 made by this proposed baseline.

@@ -80,7 +80,7 @@ the same validators used to consume it.
 
 **Method:** Automated test, negative test, inspection, and demonstration
 
-**References:** Planned TC-0017; `docs/traceability-2.0.md`
+**References:** TC-0017; `docs/traceability-2.0.md`
 
 Planned verification covers initialization conflicts, corrupt and duplicate
 packages, insufficient space, read-only targets, deterministic indexes,
@@ -117,7 +117,8 @@ shall create and verify the directory tree that the utility consumes.
 
 Planned allocation is a repository-authoring module layered over existing
 archive, metadata, signing, and transport-neutral repository validation. The
-CLI dispatcher will expose four subcommands, and TC-0017 will provide atomicity,
-signing, validation, and removable-copy evidence. ADR-0012 keeps the writer
+CLI dispatcher will expose four subcommands. TC-0017 defines atomicity,
+signing, validation, matrix, and removable-copy verification; its runner
+remains Blocked pending implementation. ADR-0012 keeps the writer
 local-only and generated version-1 indexes deterministic and locator-neutral.
 No implementation is claimed by this proposed baseline.

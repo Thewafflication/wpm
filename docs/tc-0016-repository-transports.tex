@@ -1,0 +1,22 @@
+\documentclass[letterpaper]{article}
+\usepackage[letterpaper,margin=1in]{geometry}
+\input{wsp/testing/test-case-library.tex}
+\begin{document}
+\def\TCID{TC-0016}
+\def\TCTitle{Repository transports}
+\def\TCPurpose{Verify REQ-0016 transport-neutral version-1 repositories across local, removable, optical, SMB, HTTPS, and opted-in HTTP sources without weakening trust or cache integrity.}
+\def\TCPriority{\TCPriorityHigh}
+\def\TCRequirementRef{REQ-0016.001 through REQ-0016.008}
+\def\TCDesignRef{ADR-0011, ADR-0005, and DFS threats WPM-THR-013 and WPM-THR-014}
+\def\TCFeatureRef{Typed locator/parser, read-only provider interface, cache/trust integration, and \texttt{tests/tc-0016-repository-transports.ps1}}
+\def\TCTestTechnique{Interface, syntax, equivalence-partition, classification-tree, decision-table, state-transition, data-flow security, and fault-injection testing. Coverage crosses every provider with valid/invalid trust and availability states.}
+\def\TCPreconditions{The applicable CP-03 implementation is accepted; test repositories use version-1 layout and test-only signing identities; managed environment access is authorized.}
+\def\TCEnvironment{Fast mock providers; native x86, x64, and ARM64 Windows; bounded transport faults; managed SMB and HTTP/TLS endpoints; controlled USB and read-only optical media.}
+\def\TCAssumptions{Mocked deterministic provider behavior does not substitute for required real SMB, removable, optical, or network-policy evidence.}
+\def\TCInputData{Absolute local/drive/UNC/HTTPS/HTTP locators; URL-significant local paths; unsupported, relative, ambiguous, device, traversal, redirect, and escaping inputs; valid/tampered/unsigned identities; absent, changed, disconnected, timed-out, and partial sources.}
+\def\TCInitialState{Create isolated configuration/cache and a known valid prior cache; make source trees read-only where applicable; record locator/media identity.}
+\def\TCProcedure{\par\begin{enumerate}\item Exercise common logical repository, local/read-only, policy, trust, locator identity, and unsafe-input cases for REQ-0016.001, .002, .004, .005, .006, and .008.\item Inject loss, substitution, content change, timeout, redirect, and partial reads for .007.\item Execute native filesystem/provider coverage and managed SMB authentication/disconnect, HTTP/TLS policy, USB removal/replacement, and optical read-only demonstrations for .002 through .004 and .007.\item Inspect source/cache/configuration before and after and validate secret redaction.\end{enumerate}}
+\def\TCExpectedResult{Every provider preserves version-1 selection/signature/trust rules; read-only media is never modified; HTTP is origin-scoped and opt-in; failures preserve prior cache and safe state; locators remain distinguishable but secret-safe; unsafe locators fail closed. Every required profile reports Pass.}
+\def\TCPostConditions{Remove disposable endpoints and roots without modifying physical read-only media; retain controlled evidence under \texttt{Testing/Evidence/2.0/<source-revision>/TC-0016/<profile>/<architecture>/}.}
+\TCTemplate
+\end{document}

@@ -91,7 +91,7 @@ on an unreviewable collection of passing jobs.
 **Method:** Automated architecture-matrix test, inspection, demonstration,
 release-readiness review, and release-record review
 
-**References:** Planned TC-0022; `docs/traceability-2.0.md`; WSP Release
+**References:** TC-0022; `docs/traceability-2.0.md`; WSP Release
 Readiness and Release Record templates
 
 Planned verification executes bootstrap/self-upgrade and documented journeys,
@@ -128,6 +128,7 @@ required gate into verified evidence.
 
 Planned allocation is release documentation, architecture-specific bootstrap
 and prior-stable-upgrade runners, artifact validators, controlled readiness and
-release records, and a retrospective record. TC-0022 will aggregate the
-journey and record checks without replacing their underlying evidence. No
+release records, and a retrospective record. TC-0022 defines aggregation of
+journey, matrix, environmental, trust, and record checks without replacing
+their underlying evidence; its runner remains Blocked pending implementation. No
 release-readiness or completion claim is made by this proposed baseline.

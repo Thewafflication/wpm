@@ -1,0 +1,22 @@
+\documentclass[letterpaper]{article}
+\usepackage[letterpaper,margin=1in]{geometry}
+\input{wsp/testing/test-case-library.tex}
+\begin{document}
+\def\TCID{TC-0020}
+\def\TCTitle{Quality testing and resilience}
+\def\TCPurpose{Verify REQ-0020 harness isolation, execution records, corpus control, bounded campaigns, failure preservation/promotion, release blocking, and architecture/environment classification.}
+\def\TCPriority{\TCPriorityHigh}
+\def\TCRequirementRef{REQ-0020.001 through REQ-0020.007}
+\def\TCDesignRef{ADR-0007, \texttt{docs/quality-testing.md}, and WSP-TEST-0005 through WSP-TEST-0015}
+\def\TCFeatureRef{Quality harness, corpus metadata, manual/nightly/prerelease workflows, completion record, and \texttt{tests/tc-0020-quality-testing-and-resilience.ps1}}
+\def\TCTestTechnique{Harness self-test, schema, classification-tree, boundary-value, fault-injection, state-transition, decision-table, and configuration testing.}
+\def\TCPreconditions{The applicable CP-07 harness is accepted; versioned test-only corpus and disposable execution environment exist.}
+\def\TCEnvironment{Fast deterministic harness self-tests; native architecture smoke runs; bounded manual/nightly/prerelease campaigns; controlled real transport/media environments.}
+\def\TCAssumptions{Quality campaigns complement but do not replace deterministic requirement tests; production data and keys are prohibited.}
+\def\TCInputData{Allowed and forbidden roots; complete/incomplete execution records; every corpus class and malformed metadata; minimum/maximum/exceeded resource bounds; synthetic Pass/Fail/Blocked/Inconclusive/Not-run results; failing/minimized/promoted/rerun chains; native/emulated/build/manual environment labels.}
+\def\TCInitialState{Provision a disposable root with test-only keys/data, empty evidence destination, controlled seed, and monitored resource bounds.}
+\def\TCProcedure{\par\begin{enumerate}\item Self-test isolation, record schema, and corpus metadata for REQ-0020.001 through .003.\item Seed and exceed each bound, require controlled termination, and verify cleanup for .004.\item Create a synthetic failure-to-triage-to-minimization-to-regression-to-rerun chain and prove preservation for .005.\item Evaluate synthetic completion records containing each status/finding state for .006.\item Validate architecture/environment metadata and controlled manual evidence for .007, then execute required bounded release-candidate campaigns.\end{enumerate}}
+\def\TCExpectedResult{Forbidden state is rejected; records/corpus are complete and secret-safe; bounds cannot hang or leak the host; failures remain immutable and linked; every required non-Pass or unknown finding blocks; architecture claims match execution. Required completion-record entries all report Pass for release.}
+\def\TCPostConditions{Clean disposable processes/data while retaining original failures, completion records, and reports under \texttt{Testing/Evidence/2.0/<source-revision>/TC-0020/<profile>/<architecture>/}.}
+\TCTemplate
+\end{document}

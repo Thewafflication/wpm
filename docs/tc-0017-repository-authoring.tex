@@ -1,0 +1,22 @@
+\documentclass[letterpaper]{article}
+\usepackage[letterpaper,margin=1in]{geometry}
+\input{wsp/testing/test-case-library.tex}
+\begin{document}
+\def\TCID{TC-0017}
+\def\TCTitle{Repository authoring}
+\def\TCPurpose{Verify REQ-0017 deterministic initialization, validated atomic population/indexing, protected repository signing, read-only verification, shared plan/dry-run behavior, and locator-neutral media journeys.}
+\def\TCPriority{\TCPriorityHigh}
+\def\TCRequirementRef{REQ-0017.001 through REQ-0017.008}
+\def\TCDesignRef{ADR-0012, ADR-0013, ADR-0002, and ADR-0005}
+\def\TCFeatureRef{Local repository writer, validator/indexer/signer, version-1 reader, and \texttt{tests/tc-0017-repository-authoring.ps1}}
+\def\TCTestTechnique{State-transition, cause-effect, fault-injection, combinatorial determinism, classification-tree, state-difference, use-case, and scenario testing.}
+\def\TCPreconditions{The applicable CP-04 implementation is accepted; test-only package and repository-signing keys are authorized; no production key is used.}
+\def\TCEnvironment{Fast disposable repositories; native x86, x64, and ARM64; bounded fault/full-disk/race cases; protected-key environment; USB or optical-mastering/read-only demonstration.}
+\def\TCAssumptions{External optical mastering may copy the verified directory tree but cannot alter controlled content.}
+\def\TCInputData{Empty/reusable/conflicting roots; valid, corrupt, duplicate, ambiguous, malicious-path, untrusted, and oversized archives; valid/wrong/missing keys; interrupted replacement; tampered, stale, unindexed, and read-only repositories.}
+\def\TCInitialState{Create isolated authoring and consumer roots, record earlier valid indexes/packages, and protect test key material outside repository/evidence trees.}
+\def\TCProcedure{\par\begin{enumerate}\item Exercise deterministic initialization and validated atomic add/index behavior for REQ-0017.001 through .003.\item Test repository-scoped signing and secret handling for .004 and exhaustive read-only findings for .005.\item Compare plan/dry-run and verify before/after state for .006.\item Copy the complete tree, make it read-only, and execute author-sign-verify-copy-configure-update-install scenarios for .007 and .008 on the matrix and controlled media.\item Inject interruption, full disk, races, links, and tampering and retain failures.\end{enumerate}}
+\def\TCExpectedResult{No unapproved overwrite or partial valid-looking artifact occurs; indexes are deterministic and atomic; signing authority is scoped and secret-safe; verification is read-only and complete; copied media has no host dependency and completes the documented journey. Every required profile reports Pass.}
+\def\TCPostConditions{Clear test-only key material, remove disposable writable roots, and retain evidence under \texttt{Testing/Evidence/2.0/<source-revision>/TC-0017/<profile>/<architecture>/}.}
+\TCTemplate
+\end{document}

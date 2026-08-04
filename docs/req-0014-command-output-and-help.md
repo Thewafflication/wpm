@@ -87,7 +87,7 @@ from drifting as new 2.0 commands are added.
 
 **Method:** Automated test, inspection, and demonstration
 
-**References:** Planned TC-0014; `docs/traceability-2.0.md`
+**References:** TC-0014; `docs/traceability-2.0.md`
 
 Planned verification covers every public help path, redirected and interactive
 output, color selection, semantic classes, lifecycle progress, verbose secret
@@ -122,6 +122,7 @@ requirement-change process.
 
 Planned allocation is a shared presentation/logging layer used by command,
 archive, repository, signing, trust, initialization, and upgrade code; TC-0014
-will provide command-level automated verification. ADR-0010 fixes the event,
+defines the controlled profiles and objective command-level verification. Its
+runner remains Blocked pending implementation. ADR-0010 fixes the event,
 renderer, redaction, and machine-envelope boundaries. No 2.0 runtime
 implementation or verification evidence is claimed by this proposed baseline.

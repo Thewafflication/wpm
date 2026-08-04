@@ -1,0 +1,22 @@
+\documentclass[letterpaper]{article}
+\usepackage[letterpaper,margin=1in]{geometry}
+\input{wsp/testing/test-case-library.tex}
+\begin{document}
+\def\TCID{TC-0022}
+\def\TCTitle{Release experience and readiness}
+\def\TCPurpose{Verify REQ-0022 migration/release/support documentation, native bootstrap and prior-stable upgrade journeys, exact release trust/evidence gates, controlled readiness/publication records, and retrospective follow-through.}
+\def\TCPriority{\TCPriorityHigh}
+\def\TCRequirementRef{REQ-0022.001 through REQ-0022.009}
+\def\TCDesignRef{Project process Release Readiness/Release Record templates and accepted release/trust ADRs}
+\def\TCFeatureRef{Migration, release, support, workflow, artifact validators, controlled records, and \texttt{tests/tc-0022-release-experience-and-readiness.ps1}}
+\def\TCTestTechnique{Checklist, use-case/example, scenario, state-transition, configuration, cryptographic inspection, record-schema, decision-table, and process review.}
+\def\TCPreconditions{All dependent REQ-0014 through REQ-0021 implementations and gates are accepted; a separately authorized 2.0.0 release candidate and immediately previous supported stable release exist.}
+\def\TCEnvironment{Fast document/example checks; native x86, x64, and ARM64 isolated bootstrap/upgrade; completed quality evidence; protected signing/scanning/provenance environment; accountable manual approvals.}
+\def\TCAssumptions{This test baseline authorizes no tag, signing, publication, push, or external mutation; those require separate release approval.}
+\def\TCInputData{Migration/release/support/user artifacts; every documented journey; prior-stable signed packages; candidate executables/packages/indexes/signatures/resources; Authenticode/timestamp, Defender, provenance, digests; Pass and each non-Pass record fixture; readiness, release, exception, retrospective, and improvement records.}
+\def\TCInitialState{Identify exact source, WSP, requirements, dependency/toolchain, artifact, specification, and prior-release baselines; isolate install/upgrade data roots and protect release credentials.}
+\def\TCProcedure{\par\begin{enumerate}\item Validate migration, release notes/examples, and support/user content against the executable and limitations for REQ-0022.001 through .003.\item Execute bootstrap, prior-stable self-upgrade, failure/recovery, diagnosis, inspection, and every documented journey natively on x86, x64, and ARM64 for .004 and .005.\item Verify command safety, dependent quality/recovery results, exact artifacts, signatures, timestamp, scan, provenance, and digests for .006.\item Validate readiness and release records against exact identities and every non-Pass decision for .007 and .008.\item Review the controlled retrospective/improvement record for .009.\end{enumerate}}
+\def\TCExpectedResult{Documentation agrees with evidence; every applicable native journey passes; all safety, recovery, quality, artifact, signing, scanning, provenance, and digest gates pass; readiness contains no required non-Pass; publication and retrospective records are complete and approved. Otherwise release remains blocked.}
+\def\TCPostConditions{Preserve exact release-candidate and approval evidence under \texttt{Testing/Evidence/2.0/<source-revision>/TC-0022/<profile>/<architecture>/}; do not publish or mutate external release state as part of this planned baseline.}
+\TCTemplate
+\end{document}

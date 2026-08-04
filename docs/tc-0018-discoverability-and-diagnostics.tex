@@ -1,0 +1,22 @@
+\documentclass[letterpaper]{article}
+\usepackage[letterpaper,margin=1in]{geometry}
+\input{wsp/testing/test-case-library.tex}
+\begin{document}
+\def\TCID{TC-0018}
+\def\TCTitle{Discoverability and diagnostics}
+\def\TCPurpose{Verify REQ-0018 read-only health, list, available, show, filtering, ambiguity, wpm.output.v1, parity, and redaction behavior.}
+\def\TCPriority{\TCPriorityHigh}
+\def\TCRequirementRef{REQ-0018.001 through REQ-0018.009}
+\def\TCDesignRef{ADR-0008, ADR-0010, and the DFS output/redaction boundary}
+\def\TCFeatureRef{Shared query/health model, human and JSON renderers, installed/repository/audit/recovery readers, and \texttt{tests/tc-0018-discoverability-and-diagnostics.ps1}}
+\def\TCTestTechnique{Classification-tree, decision-table, equivalence-partition, combinatorial, use-case, syntax/schema, state-difference, and data-flow security testing.}
+\def\TCPreconditions{The applicable CP-05 implementation is accepted; documented wpm.output.v1 schema and controlled state fixtures exist.}
+\def\TCEnvironment{Fast isolated Windows CI; native x86, x64, and ARM64 redirection/UTF-8 matrix; bounded large/hostile result quality cases; controlled usability review.}
+\def\TCAssumptions{Human presentation is not a field-level API; semantic parity is compared through shared query identities and selection results.}
+\def\TCInputData{Healthy/degraded/multiple-failure health; empty/large/corrupt/offline/stale/prerelease/multi-architecture/multi-repository states; all valid/invalid filter combinations; ambiguous selectors; secret-bearing identities and invalid encoding.}
+\def\TCInitialState{Populate isolated installed, repository, cache, trust, audit, and recovery roots; snapshot all state before queries.}
+\def\TCProcedure{\par\begin{enumerate}\item Test health coverage and remediations for REQ-0018.001 and .002.\item Test installed/available lists, filters, show, and ambiguity for .003 through .007.\item Parse and schema-validate redirected UTF-8 JSON, ordering, null/absence, streams, and exits for .008 on every architecture.\item Compare human/JSON query identities, run secret/injection/large-result cases, and prove no state change for .009 and all read-only commands.\end{enumerate}}
+\def\TCExpectedResult{Required health and remediation are complete; selection/filtering is deterministic; invalid or ambiguous state is explicit; JSON is one clean deterministic schema document; human and machine selection agrees; protected data is absent; every snapshot is unchanged. Every required profile reports Pass.}
+\def\TCPostConditions{Remove disposable roots and retain schema fixtures/results under \texttt{Testing/Evidence/2.0/<source-revision>/TC-0018/<profile>/<architecture>/}.}
+\TCTemplate
+\end{document}

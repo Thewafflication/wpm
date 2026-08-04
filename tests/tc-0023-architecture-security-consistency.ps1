@@ -1,13 +1,40 @@
 param(
-    [Parameter(Mandatory = $true)]
     [string]$WpmExe,
 
     [string]$EvidenceTex,
 
-    [switch]$NoFailOnFailure
+    [switch]$NoFailOnFailure,
+
+    [switch]$Describe
 )
 
 $ErrorActionPreference = 'Stop'
+$plannedTestLibrary = Join-Path $PSScriptRoot 'wpm-2.0-planned-test-lib.ps1'
+if ($Describe) {
+    . $plannedTestLibrary
+    $cases = @(
+        @{ Requirement='REQ-0023.001'; Technique='requirements-based static'; Profile='Fast'; Expected='Every accepted predecessor ADR has an explicit disposition.' },
+        @{ Requirement='REQ-0023.002'; Technique='structure-based static'; Profile='Fast'; Expected='Every new ADR contains required relationships and non-goals.' },
+        @{ Requirement='REQ-0023.003'; Technique='classification-tree static'; Profile='Fast'; Expected='DFS assets, boundaries, threats, controls, verification, and risks are complete.' },
+        @{ Requirement='REQ-0023.004'; Technique='bidirectional trace inspection'; Profile='Fast'; Expected='Requirements reference governing ADRs and scoped 1.x supersession.' },
+        @{ Requirement='REQ-0023.005'; Technique='negative mutation fixture'; Profile='Fast'; Expected='Every architecture/security omission and changed WSP pin is rejected.' },
+        @{ Requirement='REQ-0023.006'; Technique='negative mutation fixture'; Profile='Fast'; Expected='Every missing or incomplete planned specification, runner, allocation, profile, expected result, evidence path, or gate is rejected.' }
+    )
+    $rationales = @{
+        Fast='Deterministic static and negative-fixture validation is architecture-independent.'
+        PlatformMatrix='Supporting execution on each architecture confirms the PowerShell/static gate remains portable.'
+        Quality='Not required: bounded negative fixtures exhaust the identified baseline omissions in Fast.'
+        ManualRealEnvironment='Not required: no product, physical media, network, secret, or operator observation is involved.'
+        ReleaseGate='The exact merge/release baseline reruns TC-0023 and traceability validation in CI.'
+    }
+    $plan = New-Wpm20PlannedTestPlan 'TC-0023' 'REQ-0023' `
+        'Architecture, security, and planned-test consistency' $cases $rationales `
+        @('Fast', 'ReleaseGate')
+    $plan.ExecutionState = 'Implemented'
+    Write-Wpm20PlannedTestPlan $plan
+    exit 0
+}
+if (-not $WpmExe) { throw 'WpmExe is required unless -Describe is used.' }
 $WpmExe = (Resolve-Path -LiteralPath $WpmExe).Path
 . (Join-Path $PSScriptRoot 'wpm-test-lib.ps1')
 
@@ -22,6 +49,7 @@ $controlledPaths = @(
     'docs/adr-0012-repository-authoring-and-index-signing.md',
     'docs/adr-0013-operation-plans-dry-run-and-recovery.md',
     'docs/change-impact-2.0-architecture-and-security.md',
+    'docs/change-impact-2.0-test-allocation-baseline.md',
     'docs/dfs.md',
     'docs/req-0014-command-output-and-help.md',
     'docs/req-0015-safer-package-changes.md',
@@ -30,6 +58,8 @@ $controlledPaths = @(
     'docs/req-0018-discoverability-and-diagnostics.md',
     'docs/req-0019-recovery-and-lifecycle.md',
     'docs/req-0023-architecture-and-security-consistency.md',
+    'docs/ts-0001-test-strategy.md',
+    'docs/work-plan-2.0.md',
     'docs/traceability-2.0.md',
     'documentation/documentation-manifest.json'
 )
@@ -145,6 +175,16 @@ function Assert-ArchitectureBaseline {
         'docs/adr-0012-repository-authoring-and-index-signing.md',
         'docs/adr-0013-operation-plans-dry-run-and-recovery.md',
         'docs/req-0023-architecture-and-security-consistency.md',
+        'docs/change-impact-2.0-test-allocation-baseline.md',
+        'docs/tc-0014-command-output-and-help.tex',
+        'docs/tc-0015-safer-package-changes.tex',
+        'docs/tc-0016-repository-transports.tex',
+        'docs/tc-0017-repository-authoring.tex',
+        'docs/tc-0018-discoverability-and-diagnostics.tex',
+        'docs/tc-0019-recovery-and-lifecycle.tex',
+        'docs/tc-0020-quality-testing-and-resilience.tex',
+        'docs/tc-0021-c99-portability-and-reference-documentation.tex',
+        'docs/tc-0022-release-experience-and-readiness.tex',
         'docs/tc-0023-architecture-security-consistency.tex'
     )) {
         Assert-Contains -Text $Text -Path $manifest `
@@ -155,6 +195,25 @@ function Assert-ArchitectureBaseline {
     Assert-Contains -Text $Text -Path 'docs/traceability-2.0.md' `
         -Pattern '(?m)^\| REQ-0023\.005 \| TC-0023 \|' `
         -Description 'REQ-0023 bidirectional traceability'
+    Assert-Contains -Text $Text `
+        -Path 'docs/req-0023-architecture-and-security-consistency.md' `
+        -Pattern '(?m)^\*\*REQ-0023\.006\*\*$' `
+        -Description 'the planned-test baseline requirement'
+    foreach ($term in @(
+        'wpm.test-plan.v1',
+        'Fast',
+        'PlatformMatrix',
+        'Quality',
+        'ManualRealEnvironment',
+        'ReleaseGate',
+        'Testing/Evidence/2.0/<source-revision>/<TC>/<profile>/<architecture>/'
+    )) {
+        Assert-Contains -Text $Text -Path 'docs/ts-0001-test-strategy.md' `
+            -Pattern ([regex]::Escape($term)) -Description $term
+    }
+    Assert-Contains -Text $Text -Path 'docs/work-plan-2.0.md' `
+        -Pattern 'The final identifiers are REQ-0014/TC-0014' `
+        -Description 'the final 2.0 REQ/TC allocation record'
 
     if ($WspCommit -ne $expectedWspCommit) {
         throw "The wsp gitlink is $WspCommit, expected $expectedWspCommit."

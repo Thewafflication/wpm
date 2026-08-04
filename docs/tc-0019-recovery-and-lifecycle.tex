@@ -1,0 +1,22 @@
+\documentclass[letterpaper]{article}
+\usepackage[letterpaper,margin=1in]{geometry}
+\input{wsp/testing/test-case-library.tex}
+\begin{document}
+\def\TCID{TC-0019}
+\def\TCTitle{Recovery and lifecycle cleanup}
+\def\TCPurpose{Verify REQ-0019 recovery records, read-only inspection, revalidated retry, conservative cleanup, uninstall/backup guidance, native recovery, failure retention, and honest rollback limits.}
+\def\TCPriority{\TCPriorityHigh}
+\def\TCRequirementRef{REQ-0019.001 through REQ-0019.009}
+\def\TCDesignRef{ADR-0013 and DFS threats WPM-THR-019 and WPM-THR-020}
+\def\TCFeatureRef{Recovery writer/reader, retry planner, cleanup classifier, backup/restore fixtures, and \texttt{tests/tc-0019-recovery-and-lifecycle.ps1}}
+\def\TCTestTechnique{State-transition, lifecycle fault injection, syntax/negative, classification-tree, security error-guessing, scenario, configuration, decision-table, and checklist testing.}
+\def\TCPreconditions{The applicable CP-06 implementation is accepted; fault hooks and disposable WPM-controlled roots exist; destructive-boundary review is authorized.}
+\def\TCEnvironment{Fast isolated Windows CI; native x86, x64, and ARM64 recovery/restore; bounded quality faults/races/links/locks; controlled administrator backup/restore demonstration.}
+\def\TCAssumptions{Arbitrary package-script effects cannot be universally rolled back and are never represented as WPM-controlled success.}
+\def\TCInputData{Failure at every lifecycle phase; valid/future/malformed/tampered/missing recovery inputs; changed source/trust/state; active/recoverable/evidence/removable/unknown objects; unsafe roots, reparse points, hard links, locks, races; whole and partial restore fixtures.}
+\def\TCInitialState{Create known active and recoverable state beneath explicit test roots, record canonical identities and before snapshots, and isolate preserved-failure storage.}
+\def\TCProcedure{\par\begin{enumerate}\item Inject every failure phase and validate wpm.recovery.v1 content/actions for REQ-0019.001.\item Exercise read-only inspection and revalidated retry transitions for .002 and .003.\item Test cleanup classification, plan, dry run, confirmation, idempotence, and deletion exclusions/races for .004 and .005.\item Inspect uninstall and backup/restore guidance and execute whole-state restore for .006 and .007.\item Run native architecture recovery while preserving failure/correction/rerun links and validate external-state warnings for .008 and .009.\end{enumerate}}
+\def\TCExpectedResult{Records are atomic, complete, versioned, and secret-safe; inspection never mutates; retry never blindly replays; cleanup deletes only revalidated allow-listed removable descendants; active/recovery/evidence state survives; restore validates; original failures remain; no universal rollback is claimed. Every required profile reports Pass.}
+\def\TCPostConditions{Remove only classified disposable test state; preserve required failing and rerun evidence under \texttt{Testing/Evidence/2.0/<source-revision>/TC-0019/<profile>/<architecture>/}.}
+\TCTemplate
+\end{document}

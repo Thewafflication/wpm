@@ -1,0 +1,22 @@
+\documentclass[letterpaper]{article}
+\usepackage[letterpaper,margin=1in]{geometry}
+\input{wsp/testing/test-case-library.tex}
+\begin{document}
+\def\TCID{TC-0014}
+\def\TCTitle{Command output and help}
+\def\TCPurpose{Verify REQ-0014 help, presentation, color, progress, verbose, logging, invalid-input, and package-script output contracts without treating human prose as a machine interface.}
+\def\TCPriority{\TCPriorityHigh}
+\def\TCRequirementRef{REQ-0014.001 through REQ-0014.008}
+\def\TCDesignRef{ADR-0010 and the protected-data/logging boundaries in \texttt{docs/dfs.md}}
+\def\TCFeatureRef{Shared command-event renderers, public help, logging, and \texttt{tests/tc-0014-command-output-and-help.ps1}}
+\def\TCTestTechnique{Requirements-based use-case, classification-tree, decision-table, equivalence-partition, state-transition, and security error-guessing techniques. Coverage includes every public command, semantic class, color/TTY decision, lifecycle phase, invalid-input class, and script stream.}
+\def\TCPreconditions{The applicable CP-01 implementation is accepted; controlled command/help inventory and secret-bearing test-only values exist; no production credentials are used.}
+\def\TCEnvironment{Fast isolated Windows CI; native x86, x64, and ARM64 Debug/Release matrix; bounded quality fixtures; and a controlled genuine Windows console demonstration.}
+\def\TCAssumptions{Human wording may evolve; stable assertions use semantic events, documented labels, exit status, stream boundaries, and the machine contract.}
+\def\TCInputData{Every command help path; all semantic classes and lifecycle phases; color values and TTY/redirection states; invalid command/option/operand/value partitions; multiline, control-character, impersonation, large, and secret-bearing script/log fixtures.}
+\def\TCInitialState{Use isolated configuration, logs, package roots, and output capture beneath a test-specific temporary root; record a before-state snapshot.}
+\def\TCProcedure{\par\begin{enumerate}\item Run fast help, semantic-class, progress, invalid-input, package-boundary, log, and redaction cases for REQ-0014.001, .002, .004, .005, .006, .007, and .008.\item Execute the color/TTY/logging decision table on native x86, x64, and ARM64 with interactive and redirected streams for REQ-0014.003 and .006.\item Run bounded hostile and large-output quality cases and inspect genuine console accessibility.\item Validate unchanged state where required and generate one controlled result per profile.\end{enumerate}}
+\def\TCExpectedResult{Every help example parses; all semantic and final results are unambiguous; color and control sequences follow policy; redirected output is bounded and line-oriented; verbose/log output is additive, structured, and secret-safe; invalid input fails narrowly; package text cannot become a WPM result. Every required profile reports Pass.}
+\def\TCPostConditions{Remove disposable state. Retain results under \texttt{Testing/Evidence/2.0/<source-revision>/TC-0014/<profile>/<architecture>/}; retain failures independently from reruns.}
+\TCTemplate
+\end{document}

@@ -1,0 +1,22 @@
+\documentclass[letterpaper]{article}
+\usepackage[letterpaper,margin=1in]{geometry}
+\input{wsp/testing/test-case-library.tex}
+\begin{document}
+\def\TCID{TC-0021}
+\def\TCTitle{C99 portability and reference documentation}
+\def\TCPurpose{Verify REQ-0021 strict C99 portable-core compilation, narrow Windows boundaries, failing CI fixtures, complete Doxygen contracts, warning-free reference generation, and behavior/security regression.}
+\def\TCPriority{\TCPriorityHigh}
+\def\TCRequirementRef{REQ-0021.001 through REQ-0021.007}
+\def\TCDesignRef{WSP C source-style profile and accepted WPM ADR/DFS interfaces}
+\def\TCFeatureRef{Portable-core target, Windows platform helpers, strict build/static validators, Doxygen build, and \texttt{tests/tc-0021-c99-portability-and-reference-documentation.ps1}}
+\def\TCTestTechnique{Static analysis, structure-based testing, negative compilation/fault seeding, checklist/schema inspection, negative documentation fixtures, and configuration regression testing.}
+\def\TCPreconditions{The applicable CP-08 implementation is accepted; controlled C99 compiler, supported Windows toolchains, Doxygen configuration, and negative fixtures exist.}
+\def\TCEnvironment{Fast strict C99/documentation CI; native x86, x64, and ARM64 Debug/Release; bounded static-analysis quality profile; maintainer contract inspection.}
+\def\TCAssumptions{Windows remains the supported runtime; portable-core verification creates no non-Windows support claim.}
+\def\TCInputData{All project-owned C/headers and build lists; seeded C11 construct, Windows include/type, missing-source, warning, missing Doxygen field/entity, malformed reference, and broken-link fixtures; existing package/trust/path/output regression suite.}
+\def\TCInitialState{Use a clean generated build/documentation root and inventory all portable/platform sources and public/security-sensitive entities.}
+\def\TCProcedure{\par\begin{enumerate}\item Compile and statically inspect the portable core and require each seeded failure for REQ-0021.001 through .003.\item Validate every public entity and security-sensitive contract field and inspect semantic adequacy for .004 and .005.\item Generate reference documentation with warnings as errors and exercise broken fixtures for .006.\item Run the full supported native regression matrix and compare observable formats/security behavior for .007.\end{enumerate}}
+\def\TCExpectedResult{Portable code is C99-only and platform-clean; seeded violations fail the intended gate; required documentation coverage and security contracts are complete; reference generation is warning-free; native regressions preserve formats, trust, containment, bounds, cleanup, and redaction. Every required profile reports Pass.}
+\def\TCPostConditions{Remove generated scratch output and retain compiler/static/documentation/matrix evidence under \texttt{Testing/Evidence/2.0/<source-revision>/TC-0021/<profile>/<architecture>/}.}
+\TCTemplate
+\end{document}

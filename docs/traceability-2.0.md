@@ -96,11 +96,16 @@ every row that is not `Verified` or lacks objective evidence.
 | REQ-0023.003 | TC-0023 | Automated DFS coverage test | Planned | CI evidence not yet produced |
 | REQ-0023.004 | TC-0023 | Automated bidirectional reference test | Planned | CI evidence not yet produced |
 | REQ-0023.005 | TC-0023 | Automated positive and negative fixture test | Planned | CI evidence not yet produced |
+| REQ-0023.006 | TC-0023 | Automated planned-test baseline and negative fixture test | Planned | CI evidence not yet produced |
 
-TC-0014 through TC-0022 are planned identifiers, not completed test
-specifications or executions. Their controlled specifications, automated
-runners, non-test verification procedures, and CTest allocation are created
-with implementation slices before a requirement changes from Proposed to
-Accepted or a matrix row changes to Verified. TC-0023 has a controlled
-specification, automated runner, and CTest allocation, but its rows remain
-Planned until retained CI evidence exists for the controlled merge baseline.
+TC-0014 through TC-0022 now have controlled specifications and executable
+runner contracts. Each runner deterministically describes Fast,
+PlatformMatrix, Quality, ManualRealEnvironment, and ReleaseGate allocation and
+returns Blocked rather than producing pass evidence while its product
+implementation remains Proposed. Those runners are not registered as product
+CTest cases until their executable assertions and requirements are Accepted.
+All rows therefore remain Planned and the evidence column honestly records
+that execution evidence has not been produced. TC-0023 has an implemented
+controlled specification, automated runner, traceability-validator coverage,
+and CTest allocation, but its rows remain Planned until retained CI evidence
+exists for the controlled merge baseline.

@@ -99,6 +99,20 @@ and cleanup.
 Test reports shall reference or incorporate the controlled specification and
 shall not maintain a separately edited copy of its procedure.
 
+Proposed 2.0 behavior may have a controlled specification and runner contract
+before implementation. Such a runner shall expose a deterministic
+`-Describe` plan using `wpm.test-plan.v1` and shall return `Blocked`, not Pass,
+when asked to execute an unimplemented profile. It shall not generate release
+evidence. Proposed runtime tests are not registered as ordinary passing CTest
+cases until their implementation and executable assertions are accepted.
+
+The normal traceability gate requires exactly one controlled specification and
+runner contract for each Proposed or Accepted 2.0 requirement. It validates
+the requirement allocation, execution profiles, objective expected results,
+evidence paths, and gates exposed by each runner. The release-baseline gate
+continues to require Accepted requirements, implemented CTest registration,
+Verified rows, and retained objective evidence.
+
 ## 7. Environments and provisioning
 
 CI uses architecture-compatible Windows runners. Each job checks out recursive
@@ -125,6 +139,26 @@ Every applicable entry shall pass its required gates. Equivalence between
 Windows 10 and Windows 11 may be used for architecture-independent behavior
 only when documented with residual compatibility risk; release support claims
 remain governed by `docs/support-policy.md`.
+
+### 8.1 WPM 2.0 execution profiles
+
+Every TC-0014 through TC-0022 plan defines all five profiles, states whether
+the profile is required, and gives a rationale. A profile marked supporting or
+not applicable does not replace another required profile.
+
+| Profile | Purpose | Normal trigger | Gate |
+| --- | --- | --- | --- |
+| Fast | Deterministic isolated tests, schema/static checks, and bounded fixtures | Pull request and branch CI | `pull-request` |
+| PlatformMatrix | Native Debug verification and Release smoke coverage on x86, x64, and ARM64 | CI and release candidate | `2.0-platform-matrix` |
+| Quality | Bounded endurance, fuzz, malformed-input, fault, race, and resource cases | Manual, nightly, and prerelease | `quality-program` |
+| ManualRealEnvironment | Controlled console, SMB, removable/optical media, protected-key, administrator, usability, or approval evidence that cannot be simulated reliably | Managed environment or accountable review | `environmental-evidence` |
+| ReleaseGate | Aggregation and inspection of exact required evidence without rerunning or reclassifying it | Release candidate | `2.0-release-readiness` |
+
+Fast tests use test-only keys and disposable roots and target completion within
+the pull-request budget. Environmental tests identify the operator, physical
+or managed environment, exact procedure, observation, limitations, and
+approval. Platform claims distinguish native, approved emulated, and build-
+only evidence; build-only evidence cannot satisfy an architecture test.
 
 ## 9. Execution and controlled status
 
@@ -169,6 +203,15 @@ A tagged release shall not be published until:
 The source revision, WSP pin, dependency baseline, test-specification revision,
 and released artifact identities shall be recoverable from the release record.
 
+For WPM 2.0, the feature gates are cumulative: TC-0014 presentation and help;
+TC-0015 plans, confirmation, and dry-run purity; TC-0016 transport and managed-
+environment media/network coverage; TC-0017 authoring/sign/copy/consume;
+TC-0018 read-only queries and `wpm.output.v1`; TC-0019 recovery, destructive
+cleanup, restore, failure retention, and native architectures; TC-0020 quality
+completion; TC-0021 strict C99, reference documentation, and native regression;
+and TC-0022 exact release experience/readiness. A missing required profile or
+environmental record blocks its feature gate and therefore blocks TC-0022.
+
 ## 12. Evidence and reporting
 
 Each execution record shall identify the test and requirement revisions,
@@ -179,6 +222,14 @@ exit status, controlled test status, and diagnostic locations.
 Generated reports summarize coverage, status, environment, unresolved
 deviations, and links or paths to supporting evidence. Report generation shall
 fail on missing, malformed, duplicated, or inconsistent required inputs.
+
+Planned 2.0 evidence uses the controlled convention
+`Testing/Evidence/2.0/<source-revision>/<TC>/<profile>/<architecture>/`.
+An execution record and report, diagnostics, before/after snapshots, fixtures
+or corpus identity, and manual/environmental record are stored beneath that
+root as applicable. CI may publish the same relative hierarchy inside an
+immutable workflow artifact. Placeholder directories and runner descriptions
+are not execution evidence.
 
 ## 13. Evidence retention and integrity
 

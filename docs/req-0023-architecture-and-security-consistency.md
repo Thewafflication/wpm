@@ -43,6 +43,16 @@ artifact, missing bidirectional reference, missing explicit non-goal, incomplete
 accepted-ADR disposition, missing documentation-manifest entry, or modification
 of the pinned `wsp/` gitlink from the adopted baseline.
 
+**REQ-0023.006**
+Automated traceability validation shall require exactly one controlled test
+specification and executable runner contract for every Proposed or Accepted
+WPM 2.0 requirement. It shall reject a runner plan that omits an identified
+subordinate requirement, any Fast, PlatformMatrix, Quality,
+ManualRealEnvironment, or ReleaseGate profile, an objective expected result,
+an evidence path, or a release-gate allocation. A runner for unimplemented
+Proposed behavior shall report Blocked and shall not be registered or reported
+as passing product verification.
+
 ## Rationale
 
 Architecture and security controls span several proposed feature requirements.
@@ -55,25 +65,28 @@ implementation while keeping runtime verification states honestly Planned.
 
 **References:** TC-0023 and `tests/tc-0023-architecture-security-consistency.ps1`
 
-Verified by the controlled test specification and runner, including negative
-fixtures for missing disposition, reference, non-goal, DFS coverage, manifest
-entry, and WSP gitlink identity.
+Verified by the controlled test specification, architecture runner, and
+traceability-validator tests, including negative fixtures for missing
+disposition, reference, non-goal, DFS coverage, manifest entry, WSP gitlink
+identity, planned specification/runner, requirement allocation, profile,
+expected result, evidence path, and gate.
 
 ## Relationships
 
 - **Derived from:** `docs/project-process.md`, `docs/ts-0001-test-strategy.md`,
   WSP-REQM-0005, WSP-PROC-0004, WSP-SEC-0002, and WSP-SEC-0012.
-- **Depends on:** REQ-0014 through REQ-0019, ADR-0001 through ADR-0013, and
-  `docs/dfs.md`.
+- **Depends on:** REQ-0014 through REQ-0022, ADR-0001 through ADR-0013,
+  `docs/dfs.md`, and `docs/ts-0001-test-strategy.md`.
 - **Conflicts with:** None. It adds static baseline verification and changes no
   1.x product format or behavior.
 
 ## Change Impact
 
-This requirement adds documentation and a static test only. It affects the
-documentation manifest, 2.0 traceability, CTest registration, and validation
-time. It does not change product source, command behavior, data formats,
-security permissions, supported architectures, dependencies, or release state.
+This requirement adds documentation and static tests only. It affects the
+documentation manifest, planned-runner inventory, 2.0 traceability, CTest
+registration rules, and validation time. It does not change product source,
+command behavior, data formats, security permissions, supported architectures,
+dependencies, or release state.
 
 ## Tailoring
 
@@ -83,7 +96,7 @@ update before the validator baseline changes.
 ## Implementation Record
 
 Allocated to the four 2.0 ADRs, the updated DFS and requirement relationships,
-the architecture change-impact record, TC-0023, and its PowerShell runner. A
-passing local execution verifies the documentation baseline only; CI remains
+the architecture and test-allocation change-impact records, TC-0023, its
+PowerShell runner, and the positive/negative traceability validator. A passing
+local execution verifies the documentation/test-plan baseline only; CI remains
 required evidence for the controlled merge baseline.
-

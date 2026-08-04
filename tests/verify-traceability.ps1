@@ -2,12 +2,16 @@
 param(
     [string]$RepositoryRoot = (Split-Path -Parent $PSScriptRoot),
     [ValidateSet('', '2.0')]
-    [string]$ReleaseBaseline = ''
+    [string]$ReleaseBaseline = '',
+    [ValidatePattern('^\d{4}$')]
+    [string]$RunnerPlanId = '',
+    [switch]$SkipRunnerPlanExecution
 )
 
 $ErrorActionPreference = 'Stop'
 $docs = Join-Path $RepositoryRoot 'docs'
 $cmake = Get-Content -Raw -LiteralPath (Join-Path $RepositoryRoot 'wpm/CMakeLists.txt')
+$powerShell = (Get-Process -Id $PID).Path
 $failures = [System.Collections.Generic.List[string]]::new()
 $allRequirementIds = [System.Collections.Generic.List[string]]::new()
 $requirementRecords = @{}
@@ -110,10 +114,11 @@ foreach ($id in $requirements) {
         }
     }
     $requiresImplementedTest = $requirementStatus -eq 'Accepted'
-    if ($requiresImplementedTest -and $tex.Count -ne 1) {
+    $requiresControlled20Plan = [int]$id -ge 14
+    if (($requiresImplementedTest -or $requiresControlled20Plan) -and $tex.Count -ne 1) {
         $failures.Add("REQ-$id must have exactly one $slug test specification.")
     }
-    if ($requiresImplementedTest -and $script.Count -ne 1) {
+    if (($requiresImplementedTest -or $requiresControlled20Plan) -and $script.Count -ne 1) {
         $failures.Add("REQ-$id must have exactly one $slug automated test.")
     }
     if ($tex.Count -eq 1) {
@@ -132,6 +137,89 @@ foreach ($id in $requirements) {
     if ($requiresImplementedTest -and
         $cmake -notmatch [regex]::Escape("wpm_add_test_case($testId")) {
         $failures.Add("$testId is not registered with CTest.")
+    }
+    if ($requiresControlled20Plan -and $requirementStatus -eq 'Proposed' -and
+        $cmake -match [regex]::Escape("wpm_add_test_case($testId")) {
+        $failures.Add("$testId is Proposed and must not be registered as passing product verification.")
+    }
+
+    if ($requiresControlled20Plan -and $script.Count -eq 1 -and
+        -not $SkipRunnerPlanExecution -and
+        (-not $RunnerPlanId -or $RunnerPlanId -eq $id)) {
+        $describeOutput = & $powerShell -NoProfile -ExecutionPolicy Bypass `
+            -File $script.FullName -Describe 2>&1 | Out-String
+        $describeExitCode = $LASTEXITCODE
+        if ($describeExitCode -ne 0) {
+            $failures.Add("$testId runner description failed: $($describeOutput.Trim())")
+        } else {
+            try {
+                $plan = $describeOutput | ConvertFrom-Json
+            } catch {
+                $plan = $null
+                $failures.Add("$testId runner description is not valid JSON.")
+            }
+            if ($null -ne $plan) {
+                if ($plan.Schema -ne 'wpm.test-plan.v1') {
+                    $failures.Add("$testId runner description has no wpm.test-plan.v1 schema.")
+                }
+                if ($plan.TestCaseId -ne $testId -or $plan.RequirementId -ne "REQ-$id") {
+                    $failures.Add("$testId runner description has inconsistent requirement or test identity.")
+                }
+                $expectedExecutionState = if ($requirementStatus -eq 'Proposed') { 'Planned' } else { 'Implemented' }
+                if ($plan.ExecutionState -ne $expectedExecutionState) {
+                    $failures.Add("$testId runner description must report $expectedExecutionState, not $($plan.ExecutionState).")
+                }
+                $profileNames = @('Fast', 'PlatformMatrix', 'Quality', 'ManualRealEnvironment', 'ReleaseGate')
+                foreach ($profileName in $profileNames) {
+                    $profile = $plan.Profiles.$profileName
+                    if ($null -eq $profile) {
+                        $failures.Add("$testId runner description is missing the $profileName profile.")
+                        continue
+                    }
+                    if ([string]::IsNullOrWhiteSpace([string]$profile.Rationale)) {
+                        $failures.Add("$testId $profileName profile has no rationale.")
+                    }
+                    if ([string]::IsNullOrWhiteSpace([string]$profile.EvidencePath)) {
+                        $failures.Add("$testId $profileName profile has no evidence path.")
+                    }
+                    if ([string]::IsNullOrWhiteSpace([string]$profile.Gate)) {
+                        $failures.Add("$testId $profileName profile has no release-gate allocation.")
+                    }
+                }
+                $caseRequirementIds = @($plan.Cases | ForEach-Object Requirement)
+                foreach ($subordinateId in $subordinateIds) {
+                    if (@($caseRequirementIds | Where-Object { $_ -eq $subordinateId }).Count -ne 1) {
+                        $failures.Add("$testId runner plan must allocate $subordinateId exactly once.")
+                    }
+                }
+                foreach ($case in @($plan.Cases)) {
+                    if ($case.Requirement -notin $subordinateIds) {
+                        $failures.Add("$testId runner plan references unknown $($case.Requirement).")
+                    }
+                    if ([string]::IsNullOrWhiteSpace([string]$case.Technique)) {
+                        $failures.Add("$testId runner case $($case.Requirement) has no test-design technique.")
+                    }
+                    if ([string]::IsNullOrWhiteSpace([string]$case.Expected)) {
+                        $failures.Add("$testId runner case $($case.Requirement) has no objective expected result.")
+                    }
+                    if ($case.Profile -notin $profileNames) {
+                        $failures.Add("$testId runner case $($case.Requirement) has unknown profile $($case.Profile).")
+                    }
+                }
+            }
+        }
+
+        if ($requirementStatus -eq 'Proposed') {
+            $blockedOutput = & $powerShell -NoProfile -ExecutionPolicy Bypass `
+                -File $script.FullName -ExecutionProfile Fast 2>&1 | Out-String
+            $blockedExitCode = $LASTEXITCODE
+            try { $blockedResult = $blockedOutput | ConvertFrom-Json } catch { $blockedResult = $null }
+            if ($blockedExitCode -ne 2 -or $null -eq $blockedResult -or
+                $blockedResult.Status -ne 'Blocked' -or
+                $blockedResult.TestCaseId -ne $testId) {
+                $failures.Add("$testId Proposed runner must return controlled Blocked status and exit 2 without producing evidence.")
+            }
+        }
     }
 }
 

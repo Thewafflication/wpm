@@ -122,11 +122,13 @@ explicit non-goals, affected requirement back-references, DFS coverage,
 documentation-manifest inclusion, and the WSP gitlink. Negative fixtures prove
 that representative omissions fail.
 
-TC-0014 through TC-0022 and every runtime row remain Planned. Local TC-0023 and
-traceability passes are development evidence only; the exact merge baseline must
-rerun in CI. Native SMB, removable/optical media, HTTP, signing, destructive
-cleanup, recovery fault injection, and x86/x64/ARM64 runtime evidence cannot be
-claimed by this static change.
+TC-0014 through TC-0022 and every runtime row remain Planned. The subsequent
+test-allocation baseline adds controlled specifications and runner contracts
+without product execution or CTest registration. Local TC-0023 and
+traceability passes are development evidence only; the exact merge baseline
+must rerun in CI. Native SMB, removable/optical media, HTTP, signing,
+destructive cleanup, recovery fault injection, and x86/x64/ARM64 runtime
+evidence cannot be claimed by either static change.
 
 ## Security impact
 

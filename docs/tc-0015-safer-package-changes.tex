@@ -1,0 +1,22 @@
+\documentclass[letterpaper]{article}
+\usepackage[letterpaper,margin=1in]{geometry}
+\input{wsp/testing/test-case-library.tex}
+\begin{document}
+\def\TCID{TC-0015}
+\def\TCTitle{Safer package changes}
+\def\TCPurpose{Verify REQ-0015 complete immutable plans, truthful state presentation, safe confirmation, dry-run purity, option rejection, and plan invalidation.}
+\def\TCPriority{\TCPriorityHigh}
+\def\TCRequirementRef{REQ-0015.001 through REQ-0015.006}
+\def\TCDesignRef{ADR-0013 and WSP Annex B native standard-input testing}
+\def\TCFeatureRef{Operation planner, mutation capabilities, confirmation input, package-script/handoff boundaries, and \texttt{tests/tc-0015-safer-package-changes.ps1}}
+\def\TCTestTechnique{Use-case, state-transition, state-difference, decision-table, equivalence-partition, cause-effect, and fault-injection testing. Coverage includes every supported mutating command, response class, mutation class, and identity-sensitive phase.}
+\def\TCPreconditions{The applicable CP-02 implementation is accepted; disposable package/trust/repository/configuration fixtures and test-only scripts exist.}
+\def\TCEnvironment{Fast isolated Windows CI; native x86, x64, and ARM64; bounded fault injection; genuine redirected standard input and controlled Windows console input.}
+\def\TCAssumptions{Package-script external effects are outside WPM rollback, but no package script may run during dry run.}
+\def\TCInputData{Install, remove, upgrade, self-upgrade, trust, repository, and configuration plans; affirmative, negative, empty, EOF, input-error, \texttt{-y}, and \texttt{--yes}; contradictory options; identity/source/trust/state changes at each phase.}
+\def\TCInitialState{Snapshot payloads, records, cache, staging, trust, repository/configuration, logs, audit/recovery, retained artifacts, processes, and handoff state beneath isolated roots.}
+\def\TCProcedure{\par\begin{enumerate}\item Verify plan completeness and planned/active/partial/deferred/final transitions for REQ-0015.001 and .002.\item Execute the full confirmation decision table and prove the selected branch by observable state for .003.\item Compare all before/after state and process invocation for dry-run and rejected combinations under .004 and .005.\item Mutate each identity-sensitive input after planning and require recomputation/new confirmation under .006.\item Repeat applicable cases on every native architecture and preserve injected failures.\end{enumerate}}
+\def\TCExpectedResult{Plans authorize exactly one mutation set; non-affirmative input rejects; bypasses retain the plan; dry run causes zero durable mutation, logging, handoff, or script process; unsupported combinations fail; changed or ambiguous plans cannot execute. Every required profile reports Pass.}
+\def\TCPostConditions{Terminate test-only processes, remove disposable state, and retain profile results under \texttt{Testing/Evidence/2.0/<source-revision>/TC-0015/<profile>/<architecture>/}.}
+\TCTemplate
+\end{document}
