@@ -107,11 +107,22 @@ try {
             'trust add',
             'verify \$archive',
             '& \$setup \$wpm',
+            'Preparing temporary installation workspace',
+            'Detected Windows architecture: \$arch',
             'Checking the latest WPM release',
+            'Downloading WPM release index',
+            'Reading WPM release index',
+            'Selected WPM \$packageVersion for \$arch',
             'Downloading WPM \$packageVersion for \$arch',
+            'Downloading WPM release signing key',
             'Extracting WPM package',
+            'Checking extracted WPM package contents',
             'Validating WPM package',
+            'Establishing temporary trust in the release signing key',
+            'Verifying WPM package signature and contents',
             'Installing WPM',
+            'Starting packaged WPM setup',
+            'Cleaning up temporary installation files',
             'Remove-Item -LiteralPath \$work -Recurse -Force'
         )) {
             if ($bootstrap -notmatch $pattern) { throw "install.cmd is missing bootstrap behavior: $pattern" }
