@@ -8,13 +8,7 @@
 #include "helpers.h"
 
 FILE* wpm_fopen(const char* path, const char* mode) {
-    FILE* file = NULL;
-#ifdef _MSC_VER
-    if (fopen_s(&file, path, mode) != 0) return NULL;
-#else
-    file = fopen(path, mode);
-#endif
-    return file;
+    return fopen(path, mode);
 }
 
 int wpm_get_environment_variable(const char* name, char* result, size_t result_size) {

@@ -1,6 +1,5 @@
 # Windows toolchain using the architecture-specific compiler in TinyCC's
-# multi-architecture Windows package. The x86 preset additionally enables the
-# project's Windows XP compatibility layer.
+# multi-architecture Windows package.
 #
 # Set WPM_TCC_ROOT to use a TinyCC installation outside the repository.
 # Otherwise the locally downloaded out/tools/tcc package is used.

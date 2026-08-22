@@ -3,17 +3,6 @@
 #
 cmake_minimum_required (VERSION 3.10)
 
-# Let CMake select the MSVC runtime per target/configuration when supported.
-if(POLICY CMP0091)
-  cmake_policy(SET CMP0091 NEW)
-endif()
-
-# Enable Hot Reload for MSVC compilers if supported.
-if (POLICY CMP0141)
-  cmake_policy(SET CMP0141 NEW)
-  set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<IF:$<AND:$<C_COMPILER_ID:MSVC>,$<CXX_COMPILER_ID:MSVC>>,$<$<CONFIG:Debug,RelWithDebInfo>:EditAndContinue>,$<$<CONFIG:Debug,RelWithDebInfo>:ProgramDatabase>>")
-endif()
-
 project (wpm C)
 
 include(CTest)
@@ -34,25 +23,11 @@ else()
   set(wpm_arch "${CMAKE_SYSTEM_PROCESSOR}")
 endif()
 
-# Keep the explicitly selected 32-bit XP build usable on the oldest platform
-# and processor it targets.
-# Pentium III provides SSE, but not SSE2.  Current MSVC x86 builds otherwise
-# default to a newer instruction-set baseline, and current linkers otherwise
-# stamp executables with a post-XP subsystem version.
-option(WPM_WINDOWS_XP_COMPAT "Enable Windows XP compatibility workarounds" OFF)
-option(WPM_USE_WCRT "Link TinyCC Windows builds against WCRT" OFF)
-if(WPM_WINDOWS_XP_COMPAT AND NOT (WIN32 AND wpm_arch STREQUAL "x86"))
-  message(FATAL_ERROR "WPM_WINDOWS_XP_COMPAT is supported only by Windows x86 builds")
-endif()
-if(WIN32 AND CMAKE_C_COMPILER_ID STREQUAL "TinyCC" AND NOT WPM_USE_WCRT)
-  message(FATAL_ERROR "TinyCC Windows builds require WPM_USE_WCRT=ON")
+if(WIN32 AND NOT CMAKE_C_COMPILER_ID STREQUAL "TinyCC")
+  message(FATAL_ERROR "WPM Windows builds require TinyCC")
 endif()
 
-if(WPM_USE_WCRT)
-  if(NOT CMAKE_C_COMPILER_ID STREQUAL "TinyCC")
-    message(FATAL_ERROR "WPM_USE_WCRT requires TinyCC")
-  endif()
-
+if(WIN32)
   if(DEFINED WPM_WCRT_ROOT AND NOT "${WPM_WCRT_ROOT}" STREQUAL "")
     file(TO_CMAKE_PATH "${WPM_WCRT_ROOT}" WPM_WCRT_ROOT)
   elseif(DEFINED ENV{WPM_WCRT_ROOT} AND NOT "$ENV{WPM_WCRT_ROOT}" STREQUAL "")
@@ -73,7 +48,7 @@ if(WPM_USE_WCRT)
   endif()
 
   if(NOT WPM_WCRT_ROOT)
-    message(FATAL_ERROR "WCRT 0.9.5 or newer was not found. Install it or set WPM_WCRT_ROOT.")
+    message(FATAL_ERROR "WCRT 1.0.0 or newer was not found. Install it or set WPM_WCRT_ROOT.")
   endif()
 
   set(WPM_WCRT_TARGET_ROOT "${WPM_WCRT_ROOT}/${wpm_arch}")
@@ -91,7 +66,7 @@ if(WPM_USE_WCRT)
     if(NOT EXISTS "${WPM_WCRT_ROOT}/${WPM_WCRT_REQUIRED_FILE}")
       message(FATAL_ERROR
         "The WCRT SDK at ${WPM_WCRT_ROOT} is missing ${WPM_WCRT_REQUIRED_FILE}. "
-        "Install WCRT 0.9.5 or newer.")
+        "Install WCRT 1.0.0 or newer.")
     endif()
   endforeach()
   foreach(WPM_WCRT_REQUIRED_FILE
@@ -101,7 +76,7 @@ if(WPM_USE_WCRT)
     if(NOT EXISTS "${WPM_WCRT_TARGET_ROOT}/${WPM_WCRT_REQUIRED_FILE}")
       message(FATAL_ERROR
         "The WCRT SDK at ${WPM_WCRT_ROOT} has no ${wpm_arch} target file "
-        "${WPM_WCRT_REQUIRED_FILE}. Install WCRT 0.9.5 or newer.")
+        "${WPM_WCRT_REQUIRED_FILE}. Install WCRT 1.0.0 or newer.")
     endif()
   endforeach()
 
@@ -119,29 +94,13 @@ if(WPM_USE_WCRT)
         "${WPM_WCRT_PACKAGE_VERSION_LINE}")
     endif()
   endif()
+  if(NOT WPM_WCRT_VERSION STREQUAL "unknown" AND
+      WPM_WCRT_VERSION VERSION_LESS "1.0.0")
+    message(FATAL_ERROR
+      "WCRT ${WPM_WCRT_VERSION} is too old; WPM requires WCRT 1.0.0 or newer.")
+  endif()
   message(STATUS "WCRT version: ${WPM_WCRT_VERSION}")
   include_directories(BEFORE "${WPM_WCRT_ROOT}/include")
-  add_compile_options(-include "${CMAKE_SOURCE_DIR}/wpm/tcc_support/wcrt_compat.h")
-endif()
-
-if(WPM_WINDOWS_XP_COMPAT)
-  add_definitions(
-    -DWINVER=0x0501
-    -D_WIN32_WINNT=0x0501
-    -DNTDDI_VERSION=0x05010000
-  )
-
-endif()
-
-if(MSVC AND WPM_WINDOWS_XP_COMPAT)
-  # Avoid requiring a separately installed VC/UCRT redistributable on XP.
-  # This initializes MSVC_RUNTIME_LIBRARY on every subsequently created target,
-  # including the bundled static libraries.
-  if(POLICY CMP0091)
-    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-  endif()
-
-  add_compile_options(/arch:SSE)
 endif()
 
 set(WPM_BIN_DIR

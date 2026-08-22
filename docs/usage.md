@@ -327,12 +327,13 @@ automation and testing.
 
 ## Building WPM from source
 
-WPM is a C11 project built with CMake. On Windows, the included presets use
-Visual Studio 2022 and the Microsoft C compiler.
+WPM is a C99 project built with CMake. On Windows, the included presets use
+TinyCC, WCRT 1.0.0 or newer, and Ninja. Microsoft C compiler builds are not
+supported.
 
 ```powershell
 cmake --preset x86-debug
-cmake --build out/build/x86-debug --config Debug
+cmake --build --preset build-x86-debug
 ```
 
 The resulting executable is located under `bin/x86/Debug/`.
@@ -369,7 +370,7 @@ ZIP builds, ZIP installation, and package index signature verification against
 the freshly built executable:
 
 ```powershell
-cmake --build out/build/x86-debug --config Debug --target check
+cmake --build --preset build-x86-debug --target check
 ```
 
 The suite creates uniquely named temporary files and removes them when it
@@ -380,7 +381,7 @@ be uploaded as one build artifact.
 Generate only the LaTeX reports without running the final CTest pass:
 
 ```powershell
-cmake --build out/build/x86-debug --config Debug --target test-reports
+cmake --build --preset build-x86-debug --target test-reports
 ```
 
 Debug verification builds do not produce distributable packages. Signed,
@@ -392,10 +393,10 @@ PDF reports before evaluating the collected test status. This preserves reports
 for failed test runs. Without `pdflatex`, they generate LaTeX reports instead.
 The `test-report-pdfs` target can also be used to request PDFs directly.
 
-### Visual Studio CMake presets
+### CMake presets
 
-Visual Studio exposes the checked-in CMake presets in its configure, build,
-and test dropdowns.
+The checked-in presets provide the supported TinyCC/WCRT configure, build, and
+test entry points.
 
 Useful local presets:
 

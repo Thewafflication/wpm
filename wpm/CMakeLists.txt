@@ -42,15 +42,9 @@ set(wpm_sources
   "${WPM_ICON_SOURCE}"
 )
 
-# TinyCC does not include a Windows resource compiler. The executable remains
-# functional, but this experimental artifact has no embedded version/icon yet.
-if(NOT CMAKE_C_COMPILER_ID STREQUAL "TinyCC")
-  list(APPEND wpm_sources "${WPM_VERSION_RESOURCE}")
-endif()
-
 add_executable(wpm ${wpm_sources})
 
-if(WPM_USE_WCRT)
+if(WIN32)
   # WSP logging uses the host CRT's FILE ABI, which cannot safely exchange
   # streams with WCRT-backed WPM builds.
   target_compile_definitions(wpm PRIVATE WPM_DISABLE_OPERATIONAL_LOG=1)
@@ -100,14 +94,18 @@ set_property(TARGET wpm PROPERTY C_STANDARD_REQUIRED ON)
 set_property(TARGET wpm PROPERTY C_EXTENSIONS OFF)
 
 target_compile_definitions(wpm PRIVATE SODIUM_STATIC WPM_TARGET_ARCH="${wpm_arch}")
-if(WPM_USE_WCRT)
+if(WIN32)
+  target_compile_options(wpm PRIVATE -include time.h)
   target_compile_definitions(wpm PRIVATE
+    # WCRT uses a 64-bit time_t on every architecture. Prevent TinyCC's WinAPI
+    # headers from introducing their legacy 32-bit x86 definition later.
+    _TIME_T_DEFINED
     WPM_HAS_WCRT=1
     WPM_WCRT_VERSION="${WPM_WCRT_VERSION}"
   )
 endif()
 target_link_libraries(wpm PRIVATE miniz libsodium)
-if(CMAKE_C_COMPILER_ID STREQUAL "TinyCC")
+if(WIN32)
   # Use explicit import definitions so cross-architecture builds don't depend
   # on matching system DLLs being installed on the build host.
   target_link_options(wpm PRIVATE
@@ -115,18 +113,16 @@ if(CMAKE_C_COMPILER_ID STREQUAL "TinyCC")
     "${CMAKE_CURRENT_SOURCE_DIR}/tcc_support/advapi32.def"
     "${CMAKE_CURRENT_SOURCE_DIR}/tcc_support/version.def"
   )
-  if(WPM_USE_WCRT)
-    set(wcrt_console_startup "${WPM_WCRT_TARGET_ROOT}/lib/wcrt-startup-console.o")
-    set_source_files_properties("${wcrt_console_startup}" PROPERTIES
-      EXTERNAL_OBJECT TRUE
-    )
-    target_sources(wpm PRIVATE "${wcrt_console_startup}")
-    target_link_options(wpm PRIVATE
-      -nostdlib
-      "${WPM_TCC_ROOT}/lib/kernel32.def"
-    )
-    target_link_libraries(wpm PRIVATE "${WPM_WCRT_TARGET_ROOT}/lib/libwcrt.a")
-  endif()
+  set(wcrt_console_startup "${WPM_WCRT_TARGET_ROOT}/lib/wcrt-startup-console.o")
+  set_source_files_properties("${wcrt_console_startup}" PROPERTIES
+    EXTERNAL_OBJECT TRUE
+  )
+  target_sources(wpm PRIVATE "${wcrt_console_startup}")
+  target_link_options(wpm PRIVATE
+    -nostdlib
+    "${WPM_TCC_ROOT}/lib/kernel32.def"
+  )
+  target_link_libraries(wpm PRIVATE "${WPM_WCRT_TARGET_ROOT}/lib/libwcrt.a")
   get_filename_component(tcc_bin_dir "${CMAKE_C_COMPILER}" DIRECTORY)
   if(wpm_arch STREQUAL "x86")
     target_link_libraries(wpm PRIVATE "${tcc_bin_dir}/lib/i386-win32-libtcc1.a")
@@ -134,16 +130,6 @@ if(CMAKE_C_COMPILER_ID STREQUAL "TinyCC")
     target_link_libraries(wpm PRIVATE "${tcc_bin_dir}/lib/x86_64-win32-libtcc1.a")
   elseif(wpm_arch STREQUAL "arm64")
     target_link_libraries(wpm PRIVATE "${tcc_bin_dir}/lib/arm64-win32-libtcc1.a")
-  endif()
-else()
-  target_link_libraries(wpm PRIVATE urlmon advapi32 version)
-endif()
-
-if(MSVC AND WPM_WINDOWS_XP_COMPAT)
-  if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.13)
-    target_link_options(wpm PRIVATE /SUBSYSTEM:CONSOLE,5.01)
-  else()
-    set_property(TARGET wpm APPEND_STRING PROPERTY LINK_FLAGS " /SUBSYSTEM:CONSOLE,5.01")
   endif()
 endif()
 
@@ -279,7 +265,7 @@ if(BUILD_TESTING)
   wpm_add_test_case(TC-0013 tc-0013 tc-0013-version-aware-upgrades.ps1 tc-0013-version-aware-upgrades.tex)
   wpm_add_test_case(TC-0023 tc-0023 tc-0023-architecture-security-consistency.ps1 tc-0023-architecture-security-consistency.tex)
 
-  if(WPM_USE_WCRT)
+  if(WIN32)
     set_tests_properties(${WPM_TEST_NAMES} PROPERTIES
       ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:wpm>"
     )

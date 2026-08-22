@@ -15,8 +15,10 @@ $started = Get-Date
 $releaseWorkflow = Join-Path $PSScriptRoot '..\.github\workflows\release.yml'
 $testReportWorkflow = Join-Path $PSScriptRoot '..\.github\workflows\test-reports.yml'
 $toolchainAction = Join-Path $PSScriptRoot '..\.github\actions\setup-tinycc\action.yml'
-$tinyccToolchain = Join-Path $PSScriptRoot '..\cmake\toolchains\tcc-x86-xp.cmake'
+$tinyccToolchain = Join-Path $PSScriptRoot '..\cmake\toolchains\tcc-windows.cmake'
 $cmakePresets = Join-Path $PSScriptRoot '..\CMakePresets.json'
+$rootCmake = Join-Path $PSScriptRoot '..\CMakeLists.txt'
+$thirdPartyCmake = Join-Path $PSScriptRoot '..\third_party\CMakeLists.txt'
 $wpmCmake = Join-Path $PSScriptRoot '..\wpm\CMakeLists.txt'
 $previousReleaseUpgradeTest = Join-Path $PSScriptRoot 'verify-previous-release-upgrade.ps1'
 $xpWorkflow = Join-Path $PSScriptRoot '..\.github\workflows\xp-release.yml'
@@ -147,12 +149,27 @@ $results = @(
             }
 
             $presets = (Get-Content -Raw -LiteralPath $cmakePresets | ConvertFrom-Json).configurePresets
+            $windowsBase = $presets | Where-Object name -eq 'windows-base'
+            if (-not $windowsBase -or $windowsBase.toolchainFile -notmatch 'tcc-windows\.cmake') {
+                throw 'Windows presets must use the TinyCC-only Windows toolchain.'
+            }
             foreach ($name in @('x86-debug', 'x64-debug', 'arm64-debug')) {
                 $preset = $presets | Where-Object name -eq $name
-                if (-not $preset -or $preset.cacheVariables.WPM_USE_WCRT -ne 'ON' -or
-                    $preset.cacheVariables.WPM_WINDOWS_XP_COMPAT -ne 'OFF') {
-                    throw "$name must use TinyCC with WCRT and without the custom XP runtime."
+                if (-not $preset -or
+                    $preset.cacheVariables.PSObject.Properties.Name -contains 'WPM_USE_WCRT' -or
+                    $preset.cacheVariables.PSObject.Properties.Name -contains 'WPM_WINDOWS_XP_COMPAT') {
+                    throw "$name must use the unconditional TinyCC/WCRT Windows configuration."
                 }
+            }
+            $rootConfiguration = Get-Content -Raw -LiteralPath $rootCmake
+            if ($rootConfiguration -notmatch 'WPM Windows builds require TinyCC' -or
+                $rootConfiguration -notmatch 'WCRT 1\.0\.0 or newer' -or
+                $rootConfiguration -match 'CMAKE_MSVC|if\s*\(MSVC') {
+                throw 'Root CMake configuration must require TinyCC and WCRT 1.0.0 without MSVC branches.'
+            }
+            $thirdPartyConfiguration = Get-Content -Raw -LiteralPath $thirdPartyCmake
+            if ($thirdPartyConfiguration -match 'builds[/\\]msvc|\bMSVC\b|_MSC_VER') {
+                throw 'Third-party configuration must not depend on MSVC build metadata or compiler branches.'
             }
             $toolchain = Get-Content -Raw -LiteralPath $tinyccToolchain
             if ($toolchain -notmatch 'TinyCCArchiver\.ps1' -or

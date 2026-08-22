@@ -7,7 +7,7 @@
             "generator": "Ninja",
             "binaryDir": "${sourceDir}/out/build/${presetName}",
             "installDir": "${sourceDir}/out/install/${presetName}",
-            "toolchainFile": "${sourceDir}/cmake/toolchains/tcc-x86-xp.cmake",
+            "toolchainFile": "${sourceDir}/cmake/toolchains/tcc-windows.cmake",
             "condition": {
                 "type": "equals",
                 "lhs": "${hostSystemName}",
@@ -21,48 +21,7 @@
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
                 "WPM_ARCH": "x64",
-                "WPM_THIRD_PARTY_ARCH": "x64-wcrt",
-                "WPM_WINDOWS_XP_COMPAT": "OFF",
-                "WPM_USE_WCRT": "ON"
-            }
-        },
-        {
-            "name": "tcc-x64-wcrt",
-            "displayName": "TinyCC x64 with WCRT (experimental)",
-            "inherits": "windows-base",
-            "binaryDir": "${sourceDir}/out/build/${presetName}",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Release",
-                "BUILD_TESTING": "ON",
-                "WPM_ARCH": "x64",
-                "WPM_THIRD_PARTY_ARCH": "x64-wcrt",
-                "WPM_WINDOWS_XP_COMPAT": "OFF",
-                "WPM_USE_WCRT": "ON",
-                "WPM_BIN_DIR": "${sourceDir}/bin/tcc-x64-wcrt",
-                "WPM_THIRD_PARTY_BIN_DIR": "${sourceDir}/third_party/bin/tcc-x64-wcrt"
-            }
-        },
-        {
-            "name": "tcc-x86-wcrt",
-            "displayName": "TinyCC x86 with WCRT (experimental)",
-            "inherits": "tcc-x64-wcrt",
-            "cacheVariables": {
-                "WPM_ARCH": "x86",
-                "WPM_THIRD_PARTY_ARCH": "x86-wcrt",
-                "WPM_BIN_DIR": "${sourceDir}/bin/tcc-x86-wcrt",
-                "WPM_THIRD_PARTY_BIN_DIR": "${sourceDir}/third_party/bin/tcc-x86-wcrt"
-            }
-        },
-        {
-            "name": "tcc-arm64-wcrt",
-            "displayName": "TinyCC ARM64 with WCRT (experimental)",
-            "inherits": "tcc-x64-wcrt",
-            "cacheVariables": {
-                "BUILD_TESTING": "OFF",
-                "WPM_ARCH": "arm64",
-                "WPM_THIRD_PARTY_ARCH": "arm64-wcrt",
-                "WPM_BIN_DIR": "${sourceDir}/bin/tcc-arm64-wcrt",
-                "WPM_THIRD_PARTY_BIN_DIR": "${sourceDir}/third_party/bin/tcc-arm64-wcrt"
+                "WPM_THIRD_PARTY_ARCH": "x64-wcrt"
             }
         },
         {
@@ -89,8 +48,6 @@
                 "CMAKE_BUILD_TYPE": "Debug",
                 "WPM_ARCH": "x86",
                 "WPM_THIRD_PARTY_ARCH": "x86-wcrt",
-                "WPM_WINDOWS_XP_COMPAT": "OFF",
-                "WPM_USE_WCRT": "ON",
                 "WPM_RUN_TESTS_AFTER_BUILD": "ON",
                 "WPM_BUILD_TEST_REPORTS": "ON"
             }
@@ -120,9 +77,7 @@
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
                 "WPM_ARCH": "arm64",
-                "WPM_THIRD_PARTY_ARCH": "arm64-wcrt",
-                "WPM_WINDOWS_XP_COMPAT": "OFF",
-                "WPM_USE_WCRT": "ON"
+                "WPM_THIRD_PARTY_ARCH": "arm64-wcrt"
             }
         },
         {
@@ -183,21 +138,6 @@
         }
     ],
     "buildPresets": [
-        {
-            "name": "build-tcc-x64-wcrt",
-            "displayName": "Build TinyCC x64 with WCRT (experimental)",
-            "configurePreset": "tcc-x64-wcrt"
-        },
-        {
-            "name": "build-tcc-x86-wcrt",
-            "displayName": "Build TinyCC x86 with WCRT (experimental)",
-            "configurePreset": "tcc-x86-wcrt"
-        },
-        {
-            "name": "build-tcc-arm64-wcrt",
-            "displayName": "Build TinyCC ARM64 with WCRT (experimental)",
-            "configurePreset": "tcc-arm64-wcrt"
-        },
         {
             "name": "build-x64-debug",
             "displayName": "Build x64 Debug",

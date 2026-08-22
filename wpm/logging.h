@@ -4,11 +4,6 @@
 
 #include <stdarg.h>
 
-#ifndef va_copy
-/** Copy a variable-argument cursor on CRTs that omit C99 va_copy. */
-#define va_copy(destination, source) ((destination) = (source))
-#endif
-
 /**
  * Open the configured WSP operational log in append mode.
  * @return Nonzero on success; zero if the log directory or file cannot open.
