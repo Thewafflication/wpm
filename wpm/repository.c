@@ -20,10 +20,42 @@
 #define MAX_PACKAGES 96
 #define MAX_INSTALLED 256
 #define INDEX_FRESH_MS (60ULL * 60ULL * 1000ULL)
+#define DOWNLOAD_INTERACTIVE_INTERVAL_MS 100UL
+#define DOWNLOAD_SCRIPT_INTERVAL_MS 2000UL
+#define DOWNLOAD_PROGRESS_BAR_WIDTH 30
+/* URLMon status omitted by TinyCC's compact Windows headers. */
+#define WPM_BINDSTATUS_64BIT_PROGRESS 56UL
 #define WPM_DEFAULT_REPOSITORY "https://github.com/Thewafflication/wpm/releases/latest/download"
 
 typedef struct { char url[PATH_SIZE]; int priority; int order; } repository;
 typedef struct { char name[128]; char version[64]; char arch[16]; char url[PATH_SIZE]; int priority; int order; } package_entry;
+
+typedef struct download_callback download_callback;
+typedef struct {
+    HRESULT (STDMETHODCALLTYPE *query_interface)(download_callback*, const GUID*, void**);
+    ULONG (STDMETHODCALLTYPE *add_ref)(download_callback*);
+    ULONG (STDMETHODCALLTYPE *release)(download_callback*);
+    HRESULT (STDMETHODCALLTYPE *on_start_binding)(download_callback*, DWORD, void*);
+    HRESULT (STDMETHODCALLTYPE *get_priority)(download_callback*, LONG*);
+    HRESULT (STDMETHODCALLTYPE *on_low_resource)(download_callback*, DWORD);
+    HRESULT (STDMETHODCALLTYPE *on_progress)(download_callback*, ULONG, ULONG, ULONG, LPCWSTR);
+    HRESULT (STDMETHODCALLTYPE *on_stop_binding)(download_callback*, HRESULT, LPCWSTR);
+    HRESULT (STDMETHODCALLTYPE *get_bind_info)(download_callback*, DWORD*, void*);
+    HRESULT (STDMETHODCALLTYPE *on_data_available)(download_callback*, DWORD, DWORD, void*, void*);
+    HRESULT (STDMETHODCALLTYPE *on_object_available)(download_callback*, const GUID*, void*);
+} download_callback_vtable;
+
+struct download_callback {
+    const download_callback_vtable* vtable;
+    ULONG references;
+    const char* label;
+    DWORD last_update_ms;
+    unsigned long long current;
+    unsigned long long total;
+    size_t rendered_length;
+    int interactive;
+    int using_64bit_progress;
+};
 
 static int repository_verbose = 0;
 
@@ -93,13 +125,228 @@ int wpm_repo_add(const char* url, int priority) { char normalized[PATH_SIZE]; re
 int wpm_repo_remove(const char* url) { char normalized[PATH_SIZE], cached[PATH_SIZE]; if (!url_normalize(url, normalized, sizeof(normalized)) || !rewrite(normalized, 0, 1)) return 0; if (cache_path(normalized, cached, sizeof(cached))) DeleteFileA(cached); return 1; }
 int wpm_repo_list(void) { repository repositories[MAX_REPOSITORIES]; int count, i; if (!load_repositories(repositories, &count)) return 0; if (!count) { printf("No repositories configured.\n"); return 1; } for (i = 0; i < count; i++) printf("%d\t%s\n", repositories[i].priority, repositories[i].url); return 1; }
 
-static int download(const char* url, const char* destination) {
-    HRESULT result; char temporary[PATH_SIZE];
+static int download_stdout_is_interactive(void) {
+    DWORD mode;
+    HANDLE output = GetStdHandle(STD_OUTPUT_HANDLE);
+    return output != NULL && output != INVALID_HANDLE_VALUE && GetConsoleMode(output, &mode);
+}
+
+static void download_write_line(download_callback* callback, const char* line, int final) {
+    size_t length = strlen(line);
+    if (!callback->interactive) {
+        printf("%s\n", line);
+        fflush(stdout);
+        return;
+    }
+    printf("\r%s", line);
+    if (callback->rendered_length > length) {
+        size_t remaining = callback->rendered_length - length;
+        while (remaining--) putchar(' ');
+    } else {
+        callback->rendered_length = length;
+    }
+    if (final) putchar('\n');
+    fflush(stdout);
+}
+
+static void download_render_progress(download_callback* callback, int force) {
+    DWORD now = GetTickCount();
+    DWORD interval = callback->interactive ?
+        DOWNLOAD_INTERACTIVE_INTERVAL_MS : DOWNLOAD_SCRIPT_INTERVAL_MS;
+    char line[512];
+    if (!force && (DWORD)(now - callback->last_update_ms) < interval) return;
+    callback->last_update_ms = now;
+    if (callback->interactive) {
+        char bar[DOWNLOAD_PROGRESS_BAR_WIDTH + 1];
+        unsigned percent = 0;
+        int i;
+        memset(bar, ' ', DOWNLOAD_PROGRESS_BAR_WIDTH);
+        bar[DOWNLOAD_PROGRESS_BAR_WIDTH] = '\0';
+        if (callback->total) {
+            int complete;
+            percent = (unsigned)(((unsigned long long)callback->current * 100ULL) /
+                callback->total);
+            if (percent > 100) percent = 100;
+            complete = (int)((percent * DOWNLOAD_PROGRESS_BAR_WIDTH) / 100);
+            for (i = 0; i < complete; i++) bar[i] = '=';
+            if (complete < DOWNLOAD_PROGRESS_BAR_WIDTH) bar[complete] = '>';
+            snprintf(line, sizeof(line), "Downloading %s [%s] %3u%% %llu/%llu bytes",
+                callback->label, bar, percent, callback->current, callback->total);
+        } else {
+            int marker = (int)((now / DOWNLOAD_INTERACTIVE_INTERVAL_MS) %
+                DOWNLOAD_PROGRESS_BAR_WIDTH);
+            bar[marker] = '>';
+            snprintf(line, sizeof(line), "Downloading %s [%s]  --%% %llu bytes",
+                callback->label, bar, callback->current);
+        }
+    } else if (callback->total) {
+        unsigned percent = (unsigned)(((unsigned long long)callback->current * 100ULL) /
+            callback->total);
+        if (percent > 100) percent = 100;
+        snprintf(line, sizeof(line), "Download progress: %s: %u%% (%llu/%llu bytes)",
+            callback->label, percent, callback->current, callback->total);
+    } else {
+        snprintf(line, sizeof(line), "Download progress: %s: %llu bytes",
+            callback->label, callback->current);
+    }
+    download_write_line(callback, line, 0);
+}
+
+static void download_finish_progress(download_callback* callback, int succeeded) {
+    char line[512];
+    if (succeeded && callback->total) callback->current = callback->total;
+    if (callback->interactive && succeeded && callback->total) {
+        download_render_progress(callback, 1);
+        putchar('\n');
+        fflush(stdout);
+        return;
+    }
+    if (succeeded) {
+        snprintf(line, sizeof(line), "Downloaded %s: %llu bytes",
+            callback->label, callback->current);
+    } else {
+        snprintf(line, sizeof(line), "Download failed: %s after %llu bytes",
+            callback->label, callback->current);
+    }
+    download_write_line(callback, line, 1);
+}
+
+static int download_guid_equal(const GUID* left, const GUID* right) {
+    return left != NULL && right != NULL && memcmp(left, right, sizeof(*left)) == 0;
+}
+
+static HRESULT STDMETHODCALLTYPE download_query_interface(
+    download_callback* callback, const GUID* interface_id, void** result) {
+    static const GUID unknown_id =
+        { 0x00000000UL, 0x0000, 0x0000, { 0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46 } };
+    static const GUID bind_status_callback_id =
+        { 0x79eac9c1UL, 0xbaf9, 0x11ce, { 0x8c, 0x82, 0x00, 0xaa, 0x00, 0x4b, 0xa9, 0x0b } };
+    if (!result) return E_POINTER;
+    *result = NULL;
+    if (!download_guid_equal(interface_id, &unknown_id) &&
+        !download_guid_equal(interface_id, &bind_status_callback_id)) return E_NOINTERFACE;
+    *result = callback;
+    callback->references++;
+    return S_OK;
+}
+
+static ULONG STDMETHODCALLTYPE download_add_ref(download_callback* callback) {
+    return ++callback->references;
+}
+
+static ULONG STDMETHODCALLTYPE download_release(download_callback* callback) {
+    if (callback->references) callback->references--;
+    return callback->references;
+}
+
+static HRESULT STDMETHODCALLTYPE download_on_start_binding(
+    download_callback* callback, DWORD reserved, void* binding) {
+    (void)callback; (void)reserved; (void)binding; return S_OK;
+}
+
+static HRESULT STDMETHODCALLTYPE download_get_priority(download_callback* callback, LONG* priority) {
+    (void)callback; (void)priority; return E_NOTIMPL;
+}
+
+static HRESULT STDMETHODCALLTYPE download_on_low_resource(download_callback* callback, DWORD reserved) {
+    (void)callback; (void)reserved; return S_OK;
+}
+
+static int download_parse_64bit_progress(const wchar_t* text,
+    unsigned long long* current, unsigned long long* total) {
+    const wchar_t* cursor = text;
+    unsigned long long values[2] = { 0, 0 };
+    int value_index;
+    if (!text || !current || !total) return 0;
+    for (value_index = 0; value_index < 2; value_index++) {
+        const wchar_t* start = cursor;
+        while (*cursor >= L'0' && *cursor <= L'9') {
+            unsigned digit = (unsigned)(*cursor - L'0');
+            if (values[value_index] > (ULLONG_MAX - digit) / 10ULL) return 0;
+            values[value_index] = values[value_index] * 10ULL + digit;
+            cursor++;
+        }
+        if (cursor == start) return 0;
+        if (value_index == 0) {
+            if (*cursor++ != L',') return 0;
+        } else if (*cursor != L'\0') {
+            return 0;
+        }
+    }
+    *current = values[0];
+    *total = values[1];
+    return 1;
+}
+
+static HRESULT STDMETHODCALLTYPE download_on_progress(download_callback* callback,
+    ULONG current, ULONG total, ULONG status, LPCWSTR status_text) {
+    unsigned long long current_64;
+    unsigned long long total_64;
+    if (status == WPM_BINDSTATUS_64BIT_PROGRESS &&
+        download_parse_64bit_progress(status_text, &current_64, &total_64)) {
+        callback->current = current_64;
+        callback->total = total_64;
+        callback->using_64bit_progress = 1;
+    } else if (!callback->using_64bit_progress) {
+        callback->current = current;
+        callback->total = total;
+    }
+    download_render_progress(callback, 0);
+    return S_OK;
+}
+
+static HRESULT STDMETHODCALLTYPE download_on_stop_binding(
+    download_callback* callback, HRESULT result, LPCWSTR error) {
+    (void)callback; (void)result; (void)error; return S_OK;
+}
+
+static HRESULT STDMETHODCALLTYPE download_get_bind_info(
+    download_callback* callback, DWORD* flags, void* information) {
+    (void)callback; (void)flags; (void)information; return E_NOTIMPL;
+}
+
+static HRESULT STDMETHODCALLTYPE download_on_data_available(download_callback* callback,
+    DWORD flags, DWORD size, void* format, void* medium) {
+    (void)callback; (void)flags; (void)size; (void)format; (void)medium; return S_OK;
+}
+
+static HRESULT STDMETHODCALLTYPE download_on_object_available(
+    download_callback* callback, const GUID* interface_id, void* object) {
+    (void)callback; (void)interface_id; (void)object; return S_OK;
+}
+
+static const download_callback_vtable download_progress_vtable = {
+    download_query_interface,
+    download_add_ref,
+    download_release,
+    download_on_start_binding,
+    download_get_priority,
+    download_on_low_resource,
+    download_on_progress,
+    download_on_stop_binding,
+    download_get_bind_info,
+    download_on_data_available,
+    download_on_object_available
+};
+
+static int download(const char* url, const char* destination, const char* label) {
+    HRESULT result;
+    char temporary[PATH_SIZE];
+    int succeeded;
+    download_callback callback = {
+        &download_progress_vtable, 1, label, GetTickCount(), 0, 0, 0,
+        download_stdout_is_interactive(), 0
+    };
     if (_strnicmp(url, "https://", 8) != 0) return 0;
     if (snprintf(temporary, sizeof(temporary), "%s.download", destination) < 0) return 0;
-    DeleteFileA(temporary); result = URLDownloadToFileA(NULL, url, temporary, 0, NULL);
-    if (FAILED(result) || !MoveFileExA(temporary, destination, MOVEFILE_REPLACE_EXISTING)) { DeleteFileA(temporary); return 0; }
-    return 1;
+    DeleteFileA(temporary);
+    download_render_progress(&callback, 1);
+    result = URLDownloadToFileA(NULL, url, temporary, 0, &callback);
+    succeeded = SUCCEEDED(result) &&
+        MoveFileExA(temporary, destination, MOVEFILE_REPLACE_EXISTING);
+    download_finish_progress(&callback, succeeded);
+    if (!succeeded) DeleteFileA(temporary);
+    return succeeded;
 }
 static int index_is_fresh(const char* path) { WIN32_FILE_ATTRIBUTE_DATA data; FILETIME now; ULARGE_INTEGER a, b; GetSystemTimeAsFileTime(&now); if (!GetFileAttributesExA(path, GetFileExInfoStandard, &data)) return 0; a.LowPart = now.dwLowDateTime; a.HighPart = now.dwHighDateTime; b.LowPart = data.ftLastWriteTime.dwLowDateTime; b.HighPart = data.ftLastWriteTime.dwHighDateTime; return a.QuadPart >= b.QuadPart && (a.QuadPart - b.QuadPart) <= INDEX_FRESH_MS * 10000ULL; }
 static int index_url(const char* root, char* result, size_t size) { return snprintf(result, size, "%s/index.json", root) > 0; }
@@ -108,7 +355,7 @@ static int refresh(repository* repo, int offline, int required) {
     REPO_VERBOSE("checking: %s", repo->url); REPO_VERBOSE("cache: %s", cached);
     if (offline) { if (GetFileAttributesA(cached) == INVALID_FILE_ATTRIBUTES) printf("Error: no cached index for %s while offline.\n", repo->url); else REPO_VERBOSE("using cached index (offline)"); return GetFileAttributesA(cached) != INVALID_FILE_ATTRIBUTES; }
     if (!required && index_is_fresh(cached)) { REPO_VERBOSE("using fresh cached index"); return 1; }
-    if (ensure_cache_directory("repositories") && index_url(repo->url, url, sizeof(url)) && download(url, cached)) { printf("Updated repository index: %s\n", repo->url); return 1; }
+    if (ensure_cache_directory("repositories") && index_url(repo->url, url, sizeof(url)) && download(url, cached, "repository index")) { printf("Updated repository index: %s\n", repo->url); return 1; }
     if (GetFileAttributesA(cached) != INVALID_FILE_ATTRIBUTES) { printf("Warning: could not refresh %s; using cached index.\n", repo->url); return 1; }
     printf("Warning: could not retrieve repository index: %s\n", repo->url); return 0;
 }
@@ -170,7 +417,7 @@ static int load_entries(repository* repositories,int* repository_count,package_e
 static int load_installed(installed_entry* result,int* count){char root[PATH_SIZE],store[PATH_SIZE],search[PATH_SIZE],path[PATH_SIZE];WIN32_FIND_DATAA item;HANDLE find;*count=0;if(!wpm_get_data_root(root,sizeof(root))||!join_path(store,sizeof(store),root,"packages")||!join_path(search,sizeof(search),store,"*.zip"))return 0;find=FindFirstFileA(search,&item);if(find==INVALID_HANDLE_VALUE)return GetLastError()==ERROR_FILE_NOT_FOUND;do{wpm_package_info info;semver parsed;if(*count>=MAX_INSTALLED||!join_path(path,sizeof(path),store,item.cFileName))continue;if(!wpm_archive_inspect(path,&info)){printf("Warning: unreadable installed package record: %s\n  Path: %s\n",item.cFileName,path);continue;}if(!semver_parse(info.version,&parsed)){printf("Warning: installed package record has non-SemVer version '%s': %s\n  Path: %s\n  This legacy record is ignored for update selection; review the archive before deciding whether it is obsolete.\n",info.version,item.cFileName,path);continue;}installed_entry*e=&result[(*count)++];strcpy_s(e->name,sizeof(e->name),info.name);strcpy_s(e->version,sizeof(e->version),info.version);strcpy_s(e->arch,sizeof(e->arch),info.arch);}while(FindNextFileA(find,&item));FindClose(find);return 1;}
 static int better_candidate(package_entry* candidate,package_entry* selected){int valid,c;if(!selected)return 1;c=semver_compare(candidate->version,selected->version,&valid);if(!valid)return 0;return c>0||(c==0&&(candidate->priority>selected->priority||(candidate->priority==selected->priority&&candidate->order<selected->order)));}
 static package_entry* select_candidate(package_entry* entries,int count,const char* name,const char* arch,const char* exact_version,int install_mode){package_entry*selected=NULL;const char*available_arch=NULL;int allow_pre=prerelease_effective(name,NULL),named=0,version_matched=0,arch_matched=0,prerelease_excluded=0,architecture_excluded=0;for(int i=0;i<count;i++){semver parsed;if(_stricmp(entries[i].name,name)!=0)continue;named++;if(!semver_parse(entries[i].version,&parsed)){printf("Warning: ignoring invalid SemVer %s for %s.\n",entries[i].version,name);continue;}if(exact_version&&strcmp(entries[i].version,exact_version)!=0)continue;if(is_prerelease(entries[i].version)&&!allow_pre){if((install_mode&&!arch&&(_stricmp(entries[i].arch,WPM_TARGET_ARCH)==0||_stricmp(entries[i].arch,"any")==0))||((!install_mode||arch)&&_stricmp(entries[i].arch,arch)==0))prerelease_excluded++;continue;}version_matched++;if(install_mode&&!arch){if(_stricmp(entries[i].arch,WPM_TARGET_ARCH)!=0&&_stricmp(entries[i].arch,"any")!=0){architecture_excluded++;if(!available_arch)available_arch=entries[i].arch;continue;}if(selected&&_stricmp(selected->arch,WPM_TARGET_ARCH)==0&&_stricmp(entries[i].arch,"any")==0)continue;if(selected&&_stricmp(selected->arch,"any")==0&&_stricmp(entries[i].arch,WPM_TARGET_ARCH)==0){selected=&entries[i];arch_matched++;continue;}}else if(_stricmp(entries[i].arch,arch)!=0){architecture_excluded++;if(!available_arch)available_arch=entries[i].arch;continue;}arch_matched++;if(better_candidate(&entries[i],selected))selected=&entries[i];}REPO_VERBOSE("resolution for '%s': name matches=%d, version/prerelease matches=%d, architecture matches=%d, prereleases excluded=%d, architectures excluded=%d, selected=%s",name,named,version_matched,arch_matched,prerelease_excluded,architecture_excluded,selected?selected->version:"none");if(install_mode&&!selected&&prerelease_excluded)printf("Warning: matching prerelease packages were excluded because prereleases are disabled.\n  Enable them for this package with: wpm config set prerelease true --package %s\n",name);else if(install_mode&&!selected&&architecture_excluded)printf("Warning: matching packages were found, but none support architecture %s.\n  An available architecture is: %s\n  Retry with: wpm install %s --arch %s\n",arch?arch:WPM_TARGET_ARCH,available_arch,name,available_arch);return selected;}
-static int obtain(repository* repositories,package_entry* selected,int offline,char* path,size_t size){char root[PATH_SIZE],url[PATH_SIZE],legacy[PATH_SIZE];if(strpbrk(selected->name,"\\/:*")||strpbrk(selected->version,"\\/:*")||strpbrk(selected->arch,"\\/:*")||!package_url(repositories[selected->order].url,selected->url,url,sizeof(url))||!wpm_get_data_root(root,sizeof(root))||snprintf(path,size,"%s\\cache\\packages\\%s-%s-%s.zip",root,selected->name,selected->arch,selected->version)<0||snprintf(legacy,sizeof(legacy),"%s\\cache\\packages\\%s-%s-%s.zip",root,selected->name,selected->version,selected->arch)<0)return 0;if(GetFileAttributesA(path)==INVALID_FILE_ATTRIBUTES&&GetFileAttributesA(legacy)!=INVALID_FILE_ATTRIBUTES)strcpy_s(path,size,legacy);if(GetFileAttributesA(path)==INVALID_FILE_ATTRIBUTES){if(offline){printf("Error: package is not cached while offline: %s\n",selected->name);return 0;}if(!ensure_cache_directory("packages")||!download(url,path)){printf("Error: could not download package: %s\n",url);return 0;}}return 1;}
+static int obtain(repository* repositories,package_entry* selected,int offline,char* path,size_t size){char root[PATH_SIZE],url[PATH_SIZE],legacy[PATH_SIZE],label[256];if(strpbrk(selected->name,"\\/:*")||strpbrk(selected->version,"\\/:*")||strpbrk(selected->arch,"\\/:*")||!package_url(repositories[selected->order].url,selected->url,url,sizeof(url))||!wpm_get_data_root(root,sizeof(root))||snprintf(path,size,"%s\\cache\\packages\\%s-%s-%s.zip",root,selected->name,selected->arch,selected->version)<0||snprintf(legacy,sizeof(legacy),"%s\\cache\\packages\\%s-%s-%s.zip",root,selected->name,selected->version,selected->arch)<0||snprintf(label,sizeof(label),"package %s %s %s",selected->name,selected->version,selected->arch)<0)return 0;if(GetFileAttributesA(path)==INVALID_FILE_ATTRIBUTES&&GetFileAttributesA(legacy)!=INVALID_FILE_ATTRIBUTES)strcpy_s(path,size,legacy);if(GetFileAttributesA(path)==INVALID_FILE_ATTRIBUTES){if(offline){printf("Error: package is not cached while offline: %s\n",selected->name);return 0;}if(!ensure_cache_directory("packages")||!download(url,path,label)){printf("Error: could not download package: %s\n",url);return 0;}}return 1;}
 
 int wpm_repo_install(const char* package_name,const char* arch,const char* version,int offline,int allow_unsigned){repository repositories[MAX_REPOSITORIES];package_entry entries[MAX_PACKAGES],*selected;int rc,ec;char package[PATH_SIZE];semver parsed;if(version&&!semver_parse(version,&parsed)){printf("Error: --version requires valid SemVer.\n");return 0;}if(arch&&_stricmp(arch,"any")&&_stricmp(arch,"x86")&&_stricmp(arch,"x64")&&_stricmp(arch,"arm64")){printf("Error: unsupported architecture: %s\n",arch);return 0;}if(!load_entries(repositories,&rc,entries,&ec,offline))return 0;selected=select_candidate(entries,ec,package_name,arch,version,1);if(!selected){printf("Error: package was not found with the requested selectors: %s\n",package_name);return 0;}if(!obtain(repositories,selected,offline,package,sizeof(package))){printf("Error: invalid package URL in repository index.\n");return 0;}printf("Installing %s %s %s from %s\n",selected->name,selected->arch,selected->version,repositories[selected->order].url);return wpm_archive_install(package,allow_unsigned);}
 
