@@ -18,6 +18,9 @@
 #define WPM_MAX_IGNORE_PATTERNS 128
 #define WPM_BLAKE2B_BYTES crypto_generichash_BYTES
 #define WPM_BLAKE2B_HEX_SIZE (WPM_BLAKE2B_BYTES * 2 + 1)
+#define WPM_COMPRESSION_SAMPLE_BYTES (64U * 1024U)
+#define WPM_COMPRESSION_SAMPLE_MIN_FILE_BYTES (1024ULL * 1024ULL)
+#define WPM_INCOMPRESSIBLE_SAMPLE_PERCENT 98U
 
 typedef struct wpm_ignore_list {
     char patterns[WPM_MAX_IGNORE_PATTERNS][WPM_PATH_SIZE];
@@ -109,11 +112,76 @@ static size_t wpm_zip_read_file(void* opaque, mz_uint64 offset, void* buffer, si
     return (size_t)bytes_read;
 }
 
+static size_t wpm_zip_write_file(void* opaque, mz_uint64 offset, const void* buffer, size_t size) {
+    HANDLE file = (HANDLE)opaque;
+    LARGE_INTEGER position;
+    DWORD bytes_to_write;
+    DWORD bytes_written = 0;
+
+    if (size > MAXDWORD) size = MAXDWORD;
+    position.QuadPart = (LONGLONG)offset;
+    bytes_to_write = (DWORD)size;
+    if (!SetFilePointerEx(file, position, NULL, FILE_BEGIN) ||
+        !WriteFile(file, buffer, bytes_to_write, &bytes_written, NULL)) {
+        return 0;
+    }
+    return (size_t)bytes_written;
+}
+
+static mz_uint wpm_zip_compression_level(HANDLE file, mz_uint64 file_size) {
+    unsigned char* sample;
+    void* compressed_sample;
+    size_t compressed_size = 0;
+    DWORD bytes_read = 0;
+    LARGE_INTEGER beginning;
+    int flags;
+    int is_incompressible;
+
+    if (file_size < WPM_COMPRESSION_SAMPLE_MIN_FILE_BYTES) {
+        return MZ_DEFAULT_COMPRESSION;
+    }
+
+    sample = (unsigned char*)malloc(WPM_COMPRESSION_SAMPLE_BYTES);
+    if (!sample) return MZ_DEFAULT_COMPRESSION;
+    beginning.QuadPart = 0;
+    if (!SetFilePointerEx(file, beginning, NULL, FILE_BEGIN) ||
+        !ReadFile(
+            file,
+            sample,
+            WPM_COMPRESSION_SAMPLE_BYTES,
+            &bytes_read,
+            NULL
+        ) || !bytes_read) {
+        free(sample);
+        return MZ_DEFAULT_COMPRESSION;
+    }
+
+    flags = (int)tdefl_create_comp_flags_from_zip_params(
+        MZ_BEST_SPEED,
+        -15,
+        MZ_DEFAULT_STRATEGY
+    );
+    compressed_sample = tdefl_compress_mem_to_heap(
+        sample,
+        bytes_read,
+        &compressed_size,
+        flags
+    );
+    free(sample);
+    if (!compressed_sample) return MZ_DEFAULT_COMPRESSION;
+
+    is_incompressible = compressed_size * 100U >=
+        (size_t)bytes_read * WPM_INCOMPRESSIBLE_SAMPLE_PERCENT;
+    mz_free(compressed_sample);
+    return is_incompressible ? MZ_NO_COMPRESSION : MZ_DEFAULT_COMPRESSION;
+}
+
 static int wpm_zip_add_file(mz_zip_archive* zip, const char* archive_path, const char* source_path) {
     HANDLE file;
     LARGE_INTEGER size;
     DWORD size_high = 0;
     DWORD size_low;
+    mz_uint compression_level;
     mz_bool added;
 
     file = CreateFileA(source_path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING,
@@ -127,9 +195,10 @@ static int wpm_zip_add_file(mz_zip_archive* zip, const char* archive_path, const
     }
     size.HighPart = (LONG)size_high;
     size.LowPart = size_low;
+    compression_level = wpm_zip_compression_level(file, (mz_uint64)size.QuadPart);
 
     added = mz_zip_writer_add_read_buf_callback(zip, archive_path, wpm_zip_read_file,
-        file, (mz_uint64)size.QuadPart, NULL, NULL, 0, MZ_BEST_COMPRESSION,
+        file, (mz_uint64)size.QuadPart, NULL, NULL, 0, compression_level,
         NULL, 0, NULL, 0);
     CloseHandle(file);
     return added != MZ_FALSE;
@@ -908,6 +977,7 @@ int wpm_archive_build(const char* source_dir, const char* output_dir, int update
     char archive_name[WPM_PATH_SIZE];
     wpm_package_metadata metadata;
     mz_zip_archive zip;
+    HANDLE output_file;
     int success = 0;
 
     verbose_log("Building package from: %s", source_dir);
@@ -957,8 +1027,25 @@ int wpm_archive_build(const char* source_dir, const char* output_dir, int update
 
     verbose_log("Creating archive: %s", output_path);
 
+    output_file = CreateFileA(
+        output_path,
+        GENERIC_WRITE,
+        0,
+        NULL,
+        CREATE_ALWAYS,
+        FILE_ATTRIBUTE_NORMAL,
+        NULL
+    );
+    if (output_file == INVALID_HANDLE_VALUE) {
+        printf("Error: could not create archive: %s\n", output_path);
+        return 0;
+    }
     memset(&zip, 0, sizeof(zip));
-    if (!mz_zip_writer_init_file(&zip, output_path, 0)) {
+    zip.m_pWrite = wpm_zip_write_file;
+    zip.m_pIO_opaque = output_file;
+    if (!mz_zip_writer_init(&zip, 0)) {
+        CloseHandle(output_file);
+        remove(output_path);
         printf("Error: could not create archive: %s\n", output_path);
         return 0;
     }
@@ -968,6 +1055,7 @@ int wpm_archive_build(const char* source_dir, const char* output_dir, int update
         success = 1;
     }
     mz_zip_writer_end(&zip);
+    CloseHandle(output_file);
 
     if (!success) {
         remove(output_path);
