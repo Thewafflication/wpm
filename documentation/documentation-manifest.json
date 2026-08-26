@@ -44,6 +44,7 @@
     "docs/adr-0011-transport-neutral-repository-access.md",
     "docs/adr-0012-repository-authoring-and-index-signing.md",
     "docs/adr-0013-operation-plans-dry-run-and-recovery.md",
+    "docs/adr-0014-zlib-ng-compression-and-buffer-sizing.md",
     "docs/req-0001-cmd-line-invocation.md",
     "docs/req-0002-package-initialization.md",
     "docs/req-0003-package-build.md",

@@ -32,12 +32,13 @@ function Get-DependencyMetadata {
 }
 
 $dependencies = @(
-    Get-DependencyMetadata -Name 'miniz' -Path (Join-Path $repositoryRoot 'third_party\miniz')
+    Get-DependencyMetadata -Name 'minizip-ng' -Path (Join-Path $repositoryRoot 'third_party\minizip-ng')
+    Get-DependencyMetadata -Name 'zlib-ng' -Path (Join-Path $repositoryRoot 'third_party\zlib-ng')
     Get-DependencyMetadata -Name 'libsodium' -Path (Join-Path $repositoryRoot 'third_party\libsodium')
 )
 
 foreach ($dependency in $dependencies) {
-    $prefix = $dependency.Name.ToLowerInvariant()
+    $prefix = $dependency.Name.ToLowerInvariant().Replace('-', '_')
     "$($prefix)_version=$($dependency.Version)" | Out-File -LiteralPath $GitHubOutput -Append -Encoding utf8
     "$($prefix)_commit=$($dependency.Commit)" | Out-File -LiteralPath $GitHubOutput -Append -Encoding utf8
     Write-Output "$($dependency.Name): $($dependency.Version) ($($dependency.Commit))"

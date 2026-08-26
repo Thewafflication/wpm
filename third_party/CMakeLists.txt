@@ -2,7 +2,6 @@ cmake_minimum_required(VERSION 3.10)
 
 project(wpm_third_party C)
 
-include(GenerateExportHeader)
 
 if(WIN32 AND NOT CMAKE_C_COMPILER_ID STREQUAL "TinyCC")
   message(FATAL_ERROR "WPM third-party Windows builds require TinyCC")
@@ -54,44 +53,72 @@ set(WPM_THIRD_PARTY_BIN_DIR
   CACHE PATH "Output directory for third-party static libraries"
 )
 
-set(MINIZ_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/miniz")
-
-if(NOT TARGET miniz)
-  add_library(miniz STATIC
-    "${MINIZ_SOURCE_DIR}/miniz.c"
-    "${MINIZ_SOURCE_DIR}/miniz_zip.c"
-    "${MINIZ_SOURCE_DIR}/miniz_tinfl.c"
-    "${MINIZ_SOURCE_DIR}/miniz_tdef.c"
-  )
-
-  generate_export_header(miniz)
-
-  target_include_directories(miniz PUBLIC
-    "${MINIZ_SOURCE_DIR}"
-    "${CMAKE_CURRENT_BINARY_DIR}"
+set(ZLIB_NG_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/zlib-ng")
+if(NOT EXISTS "${ZLIB_NG_SOURCE_DIR}/CMakeLists.txt")
+  message(FATAL_ERROR
+    "zlib-ng was not found at ${ZLIB_NG_SOURCE_DIR}. Initialize the third-party submodules."
   )
 endif()
 
-set_target_properties(miniz PROPERTIES
-  OUTPUT_NAME miniz
-  C_STANDARD 99
-  C_STANDARD_REQUIRED ON
-  C_EXTENSIONS OFF
+# WPM only needs zlib-ng's native streaming API. Generic C fallbacks keep
+# the library portable across TinyCC x86, x64, and ARM64 builds.
+set(BUILD_SHARED_LIBS OFF)
+set(BUILD_TESTING OFF)
+set(ZLIB_COMPAT OFF)
+set(ZLIB_ALIASES OFF)
+set(WITH_GZFILEOP OFF)
+set(WITH_OPTIM OFF)
+set(WITH_RUNTIME_CPU_DETECTION OFF)
+set(WITH_CRC32_CHORBA OFF)
+set(INSTALL_UTILS OFF)
+add_subdirectory("${ZLIB_NG_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/zlib-ng" EXCLUDE_FROM_ALL)
+wpm_third_party_set_archive_output(zlib-ng)
+
+set(MINIZIP_NG_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/minizip-ng")
+if(NOT EXISTS "${MINIZIP_NG_SOURCE_DIR}/CMakeLists.txt")
+  message(FATAL_ERROR
+    "minizip-ng was not found at ${MINIZIP_NG_SOURCE_DIR}. Initialize the third-party submodules."
+  )
+endif()
+
+# WPM performs raw deflate through zlib-ng. Minizip-ng supplies only the
+# ZIP/ZIP64 container layer, so optional codecs and encryption stay out.
+set(MZ_COMPAT OFF)
+set(MZ_ZLIB OFF)
+set(MZ_BZIP2 OFF)
+set(MZ_LZMA OFF)
+set(MZ_PPMD OFF)
+set(MZ_ZSTD OFF)
+set(MZ_LIBCOMP OFF)
+set(MZ_FETCH_LIBS OFF)
+set(MZ_PKCRYPT OFF)
+set(MZ_WZAES OFF)
+set(MZ_OPENSSL OFF)
+set(MZ_ICONV OFF)
+set(MZ_BUILD_TESTS OFF)
+set(MZ_BUILD_UNIT_TESTS OFF)
+set(MZ_BUILD_FUZZ_TESTS OFF)
+if(WIN32)
+  # TinyCC's bundled dirent.h conflicts with WCRT's wint_t. The Win32
+  # minizip-ng backend does not use POSIX directory handles.
+  set(HAVE_DIRENT_H 0 CACHE INTERNAL "minizip-ng dirent availability" FORCE)
+  set(HAVE_SYS_DIRENT_H 0 CACHE INTERNAL "minizip-ng sys/dirent availability" FORCE)
+  set(HAVE_PDIR 0 CACHE INTERNAL "minizip-ng DIR pointer availability" FORCE)
+endif()
+add_subdirectory("${MINIZIP_NG_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/minizip-ng" EXCLUDE_FROM_ALL)
+# WPM reads and writes pre-compressed raw entries. Keep raw DEFLATE methods
+# available even though minizip-ng has no codec compiled into this target.
+target_compile_options(minizip-ng PRIVATE
+  -UMZ_ZIP_NO_COMPRESSION
+  -UMZ_ZIP_NO_DECOMPRESSION
 )
 if(WIN32)
-  # WCRT uses a 64-bit time_t on every architecture. Load that definition
-  # before TinyCC's WinAPI headers and suppress their legacy x86 definition.
-  target_compile_options(miniz PRIVATE -include time.h)
-  # Miniz uses POSIX file-status names. WCRT intentionally exposes the
-  # explicit-width Windows interfaces instead.
-  target_compile_definitions(miniz PRIVATE
-    _TIME_T_DEFINED
-    stat=_stat64
-    utimbuf=__utimbuf64
-    utime=_utime64
+  target_compile_options(minizip-ng PRIVATE
+    -include "${CMAKE_SOURCE_DIR}/cmake/wpm_minizip_compat.h"
   )
+  target_include_directories(minizip-ng PRIVATE "${CMAKE_SOURCE_DIR}/cmake")
 endif()
-wpm_third_party_set_archive_output(miniz)
+wpm_third_party_set_archive_output(minizip-ng)
 
 set(LIBSODIUM_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/libsodium")
 file(GLOB_RECURSE libsodium_sources
@@ -193,6 +220,7 @@ wpm_third_party_set_archive_output(libsodium)
 
 add_custom_target(wpm-third-party
   DEPENDS
-    miniz
+    zlib-ng
+    minizip-ng
     libsodium
 )

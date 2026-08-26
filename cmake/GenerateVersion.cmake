@@ -58,68 +58,133 @@ if(NOT tag_result EQUAL 0)
     endif()
 endif()
 
-if(DEFINED WPM_MINIZ_VERSION_OVERRIDE AND NOT WPM_MINIZ_VERSION_OVERRIDE STREQUAL "" AND
-   DEFINED WPM_MINIZ_COMMIT_OVERRIDE AND NOT WPM_MINIZ_COMMIT_OVERRIDE STREQUAL "")
-    set(miniz_version "${WPM_MINIZ_VERSION_OVERRIDE}")
-    set(miniz_commit "${WPM_MINIZ_COMMIT_OVERRIDE}")
-    set(miniz_dirty 0)
+if(DEFINED WPM_MINIZIP_NG_VERSION_OVERRIDE AND NOT WPM_MINIZIP_NG_VERSION_OVERRIDE STREQUAL "" AND
+   DEFINED WPM_MINIZIP_NG_COMMIT_OVERRIDE AND NOT WPM_MINIZIP_NG_COMMIT_OVERRIDE STREQUAL "")
+    set(minizip_ng_version "${WPM_MINIZIP_NG_VERSION_OVERRIDE}")
+    set(minizip_ng_commit "${WPM_MINIZIP_NG_COMMIT_OVERRIDE}")
+    set(minizip_ng_dirty 0)
 else()
 execute_process(
     COMMAND git describe --tags --exact-match
-    WORKING_DIRECTORY "${WPM_SOURCE_DIR}/third_party/miniz"
-    RESULT_VARIABLE miniz_tag_result
-    OUTPUT_VARIABLE miniz_version
+    WORKING_DIRECTORY "${WPM_SOURCE_DIR}/third_party/minizip-ng"
+    RESULT_VARIABLE minizip_ng_tag_result
+    OUTPUT_VARIABLE minizip_ng_version
     OUTPUT_STRIP_TRAILING_WHITESPACE
     ERROR_QUIET
 )
 
-if(NOT miniz_tag_result EQUAL 0)
-    file(STRINGS "${WPM_SOURCE_DIR}/third_party/miniz/miniz.h" miniz_version_line
-        REGEX "^/\\* miniz\\.c [0-9]+\\.[0-9]+\\.[0-9]+")
-    if(miniz_version_line MATCHES "miniz\\.c ([0-9]+\\.[0-9]+\\.[0-9]+)")
-        set(miniz_version "${CMAKE_MATCH_1}")
+if(NOT minizip_ng_tag_result EQUAL 0)
+    file(STRINGS "${WPM_SOURCE_DIR}/third_party/minizip-ng/mz.h" minizip_ng_version_line
+        REGEX "^#define MZ_VERSION[ \\t]+")
+    if(minizip_ng_version_line MATCHES "MZ_VERSION[ \\t]+\\(\"([^\"]+)\"\\)")
+        set(minizip_ng_version "${CMAKE_MATCH_1}")
     else()
-        set(miniz_version "unknown")
+        set(minizip_ng_version "unknown")
     endif()
 endif()
 
 execute_process(
     COMMAND git rev-parse --short HEAD
-    WORKING_DIRECTORY "${WPM_SOURCE_DIR}/third_party/miniz"
-    RESULT_VARIABLE miniz_commit_result
-    OUTPUT_VARIABLE miniz_commit
+    WORKING_DIRECTORY "${WPM_SOURCE_DIR}/third_party/minizip-ng"
+    RESULT_VARIABLE minizip_ng_commit_result
+    OUTPUT_VARIABLE minizip_ng_commit
     OUTPUT_STRIP_TRAILING_WHITESPACE
     ERROR_QUIET
 )
 
-if(NOT miniz_commit_result EQUAL 0)
+if(NOT minizip_ng_commit_result EQUAL 0)
     execute_process(
-        COMMAND git rev-parse HEAD:third_party/miniz
+        COMMAND git rev-parse HEAD:third_party/minizip-ng
         WORKING_DIRECTORY "${WPM_SOURCE_DIR}"
-        RESULT_VARIABLE miniz_gitlink_result
-        OUTPUT_VARIABLE miniz_gitlink_commit
+        RESULT_VARIABLE minizip_ng_gitlink_result
+        OUTPUT_VARIABLE minizip_ng_gitlink_commit
         OUTPUT_STRIP_TRAILING_WHITESPACE
         ERROR_QUIET
     )
-    if(miniz_gitlink_result EQUAL 0)
-        string(SUBSTRING "${miniz_gitlink_commit}" 0 7 miniz_commit)
+    if(minizip_ng_gitlink_result EQUAL 0)
+        string(SUBSTRING "${minizip_ng_gitlink_commit}" 0 7 minizip_ng_commit)
     else()
-        set(miniz_commit "unknown")
+        set(minizip_ng_commit "unknown")
     endif()
 endif()
 
 execute_process(
     COMMAND git status --porcelain --untracked-files=no
-    WORKING_DIRECTORY "${WPM_SOURCE_DIR}/third_party/miniz"
-    OUTPUT_VARIABLE miniz_dirty_files
+    WORKING_DIRECTORY "${WPM_SOURCE_DIR}/third_party/minizip-ng"
+    OUTPUT_VARIABLE minizip_ng_dirty_files
     OUTPUT_STRIP_TRAILING_WHITESPACE
     ERROR_QUIET
 )
 
-if(miniz_dirty_files STREQUAL "")
-    set(miniz_dirty 0)
+if(minizip_ng_dirty_files STREQUAL "")
+    set(minizip_ng_dirty 0)
 else()
-    set(miniz_dirty 1)
+    set(minizip_ng_dirty 1)
+endif()
+endif()
+
+if(DEFINED WPM_ZLIB_NG_VERSION_OVERRIDE AND NOT WPM_ZLIB_NG_VERSION_OVERRIDE STREQUAL "" AND
+   DEFINED WPM_ZLIB_NG_COMMIT_OVERRIDE AND NOT WPM_ZLIB_NG_COMMIT_OVERRIDE STREQUAL "")
+    set(zlib_ng_version "${WPM_ZLIB_NG_VERSION_OVERRIDE}")
+    set(zlib_ng_commit "${WPM_ZLIB_NG_COMMIT_OVERRIDE}")
+    set(zlib_ng_dirty 0)
+else()
+execute_process(
+    COMMAND git describe --tags --exact-match
+    WORKING_DIRECTORY "${WPM_SOURCE_DIR}/third_party/zlib-ng"
+    RESULT_VARIABLE zlib_ng_tag_result
+    OUTPUT_VARIABLE zlib_ng_version
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+)
+
+if(NOT zlib_ng_tag_result EQUAL 0)
+    file(STRINGS "${WPM_SOURCE_DIR}/third_party/zlib-ng/zlib-ng.h.in" zlib_ng_version_line
+        REGEX "^#define ZLIBNG_VERSION")
+    if(zlib_ng_version_line MATCHES "ZLIBNG_VERSION[ \t]+\"([^\"]+)\"")
+        set(zlib_ng_version "${CMAKE_MATCH_1}")
+    else()
+        set(zlib_ng_version "unknown")
+    endif()
+endif()
+
+execute_process(
+    COMMAND git rev-parse --short HEAD
+    WORKING_DIRECTORY "${WPM_SOURCE_DIR}/third_party/zlib-ng"
+    RESULT_VARIABLE zlib_ng_commit_result
+    OUTPUT_VARIABLE zlib_ng_commit
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+)
+
+if(NOT zlib_ng_commit_result EQUAL 0)
+    execute_process(
+        COMMAND git rev-parse HEAD:third_party/zlib-ng
+        WORKING_DIRECTORY "${WPM_SOURCE_DIR}"
+        RESULT_VARIABLE zlib_ng_gitlink_result
+        OUTPUT_VARIABLE zlib_ng_gitlink_commit
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+    )
+    if(zlib_ng_gitlink_result EQUAL 0)
+        string(SUBSTRING "${zlib_ng_gitlink_commit}" 0 7 zlib_ng_commit)
+    else()
+        set(zlib_ng_commit "unknown")
+    endif()
+endif()
+
+execute_process(
+    COMMAND git status --porcelain --untracked-files=no
+    WORKING_DIRECTORY "${WPM_SOURCE_DIR}/third_party/zlib-ng"
+    OUTPUT_VARIABLE zlib_ng_dirty_files
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+)
+
+if(zlib_ng_dirty_files STREQUAL "")
+    set(zlib_ng_dirty 0)
+else()
+    set(zlib_ng_dirty 1)
 endif()
 endif()
 
@@ -192,9 +257,12 @@ endif()
 
 set(version_header "#ifndef WPM_VERSION_H\n#define WPM_VERSION_H\n\n
 #define WPM_VERSION \"${version}\"\n
-#define WPM_MINIZ_VERSION \"${miniz_version}\"\n
-#define WPM_MINIZ_COMMIT \"${miniz_commit}\"\n
-#define WPM_MINIZ_DIRTY ${miniz_dirty}\n
+#define WPM_MINIZIP_NG_VERSION \"${minizip_ng_version}\"\n
+#define WPM_MINIZIP_NG_COMMIT \"${minizip_ng_commit}\"\n
+#define WPM_MINIZIP_NG_DIRTY ${minizip_ng_dirty}\n
+#define WPM_ZLIB_NG_VERSION \"${zlib_ng_version}\"\n
+#define WPM_ZLIB_NG_COMMIT \"${zlib_ng_commit}\"\n
+#define WPM_ZLIB_NG_DIRTY ${zlib_ng_dirty}\n
 #define WPM_SODIUM_VERSION \"${sodium_version}\"\n
 #define WPM_SODIUM_COMMIT \"${sodium_commit}\"\n
 #define WPM_SODIUM_DIRTY ${sodium_dirty}\n

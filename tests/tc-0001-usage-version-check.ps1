@@ -39,7 +39,8 @@ $results = @(
                 throw "Expected exit code 0, got $ExitCode."
             }
             if ($Output -notmatch 'Dependencies:' -or
-                $Output -notmatch 'miniz .+commit ' -or
+                $Output -notmatch 'minizip-ng .+commit ' -or
+                $Output -notmatch 'zlib-ng .+commit ' -or
                 $Output -notmatch 'libsodium .+commit ' -or
                 $Output -notmatch 'urlmon \d+\.\d+\.\d+\.\d+ \(Windows system library\)' -or
                 $Output -notmatch 'advapi32 \d+\.\d+\.\d+\.\d+ \(Windows system library\)') {

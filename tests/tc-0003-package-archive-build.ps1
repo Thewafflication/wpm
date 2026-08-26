@@ -71,7 +71,9 @@ try {
                 throw "build did not create $archivePath"
             }
             if ($Output -notmatch 'Computing BLAKE2b hash:' -or
-                $Output -notmatch 'Adding file to archive:' -or $Output -notmatch 'Creating archive:') {
+                $Output -notmatch 'Adding file to archive:' -or
+                $Output -notmatch 'Compressing with zlib-ng:' -or
+                $Output -notmatch 'Creating archive:') {
                 throw 'Expected verbose archive build progress.'
             }
         }

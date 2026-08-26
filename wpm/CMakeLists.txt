@@ -14,8 +14,10 @@ add_custom_target(wpm_version_header ALL
     -DWPM_VERSION_HEADER=${WPM_VERSION_HEADER}
     -DWPM_VERSION_RESOURCE=${WPM_VERSION_RESOURCE}
     -DWPM_ICON_FILE=${WPM_ICON_FILE}
-    -DWPM_MINIZ_VERSION_OVERRIDE=${WPM_MINIZ_VERSION_OVERRIDE}
-    -DWPM_MINIZ_COMMIT_OVERRIDE=${WPM_MINIZ_COMMIT_OVERRIDE}
+    -DWPM_ZLIB_NG_VERSION_OVERRIDE=${WPM_ZLIB_NG_VERSION_OVERRIDE}
+    -DWPM_ZLIB_NG_COMMIT_OVERRIDE=${WPM_ZLIB_NG_COMMIT_OVERRIDE}
+    -DWPM_MINIZIP_NG_VERSION_OVERRIDE=${WPM_MINIZIP_NG_VERSION_OVERRIDE}
+    -DWPM_MINIZIP_NG_COMMIT_OVERRIDE=${WPM_MINIZIP_NG_COMMIT_OVERRIDE}
     -DWPM_LIBSODIUM_VERSION_OVERRIDE=${WPM_LIBSODIUM_VERSION_OVERRIDE}
     -DWPM_LIBSODIUM_COMMIT_OVERRIDE=${WPM_LIBSODIUM_COMMIT_OVERRIDE}
     -P ${CMAKE_SOURCE_DIR}/cmake/GenerateVersion.cmake
@@ -93,18 +95,26 @@ set_property(TARGET wpm PROPERTY C_STANDARD 99)
 set_property(TARGET wpm PROPERTY C_STANDARD_REQUIRED ON)
 set_property(TARGET wpm PROPERTY C_EXTENSIONS OFF)
 
-target_compile_definitions(wpm PRIVATE SODIUM_STATIC WPM_TARGET_ARCH="${wpm_arch}")
+target_compile_definitions(wpm PRIVATE
+  SODIUM_STATIC
+  WPM_TARGET_ARCH="${wpm_arch}"
+  WPM_ZLIB_NG_BUFFER_BYTES=${WPM_ZLIB_NG_BUFFER_BYTES}U
+  WPM_ZLIB_NG_COMPRESSION_LEVEL=${WPM_ZLIB_NG_COMPRESSION_LEVEL}
+)
 if(WIN32)
   target_compile_options(wpm PRIVATE -include time.h)
   target_compile_definitions(wpm PRIVATE
     # WCRT uses a 64-bit time_t on every architecture. Prevent TinyCC's WinAPI
     # headers from introducing their legacy 32-bit x86 definition later.
     _TIME_T_DEFINED
+    # TinyCC's WinAPI headers define wint_t before minizip-ng includes WCRT's
+    # inttypes.h; suppress the duplicate WCRT typedef.
+    WCRT_WINT_T_DEFINED
     WPM_HAS_WCRT=1
     WPM_WCRT_VERSION="${WPM_WCRT_VERSION}"
   )
 endif()
-target_link_libraries(wpm PRIVATE miniz libsodium)
+target_link_libraries(wpm PRIVATE minizip-ng zlib-ng libsodium)
 if(WIN32)
   # Use explicit import definitions so cross-architecture builds don't depend
   # on matching system DLLs being installed on the build host.
@@ -112,6 +122,7 @@ if(WIN32)
     "${CMAKE_CURRENT_SOURCE_DIR}/tcc_support/urlmon.def"
     "${CMAKE_CURRENT_SOURCE_DIR}/tcc_support/advapi32.def"
     "${CMAKE_CURRENT_SOURCE_DIR}/tcc_support/version.def"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tcc_support/kernel32-extra.def"
   )
   set(wcrt_console_startup "${WPM_WCRT_TARGET_ROOT}/lib/wcrt-startup-console.o")
   set_source_files_properties("${wcrt_console_startup}" PROPERTIES

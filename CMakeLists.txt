@@ -1,11 +1,28 @@
 ﻿# CMakeList.txt : Top-level CMake project file, do global configuration
 # and include sub-projects here.
 #
-cmake_minimum_required (VERSION 3.10)
+cmake_minimum_required (VERSION 3.14)
 
 project (wpm C)
 
 include(CTest)
+
+set(WPM_ZLIB_NG_BUFFER_KIB "1024" CACHE STRING
+  "zlib-ng archive streaming buffer size in KiB (32 through 32768)"
+)
+if(NOT WPM_ZLIB_NG_BUFFER_KIB MATCHES "^[0-9]+$" OR
+   WPM_ZLIB_NG_BUFFER_KIB LESS 32 OR WPM_ZLIB_NG_BUFFER_KIB GREATER 32768)
+  message(FATAL_ERROR "WPM_ZLIB_NG_BUFFER_KIB must be an integer from 32 through 32768")
+endif()
+math(EXPR WPM_ZLIB_NG_BUFFER_BYTES "${WPM_ZLIB_NG_BUFFER_KIB} * 1024")
+
+set(WPM_ZLIB_NG_COMPRESSION_LEVEL "2" CACHE STRING
+  "zlib-ng package compression level (1 through 9)"
+)
+if(NOT WPM_ZLIB_NG_COMPRESSION_LEVEL MATCHES "^[0-9]+$" OR
+   WPM_ZLIB_NG_COMPRESSION_LEVEL LESS 1 OR WPM_ZLIB_NG_COMPRESSION_LEVEL GREATER 9)
+  message(FATAL_ERROR "WPM_ZLIB_NG_COMPRESSION_LEVEL must be an integer from 1 through 9")
+endif()
 
 if(DEFINED WPM_ARCH)
   set(wpm_arch "${WPM_ARCH}")

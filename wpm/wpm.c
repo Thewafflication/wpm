@@ -429,10 +429,14 @@ void print_version()
 	printf("Waughtal Package Manager (wpm) Version %s \n", WPM_VERSION);
     printf("=================================================================\n");
     printf("Dependencies:\n");
-    printf("  miniz %s (commit %s%s)\n",
-        WPM_MINIZ_VERSION,
-        WPM_MINIZ_COMMIT,
-        WPM_MINIZ_DIRTY ? ", dirty" : "");
+    printf("  minizip-ng %s (commit %s%s)\n",
+        WPM_MINIZIP_NG_VERSION,
+        WPM_MINIZIP_NG_COMMIT,
+        WPM_MINIZIP_NG_DIRTY ? ", dirty" : "");
+    printf("  zlib-ng %s (commit %s%s)\n",
+        WPM_ZLIB_NG_VERSION,
+        WPM_ZLIB_NG_COMMIT,
+        WPM_ZLIB_NG_DIRTY ? ", dirty" : "");
     printf("  libsodium %s (commit %s%s)\n",
         WPM_SODIUM_VERSION,
         WPM_SODIUM_COMMIT,

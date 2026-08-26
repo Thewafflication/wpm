@@ -20,8 +20,8 @@ Display WPM's version:
 wpm --version
 ```
 
-`--version` includes the WPM version plus the bundled `miniz` and `libsodium`
-versions and commits:
+`--version` includes the WPM version plus the bundled `minizip-ng`, `zlib-ng`, and
+`libsodium` versions and commits:
 
 ```text
 wpm --version
@@ -346,6 +346,11 @@ cmake --build --preset build-x86-debug
 
 The resulting executable is located under `bin/x86/Debug/`.
 
+Archive compression defaults to zlib-ng level 2 with 1 MiB streaming buffers.
+Builds can tune these independently with
+`-DWPM_ZLIB_NG_COMPRESSION_LEVEL=<1..9>` and
+`-DWPM_ZLIB_NG_BUFFER_KIB=<32..32768>`.
+
 WPM's displayed version is generated from Git during each build. An exact Git
 tag, such as `1.0.0`, becomes the version. Otherwise, WPM displays the
 SemVer-compatible development version
@@ -353,7 +358,8 @@ SemVer-compatible development version
 tracked files have uncommitted changes. A repository without any tags uses
 `0.0.0` as the development-version base.
 GitHub builds fetch submodule tags before generating this information, so the
-reported `miniz` and `libsodium` versions use their exact dependency tags.
+reported `minizip-ng`, `zlib-ng`, and `libsodium` versions use their exact dependency
+tags.
 CI also compares each pinned submodule commit with the latest GitHub release.
 When a newer released tag contains the pinned commit, the workflow emits a
 non-blocking dependency warning with the pinned and available versions. All

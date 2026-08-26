@@ -7,7 +7,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $dependencies = @(
-    @{ Name = 'miniz'; Path = 'third_party/miniz'; Repository = 'richgel999/miniz' },
+    @{ Name = 'minizip-ng'; Path = 'third_party/minizip-ng'; Repository = 'zlib-ng/minizip-ng' },
+    @{ Name = 'zlib-ng'; Path = 'third_party/zlib-ng'; Repository = 'zlib-ng/zlib-ng' },
     @{ Name = 'libsodium'; Path = 'third_party/libsodium'; Repository = 'jedisct1/libsodium' }
 )
 $dependencyWarnings = [System.Collections.Generic.List[string]]::new()

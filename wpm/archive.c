@@ -9,7 +9,11 @@
 #include "archive.h"
 #include "logging.h"
 #include "helpers.h"
-#include "miniz.h"
+#include "mz.h"
+#include "mz_strm.h"
+#include "mz_zip.h"
+#include "mz_zip_rw.h"
+#include "zlib-ng.h"
 #include "sodium.h"
 #include "signing.h"
 
@@ -21,6 +25,12 @@
 #define WPM_COMPRESSION_SAMPLE_BYTES (64U * 1024U)
 #define WPM_COMPRESSION_SAMPLE_MIN_FILE_BYTES (1024ULL * 1024ULL)
 #define WPM_INCOMPRESSIBLE_SAMPLE_PERCENT 98U
+#ifndef WPM_ZLIB_NG_BUFFER_BYTES
+#define WPM_ZLIB_NG_BUFFER_BYTES (1024U * 1024U)
+#endif
+#ifndef WPM_ZLIB_NG_COMPRESSION_LEVEL
+#define WPM_ZLIB_NG_COMPRESSION_LEVEL 2
+#endif
 
 typedef struct wpm_ignore_list {
     char patterns[WPM_MAX_IGNORE_PATTERNS][WPM_PATH_SIZE];
@@ -96,53 +106,325 @@ static const char* path_basename(const char* path);
 static int normalized_full_path(const char* path, char* result, size_t result_size);
 static int join_path(char* result, size_t result_size, const char* left, const char* right);
 
-static size_t wpm_zip_read_file(void* opaque, mz_uint64 offset, void* buffer, size_t size) {
-    HANDLE file = (HANDLE)opaque;
-    LARGE_INTEGER position;
-    DWORD bytes_to_read;
-    DWORD bytes_read = 0;
+typedef struct wpm_zlib_ng_buffer {
+    unsigned char* data;
+    size_t size;
+    size_t capacity;
+} wpm_zlib_ng_buffer;
 
-    if (size > MAXDWORD) size = MAXDWORD;
-    position.QuadPart = (LONGLONG)offset;
-    bytes_to_read = (DWORD)size;
-    if (!SetFilePointerEx(file, position, NULL, FILE_BEGIN) ||
-        !ReadFile(file, buffer, bytes_to_read, &bytes_read, NULL)) {
-        return 0;
+typedef struct wpm_zip_output {
+    HANDLE file;
+    unsigned char* memory;
+    uint64_t capacity;
+    uint64_t size;
+    uint32_t crc32;
+} wpm_zip_output;
+
+static int wpm_zlib_ng_buffer_reserve(wpm_zlib_ng_buffer* buffer, size_t additional) {
+    size_t maximum = (size_t)-1;
+    size_t required;
+    size_t capacity;
+    unsigned char* resized;
+
+    if (additional > maximum - buffer->size) return 0;
+    required = buffer->size + additional;
+    if (required <= buffer->capacity) return 1;
+
+    capacity = buffer->capacity ? buffer->capacity : WPM_ZLIB_NG_BUFFER_BYTES;
+    while (capacity < required) {
+        if (capacity > maximum / 2) {
+            capacity = required;
+            break;
+        }
+        capacity *= 2;
     }
-    return (size_t)bytes_read;
+
+    resized = (unsigned char*)realloc(buffer->data, capacity);
+    if (!resized) return 0;
+    buffer->data = resized;
+    buffer->capacity = capacity;
+    return 1;
 }
 
-static size_t wpm_zip_write_file(void* opaque, mz_uint64 offset, const void* buffer, size_t size) {
-    HANDLE file = (HANDLE)opaque;
-    LARGE_INTEGER position;
-    DWORD bytes_to_write;
+static int wpm_zlib_ng_compress_file(
+    HANDLE file,
+    uint64_t file_size,
+    int compression_level,
+    wpm_zlib_ng_buffer* compressed,
+    uint32_t* crc32
+) {
+    zng_stream stream;
+    unsigned char* input = NULL;
+    LARGE_INTEGER beginning;
+    uint64_t remaining = file_size;
+    int initialized = 0;
+    int success = 0;
+
+    memset(&stream, 0, sizeof(stream));
+    memset(compressed, 0, sizeof(*compressed));
+    *crc32 = 0;
+
+    input = (unsigned char*)malloc(WPM_ZLIB_NG_BUFFER_BYTES);
+    if (!input) goto cleanup;
+
+    beginning.QuadPart = 0;
+    if (!SetFilePointerEx(file, beginning, NULL, FILE_BEGIN)) goto cleanup;
+    if (zng_deflateInit2(
+            &stream,
+            compression_level,
+            Z_DEFLATED,
+            -15,
+            8,
+            Z_DEFAULT_STRATEGY
+        ) != Z_OK) {
+        goto cleanup;
+    }
+    initialized = 1;
+
+    while (remaining) {
+        DWORD requested = (DWORD)(remaining > WPM_ZLIB_NG_BUFFER_BYTES
+            ? WPM_ZLIB_NG_BUFFER_BYTES : remaining);
+        DWORD bytes_read = 0;
+
+        if (!ReadFile(file, input, requested, &bytes_read, NULL) || bytes_read != requested) {
+            goto cleanup;
+        }
+        remaining -= bytes_read;
+        *crc32 = (uint32_t)zng_crc32(*crc32, input, bytes_read);
+        stream.next_in = input;
+        stream.avail_in = bytes_read;
+
+        while (stream.avail_in) {
+            uint32_t available;
+            int status;
+
+            if (!wpm_zlib_ng_buffer_reserve(compressed, WPM_ZLIB_NG_BUFFER_BYTES)) {
+                goto cleanup;
+            }
+            stream.next_out = compressed->data + compressed->size;
+            stream.avail_out = WPM_ZLIB_NG_BUFFER_BYTES;
+            available = stream.avail_out;
+            status = zng_deflate(&stream, Z_NO_FLUSH);
+            compressed->size += available - stream.avail_out;
+            if (status != Z_OK) goto cleanup;
+        }
+    }
+
+    for (;;) {
+        uint32_t available;
+        int status;
+
+        if (!wpm_zlib_ng_buffer_reserve(compressed, WPM_ZLIB_NG_BUFFER_BYTES)) {
+            goto cleanup;
+        }
+        stream.next_out = compressed->data + compressed->size;
+        stream.avail_out = WPM_ZLIB_NG_BUFFER_BYTES;
+        available = stream.avail_out;
+        status = zng_deflate(&stream, Z_FINISH);
+        compressed->size += available - stream.avail_out;
+        if (status == Z_STREAM_END) break;
+        if (status != Z_OK) goto cleanup;
+    }
+
+    success = 1;
+
+cleanup:
+    if (initialized && zng_deflateEnd(&stream) != Z_OK) success = 0;
+    free(input);
+    if (!success) {
+        free(compressed->data);
+        memset(compressed, 0, sizeof(*compressed));
+    }
+    return success;
+}
+
+static int wpm_zlib_ng_sample_is_incompressible(
+    const unsigned char* sample,
+    size_t sample_size,
+    int* result
+) {
+    size_t compressed_capacity = zng_compressBound(sample_size);
+    size_t compressed_size = compressed_capacity;
+    unsigned char* compressed = (unsigned char*)malloc(compressed_capacity);
+    int status;
+
+    if (!compressed) return 0;
+    status = zng_compress2(compressed, &compressed_size, sample, sample_size, Z_BEST_SPEED);
+    free(compressed);
+    if (status != Z_OK) return 0;
+
+    *result = compressed_size * 100U >=
+        sample_size * WPM_INCOMPRESSIBLE_SAMPLE_PERCENT;
+    return 1;
+}
+
+static int wpm_zip_output_write(wpm_zip_output* output, const unsigned char* data, size_t size) {
     DWORD bytes_written = 0;
 
-    if (size > MAXDWORD) size = MAXDWORD;
-    position.QuadPart = (LONGLONG)offset;
-    bytes_to_write = (DWORD)size;
-    if (!SetFilePointerEx(file, position, NULL, FILE_BEGIN) ||
-        !WriteFile(file, buffer, bytes_to_write, &bytes_written, NULL)) {
+    if (output->size > output->capacity ||
+        (uint64_t)size > output->capacity - output->size) return 0;
+    if (output->file != INVALID_HANDLE_VALUE &&
+        (!WriteFile(output->file, data, (DWORD)size, &bytes_written, NULL) ||
+         bytes_written != size)) {
         return 0;
     }
-    return (size_t)bytes_written;
+    if (output->memory) memcpy(output->memory + output->size, data, size);
+    output->crc32 = (uint32_t)zng_crc32(output->crc32, data, (uint32_t)size);
+    output->size += size;
+    return 1;
 }
 
-static mz_uint wpm_zip_compression_level(HANDLE file, mz_uint64 file_size) {
-    unsigned char* sample;
-    void* compressed_sample;
-    size_t compressed_size = 0;
-    DWORD bytes_read = 0;
-    LARGE_INTEGER beginning;
-    int flags;
-    int is_incompressible;
+static int wpm_zip_read_current_entry(
+    void* reader,
+    const mz_zip_file* info,
+    wpm_zip_output* output
+) {
+    zng_stream stream;
+    unsigned char* input = NULL;
+    unsigned char* inflated = NULL;
+    uint64_t compressed_read = 0;
+    int initialized = 0;
+    int opened = 0;
+    int finished = info->compression_method == MZ_COMPRESS_METHOD_STORE;
+    int success = 0;
 
-    if (file_size < WPM_COMPRESSION_SAMPLE_MIN_FILE_BYTES) {
-        return MZ_DEFAULT_COMPRESSION;
+    memset(&stream, 0, sizeof(stream));
+    if (info->compressed_size < 0 || info->uncompressed_size < 0 ||
+        (info->flag & MZ_ZIP_FLAG_ENCRYPTED) != 0 ||
+        (info->compression_method != MZ_COMPRESS_METHOD_STORE &&
+         info->compression_method != MZ_COMPRESS_METHOD_DEFLATE)) {
+        return 0;
+    }
+    if ((uint64_t)info->uncompressed_size > output->capacity) return 0;
+
+    input = (unsigned char*)malloc(WPM_ZLIB_NG_BUFFER_BYTES);
+    if (!input) goto cleanup;
+    if (info->compression_method == MZ_COMPRESS_METHOD_DEFLATE) {
+        inflated = (unsigned char*)malloc(WPM_ZLIB_NG_BUFFER_BYTES);
+        if (!inflated || zng_inflateInit2(&stream, -15) != Z_OK) goto cleanup;
+        initialized = 1;
+    }
+    if (mz_zip_reader_entry_open(reader) != MZ_OK) goto cleanup;
+    opened = 1;
+
+    for (;;) {
+        int32_t read = mz_zip_reader_entry_read(reader, input, WPM_ZLIB_NG_BUFFER_BYTES);
+        if (read < 0) goto cleanup;
+        if (read == 0) break;
+        compressed_read += (uint32_t)read;
+        if (compressed_read > (uint64_t)info->compressed_size) goto cleanup;
+
+        if (info->compression_method == MZ_COMPRESS_METHOD_STORE) {
+            if (!wpm_zip_output_write(output, input, (size_t)read)) goto cleanup;
+            continue;
+        }
+
+        stream.next_in = input;
+        stream.avail_in = (uint32_t)read;
+        while (stream.avail_in) {
+            uint32_t input_before = stream.avail_in;
+            uint32_t available = WPM_ZLIB_NG_BUFFER_BYTES;
+            size_t produced;
+            int status;
+
+            stream.next_out = inflated;
+            stream.avail_out = available;
+            status = zng_inflate(&stream, Z_NO_FLUSH);
+            produced = available - stream.avail_out;
+            if (produced && !wpm_zip_output_write(output, inflated, produced)) goto cleanup;
+            if (status == Z_STREAM_END) {
+                if (stream.avail_in) goto cleanup;
+                finished = 1;
+                break;
+            }
+            if (status != Z_OK ||
+                (input_before == stream.avail_in && produced == 0)) goto cleanup;
+        }
     }
 
+    if (mz_zip_reader_entry_close(reader) != MZ_OK) goto cleanup;
+    opened = 0;
+    success = finished && compressed_read == (uint64_t)info->compressed_size &&
+        output->size == (uint64_t)info->uncompressed_size && output->crc32 == info->crc;
+
+cleanup:
+    if (opened) mz_zip_reader_entry_close(reader);
+    if (initialized && zng_inflateEnd(&stream) != Z_OK) success = 0;
+    free(inflated);
+    free(input);
+    return success;
+}
+
+static void wpm_set_file_modified_time(HANDLE file, time_t modified) {
+    const ULONGLONG windows_epoch_seconds = 11644473600ULL;
+    ULONGLONG seconds;
+    ULONGLONG ticks;
+    FILETIME write_time;
+
+    if ((LONGLONG)modified < 0) return;
+    seconds = (ULONGLONG)modified;
+    if (seconds > ((ULONGLONG)-1) / 10000000ULL - windows_epoch_seconds) return;
+    ticks = (seconds + windows_epoch_seconds) * 10000000ULL;
+    write_time.dwLowDateTime = (DWORD)ticks;
+    write_time.dwHighDateTime = (DWORD)(ticks >> 32);
+    SetFileTime(file, NULL, NULL, &write_time);
+}
+
+static int wpm_zip_extract_current_file(
+    void* reader,
+    const mz_zip_file* info,
+    const char* destination_path
+) {
+    wpm_zip_output output;
+    int success = 0;
+
+    memset(&output, 0, sizeof(output));
+    output.file = CreateFileA(
+        destination_path,
+        GENERIC_WRITE,
+        0,
+        NULL,
+        CREATE_ALWAYS,
+        FILE_ATTRIBUTE_NORMAL,
+        NULL
+    );
+    if (output.file == INVALID_HANDLE_VALUE) goto cleanup;
+    output.capacity = (uint64_t)info->uncompressed_size;
+    if (!wpm_zip_read_current_entry(reader, info, &output)) goto cleanup;
+    wpm_set_file_modified_time(output.file, info->modified_date);
+    success = 1;
+
+cleanup:
+    if (output.file != INVALID_HANDLE_VALUE && !CloseHandle(output.file)) success = 0;
+    if (!success) DeleteFileA(destination_path);
+    return success;
+}
+
+static int wpm_zip_read_current_memory(
+    void* reader,
+    const mz_zip_file* info,
+    unsigned char* memory,
+    size_t capacity
+) {
+    wpm_zip_output output;
+
+    memset(&output, 0, sizeof(output));
+    output.file = INVALID_HANDLE_VALUE;
+    output.memory = memory;
+    output.capacity = capacity;
+    return wpm_zip_read_current_entry(reader, info, &output);
+}
+
+static int wpm_zip_should_store(HANDLE file, uint64_t file_size) {
+    unsigned char* sample;
+    DWORD bytes_read = 0;
+    LARGE_INTEGER beginning;
+    int is_incompressible;
+
+    if (file_size < WPM_COMPRESSION_SAMPLE_MIN_FILE_BYTES) return 0;
+
     sample = (unsigned char*)malloc(WPM_COMPRESSION_SAMPLE_BYTES);
-    if (!sample) return MZ_DEFAULT_COMPRESSION;
+    if (!sample) return 0;
     beginning.QuadPart = 0;
     if (!SetFilePointerEx(file, beginning, NULL, FILE_BEGIN) ||
         !ReadFile(
@@ -153,55 +435,172 @@ static mz_uint wpm_zip_compression_level(HANDLE file, mz_uint64 file_size) {
             NULL
         ) || !bytes_read) {
         free(sample);
-        return MZ_DEFAULT_COMPRESSION;
+        return 0;
     }
 
-    flags = (int)tdefl_create_comp_flags_from_zip_params(
-        MZ_BEST_SPEED,
-        -15,
-        MZ_DEFAULT_STRATEGY
-    );
-    compressed_sample = tdefl_compress_mem_to_heap(
-        sample,
-        bytes_read,
-        &compressed_size,
-        flags
-    );
+    if (!wpm_zlib_ng_sample_is_incompressible(sample, bytes_read, &is_incompressible)) {
+        free(sample);
+        return 0;
+    }
     free(sample);
-    if (!compressed_sample) return MZ_DEFAULT_COMPRESSION;
-
-    is_incompressible = compressed_size * 100U >=
-        (size_t)bytes_read * WPM_INCOMPRESSIBLE_SAMPLE_PERCENT;
-    mz_free(compressed_sample);
-    return is_incompressible ? MZ_NO_COMPRESSION : MZ_DEFAULT_COMPRESSION;
+    return is_incompressible;
 }
 
-static int wpm_zip_add_file(mz_zip_archive* zip, const char* archive_path, const char* source_path) {
+static time_t wpm_get_file_modified_time(HANDLE file) {
+    const ULONGLONG windows_epoch_seconds = 11644473600ULL;
+    FILETIME modified;
+    ULARGE_INTEGER ticks;
+
+    if (!GetFileTime(file, NULL, NULL, &modified)) return 0;
+    ticks.LowPart = modified.dwLowDateTime;
+    ticks.HighPart = modified.dwHighDateTime;
+    if (ticks.QuadPart / 10000000ULL < windows_epoch_seconds) return 0;
+    return (time_t)(ticks.QuadPart / 10000000ULL - windows_epoch_seconds);
+}
+
+static void wpm_zip_initialize_file_info(
+    mz_zip_file* info,
+    const char* archive_path,
+    uint16_t compression_method,
+    uint64_t uncompressed_size,
+    uint64_t compressed_size,
+    uint32_t crc32,
+    time_t modified_date,
+    DWORD attributes
+) {
+    memset(info, 0, sizeof(*info));
+    info->version_madeby = (uint16_t)(MZ_HOST_SYSTEM_WINDOWS_NTFS << 8);
+    info->flag = MZ_ZIP_FLAG_UTF8;
+    info->compression_method = compression_method;
+    info->modified_date = modified_date;
+    info->crc = crc32;
+    info->compressed_size = (int64_t)compressed_size;
+    info->uncompressed_size = (int64_t)uncompressed_size;
+    info->external_fa = attributes;
+    info->filename = archive_path;
+    info->zip64 = MZ_ZIP64_AUTO;
+}
+
+static int wpm_zip_writer_write_all(void* writer, const unsigned char* data, size_t size) {
+    while (size) {
+        int32_t chunk = (int32_t)(size > WPM_ZLIB_NG_BUFFER_BYTES
+            ? WPM_ZLIB_NG_BUFFER_BYTES : size);
+        if (mz_zip_writer_entry_write(writer, data, chunk) != chunk) return 0;
+        data += chunk;
+        size -= (size_t)chunk;
+    }
+    return 1;
+}
+
+static int wpm_zip_writer_close_raw(void* writer, uint64_t uncompressed_size, uint32_t crc32) {
+    void* zip_handle = NULL;
+
+    if (uncompressed_size > 0x7FFFFFFFFFFFFFFFULL ||
+        mz_zip_writer_get_zip_handle(writer, &zip_handle) != MZ_OK) {
+        return 0;
+    }
+    return mz_zip_entry_close_raw(zip_handle, (int64_t)uncompressed_size, crc32) == MZ_OK;
+}
+
+static int wpm_zip_add_stored_file(
+    void* writer,
+    HANDLE file,
+    const char* archive_path,
+    uint64_t file_size,
+    time_t modified_date,
+    DWORD attributes
+) {
+    mz_zip_file info;
+    unsigned char* buffer = NULL;
+    LARGE_INTEGER beginning;
+    uint64_t remaining = file_size;
+    uint32_t crc32 = 0;
+    int opened = 0;
+    int success = 0;
+
+    wpm_zip_initialize_file_info(&info, archive_path, MZ_COMPRESS_METHOD_STORE,
+        file_size, file_size, 0, modified_date, attributes);
+    if (mz_zip_writer_entry_open(writer, &info) != MZ_OK) goto cleanup;
+    opened = 1;
+    buffer = (unsigned char*)malloc(WPM_ZLIB_NG_BUFFER_BYTES);
+    if (!buffer) goto cleanup;
+    beginning.QuadPart = 0;
+    if (!SetFilePointerEx(file, beginning, NULL, FILE_BEGIN)) goto cleanup;
+
+    while (remaining) {
+        DWORD requested = (DWORD)(remaining > WPM_ZLIB_NG_BUFFER_BYTES
+            ? WPM_ZLIB_NG_BUFFER_BYTES : remaining);
+        DWORD bytes_read = 0;
+        if (!ReadFile(file, buffer, requested, &bytes_read, NULL) || bytes_read != requested ||
+            mz_zip_writer_entry_write(writer, buffer, (int32_t)bytes_read) != (int32_t)bytes_read) {
+            goto cleanup;
+        }
+        crc32 = (uint32_t)zng_crc32(crc32, buffer, bytes_read);
+        remaining -= bytes_read;
+    }
+
+    success = wpm_zip_writer_close_raw(writer, file_size, crc32);
+    opened = 0;
+
+cleanup:
+    free(buffer);
+    if (opened) wpm_zip_writer_close_raw(writer, file_size, crc32);
+    return success;
+}
+
+static int wpm_zip_add_file(void* writer, const char* archive_path, const char* source_path) {
     HANDLE file;
     LARGE_INTEGER size;
     DWORD size_high = 0;
     DWORD size_low;
-    mz_uint compression_level;
-    mz_bool added;
+    DWORD attributes;
+    time_t modified_date;
+    int success = 0;
 
     file = CreateFileA(source_path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING,
         FILE_ATTRIBUTE_NORMAL, NULL);
     if (file == INVALID_HANDLE_VALUE) return 0;
     SetLastError(NO_ERROR);
     size_low = GetFileSize(file, &size_high);
-    if (size_low == INVALID_FILE_SIZE && GetLastError() != NO_ERROR) {
-        CloseHandle(file);
-        return 0;
-    }
+    if (size_low == INVALID_FILE_SIZE && GetLastError() != NO_ERROR) goto cleanup;
     size.HighPart = (LONG)size_high;
     size.LowPart = size_low;
-    compression_level = wpm_zip_compression_level(file, (mz_uint64)size.QuadPart);
+    attributes = GetFileAttributesA(source_path);
+    if (attributes == INVALID_FILE_ATTRIBUTES) attributes = FILE_ATTRIBUTE_NORMAL;
+    modified_date = wpm_get_file_modified_time(file);
 
-    added = mz_zip_writer_add_read_buf_callback(zip, archive_path, wpm_zip_read_file,
-        file, (mz_uint64)size.QuadPart, NULL, NULL, 0, compression_level,
-        NULL, 0, NULL, 0);
+    if (!wpm_zip_should_store(file, (uint64_t)size.QuadPart)) {
+        wpm_zlib_ng_buffer compressed;
+        mz_zip_file info;
+        uint32_t crc32;
+
+        if (wpm_zlib_ng_compress_file(
+                file,
+                (uint64_t)size.QuadPart,
+                WPM_ZLIB_NG_COMPRESSION_LEVEL,
+                &compressed,
+                &crc32
+            )) {
+            verbose_log("Compressing with zlib-ng: %s", archive_path);
+            wpm_zip_initialize_file_info(&info, archive_path, MZ_COMPRESS_METHOD_DEFLATE,
+                (uint64_t)size.QuadPart, compressed.size, crc32, modified_date, attributes);
+            if (mz_zip_writer_entry_open(writer, &info) == MZ_OK &&
+                wpm_zip_writer_write_all(writer, compressed.data, compressed.size) &&
+                wpm_zip_writer_close_raw(writer, (uint64_t)size.QuadPart, crc32)) {
+                success = 1;
+            }
+            free(compressed.data);
+            goto cleanup;
+        }
+        verbose_log("zlib-ng compression unavailable; storing without compression: %s", archive_path);
+    }
+
+    success = wpm_zip_add_stored_file(writer, file, archive_path,
+        (uint64_t)size.QuadPart, modified_date, attributes);
+
+cleanup:
     CloseHandle(file);
-    return added != MZ_FALSE;
+    return success;
 }
 
 int wpm_get_data_root(char* result, size_t result_size) {
@@ -538,24 +937,23 @@ static int read_package_metadata(const char* source_dir, wpm_package_metadata* m
 }
 
 static int read_archive_package_metadata(const char* archive_path, wpm_package_metadata* metadata) {
-    mz_zip_archive zip;
-    mz_zip_archive_file_stat stat;
+    void* reader = NULL;
+    mz_zip_file* info = NULL;
     char* text = NULL;
     char* current;
-    int file_index;
     int result = 0;
 
-    memset(&zip, 0, sizeof(zip));
-    if (!mz_zip_reader_init_file(&zip, archive_path, 0)) return 0;
+    reader = mz_zip_reader_create();
+    if (!reader || mz_zip_reader_open_file(reader, archive_path) != MZ_OK) goto cleanup;
+    mz_zip_reader_set_raw(reader, 1);
+    if (mz_zip_reader_locate_entry(reader, ".wpm/package.txt", 0) != MZ_OK ||
+        mz_zip_reader_entry_get_info(reader, &info) != MZ_OK ||
+        info->uncompressed_size < 0 || info->uncompressed_size > 1024 * 1024) goto cleanup;
 
-    file_index = mz_zip_reader_locate_file(&zip, ".wpm/package.txt", NULL, 0);
-    if (file_index < 0 || !mz_zip_reader_file_stat(&zip, (mz_uint)file_index, &stat) ||
-        stat.m_uncomp_size > 1024 * 1024) goto cleanup;
-
-    text = malloc((size_t)stat.m_uncomp_size + 1);
-    if (!text || !mz_zip_reader_extract_to_mem(&zip, (mz_uint)file_index, text,
-        (size_t)stat.m_uncomp_size, 0)) goto cleanup;
-    text[(size_t)stat.m_uncomp_size] = '\0';
+    text = malloc((size_t)info->uncompressed_size + 1);
+    if (!text || !wpm_zip_read_current_memory(reader, info, (unsigned char*)text,
+        (size_t)info->uncompressed_size)) goto cleanup;
+    text[(size_t)info->uncompressed_size] = '\0';
 
     metadata->name[0] = '\0';
     metadata->version[0] = '\0';
@@ -608,7 +1006,7 @@ static int read_archive_package_metadata(const char* archive_path, wpm_package_m
 
 cleanup:
     free(text);
-    mz_zip_reader_end(&zip);
+    mz_zip_reader_delete(&reader);
     return result;
 }
 
@@ -893,7 +1291,7 @@ static void trim_trailing_separators(char* path) {
 }
 
 static int add_directory_to_zip(
-    mz_zip_archive* zip,
+    void* writer,
     const char* source_dir,
     const char* archive_dir,
     const char* output_archive
@@ -938,10 +1336,17 @@ static int add_directory_to_zip(
 
         if ((entry.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0) {
             char directory_entry[WPM_PATH_SIZE];
+            mz_zip_file info;
             int written = snprintf(directory_entry, sizeof(directory_entry), "%s/", archive_path);
-            if (written < 0 || (size_t)written >= sizeof(directory_entry) ||
-                !mz_zip_writer_add_mem(zip, directory_entry, NULL, 0, MZ_BEST_COMPRESSION) ||
-                !add_directory_to_zip(zip, source_path, archive_path, output_archive)) {
+            if (written < 0 || (size_t)written >= sizeof(directory_entry)) {
+                FindClose(search);
+                return 0;
+            }
+            wpm_zip_initialize_file_info(&info, directory_entry, MZ_COMPRESS_METHOD_STORE,
+                0, 0, 0, 0, entry.dwFileAttributes);
+            if (mz_zip_writer_entry_open(writer, &info) != MZ_OK ||
+                !wpm_zip_writer_close_raw(writer, 0, 0) ||
+                !add_directory_to_zip(writer, source_path, archive_path, output_archive)) {
                 FindClose(search);
                 return 0;
             }
@@ -956,7 +1361,7 @@ static int add_directory_to_zip(
 
             verbose_log("Adding file to archive: %s", archive_path);
 
-            if (!wpm_zip_add_file(zip, archive_path, source_path)) {
+            if (!wpm_zip_add_file(writer, archive_path, source_path)) {
                 FindClose(search);
                 return 0;
             }
@@ -976,8 +1381,7 @@ int wpm_archive_build(const char* source_dir, const char* output_dir, int update
     char output_path[WPM_PATH_SIZE];
     char archive_name[WPM_PATH_SIZE];
     wpm_package_metadata metadata;
-    mz_zip_archive zip;
-    HANDLE output_file;
+    void* writer = NULL;
     int success = 0;
 
     verbose_log("Building package from: %s", source_dir);
@@ -1027,35 +1431,22 @@ int wpm_archive_build(const char* source_dir, const char* output_dir, int update
 
     verbose_log("Creating archive: %s", output_path);
 
-    output_file = CreateFileA(
-        output_path,
-        GENERIC_WRITE,
-        0,
-        NULL,
-        CREATE_ALWAYS,
-        FILE_ATTRIBUTE_NORMAL,
-        NULL
-    );
-    if (output_file == INVALID_HANDLE_VALUE) {
-        printf("Error: could not create archive: %s\n", output_path);
-        return 0;
-    }
-    memset(&zip, 0, sizeof(zip));
-    zip.m_pWrite = wpm_zip_write_file;
-    zip.m_pIO_opaque = output_file;
-    if (!mz_zip_writer_init(&zip, 0)) {
-        CloseHandle(output_file);
+    writer = mz_zip_writer_create();
+    if (!writer) {
         remove(output_path);
         printf("Error: could not create archive: %s\n", output_path);
         return 0;
     }
+    mz_zip_writer_set_raw(writer, 1);
+    if (mz_zip_writer_open_file(writer, output_path, 0, 0) != MZ_OK) goto writer_cleanup;
 
-    if (add_directory_to_zip(&zip, source_full_path, "", output_path) &&
-        mz_zip_writer_finalize_archive(&zip)) {
+    if (add_directory_to_zip(writer, source_full_path, "", output_path) &&
+        mz_zip_writer_close(writer) == MZ_OK) {
         success = 1;
     }
-    mz_zip_writer_end(&zip);
-    CloseHandle(output_file);
+
+writer_cleanup:
+    mz_zip_writer_delete(&writer);
 
     if (!success) {
         remove(output_path);
@@ -1098,9 +1489,9 @@ static int create_parent_directory(const char* path, char* previous_parent, size
 }
 
 int wpm_archive_extract(const char* archive_path, const char* destination_dir) {
-    mz_zip_archive zip;
-    mz_uint file_count;
+    void* reader = NULL;
     char previous_parent[WPM_PATH_SIZE] = "";
+    int32_t entry_status;
     int success = 0;
 
     verbose_log("Extracting archive: %s", archive_path);
@@ -1110,25 +1501,28 @@ int wpm_archive_extract(const char* archive_path, const char* destination_dir) {
         return 0;
     }
 
-    memset(&zip, 0, sizeof(zip));
-    if (!mz_zip_reader_init_file(&zip, archive_path, 0)) {
+    reader = mz_zip_reader_create();
+    if (!reader || mz_zip_reader_open_file(reader, archive_path) != MZ_OK) {
         printf("Error: could not open package archive: %s\n", archive_path);
-        return 0;
+        goto cleanup;
     }
+    mz_zip_reader_set_raw(reader, 1);
 
-    file_count = mz_zip_reader_get_num_files(&zip);
-    for (mz_uint i = 0; i < file_count; i++) {
-        mz_zip_archive_file_stat stat;
+    entry_status = mz_zip_reader_goto_first_entry(reader);
+    while (entry_status == MZ_OK) {
+        mz_zip_file* info = NULL;
         char relative_path[WPM_PATH_SIZE];
         char destination_path[WPM_PATH_SIZE];
 
-        if (!mz_zip_reader_file_stat(&zip, i, &stat) ||
-            !is_safe_archive_path(stat.m_filename)) {
+        if (mz_zip_reader_entry_get_info(reader, &info) != MZ_OK || !info ||
+            !info->filename || strlen(info->filename) >= sizeof(relative_path) ||
+            !is_safe_archive_path(info->filename) ||
+            mz_zip_attrib_is_symlink(info->external_fa, info->version_madeby) == MZ_OK) {
             printf("Error: package contains an invalid path.\n");
             goto cleanup;
         }
 
-        strcpy_s(relative_path, sizeof(relative_path), stat.m_filename);
+        strcpy_s(relative_path, sizeof(relative_path), info->filename);
         for (char* current = relative_path; *current; current++) {
             if (*current == '/') *current = '\\';
         }
@@ -1142,7 +1536,7 @@ int wpm_archive_extract(const char* archive_path, const char* destination_dir) {
             goto cleanup;
         }
 
-        if (mz_zip_reader_is_file_a_directory(&zip, i)) {
+        if (mz_zip_reader_entry_is_dir(reader) == MZ_OK) {
             verbose_log("Creating directory: %s", destination_path);
             if (!create_directories(destination_path)) {
                 printf("Error: could not create directory: %s\n", destination_path);
@@ -1151,18 +1545,26 @@ int wpm_archive_extract(const char* archive_path, const char* destination_dir) {
         }
         else {
             verbose_log("Extracting file: %s", destination_path);
-            if (!create_parent_directory(destination_path, previous_parent, sizeof(previous_parent)) ||
-                !mz_zip_reader_extract_to_file(&zip, i, destination_path, 0)) {
+            if (!create_parent_directory(destination_path, previous_parent, sizeof(previous_parent))) {
+                printf("Error: could not extract file: %s\n", destination_path);
+                goto cleanup;
+            }
+            if (info->compression_method == MZ_COMPRESS_METHOD_DEFLATE) {
+                verbose_log("Decompressing with zlib-ng: %s", destination_path);
+            }
+            if (!wpm_zip_extract_current_file(reader, info, destination_path)) {
                 printf("Error: could not extract file: %s\n", destination_path);
                 goto cleanup;
             }
         }
+
+        entry_status = mz_zip_reader_goto_next_entry(reader);
     }
 
-    success = 1;
+    success = entry_status == MZ_END_OF_LIST;
 
 cleanup:
-    mz_zip_reader_end(&zip);
+    mz_zip_reader_delete(&reader);
     return success;
 }
 
