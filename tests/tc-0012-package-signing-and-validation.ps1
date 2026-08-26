@@ -140,6 +140,13 @@ try {
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Verify trusted package without installing it' -Arguments @('verify', $archivePath) -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -ne 0 -or $Output -notmatch '(?i)verified package') { throw "Package verification failed. $Output" }
+        $archiveLabel = [regex]::Escape((Split-Path -Leaf $archivePath))
+        if ($Output -notmatch "Extraction progress: $archiveLabel`: 0% \(0/\d+ bytes\)" -or
+            $Output -notmatch "Extracted $archiveLabel`: \d+ bytes" -or
+            $Output -notmatch "Validation progress: $archiveLabel`: 0% \(0/\d+ bytes\)" -or
+            $Output -notmatch "Validated $archiveLabel`: \d+ bytes") {
+            throw "Read-only verification did not report extraction and validation byte progress. $Output"
+        }
         if (Test-Path -LiteralPath $deployment) { throw 'Verification executed the package install script.' }
         if (Get-ChildItem -LiteralPath (Join-Path $dataDir 'packages') -Force -ErrorAction SilentlyContinue) { throw 'Verification retained the package archive.' }
         if (Get-ChildItem -LiteralPath (Join-Path $dataDir 'audit') -Force -ErrorAction SilentlyContinue) { throw 'Verification wrote an installation audit record.' }

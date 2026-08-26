@@ -30,6 +30,8 @@ set(wpm_sources
   "wpm.c"
   "logging.c"
   "logging.h"
+  "progress.c"
+  "progress.h"
   "archive.c"
   "archive.h"
   "init.c"

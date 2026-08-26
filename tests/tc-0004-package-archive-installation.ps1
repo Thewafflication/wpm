@@ -106,6 +106,13 @@ try {
             if (Test-Path -LiteralPath $stagingDir) {
                 throw "install did not remove staging directory $stagingDir"
             }
+            $escapedPackageName = [regex]::Escape($packageName)
+            if ($Output -notmatch "Extraction progress: $escapedPackageName`: 0% \(0/\d+ bytes\)" -or
+                $Output -notmatch "Extracted $escapedPackageName`: \d+ bytes" -or
+                $Output -notmatch "Validation progress: $escapedPackageName`: 0% \(0/\d+ bytes\)" -or
+                $Output -notmatch "Validated $escapedPackageName`: \d+ bytes") {
+                throw "Expected redirected extraction and validation byte progress. $Output"
+            }
             if ($Output -notmatch [regex]::Escape("$packageName`: Extracting package...") -or
                 $Output -notmatch [regex]::Escape("$packageName`: Validating package...") -or
                 $Output -notmatch [regex]::Escape("$packageName`: Installing package...") -or

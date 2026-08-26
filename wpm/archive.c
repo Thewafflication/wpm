@@ -4,10 +4,12 @@
 #include <ctype.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <limits.h>
 #include <windows.h>
 
 #include "archive.h"
 #include "logging.h"
+#include "progress.h"
 #include "helpers.h"
 #include "mz.h"
 #include "mz_strm.h"
@@ -118,6 +120,7 @@ typedef struct wpm_zip_output {
     uint64_t capacity;
     uint64_t size;
     uint32_t crc32;
+    wpm_progress* progress;
 } wpm_zip_output;
 
 static int wpm_zlib_ng_buffer_reserve(wpm_zlib_ng_buffer* buffer, size_t additional) {
@@ -271,6 +274,7 @@ static int wpm_zip_output_write(wpm_zip_output* output, const unsigned char* dat
     if (output->memory) memcpy(output->memory + output->size, data, size);
     output->crc32 = (uint32_t)zng_crc32(output->crc32, data, (uint32_t)size);
     output->size += size;
+    if (output->progress) wpm_progress_add(output->progress, size);
     return 1;
 }
 
@@ -373,7 +377,8 @@ static void wpm_set_file_modified_time(HANDLE file, time_t modified) {
 static int wpm_zip_extract_current_file(
     void* reader,
     const mz_zip_file* info,
-    const char* destination_path
+    const char* destination_path,
+    wpm_progress* progress
 ) {
     wpm_zip_output output;
     int success = 0;
@@ -390,6 +395,7 @@ static int wpm_zip_extract_current_file(
     );
     if (output.file == INVALID_HANDLE_VALUE) goto cleanup;
     output.capacity = (uint64_t)info->uncompressed_size;
+    output.progress = progress;
     if (!wpm_zip_read_current_entry(reader, info, &output)) goto cleanup;
     wpm_set_file_modified_time(output.file, info->modified_date);
     success = 1;
@@ -1047,7 +1053,12 @@ static int ensure_sodium_ready(void) {
     return 1;
 }
 
-static int calculate_file_blake2b(const char* path, char* hex, size_t hex_size) {
+static int calculate_file_blake2b(
+    const char* path,
+    char* hex,
+    size_t hex_size,
+    wpm_progress* progress
+) {
     unsigned char buffer[8192];
     unsigned char hash[WPM_BLAKE2B_BYTES];
     crypto_generichash_state state;
@@ -1075,6 +1086,7 @@ static int calculate_file_blake2b(const char* path, char* hex, size_t hex_size) 
                 fclose(file);
                 return 0;
             }
+            if (progress) wpm_progress_add(progress, bytes_read);
         }
         if (bytes_read < sizeof(buffer)) {
             if (ferror(file)) {
@@ -1209,7 +1221,7 @@ static int write_index_entries(
             verbose_log("Indexing file: %s", archive_path);
 
             if (!get_file_size_bytes(source_path, &file_size) ||
-                !calculate_file_blake2b(source_path, blake2b, sizeof(blake2b)) ||
+                !calculate_file_blake2b(source_path, blake2b, sizeof(blake2b), NULL) ||
                 snprintf(index_line, sizeof(index_line), "%s,%llu,%s,blake2b\n",
                          archive_path, file_size, blake2b) < 0 ||
                 fputs(index_line, index) < 0) {
@@ -1488,10 +1500,34 @@ static int create_parent_directory(const char* path, char* previous_parent, size
     return strcpy_s(previous_parent, previous_parent_size, parent) == 0;
 }
 
-int wpm_archive_extract(const char* archive_path, const char* destination_dir) {
+static int measure_archive_uncompressed_bytes(void* reader, uint64_t* total) {
+    int32_t entry_status = mz_zip_reader_goto_first_entry(reader);
+    *total = 0;
+    while (entry_status == MZ_OK) {
+        mz_zip_file* info = NULL;
+        if (mz_zip_reader_entry_get_info(reader, &info) != MZ_OK || !info ||
+            info->uncompressed_size < 0) return 0;
+        if (mz_zip_reader_entry_is_dir(reader) != MZ_OK) {
+            uint64_t size = (uint64_t)info->uncompressed_size;
+            if (*total > ULLONG_MAX - size) return 0;
+            *total += size;
+        }
+        entry_status = mz_zip_reader_goto_next_entry(reader);
+    }
+    return entry_status == MZ_END_OF_LIST;
+}
+
+static int wpm_archive_extract_with_label(
+    const char* archive_path,
+    const char* destination_dir,
+    const char* progress_label
+) {
     void* reader = NULL;
     char previous_parent[WPM_PATH_SIZE] = "";
     int32_t entry_status;
+    uint64_t total_bytes = 0;
+    wpm_progress progress;
+    int progress_started = 0;
     int success = 0;
 
     verbose_log("Extracting archive: %s", archive_path);
@@ -1507,6 +1543,10 @@ int wpm_archive_extract(const char* archive_path, const char* destination_dir) {
         goto cleanup;
     }
     mz_zip_reader_set_raw(reader, 1);
+    if (!measure_archive_uncompressed_bytes(reader, &total_bytes)) total_bytes = 0;
+    wpm_progress_start(&progress, "Extracting", "Extraction", "Extracted",
+        progress_label, total_bytes);
+    progress_started = 1;
 
     entry_status = mz_zip_reader_goto_first_entry(reader);
     while (entry_status == MZ_OK) {
@@ -1552,7 +1592,7 @@ int wpm_archive_extract(const char* archive_path, const char* destination_dir) {
             if (info->compression_method == MZ_COMPRESS_METHOD_DEFLATE) {
                 verbose_log("Decompressing with zlib-ng: %s", destination_path);
             }
-            if (!wpm_zip_extract_current_file(reader, info, destination_path)) {
+            if (!wpm_zip_extract_current_file(reader, info, destination_path, &progress)) {
                 printf("Error: could not extract file: %s\n", destination_path);
                 goto cleanup;
             }
@@ -1564,8 +1604,14 @@ int wpm_archive_extract(const char* archive_path, const char* destination_dir) {
     success = entry_status == MZ_END_OF_LIST;
 
 cleanup:
+    if (progress_started) wpm_progress_finish(&progress, success);
     mz_zip_reader_delete(&reader);
     return success;
+}
+
+int wpm_archive_extract(const char* archive_path, const char* destination_dir) {
+    return wpm_archive_extract_with_label(
+        archive_path, destination_dir, path_basename(archive_path));
 }
 
 static int file_exists_at_path(const char* path) {
@@ -1682,18 +1728,58 @@ static int verify_index_completeness(const char* destination_dir, const char* re
     return 1;
 }
 
-static int verify_package_index(const char* destination_dir) {
-    char index_path[WPM_PATH_SIZE];
+static int measure_package_index_bytes(
+    const char* index_path,
+    unsigned long long* total_bytes
+) {
+    char line[WPM_PATH_SIZE + WPM_BLAKE2B_HEX_SIZE + 64];
+    FILE* index = wpm_fopen(index_path, "r");
+    unsigned long line_number = 0;
+    int valid = 1;
+
+    *total_bytes = 0;
+    if (!index) return 0;
+    while (fgets(line, sizeof(line), index)) {
+        char* comma;
+        char* second_comma;
+        char* size_text;
+        unsigned long long size;
+        char trailing;
+        line_number++;
+        trim_line(line);
+        if (line_number == 1 &&
+            _stricmp(line, "filename,size,hash,algorithm") == 0) continue;
+        if (!line[0]) continue;
+        comma = strchr(line, ',');
+        second_comma = comma ? strchr(comma + 1, ',') : NULL;
+        if (!comma || !second_comma) {
+            valid = 0;
+            break;
+        }
+        *second_comma = '\0';
+        size_text = comma + 1;
+        trim_line(size_text);
+        if (sscanf_s(size_text, "%llu%c", &size, &trailing, 1) != 1 ||
+            *total_bytes > ULLONG_MAX - size) {
+            valid = 0;
+            break;
+        }
+        *total_bytes += size;
+    }
+    if (ferror(index)) valid = 0;
+    if (fclose(index) != 0) valid = 0;
+    if (!valid) *total_bytes = 0;
+    return valid;
+}
+
+static int verify_package_index_contents(
+    const char* destination_dir,
+    const char* index_path,
+    wpm_progress* progress
+) {
     char line[WPM_PATH_SIZE + WPM_BLAKE2B_HEX_SIZE + 64];
     FILE* index;
     unsigned long line_number = 0;
-
-    if (!join_path(index_path, sizeof(index_path), destination_dir, ".wpm\\index.csv")) {
-        printf("Error: package index path is too long.\n");
-        return 0;
-    }
-
-    if (!file_exists_at_path(index_path)) return 1;
 
     verbose_log("Verifying package index: %s", index_path);
 
@@ -1774,7 +1860,7 @@ static int verify_package_index(const char* destination_dir) {
         if (!file_exists_at_path(file_path) ||
             !get_file_size_bytes(file_path, &actual_size) ||
             actual_size != expected_size ||
-            !calculate_file_blake2b(file_path, actual_hash, sizeof(actual_hash)) ||
+            !calculate_file_blake2b(file_path, actual_hash, sizeof(actual_hash), progress) ||
             _stricmp(actual_hash, expected_hash) != 0) {
             printf("Error: package signature verification failed for %s.\n", filename);
             fclose(index);
@@ -1803,6 +1889,25 @@ static int verify_package_index(const char* destination_dir) {
         free_index_paths(&paths);
         return complete;
     }
+}
+
+static int verify_package_index(const char* destination_dir, const char* progress_label) {
+    char index_path[WPM_PATH_SIZE];
+    unsigned long long total_bytes = 0;
+    wpm_progress progress;
+    int result;
+
+    if (!join_path(index_path, sizeof(index_path), destination_dir, ".wpm\\index.csv")) {
+        printf("Error: package index path is too long.\n");
+        return 0;
+    }
+    if (!file_exists_at_path(index_path)) return 1;
+    measure_package_index_bytes(index_path, &total_bytes);
+    wpm_progress_start(&progress, "Validating", "Validation", "Validated",
+        progress_label, total_bytes);
+    result = verify_package_index_contents(destination_dir, index_path, &progress);
+    wpm_progress_finish(&progress, result);
+    return result;
 }
 
 static int is_valid_package_name(const char* package_name) {
@@ -1987,9 +2092,10 @@ int wpm_archive_verify(const char* archive_path) {
         return 0;
     }
 
-    if (!wpm_archive_extract(archive_full_path, staging_path)) goto cleanup;
+    if (!wpm_archive_extract_with_label(
+            archive_full_path, staging_path, path_basename(archive_full_path))) goto cleanup;
     if (!wpm_validate_package_signature(staging_path, 0, signing_key_id, sizeof(signing_key_id))) goto cleanup;
-    if (!verify_package_index(staging_path)) goto cleanup;
+    if (!verify_package_index(staging_path, path_basename(archive_full_path))) goto cleanup;
     if (!read_package_metadata(staging_path, &metadata)) goto cleanup;
     success = 1;
 
@@ -2083,10 +2189,10 @@ int wpm_archive_install(const char* archive_path, int allow_unsigned) {
     verbose_log("Using staging directory: %s", staging_path);
 
     print_package_progress(display_name, "Extracting package");
-    if (!wpm_archive_extract(archive_full_path, staging_path)) goto cleanup;
+    if (!wpm_archive_extract_with_label(archive_full_path, staging_path, display_name)) goto cleanup;
     print_package_progress(display_name, "Validating package");
     if (!wpm_validate_package_signature(staging_path, allow_unsigned, signing_key_id, sizeof(signing_key_id))) goto cleanup;
-    if (!verify_package_index(staging_path)) goto cleanup;
+    if (!verify_package_index(staging_path, display_name)) goto cleanup;
     if (!read_package_metadata(staging_path, &metadata)) goto cleanup;
     if (!installed_architecture_is_compatible(&metadata)) goto cleanup;
     print_package_progress(display_name, "Installing package");
@@ -2175,13 +2281,13 @@ int wpm_archive_schedule_self_upgrade(const char* archive_path, int allow_unsign
     strcpy_s(metadata.version, sizeof(metadata.version), expected_version);
     strcpy_s(metadata.arch, sizeof(metadata.arch), expected_arch);
     print_package_progress("wpm", "Extracting package");
-    if (!wpm_archive_extract(archive_full, stage)) {
+    if (!wpm_archive_extract_with_label(archive_full, stage, "wpm")) {
         write_upgrade_audit(root, &metadata, old_version, path_basename(archive_full), signing_key, 1, "self-upgrade-extraction", 0);
         goto cleanup;
     }
     print_package_progress("wpm", "Validating package");
     if (!wpm_validate_package_signature(stage, allow_unsigned, signing_key, sizeof(signing_key)) ||
-        !verify_package_index(stage) || !read_package_metadata(stage, &metadata)) {
+        !verify_package_index(stage, "wpm") || !read_package_metadata(stage, &metadata)) {
         write_upgrade_audit(root, &metadata, old_version, path_basename(archive_full), signing_key, 1, "self-upgrade-validation", 0);
         goto cleanup;
     }
@@ -2251,7 +2357,7 @@ int wpm_archive_upgrade(const char* archive_path, int allow_unsigned,
         !join_path(stored, sizeof(stored), store, base) || !create_directories(temp) ||
         !create_directories(store) || !remove_directory_tree_with_retry(stage)) return 0;
     print_package_progress(expected_name, "Extracting package");
-    if (!wpm_archive_extract(archive_full, stage)) {
+    if (!wpm_archive_extract_with_label(archive_full, stage, expected_name)) {
         write_upgrade_audit(root, &metadata, old_version, base, signing_key, 1, "extraction", 0);
         goto cleanup;
     }
@@ -2260,7 +2366,7 @@ int wpm_archive_upgrade(const char* archive_path, int allow_unsigned,
         write_upgrade_audit(root, &metadata, old_version, base, signing_key, 1, "signature-validation", 0);
         goto cleanup;
     }
-    if (!verify_package_index(stage)) {
+    if (!verify_package_index(stage, expected_name)) {
         write_upgrade_audit(root, &metadata, old_version, base, signing_key, 1, "index-validation", 0);
         goto cleanup;
     }
@@ -2346,8 +2452,8 @@ int wpm_archive_remove(const char* package_name) {
         return 0;
     }
 
-    if (!wpm_archive_extract(stored_archive_path, staging_path)) goto cleanup;
-    if (!verify_package_index(staging_path)) goto cleanup;
+    if (!wpm_archive_extract_with_label(stored_archive_path, staging_path, archive_name)) goto cleanup;
+    if (!verify_package_index(staging_path, archive_name)) goto cleanup;
     if (!run_package_script(staging_path, ".wpm\\remove.cmd", "removal", NULL)) goto cleanup;
     if (!DeleteFileA(stored_archive_path)) {
         printf("Error: could not remove stored package archive: %s\n", stored_archive_path);

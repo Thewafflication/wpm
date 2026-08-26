@@ -14,15 +14,13 @@
 #include "helpers.h"
 #include "repository.h"
 #include "logging.h"
+#include "progress.h"
 
 #define PATH_SIZE 4096
 #define MAX_REPOSITORIES 32
 #define MAX_PACKAGES 96
 #define MAX_INSTALLED 256
 #define INDEX_FRESH_MS (60ULL * 60ULL * 1000ULL)
-#define DOWNLOAD_INTERACTIVE_INTERVAL_MS 100UL
-#define DOWNLOAD_SCRIPT_INTERVAL_MS 2000UL
-#define DOWNLOAD_PROGRESS_BAR_WIDTH 30
 /* URLMon status omitted by TinyCC's compact Windows headers. */
 #define WPM_BINDSTATUS_64BIT_PROGRESS 56UL
 #define WPM_DEFAULT_REPOSITORY "https://github.com/Thewafflication/wpm/releases/latest/download"
@@ -48,12 +46,7 @@ typedef struct {
 struct download_callback {
     const download_callback_vtable* vtable;
     ULONG references;
-    const char* label;
-    DWORD last_update_ms;
-    unsigned long long current;
-    unsigned long long total;
-    size_t rendered_length;
-    int interactive;
+    wpm_progress progress;
     int using_64bit_progress;
 };
 
@@ -124,92 +117,6 @@ static int rewrite(const char* wanted, int priority, int remove) {
 int wpm_repo_add(const char* url, int priority) { char normalized[PATH_SIZE]; return url_normalize(url, normalized, sizeof(normalized)) && rewrite(normalized, priority, 0); }
 int wpm_repo_remove(const char* url) { char normalized[PATH_SIZE], cached[PATH_SIZE]; if (!url_normalize(url, normalized, sizeof(normalized)) || !rewrite(normalized, 0, 1)) return 0; if (cache_path(normalized, cached, sizeof(cached))) DeleteFileA(cached); return 1; }
 int wpm_repo_list(void) { repository repositories[MAX_REPOSITORIES]; int count, i; if (!load_repositories(repositories, &count)) return 0; if (!count) { printf("No repositories configured.\n"); return 1; } for (i = 0; i < count; i++) printf("%d\t%s\n", repositories[i].priority, repositories[i].url); return 1; }
-
-static int download_stdout_is_interactive(void) {
-    DWORD mode;
-    HANDLE output = GetStdHandle(STD_OUTPUT_HANDLE);
-    return output != NULL && output != INVALID_HANDLE_VALUE && GetConsoleMode(output, &mode);
-}
-
-static void download_write_line(download_callback* callback, const char* line, int final) {
-    size_t length = strlen(line);
-    if (!callback->interactive) {
-        printf("%s\n", line);
-        fflush(stdout);
-        return;
-    }
-    printf("\r%s", line);
-    if (callback->rendered_length > length) {
-        size_t remaining = callback->rendered_length - length;
-        while (remaining--) putchar(' ');
-    } else {
-        callback->rendered_length = length;
-    }
-    if (final) putchar('\n');
-    fflush(stdout);
-}
-
-static void download_render_progress(download_callback* callback, int force) {
-    DWORD now = GetTickCount();
-    DWORD interval = callback->interactive ?
-        DOWNLOAD_INTERACTIVE_INTERVAL_MS : DOWNLOAD_SCRIPT_INTERVAL_MS;
-    char line[512];
-    if (!force && (DWORD)(now - callback->last_update_ms) < interval) return;
-    callback->last_update_ms = now;
-    if (callback->interactive) {
-        char bar[DOWNLOAD_PROGRESS_BAR_WIDTH + 1];
-        unsigned percent = 0;
-        int i;
-        memset(bar, ' ', DOWNLOAD_PROGRESS_BAR_WIDTH);
-        bar[DOWNLOAD_PROGRESS_BAR_WIDTH] = '\0';
-        if (callback->total) {
-            int complete;
-            percent = (unsigned)(((unsigned long long)callback->current * 100ULL) /
-                callback->total);
-            if (percent > 100) percent = 100;
-            complete = (int)((percent * DOWNLOAD_PROGRESS_BAR_WIDTH) / 100);
-            for (i = 0; i < complete; i++) bar[i] = '=';
-            if (complete < DOWNLOAD_PROGRESS_BAR_WIDTH) bar[complete] = '>';
-            snprintf(line, sizeof(line), "Downloading %s [%s] %3u%% %llu/%llu bytes",
-                callback->label, bar, percent, callback->current, callback->total);
-        } else {
-            int marker = (int)((now / DOWNLOAD_INTERACTIVE_INTERVAL_MS) %
-                DOWNLOAD_PROGRESS_BAR_WIDTH);
-            bar[marker] = '>';
-            snprintf(line, sizeof(line), "Downloading %s [%s]  --%% %llu bytes",
-                callback->label, bar, callback->current);
-        }
-    } else if (callback->total) {
-        unsigned percent = (unsigned)(((unsigned long long)callback->current * 100ULL) /
-            callback->total);
-        if (percent > 100) percent = 100;
-        snprintf(line, sizeof(line), "Download progress: %s: %u%% (%llu/%llu bytes)",
-            callback->label, percent, callback->current, callback->total);
-    } else {
-        snprintf(line, sizeof(line), "Download progress: %s: %llu bytes",
-            callback->label, callback->current);
-    }
-    download_write_line(callback, line, 0);
-}
-
-static void download_finish_progress(download_callback* callback, int succeeded) {
-    char line[512];
-    if (succeeded && callback->total) callback->current = callback->total;
-    if (callback->interactive && succeeded && callback->total) {
-        download_render_progress(callback, 1);
-        putchar('\n');
-        fflush(stdout);
-        return;
-    }
-    if (succeeded) {
-        snprintf(line, sizeof(line), "Downloaded %s: %llu bytes",
-            callback->label, callback->current);
-    } else {
-        snprintf(line, sizeof(line), "Download failed: %s after %llu bytes",
-            callback->label, callback->current);
-    }
-    download_write_line(callback, line, 1);
-}
 
 static int download_guid_equal(const GUID* left, const GUID* right) {
     return left != NULL && right != NULL && memcmp(left, right, sizeof(*left)) == 0;
@@ -284,14 +191,11 @@ static HRESULT STDMETHODCALLTYPE download_on_progress(download_callback* callbac
     unsigned long long total_64;
     if (status == WPM_BINDSTATUS_64BIT_PROGRESS &&
         download_parse_64bit_progress(status_text, &current_64, &total_64)) {
-        callback->current = current_64;
-        callback->total = total_64;
+        wpm_progress_set(&callback->progress, current_64, total_64);
         callback->using_64bit_progress = 1;
     } else if (!callback->using_64bit_progress) {
-        callback->current = current;
-        callback->total = total;
+        wpm_progress_set(&callback->progress, current, total);
     }
-    download_render_progress(callback, 0);
     return S_OK;
 }
 
@@ -333,18 +237,19 @@ static int download(const char* url, const char* destination, const char* label)
     HRESULT result;
     char temporary[PATH_SIZE];
     int succeeded;
-    download_callback callback = {
-        &download_progress_vtable, 1, label, GetTickCount(), 0, 0, 0,
-        download_stdout_is_interactive(), 0
-    };
+    download_callback callback;
     if (_strnicmp(url, "https://", 8) != 0) return 0;
     if (snprintf(temporary, sizeof(temporary), "%s.download", destination) < 0) return 0;
+    memset(&callback, 0, sizeof(callback));
+    callback.vtable = &download_progress_vtable;
+    callback.references = 1;
+    wpm_progress_start(&callback.progress,
+        "Downloading", "Download", "Downloaded", label, 0);
     DeleteFileA(temporary);
-    download_render_progress(&callback, 1);
     result = URLDownloadToFileA(NULL, url, temporary, 0, &callback);
     succeeded = SUCCEEDED(result) &&
         MoveFileExA(temporary, destination, MOVEFILE_REPLACE_EXISTING);
-    download_finish_progress(&callback, succeeded);
+    wpm_progress_finish(&callback.progress, succeeded);
     if (!succeeded) DeleteFileA(temporary);
     return succeeded;
 }

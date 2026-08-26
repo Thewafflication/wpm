@@ -38,13 +38,15 @@ wpm --verbose install package.zip
 
 Verbose output also reports whether WPM is running in managed or portable mode.
 
-Repository-index and package downloads show progress without requiring
-`--verbose`. In an interactive console, WPM updates a 30-cell progress bar in
-place at most once every 100 milliseconds. When standard output is redirected
-or captured by a script, WPM emits stable newline-delimited progress at most
-once every two seconds instead. Both modes always report the start and final
-download result, including fast downloads that finish before the next timed
-update.
+Repository-index downloads, package downloads, archive extraction, and indexed
+package validation show byte progress without requiring `--verbose`. In an
+interactive console, WPM updates a 30-cell progress bar in place at most once
+every 100 milliseconds. Extraction progress uses the total uncompressed archive
+size; validation progress uses the total size of files covered by the signed
+package index. When standard output is redirected or captured by a script, WPM
+emits stable newline-delimited progress at most once every two seconds instead.
+Both modes always report the start and final result, including fast operations
+that finish before the next timed update.
 
 Inspect the resolved executable and WPM locations without changing them:
 
