@@ -72,6 +72,16 @@ set(WITH_RUNTIME_CPU_DETECTION OFF)
 set(WITH_CRC32_CHORBA OFF)
 set(INSTALL_UTILS OFF)
 add_subdirectory("${ZLIB_NG_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/zlib-ng" EXCLUDE_FROM_ALL)
+if(WIN32)
+  # zlib-ng's Debug-only trees_emit.h path includes WCRT inttypes.h after
+  # TinyCC headers have introduced legacy time_t/wint_t definitions. Establish
+  # the WCRT time type first and suppress the later incompatible typedefs.
+  target_compile_options(zlib-ng PRIVATE -include time.h)
+  target_compile_definitions(zlib-ng PRIVATE
+    _TIME_T_DEFINED
+    WCRT_WINT_T_DEFINED
+  )
+endif()
 wpm_third_party_set_archive_output(zlib-ng)
 
 set(MINIZIP_NG_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/minizip-ng")
