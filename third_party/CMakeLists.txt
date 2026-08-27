@@ -74,12 +74,15 @@ set(INSTALL_UTILS OFF)
 add_subdirectory("${ZLIB_NG_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/zlib-ng" EXCLUDE_FROM_ALL)
 if(WIN32)
   # zlib-ng's Debug-only trees_emit.h path includes WCRT inttypes.h after
-  # TinyCC headers have introduced legacy time_t/wint_t definitions. Establish
-  # the WCRT time type first and suppress the later incompatible typedefs.
-  target_compile_options(zlib-ng PRIVATE -include time.h)
+  # TinyCC headers can introduce legacy time_t/wint_t definitions. Establish
+  # WCRT's C99 time and wide-character types before those headers instead.
+  target_compile_options(zlib-ng PRIVATE -include wchar.h)
   target_compile_definitions(zlib-ng PRIVATE
-    _TIME_T_DEFINED
-    WCRT_WINT_T_DEFINED
+    # WCRT 1.1.1 no longer pulls TinyCC's legacy __int64 spelling into this
+    # include order. Preserve zlib-ng's Windows 64-bit offset selection.
+    "__int64=long long"
+    _WINT_T
+    WCRT_POSIX=1
   )
 endif()
 wpm_third_party_set_archive_output(zlib-ng)
@@ -109,11 +112,12 @@ set(MZ_BUILD_TESTS OFF)
 set(MZ_BUILD_UNIT_TESTS OFF)
 set(MZ_BUILD_FUZZ_TESTS OFF)
 if(WIN32)
-  # TinyCC's bundled dirent.h conflicts with WCRT's wint_t. The Win32
-  # minizip-ng backend does not use POSIX directory handles.
-  set(HAVE_DIRENT_H 0 CACHE INTERNAL "minizip-ng dirent availability" FORCE)
+  # WCRT 1.1.1 supplies the bounded POSIX directory types that minizip-ng's
+  # Win32 backend references. Preseed the checks because the declarations are
+  # intentionally hidden until WCRT_POSIX is selected for the target.
+  set(HAVE_DIRENT_H 1 CACHE INTERNAL "minizip-ng dirent availability" FORCE)
   set(HAVE_SYS_DIRENT_H 0 CACHE INTERNAL "minizip-ng sys/dirent availability" FORCE)
-  set(HAVE_PDIR 0 CACHE INTERNAL "minizip-ng DIR pointer availability" FORCE)
+  set(HAVE_PDIR 1 CACHE INTERNAL "minizip-ng DIR pointer availability" FORCE)
 endif()
 add_subdirectory("${MINIZIP_NG_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/minizip-ng" EXCLUDE_FROM_ALL)
 # WPM reads and writes pre-compressed raw entries. Keep raw DEFLATE methods
@@ -126,6 +130,7 @@ if(WIN32)
   target_compile_options(minizip-ng PRIVATE
     -include "${CMAKE_SOURCE_DIR}/cmake/wpm_minizip_compat.h"
   )
+  target_compile_definitions(minizip-ng PRIVATE WCRT_POSIX=1)
   target_include_directories(minizip-ng PRIVATE "${CMAKE_SOURCE_DIR}/cmake")
 endif()
 wpm_third_party_set_archive_output(minizip-ng)
@@ -208,13 +213,12 @@ if(NOT TARGET libsodium)
     _LIB
   )
   if(WIN32)
-    # Libsodium reports these POSIX conditions even on its Windows paths;
-    # they are outside the ISO C errno set exposed by WCRT.
+    # Select WCRT's bounded POSIX compatibility names used by libsodium's
+    # portable Windows translation units.
     target_compile_options(libsodium PRIVATE -include time.h)
     target_compile_definitions(libsodium PRIVATE
       _TIME_T_DEFINED
-      EFBIG=27
-      ENXIO=6
+      WCRT_POSIX=1
     )
   endif()
 

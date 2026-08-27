@@ -164,13 +164,17 @@ $results = @(
             }
             $rootConfiguration = Get-Content -Raw -LiteralPath $rootCmake
             if ($rootConfiguration -notmatch 'WPM Windows builds require TinyCC' -or
-                $rootConfiguration -notmatch 'WCRT 1\.0\.0 or newer' -or
+                $rootConfiguration -notmatch 'WCRT 1\.1\.1 or newer' -or
                 $rootConfiguration -match 'CMAKE_MSVC|if\s*\(MSVC') {
-                throw 'Root CMake configuration must require TinyCC and WCRT 1.0.0 without MSVC branches.'
+                throw 'Root CMake configuration must require TinyCC and WCRT 1.1.1 without MSVC branches.'
             }
             $thirdPartyConfiguration = Get-Content -Raw -LiteralPath $thirdPartyCmake
             if ($thirdPartyConfiguration -match 'builds[/\\]msvc|\bMSVC\b|_MSC_VER') {
                 throw 'Third-party configuration must not depend on MSVC build metadata or compiler branches.'
+            }
+            if ($thirdPartyConfiguration -notmatch 'WCRT_POSIX=1' -or
+                $thirdPartyConfiguration -match 'EFBIG=27|ENXIO=6') {
+                throw 'Third-party builds must use the WCRT bounded POSIX compatibility profile.'
             }
             $toolchain = Get-Content -Raw -LiteralPath $tinyccToolchain
             if ($toolchain -notmatch 'TinyCCArchiver\.ps1' -or

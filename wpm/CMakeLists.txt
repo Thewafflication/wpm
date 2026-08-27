@@ -104,14 +104,11 @@ target_compile_definitions(wpm PRIVATE
   WPM_ZLIB_NG_COMPRESSION_LEVEL=${WPM_ZLIB_NG_COMPRESSION_LEVEL}
 )
 if(WIN32)
-  target_compile_options(wpm PRIVATE -include time.h)
+  # Let WCRT establish its time_t and wint_t before TinyCC's WinAPI headers.
+  target_compile_options(wpm PRIVATE -include wchar.h)
   target_compile_definitions(wpm PRIVATE
-    # WCRT uses a 64-bit time_t on every architecture. Prevent TinyCC's WinAPI
-    # headers from introducing their legacy 32-bit x86 definition later.
-    _TIME_T_DEFINED
-    # TinyCC's WinAPI headers define wint_t before minizip-ng includes WCRT's
-    # inttypes.h; suppress the duplicate WCRT typedef.
-    WCRT_WINT_T_DEFINED
+    _WINT_T
+    WCRT_POSIX=1
     WPM_HAS_WCRT=1
     WPM_WCRT_VERSION="${WPM_WCRT_VERSION}"
   )

@@ -73,7 +73,8 @@ All supported Windows builds use TinyCC and link their C library calls to WCRT.
 The standard x86, x64, and ARM64 presets find the newest package beneath
 `%ProgramFiles%\WCRT`, or use
 `WPM_WCRT_ROOT` when that CMake or environment variable is set. The selected
-WCRT 1.0.0-or-newer package provides shared headers and architecture-specific
+WCRT 1.1.1-or-newer package provides shared headers, its bounded POSIX
+compatibility declarations, and architecture-specific
 targets beneath its `x86`, `x64`, and `arm64` directories. Microsoft C compiler
 builds are not supported.
 

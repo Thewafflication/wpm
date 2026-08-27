@@ -338,7 +338,7 @@ automation and testing.
 ## Building WPM from source
 
 WPM is a C99 project built with CMake. On Windows, the included presets use
-TinyCC, WCRT 1.0.0 or newer, and Ninja. Microsoft C compiler builds are not
+TinyCC, WCRT 1.1.1 or newer, and Ninja. Microsoft C compiler builds are not
 supported.
 
 ```powershell
