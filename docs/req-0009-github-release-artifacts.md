@@ -40,8 +40,8 @@ Release for the pushed tag and attach these assets:
   WPM release packages
 - `install.cmd`, the architecture-selecting latest-release bootstrap installer
 - `install.ps1`, the Windows PowerShell 2.0-compatible bootstrap installer,
-  which shall default to machine scope and avoid cmdlets introduced after
-  PowerShell 2.0
+  defaulting to machine scope and avoiding cmdlets introduced after PowerShell
+  2.0
 
 **REQ-0009.004**
 The index shall be available through GitHub's stable latest-release asset URL:
