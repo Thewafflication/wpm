@@ -27,6 +27,8 @@ When invoked with a stored package archive, the application shall:
   working directory,
 - stream the script's standard output and standard error to the terminal while
   simultaneously retaining them and the exit code in a persistent script log,
+- preserve command color in interactive terminals, including ANSI-to-Win32
+  translation for Windows XP, while retaining color-free log text,
 - print the log path and, on script failure, the retained originating
   repository URL and a prompt to create a GitHub issue,
 - retain the stored archive if extraction, verification, or `remove.cmd`

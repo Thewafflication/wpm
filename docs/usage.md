@@ -40,8 +40,12 @@ Verbose output also reports whether WPM is running in managed or portable mode.
 
 Repository-index downloads, package downloads, archive extraction, and indexed
 package validation show byte progress without requiring `--verbose`. In an
-interactive console, WPM updates a 30-cell progress bar in place at most once
-every 100 milliseconds. Extraction progress uses the total uncompressed archive
+interactive console, WPM updates a progress bar in place at most once
+every 100 milliseconds. The bar uses the visible console width, grows or
+shrinks when the window is resized, reserves the final column to avoid classic
+`cmd.exe` line wrapping, and falls back to a compact percentage when the
+window is too narrow for a useful bar. This uses console APIs available in
+Windows XP. Extraction progress uses the total uncompressed archive
 size; validation progress uses the total size of files covered by the signed
 package index. When standard output is redirected or captured by a script, WPM
 emits stable newline-delimited progress at most once every two seconds instead.
@@ -123,6 +127,13 @@ or the install script fails.
 Install, removal, and upgrade script output is streamed live to the terminal
 and simultaneously written to a unique log under
 `%WPM_DATA_DIR%\logs\scripts`. WPM prints the log path when the script starts.
+On an interactive console, WPM requests color from commands using the common
+`FORCE_COLOR` and `CLICOLOR_FORCE` conventions unless `NO_COLOR` is present.
+ANSI color is passed through on modern consoles and translated to Win32 console
+attributes on Windows XP. Terminal-control sequences are removed from the
+stored log, which remains readable plain text. Commands that color exclusively
+through direct Win32 console calls cannot transfer those attribute changes
+through a captured output pipe; such commands must emit ANSI to preserve color.
 If a script fails, WPM repeats the path, prints the originating repository URL
 when it is known, and prompts the user to create a GitHub issue with the log.
 Locally installed and older packages without recorded repository information

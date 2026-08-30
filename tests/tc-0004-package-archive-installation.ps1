@@ -61,6 +61,8 @@ try {
         '@echo off'
         'echo install-script-standard-output'
         'echo install-script-error-output 1>&2'
+        'for /F "delims=#" %%E in (''"prompt #$E# & for %%E in (1) do rem"'') do set "ESC=%%E"'
+        'echo %ESC%[31mcolored-install-output%ESC%[0m'
         "copy /y `"hello.txt`" `"$deploymentFile`" >nul"
     )
 
@@ -100,8 +102,10 @@ try {
             if ($Output -notmatch [regex]::Escape($scriptLogs[0].FullName) -or
                 $scriptLog -notmatch 'install-script-standard-output' -or
                 $scriptLog -notmatch 'install-script-error-output' -or
+                $scriptLog -notmatch 'colored-install-output' -or
+                $scriptLog.Contains([char]27) -or
                 $scriptLog -notmatch '(?m)^--- exit-code=0 ---$') {
-                throw 'Install script output was not streamed and retained in the reported log.'
+                throw 'Install script output was not streamed while retaining a color-free reported log.'
             }
             if ($Output -notmatch 'WPM process PID: \d+' -or
                 $Output -notmatch 'install script process PID: \d+' -or

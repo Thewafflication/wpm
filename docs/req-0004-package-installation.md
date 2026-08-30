@@ -34,6 +34,9 @@ When invoked with a valid package archive, the application shall:
   script exit code,
 - simultaneously retain that output and the exit code in a unique persistent
   script log beneath the WPM data root and print the log path,
+- preserve command color in an interactive terminal through native virtual
+  terminal processing when available or Win32 color translation on legacy
+  consoles, while omitting terminal-control sequences from the log,
 - when the script fails, print the originating repository URL when known and
   prompt the user to create a GitHub issue with the script log,
 - fail the installation when extraction, index verification, or

@@ -211,7 +211,8 @@ For each package identity selected for upgrade, WPM shall:
 6. confirm that staged name, version, and architecture exactly match the
    selected repository entry,
 7. execute the candidate's `.wpm\install.cmd`, when present,
-8. stream and automatically log the candidate script output and exit code,
+8. stream the candidate script output with interactive color preserved and
+   automatically log its color-free text and exit code,
 9. retain the successfully installed candidate archive and its repository URL,
 10. write an upgrade audit record linking the prior and candidate identities,
    versions, archive names, verification result, and signing key, and

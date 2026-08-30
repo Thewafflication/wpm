@@ -27,6 +27,9 @@
 #define WPM_COMPRESSION_SAMPLE_BYTES (64U * 1024U)
 #define WPM_COMPRESSION_SAMPLE_MIN_FILE_BYTES (1024ULL * 1024ULL)
 #define WPM_INCOMPRESSIBLE_SAMPLE_PERCENT 98U
+#ifndef ENABLE_VIRTUAL_TERMINAL_PROCESSING
+#define ENABLE_VIRTUAL_TERMINAL_PROCESSING 0x0004
+#endif
 #ifndef WPM_ZLIB_NG_BUFFER_BYTES
 #define WPM_ZLIB_NG_BUFFER_BYTES (1024U * 1024U)
 #endif
@@ -62,6 +65,21 @@ typedef struct wpm_process_entry {
 typedef HANDLE (WINAPI *wpm_create_process_snapshot_fn)(DWORD, DWORD);
 typedef BOOL (WINAPI *wpm_process_first_fn)(HANDLE, wpm_process_entry*);
 typedef BOOL (WINAPI *wpm_process_next_fn)(HANDLE, wpm_process_entry*);
+
+typedef struct wpm_script_terminal {
+    HANDLE output;
+    WORD default_attributes;
+    WORD attributes;
+    char csi[64];
+    size_t csi_length;
+    int state;
+    int interactive;
+    int translate_ansi;
+} wpm_script_terminal;
+
+typedef struct wpm_script_log_filter {
+    int state;
+} wpm_script_log_filter;
 
 static int wpm_verbose = 0;
 static int wpm_progress_current = 1;
@@ -2056,15 +2074,181 @@ static int create_script_log(const char* package_name, const char* action_name,
     return *log != NULL;
 }
 
-static void write_script_bytes(const unsigned char* bytes, DWORD count, FILE* log,
-                               FILE* handoff_log) {
-    if (count == 0) return;
-    fwrite(bytes, 1, count, stdout);
+enum {
+    WPM_ANSI_TEXT,
+    WPM_ANSI_ESCAPE,
+    WPM_ANSI_CSI,
+    WPM_ANSI_OSC,
+    WPM_ANSI_OSC_ESCAPE
+};
+
+static WORD ansi_color_bits(int color) {
+    static const WORD colors[8] = {
+        0,
+        FOREGROUND_RED,
+        FOREGROUND_GREEN,
+        FOREGROUND_RED | FOREGROUND_GREEN,
+        FOREGROUND_BLUE,
+        FOREGROUND_RED | FOREGROUND_BLUE,
+        FOREGROUND_GREEN | FOREGROUND_BLUE,
+        FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE
+    };
+    return colors[color & 7];
+}
+
+static void apply_script_sgr(wpm_script_terminal* terminal) {
+    int parameters[16];
+    int count = 0;
+    int value = 0;
+    int have_value = 0;
+    size_t index;
+    for (index = 0; index <= terminal->csi_length && count < 16; index++) {
+        char character = index < terminal->csi_length ? terminal->csi[index] : ';';
+        if (character >= '0' && character <= '9') {
+            value = value * 10 + character - '0';
+            have_value = 1;
+        }
+        else if (character == ';') {
+            parameters[count++] = have_value ? value : 0;
+            value = 0;
+            have_value = 0;
+        }
+    }
+    if (count == 0) parameters[count++] = 0;
+    for (int parameter = 0; parameter < count; parameter++) {
+        int code = parameters[parameter];
+        if (code == 0) terminal->attributes = terminal->default_attributes;
+        else if (code == 1) terminal->attributes |= FOREGROUND_INTENSITY;
+        else if (code == 22) terminal->attributes &= (WORD)~FOREGROUND_INTENSITY;
+        else if (code >= 30 && code <= 37) {
+            terminal->attributes = (terminal->attributes & (WORD)~0x000F) |
+                ansi_color_bits(code - 30);
+        }
+        else if (code == 39) {
+            terminal->attributes = (terminal->attributes & (WORD)~0x000F) |
+                (terminal->default_attributes & 0x000F);
+        }
+        else if (code >= 40 && code <= 47) {
+            terminal->attributes = (terminal->attributes & (WORD)~0x00F0) |
+                (WORD)(ansi_color_bits(code - 40) << 4);
+        }
+        else if (code == 49) {
+            terminal->attributes = (terminal->attributes & (WORD)~0x00F0) |
+                (terminal->default_attributes & 0x00F0);
+        }
+        else if (code >= 90 && code <= 97) {
+            terminal->attributes = (terminal->attributes & (WORD)~0x000F) |
+                ansi_color_bits(code - 90) | FOREGROUND_INTENSITY;
+        }
+        else if (code >= 100 && code <= 107) {
+            terminal->attributes = (terminal->attributes & (WORD)~0x00F0) |
+                (WORD)((ansi_color_bits(code - 100) | FOREGROUND_INTENSITY) << 4);
+        }
+        else if ((code == 38 || code == 48) && parameter + 1 < count) {
+            if (parameters[parameter + 1] == 5 && parameter + 2 < count) parameter += 2;
+            else if (parameters[parameter + 1] == 2 && parameter + 4 < count) parameter += 4;
+        }
+    }
+    SetConsoleTextAttribute(terminal->output, terminal->attributes);
+}
+
+static void initialize_script_terminal(wpm_script_terminal* terminal) {
+    CONSOLE_SCREEN_BUFFER_INFO information;
+    DWORD mode;
+    memset(terminal, 0, sizeof(*terminal));
+    terminal->output = GetStdHandle(STD_OUTPUT_HANDLE);
+    if (terminal->output == NULL || terminal->output == INVALID_HANDLE_VALUE ||
+        !GetConsoleMode(terminal->output, &mode) ||
+        !GetConsoleScreenBufferInfo(terminal->output, &information)) return;
+    terminal->interactive = 1;
+    terminal->default_attributes = information.wAttributes;
+    terminal->attributes = information.wAttributes;
+    if (!SetConsoleMode(terminal->output, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING)) {
+        terminal->translate_ansi = 1;
+    }
+}
+
+static void write_script_terminal(const unsigned char* bytes, DWORD count,
+                                  wpm_script_terminal* terminal) {
+    DWORD index;
+    if (!terminal->translate_ansi) {
+        fwrite(bytes, 1, count, stdout);
+        fflush(stdout);
+        return;
+    }
+    for (index = 0; index < count; index++) {
+        unsigned char character = bytes[index];
+        if (terminal->state == WPM_ANSI_TEXT) {
+            if (character == 0x1b) terminal->state = WPM_ANSI_ESCAPE;
+            else putchar(character);
+        }
+        else if (terminal->state == WPM_ANSI_ESCAPE) {
+            terminal->csi_length = 0;
+            if (character == '[') terminal->state = WPM_ANSI_CSI;
+            else if (character == ']') terminal->state = WPM_ANSI_OSC;
+            else terminal->state = WPM_ANSI_TEXT;
+        }
+        else if (terminal->state == WPM_ANSI_CSI) {
+            if (character >= 0x40 && character <= 0x7e) {
+                if (character == 'm') apply_script_sgr(terminal);
+                terminal->state = WPM_ANSI_TEXT;
+            }
+            else if (terminal->csi_length + 1 < sizeof(terminal->csi)) {
+                terminal->csi[terminal->csi_length++] = (char)character;
+            }
+        }
+        else if (terminal->state == WPM_ANSI_OSC) {
+            if (character == 0x07) terminal->state = WPM_ANSI_TEXT;
+            else if (character == 0x1b) terminal->state = WPM_ANSI_OSC_ESCAPE;
+        }
+        else if (terminal->state == WPM_ANSI_OSC_ESCAPE) {
+            terminal->state = character == '\\' ? WPM_ANSI_TEXT : WPM_ANSI_OSC;
+        }
+    }
     fflush(stdout);
-    fwrite(bytes, 1, count, log);
+}
+
+static DWORD filter_script_log(const unsigned char* bytes, DWORD count,
+                               unsigned char* filtered, wpm_script_log_filter* filter) {
+    DWORD index;
+    DWORD written = 0;
+    for (index = 0; index < count; index++) {
+        unsigned char character = bytes[index];
+        if (filter->state == WPM_ANSI_TEXT) {
+            if (character == 0x1b) filter->state = WPM_ANSI_ESCAPE;
+            else filtered[written++] = character;
+        }
+        else if (filter->state == WPM_ANSI_ESCAPE) {
+            if (character == '[') filter->state = WPM_ANSI_CSI;
+            else if (character == ']') filter->state = WPM_ANSI_OSC;
+            else filter->state = WPM_ANSI_TEXT;
+        }
+        else if (filter->state == WPM_ANSI_CSI) {
+            if (character >= 0x40 && character <= 0x7e) filter->state = WPM_ANSI_TEXT;
+        }
+        else if (filter->state == WPM_ANSI_OSC) {
+            if (character == 0x07) filter->state = WPM_ANSI_TEXT;
+            else if (character == 0x1b) filter->state = WPM_ANSI_OSC_ESCAPE;
+        }
+        else if (filter->state == WPM_ANSI_OSC_ESCAPE) {
+            filter->state = character == '\\' ? WPM_ANSI_TEXT : WPM_ANSI_OSC;
+        }
+    }
+    return written;
+}
+
+static void write_script_bytes(const unsigned char* bytes, DWORD count, FILE* log,
+                               FILE* handoff_log, wpm_script_terminal* terminal,
+                               wpm_script_log_filter* filter) {
+    unsigned char filtered[4096];
+    DWORD filtered_count;
+    if (count == 0) return;
+    write_script_terminal(bytes, count, terminal);
+    filtered_count = filter_script_log(bytes, count, filtered, filter);
+    fwrite(filtered, 1, filtered_count, log);
     fflush(log);
     if (handoff_log) {
-        fwrite(bytes, 1, count, handoff_log);
+        fwrite(filtered, 1, filtered_count, handoff_log);
         fflush(handoff_log);
     }
 }
@@ -2119,6 +2303,8 @@ static int run_package_script(
     HANDLE pipe_write = NULL;
     FILE* log = NULL;
     FILE* handoff_log = NULL;
+    wpm_script_terminal terminal;
+    wpm_script_log_filter log_filter;
     DWORD exit_code;
     DWORD wait_result;
     DWORD elapsed = 0;
@@ -2126,6 +2312,8 @@ static int run_package_script(
     DWORD available;
     DWORD bytes_read;
     unsigned char output[4096];
+    int added_force_color = 0;
+    int added_clicolor_force = 0;
     int written;
 
     if (!join_path(script_path, sizeof(script_path), staging_dir, script_name)) {
@@ -2174,6 +2362,8 @@ static int run_package_script(
 
     memset(&startup_info, 0, sizeof(startup_info));
     memset(&process_info, 0, sizeof(process_info));
+    memset(&log_filter, 0, sizeof(log_filter));
+    initialize_script_terminal(&terminal);
     startup_info.cb = sizeof(startup_info);
     startup_info.dwFlags = STARTF_USESTDHANDLES;
     startup_info.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
@@ -2181,6 +2371,12 @@ static int run_package_script(
     startup_info.hStdError = pipe_write;
     printf("--- %s script output ---\n", action_name);
     fflush(stdout);
+    if (terminal.interactive && getenv("NO_COLOR") == NULL) {
+        if (getenv("FORCE_COLOR") == NULL &&
+            SetEnvironmentVariableA("FORCE_COLOR", "1")) added_force_color = 1;
+        if (getenv("CLICOLOR_FORCE") == NULL &&
+            SetEnvironmentVariableA("CLICOLOR_FORCE", "1")) added_clicolor_force = 1;
+    }
     if (!CreateProcessA(
             NULL,
             command_line,
@@ -2193,6 +2389,8 @@ static int run_package_script(
             &startup_info,
             &process_info
         )) {
+        if (added_force_color) SetEnvironmentVariableA("FORCE_COLOR", NULL);
+        if (added_clicolor_force) SetEnvironmentVariableA("CLICOLOR_FORCE", NULL);
         printf("Error: could not start %s script: %s\n", action_name, script_path);
         CloseHandle(pipe_read);
         CloseHandle(pipe_write);
@@ -2200,6 +2398,8 @@ static int run_package_script(
         fclose(log);
         return 0;
     }
+    if (added_force_color) SetEnvironmentVariableA("FORCE_COLOR", NULL);
+    if (added_clicolor_force) SetEnvironmentVariableA("CLICOLOR_FORCE", NULL);
     CloseHandle(pipe_write);
     pipe_write = NULL;
 
@@ -2213,7 +2413,8 @@ static int run_package_script(
         if (PeekNamedPipe(pipe_read, NULL, 0, NULL, &available, NULL) && available > 0 &&
             ReadFile(pipe_read, output, available < sizeof(output) ? available : sizeof(output),
                 &bytes_read, NULL)) {
-            write_script_bytes(output, bytes_read, log, handoff_log);
+            write_script_bytes(output, bytes_read, log, handoff_log, &terminal,
+                &log_filter);
         }
         wait_result = WaitForSingleObject(process_info.hProcess, 100);
         if (wait_result == WAIT_TIMEOUT) {
@@ -2232,9 +2433,13 @@ static int run_package_script(
     while (PeekNamedPipe(pipe_read, NULL, 0, NULL, &available, NULL) && available > 0 &&
         ReadFile(pipe_read, output, available < sizeof(output) ? available : sizeof(output),
             &bytes_read, NULL)) {
-        write_script_bytes(output, bytes_read, log, handoff_log);
+        write_script_bytes(output, bytes_read, log, handoff_log, &terminal,
+            &log_filter);
     }
     if (!GetExitCodeProcess(process_info.hProcess, &exit_code)) exit_code = 1;
+    if (terminal.interactive) {
+        SetConsoleTextAttribute(terminal.output, terminal.default_attributes);
+    }
     printf("--- end %s script output (exit code %lu) ---\n", action_name, (unsigned long)exit_code);
     fprintf(log, "\n--- exit-code=%lu ---\n", (unsigned long)exit_code);
     if (result_exit_code) *result_exit_code = exit_code;
