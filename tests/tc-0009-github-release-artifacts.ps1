@@ -21,6 +21,7 @@ $rootCmake = Join-Path $PSScriptRoot '..\CMakeLists.txt'
 $thirdPartyCmake = Join-Path $PSScriptRoot '..\third_party\CMakeLists.txt'
 $wpmCmake = Join-Path $PSScriptRoot '..\wpm\CMakeLists.txt'
 $previousReleaseUpgradeTest = Join-Path $PSScriptRoot 'verify-previous-release-upgrade.ps1'
+$powerShellInstaller = Join-Path $PSScriptRoot '..\install.ps1'
 $xpWorkflow = Join-Path $PSScriptRoot '..\.github\workflows\xp-release.yml'
 $results = @(
     New-WpmManualStep `
@@ -64,7 +65,8 @@ $results = @(
                 '\$packages = Get-ChildItem -LiteralPath release/packages -Filter ''wpm-\*\.zip''',
                 'release/packages/wpm-\*\.zip',
                 'release/keys/wpm-release\.public',
-                'release/install\.cmd'
+                'release/install\.cmd',
+                'release/install\.ps1'
             )
 
             foreach ($pattern in $requiredPatterns) {
@@ -87,6 +89,24 @@ $results = @(
             )) {
                 if ($upgradeTest -notmatch $pattern) {
                     throw "Previous-release upgrade gate is missing required behavior: $pattern"
+                }
+            }
+            $installer = Get-Content -Raw -LiteralPath $powerShellInstaller
+            foreach ($pattern in @(
+                'Set-StrictMode -Version 2\.0',
+                'New-Object Net\.WebClient',
+                'New-Object -ComObject Shell\.Application',
+                "\$scope = '--machine'",
+                'Get-Command curl\.exe',
+                '--tlsv1\.2'
+            )) {
+                if ($installer -notmatch $pattern) {
+                    throw "PowerShell 2.0 installer is missing required behavior: $pattern"
+                }
+            }
+            foreach ($unsupported in @('Invoke-WebRequest', 'ConvertFrom-Json', 'Expand-Archive', '\$PSScriptRoot')) {
+                if ($installer -match $unsupported) {
+                    throw "PowerShell 2.0 installer uses unsupported syntax or cmdlet: $unsupported"
                 }
             }
             if ($workflow -match 'tcc-x86-xp|WPM_WINDOWS_XP_COMPAT') {

@@ -329,6 +329,14 @@ The generated scripts are templates for package authors to customize.
 
 ## Installing WPM itself
 
+The latest GitHub Release includes `install.ps1`, a Windows PowerShell
+2.0-compatible bootstrap that selects the native release package, verifies its
+signature, and runs `setup.cmd`. It defaults to machine scope; pass `-User` for
+a per-user installation. The script can use a TLS 1.2-capable `curl.exe` on
+Windows XP because the unmodified XP HTTPS provider cannot connect directly to
+GitHub's current TLS endpoints. The exact download commands are maintained in
+the project README.
+
 `setup.cmd` detects whether it is elevated. An elevated process installs a
 built `wpm.exe` into the native architecture's Program Files directory (using
 `%ProgramW6432%` when applicable), creates the machine-level `WPM` variable,

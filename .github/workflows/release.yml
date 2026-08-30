@@ -295,6 +295,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path release/keys | Out-Null
           Copy-Item -LiteralPath release_keys/wpm-release.public -Destination release/keys/wpm-release.public
           Copy-Item -LiteralPath install.cmd -Destination release/install.cmd
+          Copy-Item -LiteralPath install.ps1 -Destination release/install.ps1
 
       - name: Upload Release WPM packages
         uses: actions/upload-artifact@v7
@@ -304,6 +305,7 @@ jobs:
             release/packages/wpm-*.zip
             release/keys/wpm-release.public
             release/install.cmd
+            release/install.ps1
           if-no-files-found: error
           retention-days: 90
 
@@ -423,5 +425,6 @@ jobs:
             release/index.json
             release/keys/wpm-release.public
             release/install.cmd
+            release/install.ps1
             release-documentation/wpm-engineering-documentation.pdf
             release-documentation/SHA256SUMS

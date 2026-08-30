@@ -16,11 +16,24 @@ and the [2.0 UX roadmap](docs/roadmap-2.0.md) for planned improvements.
 
 ## Install
 
-From Command Prompt or PowerShell, download and run the latest bootstrap
-installer:
+From an Administrator Command Prompt or PowerShell window, download and run the
+PowerShell 2.0-compatible bootstrap installer. It performs a machine-wide
+installation by default:
 
 ```powershell
-powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$p=Join-Path $env:TEMP 'wpm-install.cmd'; try { Invoke-WebRequest -UseBasicParsing 'https://github.com/Thewafflication/wpm/releases/latest/download/install.cmd' -OutFile $p; & $p; exit $LASTEXITCODE } finally { Remove-Item -LiteralPath $p -Force -ErrorAction SilentlyContinue }"
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$p=Join-Path $env:TEMP 'wpm-install.ps1'; $c=New-Object Net.WebClient; try { try { [Net.ServicePointManager]::SecurityProtocol=3072 } catch {}; $c.Headers.Add('User-Agent','WPM-Bootstrap'); $c.DownloadFile('https://github.com/Thewafflication/wpm/releases/latest/download/install.ps1',$p); & $p } finally { $c.Dispose(); Remove-Item $p -Force -ErrorAction SilentlyContinue }"
+```
+
+For a per-user installation, append `-User` after `& $p` in that command.
+The script itself supports Windows PowerShell 2.0 and uses only facilities
+available on Windows XP. However, an unmodified XP HTTPS stack cannot connect
+to GitHub's TLS 1.2 endpoints. On XP, place a TLS 1.2-capable `curl.exe` on
+`PATH`, then run these commands from an Administrator Command Prompt:
+
+```bat
+curl.exe -fL --tlsv1.2 https://github.com/Thewafflication/wpm/releases/latest/download/install.ps1 -o "%TEMP%\wpm-install.ps1"
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%TEMP%\wpm-install.ps1"
+del "%TEMP%\wpm-install.ps1"
 ```
 
 The bootstrapper selects the native x86, x64, or ARM64 package from the latest
