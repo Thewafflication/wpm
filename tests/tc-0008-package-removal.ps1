@@ -45,6 +45,7 @@ try {
     )
     Set-Content -LiteralPath (Join-Path $sourceDir '.wpm\remove.cmd') -Value @(
         '@echo off'
+        'echo remove-script-output'
         "del /q `"$deploymentFile`""
     )
 
@@ -89,6 +90,12 @@ try {
             }
             if (Test-Path -LiteralPath $stagingDir) {
                 throw 'Removal did not clean its staging directory.'
+            }
+            $removalLogs = @(Get-ChildItem -LiteralPath (Join-Path $wpmDataDir 'logs\scripts') -Filter '*-removal.log' -File)
+            if ($removalLogs.Count -ne 1 -or $Output -notmatch 'remove-script-output' -or
+                $Output -notmatch [regex]::Escape($removalLogs[0].FullName) -or
+                (Get-Content -Raw -LiteralPath $removalLogs[0].FullName) -notmatch 'remove-script-output') {
+                throw 'Removal script output was not streamed and retained in the reported log.'
             }
         }
 }

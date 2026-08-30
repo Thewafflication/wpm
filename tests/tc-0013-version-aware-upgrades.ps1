@@ -60,7 +60,7 @@ $sourceRoot = Join-Path $testRoot 'sources'
 $outputDir = Join-Path $testRoot 'archives'
 $markerDir = Join-Path $testRoot 'markers'
 $legacyDataDir = Join-Path $testRoot 'legacy-wpm-data'
-$repository = 'https://upgrade.example.test'
+$repository = 'https://github.com/example/upgrade/releases/latest/download'
 $previousDataDir = $env:WPM_DATA_DIR
 $wpmArchitecture = Get-WpmArchitecture $WpmExe
 $started = Get-Date
@@ -338,6 +338,18 @@ try {
         $continued = Get-Content -Raw -LiteralPath (Join-Path $markerDir "$($packages.Continue)-any.txt")
         if ($continued -notmatch 'continued-2\.0\.0') { throw 'Processing stopped after the first package failure.' }
         if ($Output -notmatch '(?i)failed' -or $Output -notmatch '(?i)upgraded') { throw 'Per-package result summary was incomplete.' }
+        $expectedIssueUrl = 'https://github.com/example/upgrade/issues/new'
+        $logMatch = [regex]::Match($Output, '(?m)^Script log: (.+\.log)\s*$')
+        if ($Output -notmatch [regex]::Escape("Repository URL: $repository") -or
+            $Output -notmatch [regex]::Escape($expectedIssueUrl) -or -not $logMatch.Success) {
+            throw 'Failed upgrade did not report its repository, GitHub issue prompt, and script log path.'
+        }
+        $failedScriptLog = $logMatch.Groups[1].Value.Trim()
+        if (-not (Test-Path -LiteralPath $failedScriptLog -PathType Leaf) -or
+            (Get-Content -Raw -LiteralPath $failedScriptLog) -notmatch 'install-script:failed-2\.0\.0' -or
+            (Get-Content -Raw -LiteralPath $failedScriptLog) -notmatch '(?m)^--- exit-code=23 ---$') {
+            throw 'Failed upgrade script log did not retain the streamed output and exit code.'
+        }
         $storedFailure = Join-Path $dataDir "packages\$($packages.Failure)-any-2.0.0.zip"
         if (Test-Path -LiteralPath $storedFailure) { throw 'Failed candidate was retained as successfully installed.' }
         $failureAudit = Get-ChildItem -LiteralPath (Join-Path $dataDir 'audit') -Filter '*.upgrade-failed.txt' -ErrorAction SilentlyContinue

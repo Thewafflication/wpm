@@ -32,6 +32,10 @@ When invoked with a valid package archive, the application shall:
 - stream the standard output and standard error from `.wpm\install.cmd` to the
   invoking console, framed by start and completion messages that include the
   script exit code,
+- simultaneously retain that output and the exit code in a unique persistent
+  script log beneath the WPM data root and print the log path,
+- when the script fails, print the originating repository URL when known and
+  prompt the user to create a GitHub issue with the script log,
 - fail the installation when extraction, index verification, or
   `install.cmd` fails,
 - copy the successfully installed ZIP archive to

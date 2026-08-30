@@ -40,6 +40,13 @@ void wpm_set_verbose(int enabled);
 void wpm_archive_set_progress(int current, int total);
 
 /**
+ * Associate subsequent lifecycle operations with their selected repository.
+ * The value is inherited by a self-upgrade handoff and may be NULL to clear it.
+ * @param[in] url Normalized repository URL, or NULL.
+ */
+void wpm_archive_set_repository_url(const char* url);
+
+/**
  * Build a package archive from a source directory.
  * @param[in] source_dir Package source directory.
  * @param[in] output_dir Destination directory.

@@ -66,6 +66,7 @@ typedef BOOL (WINAPI *wpm_process_next_fn)(HANDLE, wpm_process_entry*);
 static int wpm_verbose = 0;
 static int wpm_progress_current = 1;
 static int wpm_progress_total = 1;
+static char wpm_repository_url[WPM_PATH_SIZE];
 
 void wpm_archive_set_progress(int current, int total) {
     wpm_progress_current = current > 0 ? current : 1;
@@ -107,6 +108,7 @@ static void verbose_log(const char* format, ...) {
 static const char* path_basename(const char* path);
 static int normalized_full_path(const char* path, char* result, size_t result_size);
 static int join_path(char* result, size_t result_size, const char* left, const char* right);
+static const char* active_repository_url(char* inherited, size_t inherited_size);
 
 typedef struct wpm_zlib_ng_buffer {
     unsigned char* data;
@@ -147,6 +149,17 @@ static int wpm_zlib_ng_buffer_reserve(wpm_zlib_ng_buffer* buffer, size_t additio
     buffer->data = resized;
     buffer->capacity = capacity;
     return 1;
+}
+
+void wpm_archive_set_repository_url(const char* url) {
+    if (url && strlen(url) < sizeof(wpm_repository_url) &&
+        (_strnicmp(url, "https://", 8) == 0 || _strnicmp(url, "http://", 7) == 0) &&
+        !strpbrk(url, "\r\n")) {
+        strcpy_s(wpm_repository_url, sizeof(wpm_repository_url), url);
+    }
+    else {
+        wpm_repository_url[0] = '\0';
+    }
 }
 
 static int wpm_zlib_ng_compress_file(
@@ -1038,6 +1051,41 @@ static int write_installation_audit(const char* data_root, const char* archive_n
         now.wYear, now.wMonth, now.wDay, now.wHour, now.wMinute, now.wSecond, now.wMilliseconds,
         signing_key_id);
     return fclose(file) == 0;
+}
+
+static int repository_record_path(const char* archive_path, char* path, size_t path_size) {
+    int written = snprintf(path, path_size, "%s.repository.txt", archive_path);
+    return written >= 0 && (size_t)written < path_size;
+}
+
+static int record_archive_repository(const char* archive_path) {
+    char path[WPM_PATH_SIZE], inherited[WPM_PATH_SIZE];
+    const char* repository_url = active_repository_url(inherited, sizeof(inherited));
+    FILE* file;
+    if (!repository_record_path(archive_path, path, sizeof(path))) return 0;
+    if (!repository_url) {
+        DeleteFileA(path);
+        return 1;
+    }
+    file = wpm_fopen(path, "wb");
+    if (!file) return 0;
+    fprintf(file, "%s\n", repository_url);
+    return fclose(file) == 0;
+}
+
+static int load_archive_repository(const char* archive_path, char* result, size_t result_size) {
+    char path[WPM_PATH_SIZE];
+    FILE* file;
+    if (!repository_record_path(archive_path, path, sizeof(path)) ||
+        (file = wpm_fopen(path, "r")) == NULL) return 0;
+    if (!fgets(result, (int)result_size, file)) {
+        fclose(file);
+        return 0;
+    }
+    fclose(file);
+    result[strcspn(result, "\r\n")] = '\0';
+    return (_strnicmp(result, "https://", 8) == 0 ||
+            _strnicmp(result, "http://", 7) == 0) && !strpbrk(result, "\r\n");
 }
 
 static int ensure_sodium_ready(void) {
@@ -1964,21 +2012,120 @@ static void report_script_children(DWORD script_pid) {
     CloseHandle(snapshot);
 }
 
+static const char* active_repository_url(char* inherited, size_t inherited_size) {
+    DWORD length;
+    if (wpm_repository_url[0]) return wpm_repository_url;
+    length = GetEnvironmentVariableA("WPM_PACKAGE_REPOSITORY_URL", inherited,
+        (DWORD)inherited_size);
+    if (length == 0 || length >= inherited_size || strpbrk(inherited, "\r\n") ||
+        (_strnicmp(inherited, "https://", 8) != 0 &&
+         _strnicmp(inherited, "http://", 7) != 0)) return NULL;
+    return inherited;
+}
+
+static void safe_log_component(char* result, size_t result_size, const char* value) {
+    size_t written = 0;
+    while (*value && written + 1 < result_size) {
+        unsigned char character = (unsigned char)*value++;
+        result[written++] = isalnum(character) || character == '-' || character == '_'
+            ? (char)character : '-';
+    }
+    result[written] = '\0';
+}
+
+static int create_script_log(const char* package_name, const char* action_name,
+                             char* log_path, size_t log_path_size, FILE** log) {
+    char data_root[WPM_PATH_SIZE], logs[WPM_PATH_SIZE], scripts[WPM_PATH_SIZE];
+    char safe_package[128], safe_action[64];
+    SYSTEMTIME now;
+    int written;
+    if (!wpm_get_data_root(data_root, sizeof(data_root)) ||
+        !join_path(logs, sizeof(logs), data_root, "logs") ||
+        !join_path(scripts, sizeof(scripts), logs, "scripts") ||
+        !create_directories(scripts)) return 0;
+    safe_log_component(safe_package, sizeof(safe_package), package_name);
+    safe_log_component(safe_action, sizeof(safe_action), action_name);
+    GetSystemTime(&now);
+    written = snprintf(log_path, log_path_size,
+        "%s\\%04u%02u%02uT%02u%02u%02u.%03uZ-%lu-%llu-%s-%s.log",
+        scripts, now.wYear, now.wMonth, now.wDay, now.wHour, now.wMinute,
+        now.wSecond, now.wMilliseconds, (unsigned long)GetCurrentProcessId(),
+        (unsigned long long)wpm_tick_count(), safe_package, safe_action);
+    if (written < 0 || (size_t)written >= log_path_size) return 0;
+    *log = wpm_fopen(log_path, "wb");
+    return *log != NULL;
+}
+
+static void write_script_bytes(const unsigned char* bytes, DWORD count, FILE* log,
+                               FILE* handoff_log) {
+    if (count == 0) return;
+    fwrite(bytes, 1, count, stdout);
+    fflush(stdout);
+    fwrite(bytes, 1, count, log);
+    fflush(log);
+    if (handoff_log) {
+        fwrite(bytes, 1, count, handoff_log);
+        fflush(handoff_log);
+    }
+}
+
+static void report_script_failure(const char* action_name, DWORD exit_code,
+                                  const char* repository_url, const char* log_path) {
+    char github_url[WPM_PATH_SIZE];
+    char* suffix;
+    printf("Error: %s script failed with exit code %lu.\n", action_name,
+        (unsigned long)exit_code);
+    printf("Script log: %s\n", log_path);
+    if (!repository_url) {
+        printf("Repository URL: unavailable for this local or legacy package.\n");
+        printf("Please create an issue with the package maintainer and attach the script log.\n");
+        return;
+    }
+    printf("Repository URL: %s\n", repository_url);
+    if (_strnicmp(repository_url, "https://github.com/", 19) == 0 &&
+        strlen(repository_url) < sizeof(github_url)) {
+        strcpy_s(github_url, sizeof(github_url), repository_url);
+        suffix = strstr(github_url + 19, "/releases/");
+        if (suffix) *suffix = '\0';
+        suffix = strstr(github_url + 19, "/issues");
+        if (suffix) *suffix = '\0';
+        if (strlen(github_url) + strlen("/issues/new") < sizeof(github_url)) {
+            strcat(github_url, "/issues/new");
+            printf("Please create a GitHub issue for this failure and attach the script log:\n  %s\n",
+                github_url);
+            return;
+        }
+    }
+    printf("Please create an issue in the repository above and attach the script log.\n");
+}
+
 static int run_package_script(
     const char* staging_dir,
     const char* script_name,
     const char* action_name,
+    const char* package_name,
     DWORD* result_exit_code
 ) {
     char script_path[WPM_PATH_SIZE];
     char command_line[WPM_PATH_SIZE * 2];
     char self_upgrade_log[WPM_PATH_SIZE];
+    char inherited_repository[WPM_PATH_SIZE];
+    char log_path[WPM_PATH_SIZE];
+    const char* repository_url;
     STARTUPINFOA startup_info;
     PROCESS_INFORMATION process_info;
+    SECURITY_ATTRIBUTES pipe_security;
+    HANDLE pipe_read = NULL;
+    HANDLE pipe_write = NULL;
+    FILE* log = NULL;
+    FILE* handoff_log = NULL;
     DWORD exit_code;
     DWORD wait_result;
-    DWORD wait_interval;
     DWORD elapsed = 0;
+    DWORD next_report = 10000;
+    DWORD available;
+    DWORD bytes_read;
+    unsigned char output[4096];
     int written;
 
     if (!join_path(script_path, sizeof(script_path), staging_dir, script_name)) {
@@ -1989,17 +2136,39 @@ static int run_package_script(
     if (!file_exists_at_path(script_path)) return 1;
 
     verbose_log("Running %s script: %s", action_name, script_path);
+    repository_url = active_repository_url(inherited_repository, sizeof(inherited_repository));
+    if (!create_script_log(package_name, action_name, log_path, sizeof(log_path), &log)) {
+        printf("Error: could not create the %s script log.\n", action_name);
+        return 0;
+    }
+    fprintf(log, "action=%s\npackage=%s\nscript=%s\nrepository=%s\n--- output ---\n",
+        action_name, package_name, script_path, repository_url ? repository_url : "unavailable");
+    fflush(log);
+    printf("Logging %s script output to: %s\n", action_name, log_path);
+    if (GetEnvironmentVariableA("WPM_SELF_UPGRADE_LOG", self_upgrade_log,
+            sizeof(self_upgrade_log)) > 0 && _stricmp(self_upgrade_log, log_path) != 0) {
+        handoff_log = wpm_fopen(self_upgrade_log, "ab");
+    }
 
-    if (GetEnvironmentVariableA("WPM_SELF_UPGRADE_LOG", self_upgrade_log, sizeof(self_upgrade_log)) > 0) {
-        written = snprintf(command_line, sizeof(command_line),
-            "cmd.exe /d /s /c call \"%s\" >> \"%s\" 2>&1", script_path, self_upgrade_log);
-    }
-    else {
-        written = snprintf(command_line, sizeof(command_line),
-            "cmd.exe /d /s /c call \"%s\"", script_path);
-    }
+    written = snprintf(command_line, sizeof(command_line),
+        "cmd.exe /d /s /c call \"%s\"", script_path);
     if (written < 0 || (size_t)written >= sizeof(command_line)) {
         printf("Error: %s command is too long.\n", action_name);
+        if (handoff_log) fclose(handoff_log);
+        fclose(log);
+        return 0;
+    }
+
+    memset(&pipe_security, 0, sizeof(pipe_security));
+    pipe_security.nLength = sizeof(pipe_security);
+    pipe_security.bInheritHandle = TRUE;
+    if (!CreatePipe(&pipe_read, &pipe_write, &pipe_security, 0) ||
+        !SetHandleInformation(pipe_read, HANDLE_FLAG_INHERIT, 0)) {
+        printf("Error: could not create the %s script output stream.\n", action_name);
+        if (pipe_read) CloseHandle(pipe_read);
+        if (pipe_write) CloseHandle(pipe_write);
+        if (handoff_log) fclose(handoff_log);
+        fclose(log);
         return 0;
     }
 
@@ -2008,8 +2177,8 @@ static int run_package_script(
     startup_info.cb = sizeof(startup_info);
     startup_info.dwFlags = STARTF_USESTDHANDLES;
     startup_info.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
-    startup_info.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
-    startup_info.hStdError = GetStdHandle(STD_ERROR_HANDLE);
+    startup_info.hStdOutput = pipe_write;
+    startup_info.hStdError = pipe_write;
     printf("--- %s script output ---\n", action_name);
     fflush(stdout);
     if (!CreateProcessA(
@@ -2025,8 +2194,14 @@ static int run_package_script(
             &process_info
         )) {
         printf("Error: could not start %s script: %s\n", action_name, script_path);
+        CloseHandle(pipe_read);
+        CloseHandle(pipe_write);
+        if (handoff_log) fclose(handoff_log);
+        fclose(log);
         return 0;
     }
+    CloseHandle(pipe_write);
+    pipe_write = NULL;
 
     verbose_log("WPM process PID: %lu", (unsigned long)GetCurrentProcessId());
     verbose_log("%s script process PID: %lu", action_name,
@@ -2034,27 +2209,42 @@ static int run_package_script(
     verbose_log("WPM PID %lu is waiting for %s script PID %lu",
         (unsigned long)GetCurrentProcessId(), action_name,
         (unsigned long)process_info.dwProcessId);
-    wait_interval = wpm_verbose ? 10000 : INFINITE;
     do {
-        wait_result = WaitForSingleObject(process_info.hProcess, wait_interval);
+        if (PeekNamedPipe(pipe_read, NULL, 0, NULL, &available, NULL) && available > 0 &&
+            ReadFile(pipe_read, output, available < sizeof(output) ? available : sizeof(output),
+                &bytes_read, NULL)) {
+            write_script_bytes(output, bytes_read, log, handoff_log);
+        }
+        wait_result = WaitForSingleObject(process_info.hProcess, 100);
         if (wait_result == WAIT_TIMEOUT) {
-            elapsed += wait_interval;
+            elapsed += 100;
+        }
+        if (wpm_verbose && wait_result == WAIT_TIMEOUT && elapsed >= next_report) {
             verbose_log("%s script PID %lu is still running after %lu seconds",
                 action_name, (unsigned long)process_info.dwProcessId,
                 (unsigned long)(elapsed / 1000));
             report_script_children(process_info.dwProcessId);
             verbose_log("Debug with: tasklist /FI \"PID eq %lu\" /V",
                 (unsigned long)process_info.dwProcessId);
-            wait_interval = 30000;
+            next_report += 30000;
         }
     } while (wait_result == WAIT_TIMEOUT);
+    while (PeekNamedPipe(pipe_read, NULL, 0, NULL, &available, NULL) && available > 0 &&
+        ReadFile(pipe_read, output, available < sizeof(output) ? available : sizeof(output),
+            &bytes_read, NULL)) {
+        write_script_bytes(output, bytes_read, log, handoff_log);
+    }
     if (!GetExitCodeProcess(process_info.hProcess, &exit_code)) exit_code = 1;
     printf("--- end %s script output (exit code %lu) ---\n", action_name, (unsigned long)exit_code);
+    fprintf(log, "\n--- exit-code=%lu ---\n", (unsigned long)exit_code);
     if (result_exit_code) *result_exit_code = exit_code;
+    CloseHandle(pipe_read);
     CloseHandle(process_info.hThread);
     CloseHandle(process_info.hProcess);
+    if (handoff_log) fclose(handoff_log);
+    fclose(log);
     if (exit_code != 0) {
-        printf("Error: %s script failed with exit code %lu.\n", action_name, (unsigned long)exit_code);
+        report_script_failure(action_name, exit_code, repository_url, log_path);
         return 0;
     }
 
@@ -2196,7 +2386,7 @@ int wpm_archive_install(const char* archive_path, int allow_unsigned) {
     if (!read_package_metadata(staging_path, &metadata)) goto cleanup;
     if (!installed_architecture_is_compatible(&metadata)) goto cleanup;
     print_package_progress(display_name, "Installing package");
-    if (!run_package_script(staging_path, ".wpm\\install.cmd", "install", NULL)) goto cleanup;
+    if (!run_package_script(staging_path, ".wpm\\install.cmd", "install", metadata.name, NULL)) goto cleanup;
     if (_stricmp(archive_full_path, stored_archive_path) != 0) {
         verbose_log("Storing archive: %s", stored_archive_path);
     }
@@ -2204,6 +2394,9 @@ int wpm_archive_install(const char* archive_path, int allow_unsigned) {
         !CopyFileA(archive_full_path, stored_archive_path, FALSE)) {
         printf("Error: could not store package archive: %s\n", stored_archive_path);
         goto cleanup;
+    }
+    if (!record_archive_repository(stored_archive_path)) {
+        printf("Warning: could not retain the package repository URL for removal diagnostics.\n");
     }
     if (!write_installation_audit(data_root, path_basename(archive_full_path), &metadata, signing_key_id)) {
         printf("Error: could not record package verification audit.\n");
@@ -2252,10 +2445,13 @@ int wpm_archive_schedule_self_upgrade(const char* archive_path, int allow_unsign
     char handoff_root[WPM_PATH_SIZE], handoff_dir[WPM_PATH_SIZE];
     char handoff_exe[WPM_PATH_SIZE], handoff_runtime[WPM_PATH_SIZE];
     char audit_dir[WPM_PATH_SIZE], log_path[WPM_PATH_SIZE];
+    char previous_repository[WPM_PATH_SIZE];
     char signing_key[65] = "", command[WPM_PATH_SIZE * 2];
     wpm_package_metadata metadata;
     STARTUPINFOA startup;
     PROCESS_INFORMATION process;
+    DWORD previous_repository_length;
+    BOOL process_created;
     int result = 0;
     if (!normalized_full_path(archive_path, archive_full, sizeof(archive_full)) ||
         !wpm_get_data_root(root, sizeof(root)) || !join_path(temp, sizeof(temp), root, "temp") ||
@@ -2318,8 +2514,20 @@ int wpm_archive_schedule_self_upgrade(const char* archive_path, int allow_unsign
     startup.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
     startup.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
     startup.hStdError = GetStdHandle(STD_ERROR_HANDLE);
-    if (!CreateProcessA(handoff_exe, command, NULL, NULL, TRUE,
-        CREATE_NEW_PROCESS_GROUP, NULL, NULL, &startup, &process)) {
+    previous_repository_length = GetEnvironmentVariableA("WPM_PACKAGE_REPOSITORY_URL",
+        previous_repository, sizeof(previous_repository));
+    if (wpm_repository_url[0]) {
+        SetEnvironmentVariableA("WPM_PACKAGE_REPOSITORY_URL", wpm_repository_url);
+    }
+    process_created = CreateProcessA(handoff_exe, command, NULL, NULL, TRUE,
+        CREATE_NEW_PROCESS_GROUP, NULL, NULL, &startup, &process);
+    if (previous_repository_length > 0 && previous_repository_length < sizeof(previous_repository)) {
+        SetEnvironmentVariableA("WPM_PACKAGE_REPOSITORY_URL", previous_repository);
+    }
+    else {
+        SetEnvironmentVariableA("WPM_PACKAGE_REPOSITORY_URL", NULL);
+    }
+    if (!process_created) {
         printf("Error: could not launch the cached WPM self-upgrade executable.\n");
         goto cleanup;
     }
@@ -2385,7 +2593,7 @@ int wpm_archive_upgrade(const char* archive_path, int allow_unsigned,
         goto cleanup;
     }
     print_package_progress(expected_name, "Installing package");
-    if (!run_package_script(stage, ".wpm\\install.cmd", "upgrade install", &script_exit)) {
+    if (!run_package_script(stage, ".wpm\\install.cmd", "upgrade install", metadata.name, &script_exit)) {
         write_upgrade_audit(root, &metadata, old_version, base, signing_key, 1, "install-script", script_exit);
         printf("Warning: package-maintainer recovery may be required.\n");
         goto cleanup;
@@ -2394,6 +2602,9 @@ int wpm_archive_upgrade(const char* archive_path, int allow_unsigned,
         write_upgrade_audit(root, &metadata, old_version, base, signing_key, 1, "archive-retention", 0);
         printf("Error: upgrade deployed software but archive retention failed; recovery is required.\n");
         goto cleanup;
+    }
+    if (!record_archive_repository(stored)) {
+        printf("Warning: could not retain the package repository URL for removal diagnostics.\n");
     }
     if (!write_upgrade_audit(root, &metadata, old_version, base, signing_key, 0, NULL, 0)) {
         printf("Error: upgrade deployed software but audit recording failed; recovery is required.\n");
@@ -2417,8 +2628,10 @@ int wpm_archive_remove(const char* package_name) {
     char staging_path[WPM_PATH_SIZE];
     char stored_archive_name[WPM_PATH_SIZE];
     char stored_archive_path[WPM_PATH_SIZE];
+    char repository_url[WPM_PATH_SIZE];
     char* extension;
     int written;
+    int script_success;
     int success = 0;
 
     if (strlen(package_name) >= sizeof(archive_name)) {
@@ -2454,10 +2667,20 @@ int wpm_archive_remove(const char* package_name) {
 
     if (!wpm_archive_extract_with_label(stored_archive_path, staging_path, archive_name)) goto cleanup;
     if (!verify_package_index(staging_path, archive_name)) goto cleanup;
-    if (!run_package_script(staging_path, ".wpm\\remove.cmd", "removal", NULL)) goto cleanup;
+    wpm_archive_set_repository_url(NULL);
+    if (load_archive_repository(stored_archive_path, repository_url, sizeof(repository_url))) {
+        wpm_archive_set_repository_url(repository_url);
+    }
+    script_success = run_package_script(staging_path, ".wpm\\remove.cmd", "removal",
+        archive_name, NULL);
+    wpm_archive_set_repository_url(NULL);
+    if (!script_success) goto cleanup;
     if (!DeleteFileA(stored_archive_path)) {
         printf("Error: could not remove stored package archive: %s\n", stored_archive_path);
         goto cleanup;
+    }
+    if (repository_record_path(stored_archive_path, repository_url, sizeof(repository_url))) {
+        DeleteFileA(repository_url);
     }
     success = 1;
 

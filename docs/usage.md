@@ -120,6 +120,14 @@ verifies each indexed file's size and BLAKE2b signature before it runs the
 package's `.wpm\install.cmd`. Installation fails if extraction, verification,
 or the install script fails.
 
+Install, removal, and upgrade script output is streamed live to the terminal
+and simultaneously written to a unique log under
+`%WPM_DATA_DIR%\logs\scripts`. WPM prints the log path when the script starts.
+If a script fails, WPM repeats the path, prints the originating repository URL
+when it is known, and prompts the user to create a GitHub issue with the log.
+Locally installed and older packages without recorded repository information
+instead identify the URL as unavailable and direct the user to the maintainer.
+
 After a successful installation, WPM saves a copy of the ZIP archive as
 `%ProgramData%\WPM\packages\<archive-name>.zip`. The staging directory is
 removed after every installation attempt. The install script controls where
@@ -314,7 +322,9 @@ The generated scripts are templates for package authors to customize.
 built `wpm.exe` into the native architecture's Program Files directory (using
 `%ProgramW6432%` when applicable), creates the machine-level `WPM` variable,
 and adds `%WPM%` to the machine-level `Path`. A non-elevated process installs
-per-user instead. Open a new shell after installation:
+per-user instead. Windows XP and other NT 5.x systems predate UAC and default
+to a machine-wide installation; run setup from an administrator account. Open
+a new shell after installation:
 
 ```text
 setup.cmd bin\x86\Debug\wpm.exe

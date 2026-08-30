@@ -94,6 +94,15 @@ try {
             if ($Output -notmatch '(?s)--- install script output ---.*--- end install script output \(exit code 0\) ---') {
                 throw 'install.cmd output was not framed with its completion status.'
             }
+            $scriptLogs = @(Get-ChildItem -LiteralPath (Join-Path $wpmDataDir 'logs\scripts') -Filter '*-install.log' -File)
+            if ($scriptLogs.Count -ne 1) { throw "Expected one install script log, found $($scriptLogs.Count)." }
+            $scriptLog = Get-Content -Raw -LiteralPath $scriptLogs[0].FullName
+            if ($Output -notmatch [regex]::Escape($scriptLogs[0].FullName) -or
+                $scriptLog -notmatch 'install-script-standard-output' -or
+                $scriptLog -notmatch 'install-script-error-output' -or
+                $scriptLog -notmatch '(?m)^--- exit-code=0 ---$') {
+                throw 'Install script output was not streamed and retained in the reported log.'
+            }
             if ($Output -notmatch 'WPM process PID: \d+' -or
                 $Output -notmatch 'install script process PID: \d+' -or
                 $Output -notmatch 'WPM PID \d+ is waiting for install script PID \d+') {

@@ -25,6 +25,10 @@ When invoked with a stored package archive, the application shall:
 - verify the extracted package index before executing package removal logic,
 - execute `.wpm\remove.cmd`, when present, with the staging directory as its
   working directory,
+- stream the script's standard output and standard error to the terminal while
+  simultaneously retaining them and the exit code in a persistent script log,
+- print the log path and, on script failure, the retained originating
+  repository URL and a prompt to create a GitHub issue,
 - retain the stored archive if extraction, verification, or `remove.cmd`
   fails,
 - delete the stored archive after successful removal, and

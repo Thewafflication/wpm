@@ -11,11 +11,19 @@ if /I "%~1"=="--machine" (
     shift
 )
 if not defined WPM_INSTALL_SCOPE (
-    whoami /groups /fo csv /nh 2>nul | findstr /C:"S-1-16-12288" /C:"S-1-16-16384" >nul
-    if errorlevel 1 (
-        set "WPM_INSTALL_SCOPE=user"
-    ) else (
+    rem Match setup.cmd: NT 5.x predates UAC and installs machine-wide by default.
+    set "WPM_LEGACY_WINDOWS="
+    ver | findstr /R /C:" 5\.[0-2]\." >nul
+    if not errorlevel 1 set "WPM_LEGACY_WINDOWS=1"
+    if defined WPM_LEGACY_WINDOWS (
         set "WPM_INSTALL_SCOPE=machine"
+    ) else (
+        whoami /groups /fo csv /nh 2>nul | findstr /C:"S-1-16-12288" /C:"S-1-16-16384" >nul
+        if errorlevel 1 (
+            set "WPM_INSTALL_SCOPE=user"
+        ) else (
+            set "WPM_INSTALL_SCOPE=machine"
+        )
     )
 )
 

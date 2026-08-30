@@ -59,6 +59,8 @@ the user `WPM` variable to the user `Path` only once.
 **REQ-0007.006**
 When no scope is specified, `setup.cmd` shall detect whether it has an elevated
 Windows token and select machine scope when elevated or user scope otherwise.
+On Windows NT 5.x, where UAC and integrity-level SIDs are unavailable, it shall
+select machine scope without invoking `whoami /groups`.
 
 **REQ-0007.007**
 `remove.cmd` shall remove both the WPM installation directory and its mutable
@@ -70,7 +72,7 @@ succeeds or the directories are already absent.
 `remove.cmd --user` shall remove the user-scoped installation, data directory,
 and the user `WPM`, `WPM_DATA_DIR`, and `%WPM%` `Path` entries.
 When no scope is specified, it shall use the same elevation-based scope
-selection as `setup.cmd`.
+selection, including the Windows NT 5.x machine-scope behavior, as `setup.cmd`.
 
 **REQ-0007.009**
 For automated verification, both scripts shall use `WPM_INSTALL_DIR` as an

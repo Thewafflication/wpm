@@ -72,14 +72,21 @@ try {
     New-ItemProperty -Path $environmentRegistryPath -Name Path -PropertyType ExpandString -Value 'C:\Windows' -Force | Out-Null
 
     $results += New-WpmManualStep -Name 'Verify native Program Files selection' -Action {
-        if ((Get-Content -Raw -LiteralPath $setupCmd) -notmatch 'ProgramW6432') {
+        $setup = Get-Content -Raw -LiteralPath $setupCmd
+        $remove = Get-Content -Raw -LiteralPath $removeCmd
+        if ($setup -notmatch 'ProgramW6432') {
             throw 'setup.cmd does not prefer the native Program Files directory.'
         }
-        if ((Get-Content -Raw -LiteralPath $setupCmd) -notmatch 'HKCU\\Environment' -or
-            (Get-Content -Raw -LiteralPath $setupCmd) -notmatch 'LocalAppData') {
+        if ($setup -notmatch 'HKCU\\Environment' -or $setup -notmatch 'LocalAppData') {
             throw 'setup.cmd does not provide a user-scoped installation mode.'
         }
-        $setup = Get-Content -Raw -LiteralPath $setupCmd
+        foreach ($script in @($setup, $remove)) {
+            if ($script -notmatch 'WPM_LEGACY_WINDOWS' -or
+                $script -notmatch 'ver \| findstr /R /C:" 5\\\.\[0-2\]\\\."' -or
+                $script -notmatch 'if defined WPM_LEGACY_WINDOWS \(\s*set "WPM_INSTALL_SCOPE=machine"') {
+                throw 'Windows NT 5.x must select machine scope without using integrity-level SID detection.'
+            }
+        }
         foreach ($diagnostic in @(
             'WPM_VERBOSE',
             'Registry operation:.*value=WPM',
