@@ -54,6 +54,11 @@ $results = @(
                 'runs-on: \$\{\{ matrix\.runner \}\}',
                 'runner: windows-11-arm',
                 'name: Upgrade \$\{\{ matrix\.arch \}\} from previous release',
+                'GH_TOKEN: \$\{\{ github\.token \}\}',
+                'gh api "repos/\$\{\{ github\.repository \}\}/releases\?per_page=100"',
+                '-not \$_\.draft -and -not \$_\.prerelease',
+                '@\(\$_\.assets\.name\) -contains \$expectedAsset',
+                'git merge-base --is-ancestor \$release\.Tag HEAD\^',
                 'verify-previous-release-upgrade\.ps1',
                 'needs:\s*\[[^\]]*upgrade-compatibility[^\]]*\]',
                 '\$packages = Get-ChildItem -LiteralPath release/packages -Filter ''wpm-\*\.zip''',
@@ -69,6 +74,9 @@ $results = @(
             }
             if ($workflow -match '(?m)^\s*- name: Generate ephemeral release signing key') {
                 throw 'Release workflow still generates an ephemeral release signing key.'
+            }
+            if ($workflow -match 'git tag --merged HEAD\^ --sort=-version:refname') {
+                throw 'Previous-release upgrade selection must use published release assets, not bare Git tags.'
             }
             $upgradeTest = Get-Content -Raw -LiteralPath $previousReleaseUpgradeTest
             foreach ($pattern in @(

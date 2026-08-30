@@ -336,11 +336,40 @@ jobs:
 
       - name: Verify upgrade from previous published release
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          $previousVersion = git tag --merged HEAD^ --sort=-version:refname |
-            Where-Object { $_ -match '^\d+\.\d+\.\d+$' } |
-            Select-Object -First 1
-          if (-not $previousVersion) { throw 'No previous release tag was found.' }
+          $assetName = "wpm-${{ matrix.arch }}-<version>.zip"
+          $releases = gh api "repos/${{ github.repository }}/releases?per_page=100" |
+            ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'Could not enumerate published GitHub releases.' }
+
+          $releaseCandidates = @($releases |
+            Where-Object { -not $_.draft -and -not $_.prerelease -and $_.tag_name -match '^\d+\.\d+\.\d+$' } |
+            ForEach-Object {
+              $expectedAsset = $assetName.Replace('<version>', $_.tag_name)
+              if ($_.tag_name -ne '${{ github.ref_name }}' -and
+                  @($_.assets.name) -contains $expectedAsset) {
+                [pscustomobject]@{
+                  Tag = $_.tag_name
+                  Version = [version]$_.tag_name
+                }
+              }
+            } |
+            Sort-Object Version -Descending)
+
+          $previousVersion = $null
+          foreach ($release in $releaseCandidates) {
+            git merge-base --is-ancestor $release.Tag HEAD^ 2>$null
+            if ($LASTEXITCODE -eq 0) {
+              $previousVersion = $release.Tag
+              break
+            }
+          }
+          if (-not $previousVersion) {
+            throw "No previous published release contains ${{ matrix.arch }} package assets."
+          }
+          Write-Host "Testing upgrade from published release $previousVersion."
           tests/verify-previous-release-upgrade.ps1 `
             -PreviousVersion $previousVersion `
             -CandidateVersion '${{ github.ref_name }}' `
