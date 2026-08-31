@@ -7,8 +7,8 @@ installing, removing, and upgrading packages.
 
 WPM 1.0.0 is the first stable release of the Waughtal Package Manager for
 Windows x86, x64, and ARM64. It provides signed package build, installation,
-removal, HTTPS repository use, version-aware upgrades, and safe WPM
-self-upgrade.
+removal, HTTPS and local-filesystem repository use, version-aware upgrades,
+and safe WPM self-upgrade.
 
 Use the latest-release installer below to install or upgrade WPM. See the
 [support policy](docs/support-policy.md) for the scope of best-effort support,

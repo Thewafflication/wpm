@@ -46,6 +46,7 @@ package trust remain above this interface.
 
 The required 2.0 locator kinds are:
 
+- relative paths resolved to stable drive-qualified roots when configured;
 - absolute drive or rooted filesystem paths, including drive roots;
 - UNC paths using the caller's Windows-authenticated SMB access;
 - `https://` URLs; and
@@ -53,8 +54,9 @@ The required 2.0 locator kinds are:
 
 Windows drive and UNC grammar is resolved before URI parsing. URL kinds require
 a parsed, allow-listed scheme and authority; substring heuristics are forbidden.
-Relative roots, device namespaces, ambiguous slash forms, URL user information,
-and unsupported schemes are rejected. SCP is not in the required 2.0 provider
+Device namespaces, ambiguous slash forms, URL user information, and unsupported
+schemes are rejected. Relative roots are accepted only after canonical resolution
+against the configuration process's working directory. SCP is not in the required 2.0 provider
 set and ADR-0005's earlier SCP requirement no longer governs 2.0; adding it later
 requires identified requirements and security review.
 
@@ -135,4 +137,3 @@ credentials or corrupting prior cache state.
 - Planned TC-0016
 - ADR-0001, ADR-0002, and ADR-0005
 - `docs/dfs.md`
-

@@ -66,7 +66,7 @@ Completion criteria:
 ## Milestone 3: Local, Network-Share, and Legacy-Network Repositories
 
 - Support local filesystem repository roots in addition to HTTPS, including
-  absolute paths, drive roots, USB/removable drives, and CD-ROM media.
+  relative and absolute paths, drive roots, USB/removable drives, and CD-ROM media.
 - Support SMB/UNC repository roots for managed local-network distribution.
 - Support plain HTTP repositories for legacy environments where HTTPS is not
   practical, including Windows XP-era systems. Plain HTTP must require an

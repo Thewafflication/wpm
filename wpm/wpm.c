@@ -294,8 +294,8 @@ int main(int argc, char *argv[])
                 if (!wpm_repo_list()) return 1;
             } else if (strcmp(action, "add") == 0) {
                 int priority = 0;
-                if (command_index + 2 >= argc) { printf("Usage: wpm repo add <https-url> [--priority <integer>]\n"); return 1; }
-                if (command_index + 3 < argc && (command_index + 5 != argc || strcmp(argv[command_index + 3], "--priority") != 0)) { printf("Usage: wpm repo add <https-url> [--priority <integer>]\n"); return 1; }
+                if (command_index + 2 >= argc) { printf("Usage: wpm repo add <https-url|directory> [--priority <integer>]\n"); return 1; }
+                if (command_index + 3 < argc && (command_index + 5 != argc || strcmp(argv[command_index + 3], "--priority") != 0)) { printf("Usage: wpm repo add <https-url|directory> [--priority <integer>]\n"); return 1; }
                 if (command_index + 3 < argc) priority = atoi(argv[command_index + 4]);
                 if (!wpm_repo_add(argv[command_index + 2], priority)) return 1;
             } else if (strcmp(action, "remove") == 0 && command_index + 3 == argc) {
@@ -474,7 +474,7 @@ void print_usage(Command c) {
     printf("      Remove one or more packages\n\n");
 
     printf("  repo <add|list|remove|update> ...\n");
-    printf("      Configure HTTPS package repositories\n\n");
+    printf("      Configure HTTPS or local-filesystem package repositories\n\n");
 
     printf("  keygen <private-key-file> <public-key-file> [--default]\n");
     printf("      Generate an Ed25519 signing key pair\n\n");

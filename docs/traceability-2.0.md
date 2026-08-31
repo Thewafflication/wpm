@@ -35,13 +35,13 @@ every row that is not `Verified` or lacks objective evidence.
 | REQ-0015.005 | TC-0015 | Automated negative test | Planned | Not yet produced |
 | REQ-0015.006 | TC-0015 | Automated state-transition test | Planned | Not yet produced |
 | REQ-0016.001 | TC-0016 | Integration test and inspection | Planned | Not yet produced |
-| REQ-0016.002 | TC-0016 | Automated filesystem/media test | Planned | Not yet produced |
+| REQ-0016.002 | TC-0016 | Automated filesystem/media test | Planned | TC-0024 local fixed/read-only path evidence produced; removable/optical evidence pending |
 | REQ-0016.003 | TC-0016 | Automated test and managed SMB demonstration | Planned | Not yet produced |
 | REQ-0016.004 | TC-0016 | Automated policy and warning test | Planned | Not yet produced |
-| REQ-0016.005 | TC-0016 | Automated signature/trust negative test | Planned | Not yet produced |
-| REQ-0016.006 | TC-0016 | Automated output/audit inspection | Planned | Not yet produced |
+| REQ-0016.005 | TC-0016 | Automated signature/trust negative test | Planned | TC-0024 local unsigned-package policy evidence produced; remaining transports pending |
+| REQ-0016.006 | TC-0016 | Automated output/audit inspection | Planned | TC-0024 local effective-source output evidence produced; broader audit/redaction pending |
 | REQ-0016.007 | TC-0016 | Fault injection and media demonstration | Planned | Not yet produced |
-| REQ-0016.008 | TC-0016 | Automated input-partition test | Planned | Not yet produced |
+| REQ-0016.008 | TC-0016 | Automated input-partition test | Planned | TC-0024 relative canonicalization, file URL, and device-path evidence produced; broader provider inputs pending |
 | REQ-0017.001 | TC-0017 | Automated state-transition test | Planned | Not yet produced |
 | REQ-0017.002 | TC-0017 | Automated negative and fault test | Planned | Not yet produced |
 | REQ-0017.003 | TC-0017 | Automated determinism and atomicity test | Planned | Not yet produced |

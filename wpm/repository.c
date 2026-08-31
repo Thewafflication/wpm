@@ -76,11 +76,38 @@ static int cache_path(const char* url, char* path, size_t size) {
     while (*p) { hash ^= *p++; hash *= 16777619u; }
     return wpm_get_data_root(root, sizeof(root)) && snprintf(path, size, "%s\\cache\\repositories\\%08lx.json", root, hash) > 0;
 }
-static int url_normalize(const char* source, char* result, size_t size) {
+static int is_https_repository(const char* source) {
+    return source && _strnicmp(source, "https://", 8) == 0;
+}
+static int repository_normalize(const char* source, char* result, size_t size) {
     size_t length;
-    if (!source || _strnicmp(source, "https://", 8) != 0 || strpbrk(source, " \t\r\n")) { printf("Error: repository URLs must use https://.\n"); return 0; }
-    if (strcpy_s(result, size, source) != 0) return 0;
-    length = strlen(result); while (length > 8 && result[length - 1] == '/') result[--length] = '\0';
+    DWORD required;
+    if (!source || !*source || strpbrk(source, "\t\r\n")) {
+        printf("Error: repository locator is empty or contains a control character.\n");
+        return 0;
+    }
+    if (is_https_repository(source)) {
+        if (strpbrk(source, " \t\r\n") || strcpy_s(result, size, source) != 0) return 0;
+        length = strlen(result);
+        while (length > 8 && result[length - 1] == '/') result[--length] = '\0';
+        return 1;
+    }
+    if (strstr(source, "://")) {
+        printf("Error: repository locators must use https:// or a local directory path.\n");
+        return 0;
+    }
+    required = GetFullPathNameA(source, (DWORD)size, result, NULL);
+    if (!required || required >= size) {
+        printf("Error: repository path is invalid or too long: %s\n", source);
+        return 0;
+    }
+    for (length = 0; result[length]; length++) if (result[length] == '/') result[length] = '\\';
+    if (length < 3 || (result[0] == '\\' && result[1] == '\\') ||
+        !isalpha((unsigned char)result[0]) || result[1] != ':' || result[2] != '\\') {
+        printf("Error: local repositories require a drive-qualified filesystem path.\n");
+        return 0;
+    }
+    while (length > 3 && result[length - 1] == '\\') result[--length] = '\0';
     return 1;
 }
 static int parse_entry(char* line, int* priority, char** url) {
@@ -114,8 +141,8 @@ static int rewrite(const char* wanted, int priority, int remove) {
     if (remove && !found) { printf("Error: repository is not configured: %s\n", wanted); return 0; }
     printf("Repository %s: %s\n", remove ? "removed" : (found ? "updated" : "added"), wanted); return 1;
 }
-int wpm_repo_add(const char* url, int priority) { char normalized[PATH_SIZE]; return url_normalize(url, normalized, sizeof(normalized)) && rewrite(normalized, priority, 0); }
-int wpm_repo_remove(const char* url) { char normalized[PATH_SIZE], cached[PATH_SIZE]; if (!url_normalize(url, normalized, sizeof(normalized)) || !rewrite(normalized, 0, 1)) return 0; if (cache_path(normalized, cached, sizeof(cached))) DeleteFileA(cached); return 1; }
+int wpm_repo_add(const char* url, int priority) { char normalized[PATH_SIZE]; return repository_normalize(url, normalized, sizeof(normalized)) && rewrite(normalized, priority, 0); }
+int wpm_repo_remove(const char* url) { char normalized[PATH_SIZE], cached[PATH_SIZE]; if (!repository_normalize(url, normalized, sizeof(normalized)) || !rewrite(normalized, 0, 1)) return 0; if (cache_path(normalized, cached, sizeof(cached))) DeleteFileA(cached); return 1; }
 int wpm_repo_list(void) { repository repositories[MAX_REPOSITORIES]; int count, i; if (!load_repositories(repositories, &count)) return 0; if (!count) { printf("No repositories configured.\n"); return 1; } for (i = 0; i < count; i++) printf("%d\t%s\n", repositories[i].priority, repositories[i].url); return 1; }
 
 static int download_guid_equal(const GUID* left, const GUID* right) {
@@ -253,14 +280,38 @@ static int download(const char* url, const char* destination, const char* label)
     if (!succeeded) DeleteFileA(temporary);
     return succeeded;
 }
+static int copy_local(const char* source, const char* destination) {
+    char temporary[PATH_SIZE];
+    if (snprintf(temporary, sizeof(temporary), "%s.download", destination) < 0) return 0;
+    DeleteFileA(temporary);
+    if (!CopyFileA(source, temporary, FALSE)) return 0;
+    if (!SetFileAttributesA(temporary, FILE_ATTRIBUTE_NORMAL)) {
+        DeleteFileA(temporary);
+        return 0;
+    }
+    if (!MoveFileExA(temporary, destination, MOVEFILE_REPLACE_EXISTING)) {
+        DeleteFileA(temporary);
+        return 0;
+    }
+    return 1;
+}
+static int retrieve(const char* source, const char* destination, const char* label) {
+    if (is_https_repository(source)) return download(source, destination, label);
+    REPO_VERBOSE("copying local source: %s", source);
+    return copy_local(source, destination);
+}
 static int index_is_fresh(const char* path) { WIN32_FILE_ATTRIBUTE_DATA data; FILETIME now; ULARGE_INTEGER a, b; GetSystemTimeAsFileTime(&now); if (!GetFileAttributesExA(path, GetFileExInfoStandard, &data)) return 0; a.LowPart = now.dwLowDateTime; a.HighPart = now.dwHighDateTime; b.LowPart = data.ftLastWriteTime.dwLowDateTime; b.HighPart = data.ftLastWriteTime.dwHighDateTime; return a.QuadPart >= b.QuadPart && (a.QuadPart - b.QuadPart) <= INDEX_FRESH_MS * 10000ULL; }
-static int index_url(const char* root, char* result, size_t size) { return snprintf(result, size, "%s/index.json", root) > 0; }
+static int index_source(const char* root, char* result, size_t size) { return is_https_repository(root) ? snprintf(result, size, "%s/index.json", root) > 0 : join_path(result, size, root, "index.json"); }
 static int refresh(repository* repo, int offline, int required) {
     char cached[PATH_SIZE], url[PATH_SIZE]; if (!cache_path(repo->url, cached, sizeof(cached))) return 0;
     REPO_VERBOSE("checking: %s", repo->url); REPO_VERBOSE("cache: %s", cached);
-    if (offline) { if (GetFileAttributesA(cached) == INVALID_FILE_ATTRIBUTES) printf("Error: no cached index for %s while offline.\n", repo->url); else REPO_VERBOSE("using cached index (offline)"); return GetFileAttributesA(cached) != INVALID_FILE_ATTRIBUTES; }
-    if (!required && index_is_fresh(cached)) { REPO_VERBOSE("using fresh cached index"); return 1; }
-    if (ensure_cache_directory("repositories") && index_url(repo->url, url, sizeof(url)) && download(url, cached, "repository index")) { printf("Updated repository index: %s\n", repo->url); return 1; }
+    if (offline && is_https_repository(repo->url)) { if (GetFileAttributesA(cached) == INVALID_FILE_ATTRIBUTES) printf("Error: no cached index for %s while offline.\n", repo->url); else REPO_VERBOSE("using cached index (offline)"); return GetFileAttributesA(cached) != INVALID_FILE_ATTRIBUTES; }
+    if (!required && is_https_repository(repo->url) && index_is_fresh(cached)) { REPO_VERBOSE("using fresh cached index"); return 1; }
+    if (ensure_cache_directory("repositories") && index_source(repo->url, url, sizeof(url)) && retrieve(url, cached, "repository index")) { printf("Updated repository index: %s\n", repo->url); return 1; }
+    if (!is_https_repository(repo->url)) {
+        printf("Error: could not read local repository index: %s\n", repo->url);
+        return 0;
+    }
     if (GetFileAttributesA(cached) != INVALID_FILE_ATTRIBUTES) { printf("Warning: could not refresh %s; using cached index.\n", repo->url); return 1; }
     printf("Warning: could not retrieve repository index: %s\n", repo->url); return 0;
 }
@@ -281,7 +332,34 @@ static int parse_index(const char* path, repository* repo, package_entry* packag
     if (!complete) printf("Warning: repository package capacity (%d) was reached while reading %s; later entries or repositories may be unavailable.\n", MAX_PACKAGES, repo->url);
     free(text); return 1;
 }
-static int package_url(const char* root, const char* item, char* result, size_t size) { if (_strnicmp(item,"https://",8)==0) return strcpy_s(result,size,item)==0; if (strstr(item,"://") || item[0]=='/' || strstr(item,"..")) return 0; return snprintf(result,size,"%s/%s",root,item)>0; }
+static int safe_relative_item(const char* item) {
+    const char* segment;
+    const char* cursor;
+    size_t length;
+    if (!item || !*item || item[0] == '/' || item[0] == '\\' ||
+        strchr(item, ':') || strstr(item, "://")) return 0;
+    segment = item;
+    for (cursor = item; ; cursor++) {
+        if (*cursor != '/' && *cursor != '\\' && *cursor != '\0') continue;
+        length = (size_t)(cursor - segment);
+        if (!length || (length == 1 && segment[0] == '.') ||
+            (length == 2 && segment[0] == '.' && segment[1] == '.')) return 0;
+        if (!*cursor) break;
+        segment = cursor + 1;
+    }
+    return 1;
+}
+static int package_source(const char* root, const char* item, char* result, size_t size) {
+    int written;
+    if (is_https_repository(root)) {
+        if (is_https_repository(item)) return strcpy_s(result, size, item) == 0;
+        if (!safe_relative_item(item)) return 0;
+        written = snprintf(result, size, "%s/%s", root, item);
+        return written > 0 && (size_t)written < size;
+    }
+    if (!safe_relative_item(item)) return 0;
+    return join_path(result, size, root, item);
+}
 
 typedef struct { unsigned long long major, minor, patch; const char* prerelease; size_t prerelease_length; } semver;
 typedef struct { char name[128]; char version[64]; char arch[16]; } installed_entry;
@@ -322,7 +400,34 @@ static int load_entries(repository* repositories,int* repository_count,package_e
 static int load_installed(installed_entry* result,int* count){char root[PATH_SIZE],store[PATH_SIZE],search[PATH_SIZE],path[PATH_SIZE];WIN32_FIND_DATAA item;HANDLE find;*count=0;if(!wpm_get_data_root(root,sizeof(root))||!join_path(store,sizeof(store),root,"packages")||!join_path(search,sizeof(search),store,"*.zip"))return 0;find=FindFirstFileA(search,&item);if(find==INVALID_HANDLE_VALUE)return GetLastError()==ERROR_FILE_NOT_FOUND;do{wpm_package_info info;semver parsed;if(*count>=MAX_INSTALLED||!join_path(path,sizeof(path),store,item.cFileName))continue;if(!wpm_archive_inspect(path,&info)){printf("Warning: unreadable installed package record: %s\n  Path: %s\n",item.cFileName,path);continue;}if(!semver_parse(info.version,&parsed)){printf("Warning: installed package record has non-SemVer version '%s': %s\n  Path: %s\n  This legacy record is ignored for update selection; review the archive before deciding whether it is obsolete.\n",info.version,item.cFileName,path);continue;}installed_entry*e=&result[(*count)++];strcpy_s(e->name,sizeof(e->name),info.name);strcpy_s(e->version,sizeof(e->version),info.version);strcpy_s(e->arch,sizeof(e->arch),info.arch);}while(FindNextFileA(find,&item));FindClose(find);return 1;}
 static int better_candidate(package_entry* candidate,package_entry* selected){int valid,c;if(!selected)return 1;c=semver_compare(candidate->version,selected->version,&valid);if(!valid)return 0;return c>0||(c==0&&(candidate->priority>selected->priority||(candidate->priority==selected->priority&&candidate->order<selected->order)));}
 static package_entry* select_candidate(package_entry* entries,int count,const char* name,const char* arch,const char* exact_version,int install_mode){package_entry*selected=NULL;const char*available_arch=NULL;int allow_pre=prerelease_effective(name,NULL),named=0,version_matched=0,arch_matched=0,prerelease_excluded=0,architecture_excluded=0;for(int i=0;i<count;i++){semver parsed;if(_stricmp(entries[i].name,name)!=0)continue;named++;if(!semver_parse(entries[i].version,&parsed)){printf("Warning: ignoring invalid SemVer %s for %s.\n",entries[i].version,name);continue;}if(exact_version&&strcmp(entries[i].version,exact_version)!=0)continue;if(is_prerelease(entries[i].version)&&!allow_pre){if((install_mode&&!arch&&(_stricmp(entries[i].arch,WPM_TARGET_ARCH)==0||_stricmp(entries[i].arch,"any")==0))||((!install_mode||arch)&&_stricmp(entries[i].arch,arch)==0))prerelease_excluded++;continue;}version_matched++;if(install_mode&&!arch){if(_stricmp(entries[i].arch,WPM_TARGET_ARCH)!=0&&_stricmp(entries[i].arch,"any")!=0){architecture_excluded++;if(!available_arch)available_arch=entries[i].arch;continue;}if(selected&&_stricmp(selected->arch,WPM_TARGET_ARCH)==0&&_stricmp(entries[i].arch,"any")==0)continue;if(selected&&_stricmp(selected->arch,"any")==0&&_stricmp(entries[i].arch,WPM_TARGET_ARCH)==0){selected=&entries[i];arch_matched++;continue;}}else if(_stricmp(entries[i].arch,arch)!=0){architecture_excluded++;if(!available_arch)available_arch=entries[i].arch;continue;}arch_matched++;if(better_candidate(&entries[i],selected))selected=&entries[i];}REPO_VERBOSE("resolution for '%s': name matches=%d, version/prerelease matches=%d, architecture matches=%d, prereleases excluded=%d, architectures excluded=%d, selected=%s",name,named,version_matched,arch_matched,prerelease_excluded,architecture_excluded,selected?selected->version:"none");if(install_mode&&!selected&&prerelease_excluded)printf("Warning: matching prerelease packages were excluded because prereleases are disabled.\n  Enable them for this package with: wpm config set prerelease true --package %s\n",name);else if(install_mode&&!selected&&architecture_excluded)printf("Warning: matching packages were found, but none support architecture %s.\n  An available architecture is: %s\n  Retry with: wpm install %s --arch %s\n",arch?arch:WPM_TARGET_ARCH,available_arch,name,available_arch);return selected;}
-static int obtain(repository* repositories,package_entry* selected,int offline,char* path,size_t size){char root[PATH_SIZE],url[PATH_SIZE],legacy[PATH_SIZE],label[256];if(strpbrk(selected->name,"\\/:*")||strpbrk(selected->version,"\\/:*")||strpbrk(selected->arch,"\\/:*")||!package_url(repositories[selected->order].url,selected->url,url,sizeof(url))||!wpm_get_data_root(root,sizeof(root))||snprintf(path,size,"%s\\cache\\packages\\%s-%s-%s.zip",root,selected->name,selected->arch,selected->version)<0||snprintf(legacy,sizeof(legacy),"%s\\cache\\packages\\%s-%s-%s.zip",root,selected->name,selected->version,selected->arch)<0||snprintf(label,sizeof(label),"package %s %s %s",selected->name,selected->version,selected->arch)<0)return 0;if(GetFileAttributesA(path)==INVALID_FILE_ATTRIBUTES&&GetFileAttributesA(legacy)!=INVALID_FILE_ATTRIBUTES)strcpy_s(path,size,legacy);if(GetFileAttributesA(path)==INVALID_FILE_ATTRIBUTES){if(offline){printf("Error: package is not cached while offline: %s\n",selected->name);return 0;}if(!ensure_cache_directory("packages")||!download(url,path,label)){printf("Error: could not download package: %s\n",url);return 0;}}return 1;}
+static int obtain(repository* repositories,package_entry* selected,int offline,
+    char* path,size_t size) {
+    repository* repo = &repositories[selected->order];
+    char root[PATH_SIZE], source[PATH_SIZE], legacy[PATH_SIZE], label[256];
+    if (strpbrk(selected->name,"\\/:*") || strpbrk(selected->version,"\\/:*") ||
+        strpbrk(selected->arch,"\\/:*") ||
+        !package_source(repo->url,selected->url,source,sizeof(source)) ||
+        !wpm_get_data_root(root,sizeof(root)) ||
+        snprintf(path,size,"%s\\cache\\packages\\%s-%s-%s.zip",root,
+            selected->name,selected->arch,selected->version) < 0 ||
+        snprintf(legacy,sizeof(legacy),"%s\\cache\\packages\\%s-%s-%s.zip",root,
+            selected->name,selected->version,selected->arch) < 0 ||
+        snprintf(label,sizeof(label),"package %s %s %s",selected->name,
+            selected->version,selected->arch) < 0) return 0;
+    if (GetFileAttributesA(path) == INVALID_FILE_ATTRIBUTES &&
+        GetFileAttributesA(legacy) != INVALID_FILE_ATTRIBUTES) strcpy_s(path,size,legacy);
+    if (GetFileAttributesA(path) == INVALID_FILE_ATTRIBUTES) {
+        if (offline && is_https_repository(repo->url)) {
+            printf("Error: package is not cached while offline: %s\n",selected->name);
+            return 0;
+        }
+        if (!ensure_cache_directory("packages") || !retrieve(source,path,label)) {
+            printf("Error: could not retrieve package: %s\n",source);
+            return 0;
+        }
+    }
+    return 1;
+}
 
 int wpm_repo_install(const char* package_name,const char* arch,const char* version,int offline,int allow_unsigned){repository repositories[MAX_REPOSITORIES];package_entry entries[MAX_PACKAGES],*selected;int rc,ec,result;char package[PATH_SIZE];semver parsed;if(version&&!semver_parse(version,&parsed)){printf("Error: --version requires valid SemVer.\n");return 0;}if(arch&&_stricmp(arch,"any")&&_stricmp(arch,"x86")&&_stricmp(arch,"x64")&&_stricmp(arch,"arm64")){printf("Error: unsupported architecture: %s\n",arch);return 0;}if(!load_entries(repositories,&rc,entries,&ec,offline))return 0;selected=select_candidate(entries,ec,package_name,arch,version,1);if(!selected){printf("Error: package was not found with the requested selectors: %s\n",package_name);return 0;}if(!obtain(repositories,selected,offline,package,sizeof(package))){printf("Error: invalid package URL in repository index.\n");return 0;}printf("Installing %s %s %s from %s\n",selected->name,selected->arch,selected->version,repositories[selected->order].url);wpm_archive_set_repository_url(repositories[selected->order].url);result=wpm_archive_install(package,allow_unsigned);wpm_archive_set_repository_url(NULL);return result;}
 

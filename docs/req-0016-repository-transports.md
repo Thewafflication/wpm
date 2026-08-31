@@ -67,11 +67,12 @@ volume or repository.
 
 **REQ-0016.008**
 Repository locator parsing and path resolution shall reject unsupported or
-ambiguous schemes, relative repository roots unless explicitly permitted by a
-future requirement, traversal outside the selected root, device-path confusion,
-and index entries that escape the logical repository. Local paths that contain
-URL-significant characters shall be treated according to their selected
-locator type rather than by substring heuristics.
+ambiguous schemes, traversal outside the selected root, device-path confusion,
+and index entries that escape the logical repository. Relative local repository
+roots are permitted and shall be resolved against the `repo add` process's
+working directory to a stable, drive-qualified absolute path before persistence.
+Local paths that contain URL-significant characters shall be treated according
+to their selected locator type rather than by substring heuristics.
 
 ## Rationale
 
@@ -123,11 +124,12 @@ record; it does not remove the supported behavior.
 
 ## Implementation Record
 
-Planned allocation is a typed repository-locator parser and narrow
-transport-neutral reader with filesystem, UNC/SMB, HTTPS, and opted-in HTTP
-adapters. Existing repository selection, cache, signature, and trust logic is
-to remain shared above the adapter boundary. TC-0016 defines transport, fault,
-trust, matrix, and real-environment verification; its runner remains Blocked
-pending implementation. ADR-0011 excludes SCP from the required 2.0 provider
-set and prohibits automatic media relocation or redirect downgrade. No
-implementation is claimed by this proposed baseline.
+The first CP-03A slice implements drive-qualified and relative local filesystem
+repositories through the existing selection, cache, signature, trust, install,
+and upgrade logic. Relative paths are canonicalized at configuration time;
+local indexes and packages are copied atomically into WPM's cache without
+modifying the source. TC-0024 verifies this slice, including read-only sources
+and unsafe locator rejection. TC-0016 retains the broader transport, fault,
+matrix, and managed-environment allocation for removable-media identity,
+UNC/SMB, and opted-in HTTP work that remains pending. ADR-0011 excludes SCP and
+prohibits automatic media relocation or redirect downgrade.

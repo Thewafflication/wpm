@@ -205,6 +205,26 @@ Refreshes configured repository indexes, then reports installed package
 identities for which a newer eligible version is available. It does not
 download or install those packages.
 
+Repositories may be secure HTTPS URLs or local directory paths:
+
+```text
+wpm repo add https://packages.example.test/releases
+wpm repo add C:\packages\repository
+wpm repo add .\repository --priority 10
+wpm repo list
+wpm repo update --offline
+```
+
+Relative paths are resolved against the current directory when `repo add` runs
+and stored as drive-qualified absolute paths. This keeps the repository stable
+when later commands run from another directory. A local repository uses the
+same version-1 `index.json`, package selection, signature verification, and
+trust policy as HTTPS repositories. WPM only reads the source and atomically
+copies indexes and selected archives into its own cache, so read-only local
+repositories are supported. Local access remains available with `--offline`.
+UNC/SMB paths, `file://` URLs, device paths, and plain HTTP are not enabled by
+this release.
+
 ### Upgrade packages
 
 ```text

@@ -233,8 +233,8 @@ durable mutation.
 
 ```text
 Implement the approved transport-neutral repository interface while retaining the
-existing logical index and signature contracts. Support absolute local paths, drive
-roots, USB/removable drives, and CD-ROM/read-only media for repo add, list, update, and
+existing logical index and signature contracts. Support relative and absolute local
+paths, drive roots, USB/removable drives, and CD-ROM/read-only media for repo add, list, update, and
 install. Preserve the exact configured locator and report the effective source in
 output, diagnostics, verbose logs, and audit records. Define and test absent media,
 drive-letter changes, disappearance between phases, read-only sources, path traversal,

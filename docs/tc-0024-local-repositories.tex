@@ -1,0 +1,23 @@
+\documentclass[letterpaper]{article}
+\usepackage[letterpaper,margin=1in]{geometry}
+\input{wsp/testing/test-case-library.tex}
+
+\begin{document}
+\def\TCID{TC-0024}
+\def\TCTitle{Local filesystem repositories}
+\def\TCPurpose{Verify absolute and relative local repository configuration, read-only refresh, named installation, unchanged package trust, locator reporting, and unsafe-locator rejection.}
+\def\TCPriority{\TCPriorityHigh}
+\def\TCRequirementRef{REQ-0016.001, REQ-0016.002, REQ-0016.005, REQ-0016.006, and REQ-0016.008}
+\def\TCDesignRef{ADR-0011 and ADR-0005}
+\def\TCFeatureRef{\texttt{wpm/repository.c} and \texttt{tests/tc-0024-local-repositories.ps1}}
+\def\TCTestTechnique{Filesystem integration, equivalence partitions for absolute and relative locators, read-only state-difference testing, trust-policy negative testing, and unsafe-input testing.}
+\def\TCAssumptions{A relative locator is intentionally resolved against the add command's working directory and persisted as a stable absolute path.}
+\def\TCInitialState{An isolated WPM data root and disposable unsigned version-1 local repository exist; its index and archive are read-only.}
+\def\TCPreconditions{A built WPM executable is available.}
+\def\TCEnvironment{Local Windows developer workstation or native CI worker.}
+\def\TCInputData{A path containing spaces in relative and absolute forms, a read-only index and package, an escaping package path, an unsupported file URL, and a device path.}
+\def\TCProcedure{\par\begin{enumerate}\item Add the repository by relative path and reprioritize it by absolute path.\item List and refresh it offline after leaving the original working directory.\item Prove an unsigned package remains rejected, then install it with explicit authorization.\item Reject an index package path that escapes the repository root.\item Compare source hashes and reject unsupported locators.\item Remove the repository by absolute path.\end{enumerate}}
+\def\TCExpectedResult{Both path forms identify one stable repository; read-only source files remain unchanged; offline local refresh and named installation succeed; package trust is not inferred from local storage; output identifies the effective path; traversal, unsupported file URLs, and device paths fail closed.}
+\def\TCPostConditions{The isolated data root and disposable repository are removed.}
+\TCTemplate
+\end{document}

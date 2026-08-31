@@ -10,7 +10,7 @@ $cases=@(
     @{Requirement='REQ-0016.005';Technique='classification-tree';Profile='Fast';Expected='Every provider applies identical signature and trust decisions.'},
     @{Requirement='REQ-0016.006';Technique='data-flow/security';Profile='Fast';Expected='Locator identity is useful and credential-safe in every destination.'},
     @{Requirement='REQ-0016.007';Technique='state-transition/fault injection';Profile='Quality';Expected='Loss, substitution, change, and partial reads fail closed with safe retry.'},
-    @{Requirement='REQ-0016.008';Technique='syntax/equivalence-partitioning';Profile='Fast';Expected='Unsafe, relative, ambiguous, device, and escaping locators are rejected.'}
+    @{Requirement='REQ-0016.008';Technique='syntax/equivalence-partitioning';Profile='Fast';Expected='Relative roots canonicalize; unsafe, ambiguous, device, and escaping locators are rejected.'}
 )
 $rationales=@{
     Fast='Mock filesystem and HTTP providers deterministically cover parsing, policy, trust, and cache preservation.'
