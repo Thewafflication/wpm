@@ -155,6 +155,78 @@ static int validate_command_operands(Command command, int argc, char** argv, int
     return 1;
 }
 
+static int command_has_option(int argc, char** argv, int command_index, const char* wanted)
+{
+    int i;
+    for (i = command_index + 1; i < argc; i++) {
+        if (strcmp(argv[i], wanted) == 0) return 1;
+    }
+    return 0;
+}
+
+static int collect_command_operands(Command command, int argc, char** argv,
+    int command_index, const char** operands, int capacity)
+{
+    int i;
+    int count = 0;
+    for (i = command_index + 1; i < argc; i++) {
+        if (argv[i][0] == '-' && command_option_is_known(command, argv[i])) {
+            if (command_option_takes_value(command, argv[i])) i++;
+            continue;
+        }
+        if (count < capacity) operands[count] = argv[i];
+        count++;
+    }
+    return count;
+}
+
+static int invalid_action_shape(Command command, const char* detail)
+{
+    const char* name = command_name(command);
+    printf("Error: %s for %s.\n", detail, name);
+    print_usage_line(command);
+    printf("Run 'wpm help %s' for more information.\n", name);
+    return 0;
+}
+
+static int validate_command_actions(Command command, int argc, char** argv, int command_index)
+{
+    const char* operands[8];
+    int count = collect_command_operands(command, argc, argv, command_index, operands, 8);
+    const char* action = count > 0 ? operands[0] : "list";
+
+    if (command == CMD_REPO) {
+        if ((strcmp(action, "list") == 0 || strcmp(action, "update") == 0) && count == 1) return 1;
+        if (count == 0) return 1;
+        if (strcmp(action, "add") == 0 && count == 2) return 1;
+        if (strcmp(action, "remove") == 0 && count == 2) return 1;
+        return invalid_action_shape(command, "invalid action or operand count");
+    }
+    if (command == CMD_KEY) {
+        if (count == 1 && strcmp(action, "default") == 0 &&
+            command_has_option(argc, argv, command_index, "--clear")) return 1;
+        if (count == 2 && strcmp(action, "default") == 0 &&
+            !command_has_option(argc, argv, command_index, "--clear")) return 1;
+        return invalid_action_shape(command, "expected default with one key path or --clear");
+    }
+    if (command == CMD_TRUST) {
+        if (count == 0 || (count == 1 && strcmp(action, "list") == 0)) return 1;
+        if (count == 2 && (strcmp(action, "add") == 0 || strcmp(action, "revoke") == 0)) return 1;
+        return invalid_action_shape(command, "invalid action or operand count");
+    }
+    if (command == CMD_CONFIG) {
+        int has_package = command_has_option(argc, argv, command_index, "--package");
+        if (count >= 2 && strcmp(operands[1], "prerelease") == 0) {
+            if (strcmp(action, "get") == 0 && count == 2) return 1;
+            if (strcmp(action, "set") == 0 && count == 3 &&
+                (_stricmp(operands[2], "true") == 0 || _stricmp(operands[2], "false") == 0)) return 1;
+            if (strcmp(action, "unset") == 0 && count == 2 && has_package) return 1;
+        }
+        return invalid_action_shape(command, "invalid action, setting, value, or operand count");
+    }
+    return 1;
+}
+
 static int path_is_beneath(const char* path, const char* root)
 {
     size_t root_length = strlen(root);
@@ -408,6 +480,7 @@ int main(int argc, char *argv[])
     Command cmd = parse_command(argv[command_index]);
     if (cmd != CMD_UNKNOWN && !validate_command_options(cmd, argc, argv, command_index)) return 1;
     if (cmd != CMD_UNKNOWN && !validate_command_operands(cmd, argc, argv, command_index)) return 1;
+    if (cmd != CMD_UNKNOWN && !validate_command_actions(cmd, argc, argv, command_index)) return 1;
     wpm_set_verbose(verbose);
 	SetEnvironmentVariableA("WPM_VERBOSE", verbose ? "1" : NULL);
 	wpm_repo_set_verbose(verbose);
@@ -730,11 +803,11 @@ void print_usage(Command c) {
                 return;
             case CMD_TRUST:
                 print_usage_line(c);
-                printf("\nManage trusted package-signing keys.\n\nExamples:\n  wpm trust add maintainer .\\maintainer.public\n  wpm trust list\n  wpm trust revoke maintainer\n");
+                printf("\nManage trusted package-signing keys.\n\nExamples:\n  wpm trust add .\\maintainer.public\n  wpm trust list\n  wpm trust revoke <64-character-key-id>\n");
                 return;
             case CMD_CONFIG:
                 print_usage_line(c);
-                printf("\nConfigure prerelease package selection.\n\nExample:\n  wpm config set prerelease my-package true\n");
+                printf("\nConfigure prerelease package selection.\n\nExample:\n  wpm config set prerelease true --package my-package\n");
                 return;
             case CMD_UPDATE:
                 print_usage_line(c);
@@ -825,8 +898,8 @@ void print_usage(Command c) {
     printf("  wpm repo update\n");
     printf("  wpm keygen .\\release.private .\\release.public --default\n");
     printf("  wpm key default .\\release.private\n");
-    printf("  wpm trust add maintainer .\\maintainer.public\n");
-    printf("  wpm config set prerelease my-package true\n");
+    printf("  wpm trust add .\\maintainer.public\n");
+    printf("  wpm config set prerelease true --package my-package\n");
     printf("  wpm update\n");
     printf("  wpm upgrade --all --yes\n");
     printf("  wpm --diagnose\n");

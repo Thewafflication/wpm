@@ -1,0 +1,22 @@
+\documentclass[letterpaper]{article}
+\usepackage[letterpaper,margin=1in]{geometry}
+\input{wsp/testing/test-case-library.tex}
+\begin{document}
+\def\TCID{TC-0030}
+\def\TCTitle{Nested command action grammar}
+\def\TCPurpose{Verify nested repo, key, trust, and config action grammar for REQ-0014.001 and REQ-0014.007 before durable initialization.}
+\def\TCPriority{\TCPriorityHigh}
+\def\TCRequirementRef{REQ-0014.001 and REQ-0014.007}
+\def\TCDesignRef{ADR-0010 human-presentation boundary}
+\def\TCFeatureRef{Central action validator, corrected task examples, and \texttt{tests/tc-0030-action-grammar.ps1}}
+\def\TCTestTechnique{Syntax, equivalence-partition, boundary, and no-side-effect testing.}
+\def\TCPreconditions{A native WPM build and nonexistent isolated data root.}
+\def\TCEnvironment{Native Windows x86, x64, or ARM64 with PowerShell capture.}
+\def\TCAssumptions{Existing positive workflow tests cover mutations for accepted action forms.}
+\def\TCInputData{Unknown actions, missing/excess operands, invalid Boolean value, and public task examples.}
+\def\TCInitialState{Point WPM at a disposable data-root path that does not exist.}
+\def\TCProcedure{Exercise invalid nested forms, inspect narrow guidance, verify corrected examples, and inspect state.}
+\def\TCExpectedResult{Invalid grammar fails before initialization and help examples match executable syntax.}
+\def\TCPostConditions{Remove disposable state and retain configured evidence.}
+\TCTemplate
+\end{document}

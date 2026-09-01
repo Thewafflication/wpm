@@ -20,13 +20,13 @@ every row that is not `Verified` or lacks objective evidence.
 
 | Requirement | Test case | Verification method | State | Evidence |
 | --- | --- | --- | --- | --- |
-| REQ-0014.001 | TC-0014 | Automated test and inspection | Planned | TC-0027 both-form task help, complete public-command inventory, common-task examples, and no-side-effect evidence produced; recovery workflow demonstration pending |
+| REQ-0014.001 | TC-0014 | Automated test and inspection | Planned | TC-0027 command inventory and TC-0030 executable nested-action examples produced; recovery workflow demonstration pending |
 | REQ-0014.002 | TC-0014 | Automated test and inspection | Planned | Not yet produced |
 | REQ-0014.003 | TC-0014 | Automated test and demonstration | Planned | TC-0026 redirected auto/always/never, option-position, and precedence evidence produced; genuine-console and every-class evidence pending |
 | REQ-0014.004 | TC-0014 | Automated test | Planned | Not yet produced |
 | REQ-0014.005 | TC-0014 | Automated test and secret-redaction inspection | Planned | Not yet produced |
 | REQ-0014.006 | TC-0014 | Automated test and inspection | Planned | Not yet produced |
-| REQ-0014.007 | TC-0014 | Automated negative test | Planned | TC-0026 invalid color/command, TC-0027 help topic, TC-0028 option, and TC-0029 simple operand-shape evidence produced; nested-action/value partitions pending |
+| REQ-0014.007 | TC-0014 | Automated negative test | Planned | TC-0026 through TC-0030 cover command, help, option, operand, and nested-action/basic-value partitions; broader semantic values pending |
 | REQ-0014.008 | TC-0014 | Automated redirected-output test | Planned | Not yet produced |
 | REQ-0015.001 | TC-0015 | Automated test and inspection | Planned | Not yet produced |
 | REQ-0015.002 | TC-0015 | Automated lifecycle test | Planned | Not yet produced |
