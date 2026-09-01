@@ -137,4 +137,4 @@ Proposed.
 
 TC-0031 covers configurable operational-log location and normal/verbose file
 thresholds, including retention of error evidence in normal mode. Failure log-path
-guidance and full protected-data inspection remain pending.
+guidance is covered by TC-0032. Full protected-data inspection remains pending.

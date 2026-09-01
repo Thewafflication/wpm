@@ -1,0 +1,22 @@
+\documentclass[letterpaper]{article}
+\usepackage[letterpaper,margin=1in]{geometry}
+\input{wsp/testing/test-case-library.tex}
+\begin{document}
+\def\TCID{TC-0032}
+\def\TCTitle{Failure operational-log guidance}
+\def\TCPurpose{Verify REQ-0014.006 points failures to an available operational log without claiming one before initialization.}
+\def\TCPriority{\TCPriorityHigh}
+\def\TCRequirementRef{REQ-0014.006}
+\def\TCDesignRef{ADR-0010 logging boundary}
+\def\TCFeatureRef{Failure-log guidance in the operational logging adapter and \texttt{tests/tc-0032-failure-log-guidance.ps1}}
+\def\TCTestTechnique{State-transition, negative, and boundary testing.}
+\def\TCPreconditions{A native WPM build and disposable custom log destination.}
+\def\TCEnvironment{Native Windows x86, x64, or ARM64 with PowerShell capture.}
+\def\TCAssumptions{The test paths contain no protected data.}
+\def\TCInputData{A missing package after initialization and an invalid option before initialization.}
+\def\TCInitialState{Point WPM at nonexistent isolated data and log paths.}
+\def\TCProcedure{Run a failing verification, inspect one exact log pointer and its retained record, then run an early invalid invocation.}
+\def\TCExpectedResult{The operational failure reports the existing log once; the early failure reports no log and creates no state.}
+\def\TCPostConditions{Remove disposable state and retain configured evidence.}
+\TCTemplate
+\end{document}

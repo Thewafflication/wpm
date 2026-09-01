@@ -31,6 +31,8 @@ typedef enum wpm_message_style {
 } wpm_message_style;
 
 static wpm_color_policy wpm_color = WPM_COLOR_AUTO;
+static char wpm_active_log_path[4096];
+static int wpm_failure_log_reported;
 
 int wpm_set_color_policy(const char* value)
 {
@@ -194,9 +196,8 @@ int wpm_log_initialize(void)
     char log_path[4096];
     char configured_path[4096];
     char configured_level[32];
-#ifdef WPM_NATIVE_OPERATIONAL_LOG
     const char* selected_path;
-#else
+#ifndef WPM_NATIVE_OPERATIONAL_LOG
     wsp_log_level file_level = WSP_LOG_DEBUG;
 #endif
 
@@ -217,28 +218,26 @@ int wpm_log_initialize(void)
 #endif
     if (wpm_get_environment_variable("WPM_LOG_FILE", configured_path,
             sizeof(configured_path))) {
-#ifdef WPM_NATIVE_OPERATIONAL_LOG
         selected_path = configured_path;
-#else
-        if (wsp_log_open_file(&wpm_logger, configured_path, 1) != 0) return 0;
-#endif
     }
     else {
         if (!wpm_get_data_root(data_root, sizeof(data_root)) ||
             snprintf(log_directory, sizeof(log_directory), "%s\\audit", data_root) <= 0 ||
             (!CreateDirectoryA(log_directory, NULL) && GetLastError() != ERROR_ALREADY_EXISTS) ||
             snprintf(log_path, sizeof(log_path), "%s\\audit\\wpm.log", data_root) <= 0) return 0;
-#ifdef WPM_NATIVE_OPERATIONAL_LOG
         selected_path = log_path;
-#else
-        if (wsp_log_open_file(&wpm_logger, log_path, 1) != 0) return 0;
-#endif
+    }
+    if (snprintf(wpm_active_log_path, sizeof(wpm_active_log_path), "%s", selected_path) < 0) {
+        return 0;
     }
 #ifdef WPM_NATIVE_OPERATIONAL_LOG
     wpm_log_handle = CreateFileA(selected_path, FILE_APPEND_DATA,
         FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     if (wpm_log_handle == INVALID_HANDLE_VALUE) return 0;
+#else
+    if (wsp_log_open_file(&wpm_logger, selected_path, 1) != 0) return 0;
 #endif
+    wpm_failure_log_reported = 0;
     wpm_logger_initialized = 1;
     atexit(wpm_log_close);
     return 1;
@@ -253,6 +252,23 @@ void wpm_log_close(void)
     if (wpm_logger_initialized) wsp_log_close(&wpm_logger);
 #endif
     wpm_logger_initialized = 0;
+    wpm_active_log_path[0] = '\0';
+    wpm_failure_log_reported = 0;
+}
+
+static void wpm_report_failure_log(void)
+{
+    char notice[4224];
+    if (!wpm_logger_initialized || wpm_failure_log_reported || !wpm_active_log_path[0]) return;
+    if (snprintf(notice, sizeof(notice), "Operational log: %s\n", wpm_active_log_path) < 0) return;
+    notice[sizeof(notice) - 1] = '\0';
+    wpm_failure_log_reported = 1;
+    wpm_write_console_message(notice, WPM_STYLE_NONE);
+#ifdef WPM_NATIVE_OPERATIONAL_LOG
+    wpm_native_log_write(notice);
+#else
+    wsp_log_write(&wpm_logger, WSP_LOG_INFO, "%s", notice);
+#endif
 }
 
 int wpm_vprintf(const char* format, va_list arguments)
@@ -276,6 +292,7 @@ int wpm_vprintf(const char* format, va_list arguments)
         }
     }
 #endif
+    if (strncmp(message, "Error:", 6) == 0) wpm_report_failure_log();
     return result;
 }
 
