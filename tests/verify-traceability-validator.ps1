@@ -52,7 +52,7 @@ function Assert-FailedWith {
     )
 
     if ($Result.ExitCode -eq 0) {
-        throw "Traceability validation unexpectedly passed. Output: $($Result.Output)"
+        throw "Traceability validation unexpectedly passed while expecting '$Pattern'. Output: $($Result.Output)"
     }
     if ($Result.Output -notmatch $Pattern) {
         throw "Traceability validation did not report '$Pattern'. Output: $($Result.Output)"
@@ -90,10 +90,10 @@ try {
     Assert-FailedWith -Result (Invoke-Validator -Root $fixtureRoot -SkipRunnerPlanExecution) -Pattern 'Duplicate WPM 2\.0 traceability rows: REQ-0014\.001'
 
     $verifiedWithoutEvidence = $controlledMatrix -replace (
-        '(?m)^\| REQ-0014\.001 \| TC-0014 \| Automated test and inspection \| Planned \| .+ \|$'
-    ), '| REQ-0014.001 | TC-0014 | Automated test and inspection | Verified | Not yet produced |'
+        '\| REQ-0014\.002 \| TC-0014 \| Automated test and inspection \| Planned \| Not yet produced \|'
+    ), '| REQ-0014.002 | TC-0014 | Automated test and inspection | Verified | Not yet produced |'
     Set-Content -NoNewline -LiteralPath $matrixPath -Value $verifiedWithoutEvidence
-    Assert-FailedWith -Result (Invoke-Validator -Root $fixtureRoot -SkipRunnerPlanExecution) -Pattern 'REQ-0014\.001 is Verified without objective evidence'
+    Assert-FailedWith -Result (Invoke-Validator -Root $fixtureRoot -SkipRunnerPlanExecution) -Pattern 'REQ-0014\.002 is Verified without objective evidence'
 
     Set-Content -NoNewline -LiteralPath $matrixPath -Value $controlledMatrix
     $specPath = Join-Path $fixtureRoot 'docs/tc-0014-command-output-and-help.tex'
