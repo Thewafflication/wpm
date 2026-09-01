@@ -114,12 +114,14 @@ void wpm_set_verbose(int enabled) {
 
 static void verbose_log(const char* format, ...) {
     va_list arguments;
+    char message[8192];
 
     if (!wpm_verbose) return;
     va_start(arguments, format);
-    printf("  ");
-    vprintf(format, arguments);
-    printf("\n");
+    if (vsnprintf(message, sizeof(message), format, arguments) >= 0) {
+        message[sizeof(message) - 1] = '\0';
+        printf("Verbose: %s\n", message);
+    }
     va_end(arguments);
 }
 

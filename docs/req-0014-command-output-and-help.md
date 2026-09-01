@@ -134,3 +134,7 @@ before durable initialization; TC-0029 covers simple required/excess operand
 shapes at the same boundary. TC-0030 covers nested repo/key/trust/config grammar
 and reconciles public task examples with the executable syntax. REQ-0014 remains
 Proposed.
+
+TC-0031 covers configurable operational-log location and normal/verbose file
+thresholds, including retention of error evidence in normal mode. Failure log-path
+guidance and full protected-data inspection remain pending.

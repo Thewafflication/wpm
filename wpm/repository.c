@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <limits.h>
+#include <stdarg.h>
 #include <windows.h>
 #ifdef __TINYC__
 # include "tcc_support/urlmon.h"
@@ -62,7 +63,20 @@ static int repository_verbose = 0;
 
 void wpm_repo_set_verbose(int enabled) { repository_verbose = enabled != 0; }
 
-#define REPO_VERBOSE(...) do { if (repository_verbose) { printf("Repository: "); printf(__VA_ARGS__); printf("\n"); } } while (0)
+static void repository_verbose_log(const char* format, ...)
+{
+    va_list arguments;
+    char message[8192];
+    if (!repository_verbose) return;
+    va_start(arguments, format);
+    if (vsnprintf(message, sizeof(message), format, arguments) >= 0) {
+        message[sizeof(message) - 1] = '\0';
+        printf("Verbose: Repository: %s\n", message);
+    }
+    va_end(arguments);
+}
+
+#define REPO_VERBOSE(...) repository_verbose_log(__VA_ARGS__)
 
 static int join_path(char* result, size_t size, const char* left, const char* right) {
     int n = snprintf(result, size, "%s%s%s", left, left[strlen(left) - 1] == '\\' ? "" : "\\", right);

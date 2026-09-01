@@ -59,10 +59,15 @@ fault-injection testing that complements regular CI.
 See the [WSP adoption record](docs/wsp-adoption.md) for the pinned engineering
 process baseline, selected profiles, and integration status.
 
-WPM uses WSP's shared logging adapters in both the C executable and its
-PowerShell test harness. Operational command output is appended to the
-`audit\wpm.log` file under WPM's data directory. Set `WPM_LOG_FILE` to select
-another application log, and set `WPM_TEST_LOG_FILE` to retain timestamped
+WPM follows WSP's shared logging contract in both the C executable and its
+PowerShell test harness. Windows executables use a native-handle sink to avoid
+crossing incompatible CRT `FILE *` ABIs. Operational command output is appended
+to the `audit\wpm.log` file under WPM's data directory. Set `WPM_LOG_FILE` to
+select another application log. Set `WPM_LOG_LEVEL` to `normal` to retain
+informational, result, warning, and error records while excluding `Verbose:`
+detail, or to `verbose` (the default) to retain all operational detail. Unknown
+log levels do not disable command execution, but WPM warns that it could not
+initialize its operational log. Set `WPM_TEST_LOG_FILE` to retain timestamped
 test-run summaries.
 
 See the [release-documentation procedure](documentation/README.md) for PDF

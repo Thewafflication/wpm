@@ -1,0 +1,22 @@
+\documentclass[letterpaper]{article}
+\usepackage[letterpaper,margin=1in]{geometry}
+\input{wsp/testing/test-case-library.tex}
+\begin{document}
+\def\TCID{TC-0031}
+\def\TCTitle{Operational-log location and verbosity configuration}
+\def\TCPurpose{Verify the configurable location and normal/verbose thresholds of REQ-0014.006 without suppressing failure evidence.}
+\def\TCPriority{\TCPriorityHigh}
+\def\TCRequirementRef{REQ-0014.006}
+\def\TCDesignRef{ADR-0010 logging boundary and \texttt{docs/dfs.md}}
+\def\TCFeatureRef{Operational logging adapters, \texttt{WPM\_LOG\_FILE}, \texttt{WPM\_LOG\_LEVEL}, and \texttt{tests/tc-0031-log-configuration.ps1}}
+\def\TCTestTechnique{Decision-table, boundary, negative, and security-retention testing.}
+\def\TCPreconditions{A native WPM build and writable disposable log directory.}
+\def\TCEnvironment{Native Windows x86, x64, or ARM64 with PowerShell capture.}
+\def\TCAssumptions{The nonexistent input path contains no protected data.}
+\def\TCInputData{Normal, verbose, and invalid log levels with a custom log destination.}
+\def\TCInitialState{Create an isolated root with no operational logs.}
+\def\TCProcedure{Run a failing verbose verification at normal and verbose thresholds, inspect timestamped records and debug filtering, then exercise an invalid level.}
+\def\TCExpectedResult{Both valid levels retain the error; only verbose retains diagnostic detail; the custom paths are used; and an invalid level warns without creating a log.}
+\def\TCPostConditions{Remove disposable state and retain configured evidence.}
+\TCTemplate
+\end{document}

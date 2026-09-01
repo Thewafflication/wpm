@@ -25,7 +25,7 @@ every row that is not `Verified` or lacks objective evidence.
 | REQ-0014.003 | TC-0014 | Automated test and demonstration | Planned | TC-0026 redirected auto/always/never, option-position, and precedence evidence produced; genuine-console and every-class evidence pending |
 | REQ-0014.004 | TC-0014 | Automated test | Planned | Not yet produced |
 | REQ-0014.005 | TC-0014 | Automated test and secret-redaction inspection | Planned | Not yet produced |
-| REQ-0014.006 | TC-0014 | Automated test and inspection | Planned | Not yet produced |
+| REQ-0014.006 | TC-0014 | Automated test and inspection | Planned | TC-0031 custom-location and normal/verbose level evidence produced; failure log-path guidance and secret inspection pending |
 | REQ-0014.007 | TC-0014 | Automated negative test | Planned | TC-0026 through TC-0030 cover command, help, option, operand, and nested-action/basic-value partitions; broader semantic values pending |
 | REQ-0014.008 | TC-0014 | Automated redirected-output test | Planned | Not yet produced |
 | REQ-0015.001 | TC-0015 | Automated test and inspection | Planned | Not yet produced |

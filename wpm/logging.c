@@ -4,7 +4,7 @@
 
 #include "archive.h"
 #include "helpers.h"
-#ifndef WPM_DISABLE_OPERATIONAL_LOG
+#ifndef WPM_NATIVE_OPERATIONAL_LOG
 #include "wsp_log.h"
 #endif
 
@@ -115,7 +115,60 @@ static int wpm_write_console_message(const char* message, wpm_message_style styl
     return (int)strlen(message);
 }
 
-#ifndef WPM_DISABLE_OPERATIONAL_LOG
+#ifdef WPM_NATIVE_OPERATIONAL_LOG
+static HANDLE wpm_log_handle = INVALID_HANDLE_VALUE;
+static int wpm_logger_initialized;
+static int wpm_native_file_level;
+
+static const char* wpm_native_level_for_message(const char* message, int* level)
+{
+    if (strncmp(message, "Error:", 6) == 0) { *level = 4; return "ERROR"; }
+    if (strncmp(message, "Warning:", 8) == 0) { *level = 3; return "WARN"; }
+    if (strncmp(message, "Verbose:", 8) == 0) { *level = 0; return "DEBUG"; }
+    if (strncmp(message, "Result:", 7) == 0 ||
+        strncmp(message, "Installed ", 10) == 0 ||
+        strncmp(message, "Built package:", 14) == 0 ||
+        strncmp(message, "Verified package:", 17) == 0 ||
+        strncmp(message, "Removed package:", 16) == 0 ||
+        strncmp(message, "Upgraded ", 9) == 0) { *level = 2; return "PASS"; }
+    *level = 1;
+    return "INFO";
+}
+
+static void wpm_native_log_write(const char* message)
+{
+    const char* cursor = message;
+    int level;
+    const char* level_name = wpm_native_level_for_message(message, &level);
+    if (!wpm_logger_initialized || level < wpm_native_file_level) return;
+    while (*cursor) {
+        SYSTEMTIME now;
+        const char* end = cursor;
+        char line[8448];
+        int prefix_length;
+        size_t content_length;
+        DWORD written;
+        while (*end && *end != '\r' && *end != '\n') end++;
+        content_length = (size_t)(end - cursor);
+        if (content_length > 0) {
+            GetSystemTime(&now);
+            prefix_length = snprintf(line, sizeof(line),
+                "[%04u-%02u-%02uT%02u:%02u:%02u.%03uZ] [%s] ",
+                now.wYear, now.wMonth, now.wDay, now.wHour, now.wMinute,
+                now.wSecond, now.wMilliseconds, level_name);
+            if (prefix_length > 0 && (size_t)prefix_length + content_length + 2 < sizeof(line)) {
+                memcpy(line + prefix_length, cursor, content_length);
+                line[prefix_length + content_length] = '\r';
+                line[prefix_length + content_length + 1] = '\n';
+                WriteFile(wpm_log_handle, line,
+                    (DWORD)((size_t)prefix_length + content_length + 2), &written, NULL);
+            }
+        }
+        while (*end == '\r' || *end == '\n') end++;
+        cursor = end;
+    }
+}
+#else
 static wsp_logger wpm_logger;
 static int wpm_logger_initialized;
 
@@ -136,39 +189,70 @@ static wsp_log_level wpm_log_level_for_message(const char* message)
 
 int wpm_log_initialize(void)
 {
-#ifdef WPM_DISABLE_OPERATIONAL_LOG
-    return 1;
-#else
     char data_root[4096];
     char log_directory[4096];
     char log_path[4096];
-    const char* configured_path;
+    char configured_path[4096];
+    char configured_level[32];
+#ifdef WPM_NATIVE_OPERATIONAL_LOG
+    const char* selected_path;
+#else
+    wsp_log_level file_level = WSP_LOG_DEBUG;
+#endif
 
     if (wpm_logger_initialized) return 1;
+    if (wpm_get_environment_variable("WPM_LOG_LEVEL", configured_level,
+            sizeof(configured_level))) {
+#ifdef WPM_NATIVE_OPERATIONAL_LOG
+        if (_stricmp(configured_level, "normal") == 0) wpm_native_file_level = 1;
+#else
+        if (_stricmp(configured_level, "normal") == 0) file_level = WSP_LOG_INFO;
+#endif
+        else if (_stricmp(configured_level, "verbose") != 0) return 0;
+    }
+#ifndef WPM_NATIVE_OPERATIONAL_LOG
     wsp_log_init(&wpm_logger);
     wsp_log_set_console_level(&wpm_logger, WSP_LOG_OFF);
-    configured_path = getenv("WPM_LOG_FILE");
-    if (configured_path && configured_path[0]) {
+    wsp_log_set_file_level(&wpm_logger, file_level);
+#endif
+    if (wpm_get_environment_variable("WPM_LOG_FILE", configured_path,
+            sizeof(configured_path))) {
+#ifdef WPM_NATIVE_OPERATIONAL_LOG
+        selected_path = configured_path;
+#else
         if (wsp_log_open_file(&wpm_logger, configured_path, 1) != 0) return 0;
+#endif
     }
     else {
         if (!wpm_get_data_root(data_root, sizeof(data_root)) ||
             snprintf(log_directory, sizeof(log_directory), "%s\\audit", data_root) <= 0 ||
             (!CreateDirectoryA(log_directory, NULL) && GetLastError() != ERROR_ALREADY_EXISTS) ||
-            snprintf(log_path, sizeof(log_path), "%s\\audit\\wpm.log", data_root) <= 0 ||
-            wsp_log_open_file(&wpm_logger, log_path, 1) != 0) return 0;
-    }
-    wpm_logger_initialized = 1;
-    return 1;
+            snprintf(log_path, sizeof(log_path), "%s\\audit\\wpm.log", data_root) <= 0) return 0;
+#ifdef WPM_NATIVE_OPERATIONAL_LOG
+        selected_path = log_path;
+#else
+        if (wsp_log_open_file(&wpm_logger, log_path, 1) != 0) return 0;
 #endif
+    }
+#ifdef WPM_NATIVE_OPERATIONAL_LOG
+    wpm_log_handle = CreateFileA(selected_path, FILE_APPEND_DATA,
+        FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (wpm_log_handle == INVALID_HANDLE_VALUE) return 0;
+#endif
+    wpm_logger_initialized = 1;
+    atexit(wpm_log_close);
+    return 1;
 }
 
 void wpm_log_close(void)
 {
-#ifndef WPM_DISABLE_OPERATIONAL_LOG
+#ifdef WPM_NATIVE_OPERATIONAL_LOG
+    if (wpm_log_handle != INVALID_HANDLE_VALUE) CloseHandle(wpm_log_handle);
+    wpm_log_handle = INVALID_HANDLE_VALUE;
+#else
     if (wpm_logger_initialized) wsp_log_close(&wpm_logger);
-    wpm_logger_initialized = 0;
 #endif
+    wpm_logger_initialized = 0;
 }
 
 int wpm_vprintf(const char* format, va_list arguments)
@@ -179,7 +263,9 @@ int wpm_vprintf(const char* format, va_list arguments)
     if (vsnprintf(message, sizeof(message), format, arguments) < 0) return -1;
     message[sizeof(message) - 1] = '\0';
     result = wpm_write_console_message(message, wpm_message_style_for(message));
-#ifndef WPM_DISABLE_OPERATIONAL_LOG
+#ifdef WPM_NATIVE_OPERATIONAL_LOG
+    wpm_native_log_write(message);
+#else
     if (wpm_logger_initialized) {
         length = strlen(message);
         while (length > 0 && (message[length - 1] == '\n' || message[length - 1] == '\r')) {

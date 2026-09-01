@@ -149,7 +149,7 @@ try {
         }
         if (Test-Path -LiteralPath $deployment) { throw 'Verification executed the package install script.' }
         if (Get-ChildItem -LiteralPath (Join-Path $dataDir 'packages') -Force -ErrorAction SilentlyContinue) { throw 'Verification retained the package archive.' }
-        if (Get-ChildItem -LiteralPath (Join-Path $dataDir 'audit') -Force -ErrorAction SilentlyContinue) { throw 'Verification wrote an installation audit record.' }
+        if (Get-ChildItem -LiteralPath (Join-Path $dataDir 'audit') -Filter '*.install.txt' -Force -ErrorAction SilentlyContinue) { throw 'Verification wrote an installation audit record.' }
         if (Get-ChildItem -LiteralPath (Join-Path $dataDir 'temp') -Force -ErrorAction SilentlyContinue) { throw 'Verification did not clean its staging directory.' }
     }
 

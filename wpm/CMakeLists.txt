@@ -50,8 +50,9 @@ add_executable(wpm ${wpm_sources})
 
 if(WIN32)
   # WSP logging uses the host CRT's FILE ABI, which cannot safely exchange
-  # streams with WCRT-backed WPM builds.
-  target_compile_definitions(wpm PRIVATE WPM_DISABLE_OPERATIONAL_LOG=1)
+  # streams with WCRT-backed WPM builds. Use the equivalent native HANDLE
+  # adapter in logging.c instead.
+  target_compile_definitions(wpm PRIVATE WPM_NATIVE_OPERATIONAL_LOG=1)
 else()
   add_subdirectory("${CMAKE_SOURCE_DIR}/wsp/tools/logging" "${CMAKE_BINARY_DIR}/wsp-logging")
   target_link_libraries(wpm PRIVATE wsp::logging)
@@ -281,6 +282,7 @@ if(BUILD_TESTING)
   wpm_add_test_case(TC-0028 tc-0028 tc-0028-invalid-options.ps1 tc-0028-invalid-options.tex)
   wpm_add_test_case(TC-0029 tc-0029 tc-0029-operand-shapes.ps1 tc-0029-operand-shapes.tex)
   wpm_add_test_case(TC-0030 tc-0030 tc-0030-action-grammar.ps1 tc-0030-action-grammar.tex)
+  wpm_add_test_case(TC-0031 tc-0031 tc-0031-log-configuration.ps1 tc-0031-log-configuration.tex)
 
   if(WIN32)
     set_tests_properties(${WPM_TEST_NAMES} PROPERTIES
