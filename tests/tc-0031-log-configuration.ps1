@@ -18,7 +18,7 @@ try {
         $results+=New-WpmManualStep -Name "Inspect $level operational log" -Action {
             if(!(Test-Path -LiteralPath $log)){throw "Custom log was not created: $log"}
             $content=Get-Content -LiteralPath $log -Raw
-            if($content -notmatch '\[[0-9]{4}-[0-9]{2}-[0-9]{2}T' -or $content -notmatch '\[ERROR\].*could not open package archive'){
+            if($content -notmatch '(?m)^[0-9]{4}-[0-9]{2}-[0-9]{2}T[^ ]+Z \[ERROR\].*could not open package archive'){
                 throw "Timestamped failure evidence is absent from $level log. $content"
             }
             $hasVerbose=$content -match '\[DEBUG\].*Verifying archive:'

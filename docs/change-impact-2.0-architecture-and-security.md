@@ -109,10 +109,11 @@ operation planning, audit/recovery state, and cleanup. It must remain portable C
 for the declared baseline and keep Windows path/filesystem behavior valid on
 x86, x64, and ARM64.
 
-The pinned WSP gitlink remains
-`2198ccab08f969a789448767fe7017b774369adc`. TC-0023 checks this identity and the
-cross-document contract. A future WSP update must change adoption history and
-the test baseline together through a separate approved impact analysis.
+The pinned WSP gitlink is
+`8666277d0a30575515f5e46524e5b71be4be0c7d` (release `1.3.0`). TC-0023 checks
+this identity and the cross-document contract. A future WSP update must change
+adoption history and the test baseline together through a separate approved
+impact analysis.
 
 ## Verification and evidence impact
 

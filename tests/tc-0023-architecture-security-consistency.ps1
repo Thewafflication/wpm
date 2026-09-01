@@ -39,7 +39,7 @@ $WpmExe = (Resolve-Path -LiteralPath $WpmExe).Path
 . (Join-Path $PSScriptRoot 'wpm-test-lib.ps1')
 
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
-$expectedWspCommit = '2198ccab08f969a789448767fe7017b774369adc'
+$expectedWspCommit = '8666277d0a30575515f5e46524e5b71be4be0c7d'
 $started = Get-Date
 $results = @()
 

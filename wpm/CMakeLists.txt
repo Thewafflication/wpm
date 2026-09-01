@@ -48,14 +48,12 @@ set(wpm_sources
 
 add_executable(wpm ${wpm_sources})
 
+add_subdirectory("${CMAKE_SOURCE_DIR}/wsp/tools/logging" "${CMAKE_BINARY_DIR}/wsp-logging")
+target_link_libraries(wpm PRIVATE wsp::logging)
 if(WIN32)
-  # WSP logging uses the host CRT's FILE ABI, which cannot safely exchange
-  # streams with WCRT-backed WPM builds. Use the equivalent native HANDLE
-  # adapter in logging.c instead.
-  target_compile_definitions(wpm PRIVATE WPM_NATIVE_OPERATIONAL_LOG=1)
-else()
-  add_subdirectory("${CMAKE_SOURCE_DIR}/wsp/tools/logging" "${CMAKE_BINARY_DIR}/wsp-logging")
-  target_link_libraries(wpm PRIVATE wsp::logging)
+  # WPM owns Windows console presentation; avoid a WCRT-incompatible _isatty
+  # probe in the disabled WSP console sink.
+  target_compile_definitions(wsp_logging PRIVATE WSP_LOG_NO_TTY)
 endif()
 
 set_source_files_properties("${WPM_VERSION_RESOURCE}" PROPERTIES GENERATED TRUE)

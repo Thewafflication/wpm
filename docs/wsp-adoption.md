@@ -4,12 +4,12 @@
 
 **Project:** Waughtal Package Manager (WPM)
 
-**WSP baseline:** Immutable commit
-`2198ccab08f969a789448767fe7017b774369adc`
+**WSP baseline:** Release `1.3.0` at immutable commit
+`8666277d0a30575515f5e46524e5b71be4be0c7d`
 
 **Submodule path:** `wsp/`
 
-**Pinned commit:** `2198ccab08f969a789448767fe7017b774369adc`
+**Pinned commit:** `8666277d0a30575515f5e46524e5b71be4be0c7d`
 
 **Status:** Proposed
 
@@ -34,10 +34,14 @@ disposition. They are not removed by omitting a selectable profile.
 | Profile | Selected | Project scope or rationale |
 | --- | --- | --- |
 | Personal process | No | Not selected for the initial project baseline |
+| UX/UI | No | Existing WPM 2.0 interaction requirements remain project-controlled; formal profile adoption is deferred to a dedicated baseline review |
+| Information for users | No | Existing CLI help and documentation remain project-controlled; formal profile adoption is deferred to a dedicated baseline review |
 | Security/DFS | Yes | Package trust, repository trust, and secure update design |
 | C source style | Yes | Project-owned C source under `wpm/` |
 | PowerShell style | Yes | Project-owned build and test automation |
 | CMake style | Yes | Project-owned build configuration |
+| C and C++ static analysis | No | The 1.3.0 upgrade does not establish a clang-tidy release gate; selection requires a dedicated implementation increment |
+| Native build hardening | Yes | Selected through the security profile; new controls are deferred below pending architecture-specific implementation and evidence |
 | Windows version resources | Yes | Shipped `wpm.exe` artifacts |
 | Windows code signing and Defender | Yes | Shipped Windows release artifacts |
 | Common tools | Yes | WSP validation, reporting, and documentation tools |
@@ -86,6 +90,7 @@ baseline approval while any required disposition remains Deferred.
 | `WSP-PROC-0008` | Deferred | Add release approval and exact baseline records |
 | `WSP-PROC-0009` | Applicable | `docs/support-policy.md`, `SECURITY.md`, and DFS response process |
 | `WSP-PROC-0010` | Deferred | Define release/incident retrospectives and improvement records |
+| `WSP-PROC-0011` | Applicable | WSP issue 3 and `docs/change-impact-2.0-cp-01b-log-configuration.md` link the local workaround to its upstream resolution and review |
 | `WSP-TEST-0001` | Applicable | Requirement/TC allocation and automated traceability validation |
 | `WSP-TEST-0002` | Applicable | Version-controlled `docs/tc-*.tex` specifications |
 | `WSP-TEST-0003` | Applicable | Pinned WSP test-case fields enforced by traceability validation |
@@ -104,6 +109,9 @@ baseline approval while any required disposition remains Deferred.
 | `WSP-TEST-0016` | Deferred | To be implemented |
 | `WSP-TEST-0017` | Applicable | Using a arm64 runner to test arm64 build |
 | `WSP-TEST-0018` | Deferred | To be implemented |
+| `WSP-TEST-0019` | Deferred | Add explicit EOF-before-data and injectable input-failure confirmation cases |
+| `WSP-TEST-0020` | Applicable | TC-0013 launches the native child with redirected standard input, writes exact CRLF bytes, closes the writer, and asserts branch effects |
+| `WSP-TEST-0021` | Deferred | Complete and evidence the separate genuine-console input matrix entry |
 | `WSP-SEC-0001` | Applicable | DFS scope, assets, assumptions, consequences, and non-goals |
 | `WSP-SEC-0002` | Applicable | Controlled `docs/dfs.md` with review triggers and traceability |
 | `WSP-SEC-0003` | Applicable | DFS trust actors, inputs, boundaries, entry points, and operations |
@@ -118,6 +126,8 @@ baseline approval while any required disposition remains Deferred.
 | `WSP-SEC-0012` | Applicable | Security requirements/threats map to tests, inspection, and analysis |
 | `WSP-SEC-0013` | Applicable | Security review process and controlled private finding record |
 | `WSP-SEC-0014` | Applicable | `SECURITY.md`, support policy, and DFS vulnerability response |
+| `WSP-SEC-0015` | Deferred | Apply and disposition the WSP 1.3.0 native hardening baseline for every release architecture and toolchain |
+| `WSP-SEC-0016` | Deferred | Add fail-closed command and final-binary hardening verification with retained architecture evidence |
 | `WSP-CSTYLE-0001` | Applicable | Doxygen `@file` comments cover all 21 project-owned C/header files |
 | `WSP-CSTYLE-0002` | Deferred | Document every function contract or approved declaration reference |
 | `WSP-CSTYLE-0003` | Deferred | Document public and non-obvious internal entities |
@@ -184,6 +194,12 @@ is recorded by updating the corresponding matrix row.
 - **`WSP-TEST-0009` — Deferred.** CI retains failures, but does not enforce
   failure-to-fix-to-rerun linkage. Ninety-day failed-job artifacts compensate
   until the validator or release process preserves and links that chain.
+- **`WSP-TEST-0019`, `0021` — Deferred.** TC-0013 proves affirmative and
+  negative redirected-input decisions with observable branch effects and a
+  real child standard-input handle, but does not yet cover EOF before data,
+  injectable input failure, or the separate genuine-console matrix entry.
+  Complete those cases in the WPM 2.0 confirmation test increment; the owner
+  is the WPM maintainers and this adoption change is the approval record.
 - **`WSP-CSTYLE-0002`--`0005` — Deferred.** Existing C predates WSP function
   and entity documentation and line-length rules. C99 lint, compiler warnings,
   tests, and review compensate until all in-scope files pass the 80-column and
@@ -192,6 +208,13 @@ is recorded by updating the corresponding matrix row.
   partial and final artifacts lack complete architecture checks. Generated
   version identity and PE compatibility checks compensate until all required
   fields and architectures pass artifact inspection.
+- **`WSP-SEC-0015`, `0016` — Deferred.** Existing PE compatibility checks do
+  not establish the complete 1.3.0 native-hardening baseline or final-binary
+  evidence on every architecture. Existing compiler warnings, package
+  signatures, CI matrix tests, and DFS controls compensate. Complete the
+  declared controls, TinyCC tailoring, fail-closed checks, and retained binary
+  inspection in the WPM 2.0 quality/release increment; the owner is the WPM
+  maintainers and this adoption change is the approval record.
 - **`WSP-SIGN-0001`--`0018` — Deferred.** Package signatures exist, but the
   Authenticode, timestamp, Defender, certificate, and trust-evidence controls
   do not. Ed25519 package verification and protected release gates compensate
@@ -216,6 +239,7 @@ through `WSP-PSP-0009`.
 | 2026-08-04 | `2198ccab08f969a789448767fe7017b774369adc` | WPM 2.0 proposed requirements baseline | Added REQ-0014 through REQ-0022, proposed subordinate traceability, change impact, and validator evidence; no deferred disposition was reported complete |
 | 2026-08-04 | `2198ccab08f969a789448767fe7017b774369adc` | WPM 2.0 architecture and DFS baseline | Added ADR-0010 through ADR-0013, DFS threat/control updates, REQ/TC-0023 consistency checks, and scoped 2.0 supersession of HTTPS-only restrictions; no deferred WSP disposition was reported complete |
 | 2026-08-04 | `2198ccab08f969a789448767fe7017b774369adc` | WPM 2.0 test allocation baseline | Added controlled TC-0014 through TC-0022 specifications, non-claiming runner contracts, execution profiles, evidence paths, release gates, and REQ-0023.006 validator coverage; no runtime evidence exists and no deferred WSP disposition was reported complete |
+| 2026-09-01 | `1.3.0` / `8666277d0a30575515f5e46524e5b71be4be0c7d` | WSP 1.3.0 adoption impact | Reviewed cumulative 1.1.0--1.3.0 changes, added dispositions for new common obligations, retained new UX/UI, information-for-users, and static-analysis profiles as unselected pending dedicated baselines, and replaced the cross-CRT logging workaround with the ABI-safe WSP byte sink |
 
 The current baseline, pinned commit, and `wsp` gitlink shall agree. An upgrade
 entry shall reference the adopting-project change that reviewed the new WSP

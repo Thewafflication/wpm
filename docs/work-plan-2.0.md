@@ -8,7 +8,7 @@
 
 **Planning baseline:** WPM `1.0.16` at `cd0f8ac`
 
-**WSP baseline:** `2198ccab08f969a789448767fe7017b774369adc`
+**WSP baseline:** `1.3.0` at `8666277d0a30575515f5e46524e5b71be4be0c7d`
 
 ## 1. Objective
 

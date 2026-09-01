@@ -24,9 +24,11 @@ Both logging settings use the same Windows environment boundary as `WPM_DATA_DIR
 Archive and repository verbose messages are emitted as one classified record rather
 than three unclassified output fragments.
 
-The cross-CRT integration gap is tracked upstream as
-[WSP issue 3](https://github.com/Thewafflication/wsp/issues/3). The native adapter
-is the bounded WPM mitigation until WSP provides an ABI-independent sink contract.
+The cross-CRT integration gap was tracked upstream as
+[WSP issue 3](https://github.com/Thewafflication/wsp/issues/3) and resolved in
+WSP 1.3.0. WPM now supplies a native `HANDLE` byte sink through that ABI-safe
+contract; WSP owns record framing, timestamping, severity filtering, and sink
+status while WPM retains ownership of the Windows write and close operations.
 
 An unknown level prevents persistent logging and produces the existing operational-
 log initialization warning without preventing the requested command. Package,

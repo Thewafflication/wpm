@@ -4,9 +4,7 @@
 
 #include "archive.h"
 #include "helpers.h"
-#ifndef WPM_NATIVE_OPERATIONAL_LOG
 #include "wsp_log.h"
-#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -117,60 +115,6 @@ static int wpm_write_console_message(const char* message, wpm_message_style styl
     return (int)strlen(message);
 }
 
-#ifdef WPM_NATIVE_OPERATIONAL_LOG
-static HANDLE wpm_log_handle = INVALID_HANDLE_VALUE;
-static int wpm_logger_initialized;
-static int wpm_native_file_level;
-
-static const char* wpm_native_level_for_message(const char* message, int* level)
-{
-    if (strncmp(message, "Error:", 6) == 0) { *level = 4; return "ERROR"; }
-    if (strncmp(message, "Warning:", 8) == 0) { *level = 3; return "WARN"; }
-    if (strncmp(message, "Verbose:", 8) == 0) { *level = 0; return "DEBUG"; }
-    if (strncmp(message, "Result:", 7) == 0 ||
-        strncmp(message, "Installed ", 10) == 0 ||
-        strncmp(message, "Built package:", 14) == 0 ||
-        strncmp(message, "Verified package:", 17) == 0 ||
-        strncmp(message, "Removed package:", 16) == 0 ||
-        strncmp(message, "Upgraded ", 9) == 0) { *level = 2; return "PASS"; }
-    *level = 1;
-    return "INFO";
-}
-
-static void wpm_native_log_write(const char* message)
-{
-    const char* cursor = message;
-    int level;
-    const char* level_name = wpm_native_level_for_message(message, &level);
-    if (!wpm_logger_initialized || level < wpm_native_file_level) return;
-    while (*cursor) {
-        SYSTEMTIME now;
-        const char* end = cursor;
-        char line[8448];
-        int prefix_length;
-        size_t content_length;
-        DWORD written;
-        while (*end && *end != '\r' && *end != '\n') end++;
-        content_length = (size_t)(end - cursor);
-        if (content_length > 0) {
-            GetSystemTime(&now);
-            prefix_length = snprintf(line, sizeof(line),
-                "[%04u-%02u-%02uT%02u:%02u:%02u.%03uZ] [%s] ",
-                now.wYear, now.wMonth, now.wDay, now.wHour, now.wMinute,
-                now.wSecond, now.wMilliseconds, level_name);
-            if (prefix_length > 0 && (size_t)prefix_length + content_length + 2 < sizeof(line)) {
-                memcpy(line + prefix_length, cursor, content_length);
-                line[prefix_length + content_length] = '\r';
-                line[prefix_length + content_length + 1] = '\n';
-                WriteFile(wpm_log_handle, line,
-                    (DWORD)((size_t)prefix_length + content_length + 2), &written, NULL);
-            }
-        }
-        while (*end == '\r' || *end == '\n') end++;
-        cursor = end;
-    }
-}
-#else
 static wsp_logger wpm_logger;
 static int wpm_logger_initialized;
 
@@ -187,6 +131,29 @@ static wsp_log_level wpm_log_level_for_message(const char* message)
         strncmp(message, "Upgraded ", 9) == 0) return WSP_LOG_PASS;
     return WSP_LOG_INFO;
 }
+
+#ifdef _WIN32
+static int wpm_write_log_record(void* context, const char* bytes, size_t length)
+{
+    HANDLE handle = (HANDLE)context;
+    while (length > 0) {
+        DWORD requested = length > 0xffffffffU ? 0xffffffffU : (DWORD)length;
+        DWORD written = 0;
+        if (!WriteFile(handle, bytes, requested, &written, NULL) || written == 0) {
+            DWORD error = GetLastError();
+            return error != ERROR_SUCCESS ? (int)error : (int)ERROR_WRITE_FAULT;
+        }
+        bytes += written;
+        length -= written;
+    }
+    return 0;
+}
+
+static void wpm_close_log_handle(void* context)
+{
+    HANDLE handle = (HANDLE)context;
+    if (handle != NULL && handle != INVALID_HANDLE_VALUE) CloseHandle(handle);
+}
 #endif
 
 int wpm_log_initialize(void)
@@ -197,25 +164,17 @@ int wpm_log_initialize(void)
     char configured_path[4096];
     char configured_level[32];
     const char* selected_path;
-#ifndef WPM_NATIVE_OPERATIONAL_LOG
     wsp_log_level file_level = WSP_LOG_DEBUG;
-#endif
 
     if (wpm_logger_initialized) return 1;
     if (wpm_get_environment_variable("WPM_LOG_LEVEL", configured_level,
             sizeof(configured_level))) {
-#ifdef WPM_NATIVE_OPERATIONAL_LOG
-        if (_stricmp(configured_level, "normal") == 0) wpm_native_file_level = 1;
-#else
         if (_stricmp(configured_level, "normal") == 0) file_level = WSP_LOG_INFO;
-#endif
         else if (_stricmp(configured_level, "verbose") != 0) return 0;
     }
-#ifndef WPM_NATIVE_OPERATIONAL_LOG
     wsp_log_init(&wpm_logger);
     wsp_log_set_console_level(&wpm_logger, WSP_LOG_OFF);
     wsp_log_set_file_level(&wpm_logger, file_level);
-#endif
     if (wpm_get_environment_variable("WPM_LOG_FILE", configured_path,
             sizeof(configured_path))) {
         selected_path = configured_path;
@@ -230,10 +189,18 @@ int wpm_log_initialize(void)
     if (snprintf(wpm_active_log_path, sizeof(wpm_active_log_path), "%s", selected_path) < 0) {
         return 0;
     }
-#ifdef WPM_NATIVE_OPERATIONAL_LOG
-    wpm_log_handle = CreateFileA(selected_path, FILE_APPEND_DATA,
-        FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-    if (wpm_log_handle == INVALID_HANDLE_VALUE) return 0;
+#ifdef _WIN32
+    {
+        HANDLE handle = CreateFileA(selected_path, FILE_APPEND_DATA,
+            FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_ALWAYS,
+            FILE_ATTRIBUTE_NORMAL, NULL);
+        if (handle == INVALID_HANDLE_VALUE) return 0;
+        if (wsp_log_set_sink(&wpm_logger, wpm_write_log_record,
+                wpm_close_log_handle, handle) != 0) {
+            CloseHandle(handle);
+            return 0;
+        }
+    }
 #else
     if (wsp_log_open_file(&wpm_logger, selected_path, 1) != 0) return 0;
 #endif
@@ -245,12 +212,7 @@ int wpm_log_initialize(void)
 
 void wpm_log_close(void)
 {
-#ifdef WPM_NATIVE_OPERATIONAL_LOG
-    if (wpm_log_handle != INVALID_HANDLE_VALUE) CloseHandle(wpm_log_handle);
-    wpm_log_handle = INVALID_HANDLE_VALUE;
-#else
     if (wpm_logger_initialized) wsp_log_close(&wpm_logger);
-#endif
     wpm_logger_initialized = 0;
     wpm_active_log_path[0] = '\0';
     wpm_failure_log_reported = 0;
@@ -264,11 +226,7 @@ static void wpm_report_failure_log(void)
     notice[sizeof(notice) - 1] = '\0';
     wpm_failure_log_reported = 1;
     wpm_write_console_message(notice, WPM_STYLE_NONE);
-#ifdef WPM_NATIVE_OPERATIONAL_LOG
-    wpm_native_log_write(notice);
-#else
     wsp_log_write(&wpm_logger, WSP_LOG_INFO, "%s", notice);
-#endif
 }
 
 int wpm_vprintf(const char* format, va_list arguments)
@@ -279,9 +237,6 @@ int wpm_vprintf(const char* format, va_list arguments)
     if (vsnprintf(message, sizeof(message), format, arguments) < 0) return -1;
     message[sizeof(message) - 1] = '\0';
     result = wpm_write_console_message(message, wpm_message_style_for(message));
-#ifdef WPM_NATIVE_OPERATIONAL_LOG
-    wpm_native_log_write(message);
-#else
     if (wpm_logger_initialized) {
         length = strlen(message);
         while (length > 0 && (message[length - 1] == '\n' || message[length - 1] == '\r')) {
@@ -291,7 +246,6 @@ int wpm_vprintf(const char* format, va_list arguments)
             wsp_log_write(&wpm_logger, wpm_log_level_for_message(message), "%s", message);
         }
     }
-#endif
     if (strncmp(message, "Error:", 6) == 0) wpm_report_failure_log();
     return result;
 }
