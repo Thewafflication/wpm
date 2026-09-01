@@ -90,7 +90,7 @@ try {
     Assert-FailedWith -Result (Invoke-Validator -Root $fixtureRoot -SkipRunnerPlanExecution) -Pattern 'Duplicate WPM 2\.0 traceability rows: REQ-0014\.001'
 
     $verifiedWithoutEvidence = $controlledMatrix -replace (
-        '\| REQ-0014\.001 \| TC-0014 \| Automated test and inspection \| Planned \| Not yet produced \|'
+        '(?m)^\| REQ-0014\.001 \| TC-0014 \| Automated test and inspection \| Planned \| .+ \|$'
     ), '| REQ-0014.001 | TC-0014 | Automated test and inspection | Verified | Not yet produced |'
     Set-Content -NoNewline -LiteralPath $matrixPath -Value $verifiedWithoutEvidence
     Assert-FailedWith -Result (Invoke-Validator -Root $fixtureRoot -SkipRunnerPlanExecution) -Pattern 'REQ-0014\.001 is Verified without objective evidence'

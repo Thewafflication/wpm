@@ -1,0 +1,22 @@
+\documentclass[letterpaper]{article}
+\usepackage[letterpaper,margin=1in]{geometry}
+\input{wsp/testing/test-case-library.tex}
+\begin{document}
+\def\TCID{TC-0027}
+\def\TCTitle{Task-oriented command help}
+\def\TCPurpose{Verify the CP-01B help slice of REQ-0014.001 and the narrow help-topic diagnostic portion of REQ-0014.007.}
+\def\TCPriority{\TCPriorityHigh}
+\def\TCRequirementRef{REQ-0014.001 and REQ-0014.007}
+\def\TCDesignRef{ADR-0010 human-presentation boundary}
+\def\TCFeatureRef{Command-specific help dispatch, common-task examples, and \texttt{tests/tc-0027-task-help.ps1}}
+\def\TCTestTechnique{Use-case, command-inventory, equivalence-partition, and no-side-effect testing.}
+\def\TCPreconditions{A native WPM build and an isolated nonexistent WPM data-root path.}
+\def\TCEnvironment{Native Windows x86, x64, or ARM64 with PowerShell output capture.}
+\def\TCAssumptions{Examples are syntax fixtures; mutation-capable examples are not executed by this help-only test.}
+\def\TCInputData{Every public command through both supported help forms, the full task-example inventory, and an unknown help topic.}
+\def\TCInitialState{Point WPM at a disposable data-root path that does not exist.}
+\def\TCProcedure{Request \texttt{wpm help <command>} and \texttt{wpm <command> --help} for every public command; inspect full examples; reject an unknown topic; verify no data root was created.}
+\def\TCExpectedResult{Every command returns narrow usage plus a valid example through both forms, full help covers every required common task, unknown topics fail narrowly, and help creates no durable state.}
+\def\TCPostConditions{Remove disposable state if any and retain generated evidence under the configured build evidence directory.}
+\TCTemplate
+\end{document}

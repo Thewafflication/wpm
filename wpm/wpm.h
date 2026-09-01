@@ -18,6 +18,7 @@ typedef enum {
     CMD_INSTALL, /**< Install a package. */
     CMD_REMOVE,  /**< Remove a package. */
     CMD_REPO,    /**< Manage repositories. */
+    CMD_KEYGEN,  /**< Generate a signing-key pair. */
     CMD_TRUST,   /**< Manage trusted signing keys. */
     CMD_KEY,     /**< Manage signing-key configuration. */
     CMD_CONFIG,  /**< Manage WPM configuration. */

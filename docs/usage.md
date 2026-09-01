@@ -14,6 +14,17 @@ wpm <command> [options]
 
 Running `wpm` without a command displays the version and command summary.
 
+Show the complete command summary or task-oriented help for one command:
+
+```text
+wpm --help
+wpm help install
+wpm install --help
+```
+
+Both command-specific forms display the same narrow usage, description, and
+example without initializing package-manager state.
+
 Display WPM's version:
 
 ```text
