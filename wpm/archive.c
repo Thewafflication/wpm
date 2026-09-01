@@ -2681,6 +2681,8 @@ int wpm_archive_schedule_self_upgrade(const char* archive_path, int allow_unsign
     strcpy_s(metadata.name, sizeof(metadata.name), "wpm");
     strcpy_s(metadata.version, sizeof(metadata.version), expected_version);
     strcpy_s(metadata.arch, sizeof(metadata.arch), expected_arch);
+    printf("Self-upgrade stage 1 of 2: the installed WPM verifies the new %s package "
+        "before launching it to finish the upgrade.\n", expected_version);
     print_package_progress("wpm", "Extracting package");
     if (!wpm_archive_extract_with_label(archive_full, stage, "wpm")) {
         write_upgrade_audit(root, &metadata, old_version, path_basename(archive_full), signing_key, 1, "self-upgrade-extraction", 0);

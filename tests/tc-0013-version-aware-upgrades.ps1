@@ -379,6 +379,10 @@ try {
             $Output -notmatch "Result: wpm $wpmArchitecture upgraded") {
             throw "The self-upgrade completion process did not report its progress. $Output"
         }
+        if ($Output -notmatch 'Self-upgrade stage 1 of 2' -or
+            $Output -notmatch 'Self-upgrade stage 2 of 2') {
+            throw "The self-upgrade did not explain its two-stage verification. $Output"
+        }
         if ($Output -notmatch 'upgrade install script process PID: \d+' -or
             $Output -notmatch 'WPM PID \d+ is waiting for upgrade install script PID \d+') {
             throw "Verbose mode was not propagated to the self-upgrade completion process. $Output"

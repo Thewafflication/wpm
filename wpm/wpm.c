@@ -129,6 +129,8 @@ int main(int argc, char *argv[])
             CloseHandle(parent);
         }
         printf("Invoking WPM process has exited; completing the self-upgrade now.\n");
+        printf("Self-upgrade stage 2 of 2: the new WPM %s independently re-verifies the "
+            "package before applying it (this is why the package is validated twice).\n", argv[4]);
         fflush(stdout);
         if (!wpm_initialize_data_directories()) return 1;
         if (!wpm_log_initialize()) {
