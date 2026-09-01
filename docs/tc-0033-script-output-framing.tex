@@ -1,0 +1,22 @@
+\documentclass[letterpaper]{article}
+\usepackage[letterpaper,margin=1in]{geometry}
+\input{wsp/testing/test-case-library.tex}
+\begin{document}
+\def\TCID{TC-0033}
+\def\TCTitle{Package-script output framing}
+\def\TCPurpose{Verify REQ-0014.008 frames package-script output with the package and phase, preserves script standard output and error, and never reinterprets script text as WPM's own result.}
+\def\TCPriority{\TCPriorityHigh}
+\def\TCRequirementRef{REQ-0014.008}
+\def\TCDesignRef{ADR-0010 command events and machine-readable output}
+\def\TCFeatureRef{Package-script framing in \texttt{run\_package\_script} and \texttt{tests/tc-0033-script-output-framing.ps1}}
+\def\TCTestTechnique{Boundary, negative, and output-partition testing.}
+\def\TCPreconditions{A native WPM build and disposable isolated data directory.}
+\def\TCEnvironment{Native Windows x86, x64, or ARM64 with PowerShell output capture.}
+\def\TCAssumptions{The test paths contain no protected data.}
+\def\TCInputData{One package whose install script exits zero while printing WPM-looking text on standard output and standard error, and one package whose install script prints a false success and exits nonzero.}
+\def\TCInitialState{Point WPM at nonexistent isolated data and build both packages.}
+\def\TCProcedure{Install the framed package and inspect the redirected output for the package-and-phase delimiters, preserved script streams, and containment of the WPM-looking lines; then install the failing package and confirm WPM reports failure with the framed nonzero exit code.}
+\def\TCExpectedResult{The delimited section names the package and phase, retains both script streams, contains the WPM-looking text, and the install succeeds; the failing script yields a nonzero WPM result with its exit code framed.}
+\def\TCPostConditions{Remove disposable state and retain configured evidence.}
+\TCTemplate
+\end{document}

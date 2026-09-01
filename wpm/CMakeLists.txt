@@ -282,6 +282,7 @@ if(BUILD_TESTING)
   wpm_add_test_case(TC-0030 tc-0030 tc-0030-action-grammar.ps1 tc-0030-action-grammar.tex)
   wpm_add_test_case(TC-0031 tc-0031 tc-0031-log-configuration.ps1 tc-0031-log-configuration.tex)
   wpm_add_test_case(TC-0032 tc-0032 tc-0032-failure-log-guidance.ps1 tc-0032-failure-log-guidance.tex)
+  wpm_add_test_case(TC-0033 tc-0033 tc-0033-script-output-framing.ps1 tc-0033-script-output-framing.tex)
 
   if(WIN32)
     set_tests_properties(${WPM_TEST_NAMES} PROPERTIES

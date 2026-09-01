@@ -93,8 +93,8 @@ try {
             if ($Output -notmatch 'install-script-standard-output' -or $Output -notmatch 'install-script-error-output') {
                 throw 'install.cmd standard output and error were not visible.'
             }
-            if ($Output -notmatch '(?s)--- install script output ---.*--- end install script output \(exit code 0\) ---') {
-                throw 'install.cmd output was not framed with its completion status.'
+            if ($Output -notmatch '(?s)--- package \S+: install script output ---.*--- end package \S+: install script output \(exit code 0\) ---') {
+                throw 'install.cmd output was not framed with its package identity and completion status.'
             }
             $scriptLogs = @(Get-ChildItem -LiteralPath (Join-Path $wpmDataDir 'logs\scripts') -Filter '*-install.log' -File)
             if ($scriptLogs.Count -ne 1) { throw "Expected one install script log, found $($scriptLogs.Count)." }

@@ -2371,7 +2371,7 @@ static int run_package_script(
     startup_info.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
     startup_info.hStdOutput = pipe_write;
     startup_info.hStdError = pipe_write;
-    printf("--- %s script output ---\n", action_name);
+    printf("--- package %s: %s script output ---\n", package_name, action_name);
     fflush(stdout);
     if (terminal.interactive && getenv("NO_COLOR") == NULL) {
         if (getenv("FORCE_COLOR") == NULL &&
@@ -2442,7 +2442,8 @@ static int run_package_script(
     if (terminal.interactive) {
         SetConsoleTextAttribute(terminal.output, terminal.default_attributes);
     }
-    printf("--- end %s script output (exit code %lu) ---\n", action_name, (unsigned long)exit_code);
+    printf("--- end package %s: %s script output (exit code %lu) ---\n",
+        package_name, action_name, (unsigned long)exit_code);
     fprintf(log, "\n--- exit-code=%lu ---\n", (unsigned long)exit_code);
     if (result_exit_code) *result_exit_code = exit_code;
     CloseHandle(pipe_read);

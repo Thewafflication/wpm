@@ -27,7 +27,7 @@ every row that is not `Verified` or lacks objective evidence.
 | REQ-0014.005 | TC-0014 | Automated test and secret-redaction inspection | Planned | Not yet produced |
 | REQ-0014.006 | TC-0014 | Automated test and inspection | Planned | TC-0031 custom-location/level and TC-0032 failure log-path guidance evidence produced; secret inspection pending |
 | REQ-0014.007 | TC-0014 | Automated negative test | Planned | TC-0026 through TC-0030 cover command, help, option, operand, and nested-action/basic-value partitions; broader semantic values pending |
-| REQ-0014.008 | TC-0014 | Automated redirected-output test | Planned | Not yet produced |
+| REQ-0014.008 | TC-0014 | Automated redirected-output test | Planned | TC-0033 package-and-phase delimiters, preserved script standard output/error, contained WPM-looking text, and exit-code-only success/failure evidence produced |
 | REQ-0015.001 | TC-0015 | Automated test and inspection | Planned | Not yet produced |
 | REQ-0015.002 | TC-0015 | Automated lifecycle test | Planned | Not yet produced |
 | REQ-0015.003 | TC-0015 | Automated input-partition test | Planned | Not yet produced |
