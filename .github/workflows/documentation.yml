@@ -32,6 +32,13 @@ jobs:
           fetch-depth: 0
           submodules: recursive
 
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: wsp/tools/pdf/requirements.txt
+
       - name: Install documentation toolchain
         shell: pwsh
         run: |
@@ -55,8 +62,11 @@ jobs:
           "PATH=$env:Path" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
           initexmf --admin --set-config-value=[MPM]AutoInstall=1
           if ($LASTEXITCODE -ne 0) { throw 'MiKTeX configuration failed.' }
-          python -m pip install --disable-pip-version-check pypdf==6.10.0
-          if ($LASTEXITCODE -ne 0) { throw 'pypdf installation failed.' }
+          python -m pip install --disable-pip-version-check `
+            --requirement wsp/tools/pdf/requirements.txt
+          if ($LASTEXITCODE -ne 0) {
+            throw 'WSP PDF verification dependency installation failed.'
+          }
           Get-Command pandoc, pdflatex, pdftoppm, python -ErrorAction Stop
 
       - name: Run pinned WSP common-tool tests

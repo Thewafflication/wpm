@@ -66,3 +66,8 @@ TC-0023 exact-pin and negative-mutation coverage, TC-0031 normal/verbose/error
 logging coverage, TC-0032 failure-path log guidance, C99 lint, the x64 build,
 and the local x64 CTest suite. GitHub Actions remains responsible for native
 x86 and ARM64 execution after push.
+
+The documentation workflow installs the PDF verifier dependencies from the
+pinned `wsp/tools/pdf/requirements.txt` before running the expanded WSP common-
+tool self-tests. This keeps the adopting workflow synchronized with the exact
+submodule baseline instead of duplicating one package version.
