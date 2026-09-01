@@ -130,4 +130,5 @@ covered by TC-0026. Task-oriented help for every current public command is
 covered by TC-0027. Full semantic-event migration, genuine-console evidence,
 recovery demonstration, and the remaining operand/value partitions are pending.
 TC-0028 covers every-command unknown-option and missing-option-value handling
-before durable initialization. REQ-0014 remains Proposed.
+before durable initialization; TC-0029 covers simple required/excess operand
+shapes at the same boundary. REQ-0014 remains Proposed.

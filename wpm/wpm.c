@@ -109,6 +109,52 @@ static int validate_command_options(Command command, int argc, char** argv, int 
     return 1;
 }
 
+static int invalid_operand_shape(Command command, const char* detail)
+{
+    const char* name = command_name(command);
+    printf("Error: %s for %s.\n", detail, name);
+    print_usage_line(command);
+    printf("Run 'wpm help %s' for more information.\n", name);
+    return 0;
+}
+
+static int validate_command_operands(Command command, int argc, char** argv, int command_index)
+{
+    int i;
+    int operands = 0;
+    for (i = command_index + 1; i < argc; i++) {
+        if (argv[i][0] == '-' && command_option_is_known(command, argv[i])) {
+            if (command_option_takes_value(command, argv[i])) i++;
+            continue;
+        }
+        operands++;
+    }
+    switch (command) {
+        case CMD_INIT:
+            if (operands > 1) return invalid_operand_shape(command, "too many operands");
+            break;
+        case CMD_BUILD:
+            if (operands < 1) return invalid_operand_shape(command, "missing required source directory");
+            if (operands > 2) return invalid_operand_shape(command, "too many operands");
+            break;
+        case CMD_VERIFY:
+        case CMD_INSTALL:
+        case CMD_REMOVE:
+            if (operands < 1) return invalid_operand_shape(command, "missing required package operand");
+            break;
+        case CMD_KEYGEN:
+            if (operands < 2) return invalid_operand_shape(command, "missing required key-file operand");
+            if (operands > 2) return invalid_operand_shape(command, "too many operands");
+            break;
+        case CMD_UPDATE:
+            if (operands > 0) return invalid_operand_shape(command, "unexpected operand");
+            break;
+        default:
+            break;
+    }
+    return 1;
+}
+
 static int path_is_beneath(const char* path, const char* root)
 {
     size_t root_length = strlen(root);
@@ -359,8 +405,9 @@ int main(int argc, char *argv[])
         return 0;
     }
 
-	Command cmd = parse_command(argv[command_index]);
+    Command cmd = parse_command(argv[command_index]);
     if (cmd != CMD_UNKNOWN && !validate_command_options(cmd, argc, argv, command_index)) return 1;
+    if (cmd != CMD_UNKNOWN && !validate_command_operands(cmd, argc, argv, command_index)) return 1;
     wpm_set_verbose(verbose);
 	SetEnvironmentVariableA("WPM_VERBOSE", verbose ? "1" : NULL);
 	wpm_repo_set_verbose(verbose);
