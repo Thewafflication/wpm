@@ -128,5 +128,6 @@ renderer, redaction, and machine-envelope boundaries. The CP-01A color-policy
 foundation is implemented at the shared logging/presentation adapter and
 covered by TC-0026. Task-oriented help for every current public command is
 covered by TC-0027. Full semantic-event migration, genuine-console evidence,
-recovery demonstration, and the remaining TC-0014 profiles are pending, so
-REQ-0014 remains Proposed.
+recovery demonstration, and the remaining operand/value partitions are pending.
+TC-0028 covers every-command unknown-option and missing-option-value handling
+before durable initialization. REQ-0014 remains Proposed.

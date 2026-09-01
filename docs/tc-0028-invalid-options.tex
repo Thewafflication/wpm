@@ -1,0 +1,22 @@
+\documentclass[letterpaper]{article}
+\usepackage[letterpaper,margin=1in]{geometry}
+\input{wsp/testing/test-case-library.tex}
+\begin{document}
+\def\TCID{TC-0028}
+\def\TCTitle{Narrow invalid-option diagnostics}
+\def\TCPurpose{Verify the CP-01B option-validation slice of REQ-0014.007 before command mutation or durable logging.}
+\def\TCPriority{\TCPriorityHigh}
+\def\TCRequirementRef{REQ-0014.007}
+\def\TCDesignRef{ADR-0010 human-presentation boundary}
+\def\TCFeatureRef{Central command-option inventory, narrow usage renderer, and \texttt{tests/tc-0028-invalid-options.ps1}}
+\def\TCTestTechnique{Command-inventory, equivalence-partition, boundary-value, and no-side-effect negative testing.}
+\def\TCPreconditions{A native WPM build and an isolated nonexistent WPM data-root path.}
+\def\TCEnvironment{Native Windows x86, x64, or ARM64 with PowerShell output capture.}
+\def\TCAssumptions{Operands beginning with a hyphen are options; negative numeric repository priorities remain accepted as values.}
+\def\TCInputData{One unknown option for each public command and missing values for sign, architecture, priority, package, and version options.}
+\def\TCInitialState{Point WPM at a disposable data-root path that does not exist.}
+\def\TCProcedure{Submit each invalid option/value partition; inspect the error, one command usage line, and exact help hint; verify no data root was created.}
+\def\TCExpectedResult{Every invalid input fails nonzero, identifies command and option, emits only relevant usage and help, and performs no durable initialization.}
+\def\TCPostConditions{Remove disposable state if any and retain generated evidence under the configured build evidence directory.}
+\TCTemplate
+\end{document}

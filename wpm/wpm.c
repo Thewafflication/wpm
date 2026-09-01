@@ -12,6 +12,103 @@
 #include <stdlib.h>
 #include <windows.h>
 
+static const char* command_name(Command command)
+{
+    switch (command) {
+        case CMD_INIT: return "init";
+        case CMD_BUILD: return "build";
+        case CMD_VERIFY: return "verify";
+        case CMD_INSTALL: return "install";
+        case CMD_REMOVE: return "remove";
+        case CMD_REPO: return "repo";
+        case CMD_KEYGEN: return "keygen";
+        case CMD_KEY: return "key";
+        case CMD_TRUST: return "trust";
+        case CMD_CONFIG: return "config";
+        case CMD_UPDATE: return "update";
+        case CMD_UPGRADE: return "upgrade";
+        default: return "command";
+    }
+}
+
+static void print_usage_line(Command command)
+{
+    switch (command) {
+        case CMD_INIT: printf("Usage: wpm init [package_name]\n"); break;
+        case CMD_BUILD: printf("Usage: wpm build <source_dir> [output_dir] [--no-index] [--sign <private-key-file>]\n"); break;
+        case CMD_VERIFY: printf("Usage: wpm verify <package...>\n"); break;
+        case CMD_INSTALL: printf("Usage: wpm install <package...> [--arch <arch>] [--version <semver>] [--offline] [--allow-unsigned]\n"); break;
+        case CMD_REMOVE: printf("Usage: wpm remove <package...>\n"); break;
+        case CMD_REPO: printf("Usage: wpm repo <add|list|remove|update> ...\n"); break;
+        case CMD_KEYGEN: printf("Usage: wpm keygen <private-key-file> <public-key-file> [--default]\n"); break;
+        case CMD_KEY: printf("Usage: wpm key default <private-key-file>|--clear\n"); break;
+        case CMD_TRUST: printf("Usage: wpm trust <add|list|revoke> ...\n"); break;
+        case CMD_CONFIG: printf("Usage: wpm config <set|get|unset> prerelease ...\n"); break;
+        case CMD_UPDATE: printf("Usage: wpm update [--offline]\n"); break;
+        case CMD_UPGRADE: printf("Usage: wpm upgrade <package...> [--arch <arch>] [--version <semver>] | --all [--arch <arch>] [-y|--yes]\n"); break;
+        default: printf("Usage: wpm <command> [options]\n"); break;
+    }
+}
+
+static int command_option_takes_value(Command command, const char* option)
+{
+    return (command == CMD_BUILD && strcmp(option, "--sign") == 0) ||
+        ((command == CMD_INSTALL || command == CMD_UPGRADE) &&
+            (strcmp(option, "--arch") == 0 || strcmp(option, "--version") == 0)) ||
+        (command == CMD_REPO && strcmp(option, "--priority") == 0) ||
+        (command == CMD_CONFIG && strcmp(option, "--package") == 0);
+}
+
+static int command_option_is_known(Command command, const char* option)
+{
+    if (strcmp(option, "--verbose") == 0) return 1;
+    if (command_option_takes_value(command, option)) return 1;
+    switch (command) {
+        case CMD_BUILD: return strcmp(option, "--no-index") == 0;
+        case CMD_INSTALL:
+            return strcmp(option, "--allow-unsigned") == 0 || strcmp(option, "--offline") == 0;
+        case CMD_REPO:
+            return strcmp(option, "--allow-insecure-http") == 0 || strcmp(option, "--offline") == 0;
+        case CMD_KEYGEN: return strcmp(option, "--default") == 0;
+        case CMD_KEY: return strcmp(option, "--clear") == 0;
+        case CMD_UPDATE: return strcmp(option, "--offline") == 0;
+        case CMD_UPGRADE:
+            return strcmp(option, "--all") == 0 || strcmp(option, "-y") == 0 ||
+                strcmp(option, "--yes") == 0 || strcmp(option, "--allow-unsigned") == 0 ||
+                strcmp(option, "--offline") == 0;
+        default: return 0;
+    }
+}
+
+static int validate_command_options(Command command, int argc, char** argv, int command_index)
+{
+    int i;
+    const char* name = command_name(command);
+    for (i = command_index + 1; i < argc; i++) {
+        const char* option = argv[i];
+        if (option[0] != '-') continue;
+        if (!command_option_is_known(command, option)) {
+            printf("Error: invalid option for %s: %s.\n", name, option);
+            print_usage_line(command);
+            printf("Run 'wpm help %s' for more information.\n", name);
+            return 0;
+        }
+        if (command_option_takes_value(command, option)) {
+            int negative_priority = command == CMD_REPO && strcmp(option, "--priority") == 0 &&
+                i + 1 < argc && argv[i + 1][0] == '-' &&
+                argv[i + 1][1] >= '0' && argv[i + 1][1] <= '9';
+            if (i + 1 >= argc || (argv[i + 1][0] == '-' && !negative_priority)) {
+                printf("Error: option %s requires a value for %s.\n", option, name);
+                print_usage_line(command);
+                printf("Run 'wpm help %s' for more information.\n", name);
+                return 0;
+            }
+            i++;
+        }
+    }
+    return 1;
+}
+
 static int path_is_beneath(const char* path, const char* root)
 {
     size_t root_length = strlen(root);
@@ -107,7 +204,12 @@ int main(int argc, char *argv[])
     for (int i = 1; i < argc; i++) {
         const char* color_value = NULL;
         int remove_count = 0;
-        if (strcmp(argv[i], "--color") == 0) {
+        if (strcmp(argv[i], "--verbose") == 0 &&
+            !(argc >= 2 && strcmp(argv[1], "--complete-self-upgrade") == 0)) {
+            verbose = 1;
+            remove_count = 1;
+        }
+        else if (strcmp(argv[i], "--color") == 0) {
             if (i + 1 < argc) {
                 color_value = argv[i + 1];
                 remove_count = 2;
@@ -135,6 +237,7 @@ int main(int argc, char *argv[])
 
 	if (argc == 1) {
 		print_version();
+        if (verbose) print_runtime_mode();
         printf("Usage: wpm <command> [options]\n");
         printf("Run 'wpm --help' for commands and options.\n");
         return 0;
@@ -257,6 +360,7 @@ int main(int argc, char *argv[])
     }
 
 	Command cmd = parse_command(argv[command_index]);
+    if (cmd != CMD_UNKNOWN && !validate_command_options(cmd, argc, argv, command_index)) return 1;
     wpm_set_verbose(verbose);
 	SetEnvironmentVariableA("WPM_VERBOSE", verbose ? "1" : NULL);
 	wpm_repo_set_verbose(verbose);
@@ -546,40 +650,52 @@ void print_usage(Command c) {
     if (c != CMD_UNKNOWN) {
         switch (c) {
             case CMD_INIT:
-                printf("Usage: wpm init [package_name]\n\nInitialize package metadata in the current directory.\n\nExample:\n  wpm init my-package\n");
+                print_usage_line(c);
+                printf("\nInitialize package metadata in the current directory.\n\nExample:\n  wpm init my-package\n");
                 return;
             case CMD_BUILD:
-                printf("Usage: wpm build <source_dir> [output_dir] [--no-index] [--sign <private-key-file>]\n\nBuild and optionally sign a package archive.\n\nExample:\n  wpm build .\\my-package .\\dist --sign .\\release.private\n");
+                print_usage_line(c);
+                printf("\nBuild and optionally sign a package archive.\n\nExample:\n  wpm build .\\my-package .\\dist --sign .\\release.private\n");
                 return;
             case CMD_VERIFY:
-                printf("Usage: wpm verify <package...>\n\nValidate packages without installing them.\n\nExample:\n  wpm verify .\\dist\\my-package-any-1.0.0.zip\n");
+                print_usage_line(c);
+                printf("\nValidate packages without installing them.\n\nExample:\n  wpm verify .\\dist\\my-package-any-1.0.0.zip\n");
                 return;
             case CMD_INSTALL:
-                printf("Usage: wpm install <package...> [--arch <arch>] [--version <semver>] [--offline] [--allow-unsigned]\n\nInstall a local archive or a package selected from repositories.\n\nExample:\n  wpm install my-package --arch x64\n");
+                print_usage_line(c);
+                printf("\nInstall a local archive or a package selected from repositories.\n\nExample:\n  wpm install my-package --arch x64\n");
                 return;
             case CMD_REMOVE:
-                printf("Usage: wpm remove <package...>\n\nRemove packages using their retained archives.\n\nExample:\n  wpm remove my-package-x64-1.0.0\n");
+                print_usage_line(c);
+                printf("\nRemove packages using their retained archives.\n\nExample:\n  wpm remove my-package-x64-1.0.0\n");
                 return;
             case CMD_REPO:
-                printf("Usage: wpm repo <add|list|remove|update> ...\n\nManage package repositories.\n\nExamples:\n  wpm repo add .\\repository --priority 10\n  wpm repo list\n  wpm repo update --offline\n");
+                print_usage_line(c);
+                printf("\nManage package repositories.\n\nExamples:\n  wpm repo add .\\repository --priority 10\n  wpm repo list\n  wpm repo update --offline\n");
                 return;
             case CMD_KEYGEN:
-                printf("Usage: wpm keygen <private-key-file> <public-key-file> [--default]\n\nGenerate an Ed25519 signing-key pair.\n\nExample:\n  wpm keygen .\\release.private .\\release.public --default\n");
+                print_usage_line(c);
+                printf("\nGenerate an Ed25519 signing-key pair.\n\nExample:\n  wpm keygen .\\release.private .\\release.public --default\n");
                 return;
             case CMD_KEY:
-                printf("Usage: wpm key default <private-key-file>|--clear\n\nSelect or clear the default package-signing key.\n\nExamples:\n  wpm key default .\\release.private\n  wpm key default --clear\n");
+                print_usage_line(c);
+                printf("\nSelect or clear the default package-signing key.\n\nExamples:\n  wpm key default .\\release.private\n  wpm key default --clear\n");
                 return;
             case CMD_TRUST:
-                printf("Usage: wpm trust <add|list|revoke> ...\n\nManage trusted package-signing keys.\n\nExamples:\n  wpm trust add maintainer .\\maintainer.public\n  wpm trust list\n  wpm trust revoke maintainer\n");
+                print_usage_line(c);
+                printf("\nManage trusted package-signing keys.\n\nExamples:\n  wpm trust add maintainer .\\maintainer.public\n  wpm trust list\n  wpm trust revoke maintainer\n");
                 return;
             case CMD_CONFIG:
-                printf("Usage: wpm config <set|get|unset> prerelease ...\n\nConfigure prerelease package selection.\n\nExample:\n  wpm config set prerelease my-package true\n");
+                print_usage_line(c);
+                printf("\nConfigure prerelease package selection.\n\nExample:\n  wpm config set prerelease my-package true\n");
                 return;
             case CMD_UPDATE:
-                printf("Usage: wpm update [--offline]\n\nRefresh repository metadata and report available updates.\n\nExample:\n  wpm update\n");
+                print_usage_line(c);
+                printf("\nRefresh repository metadata and report available updates.\n\nExample:\n  wpm update\n");
                 return;
             case CMD_UPGRADE:
-                printf("Usage: wpm upgrade <package...> [--arch <arch>] [--version <semver>] | --all [--arch <arch>] [-y|--yes]\n\nUpgrade selected installed packages.\n\nExamples:\n  wpm upgrade my-package\n  wpm upgrade --all --yes\n");
+                print_usage_line(c);
+                printf("\nUpgrade selected installed packages.\n\nExamples:\n  wpm upgrade my-package\n  wpm upgrade --all --yes\n");
                 return;
             default:
                 break;

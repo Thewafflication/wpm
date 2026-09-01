@@ -278,6 +278,7 @@ if(BUILD_TESTING)
   wpm_add_test_case(TC-0025 tc-0025 tc-0025-network-repositories.ps1 tc-0025-network-repositories.tex)
   wpm_add_test_case(TC-0026 tc-0026 tc-0026-color-policy.ps1 tc-0026-color-policy.tex)
   wpm_add_test_case(TC-0027 tc-0027 tc-0027-task-help.ps1 tc-0027-task-help.tex)
+  wpm_add_test_case(TC-0028 tc-0028 tc-0028-invalid-options.ps1 tc-0028-invalid-options.tex)
 
   if(WIN32)
     set_tests_properties(${WPM_TEST_NAMES} PROPERTIES
