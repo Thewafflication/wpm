@@ -10,6 +10,9 @@
  */
 int wpm_log_initialize(void);
 
+/** Configure human-output styling. Accepted values are auto, always, never. */
+int wpm_set_color_policy(const char* value);
+
 /** Close the operational log if it is open. */
 void wpm_log_close(void);
 

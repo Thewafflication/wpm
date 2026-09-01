@@ -1,0 +1,22 @@
+\documentclass[letterpaper]{article}
+\usepackage[letterpaper,margin=1in]{geometry}
+\input{wsp/testing/test-case-library.tex}
+\begin{document}
+\def\TCID{TC-0026}
+\def\TCTitle{Global color policy and narrow invalid-command output}
+\def\TCPurpose{Verify the first CP-01A presentation-contract slice for REQ-0014.003 and REQ-0014.007.}
+\def\TCPriority{\TCPriorityHigh}
+\def\TCRequirementRef{REQ-0014.003 and REQ-0014.007}
+\def\TCDesignRef{ADR-0010 human-presentation and logging boundaries}
+\def\TCFeatureRef{The shared logging/presentation adapter, global option parser, and \texttt{tests/tc-0026-color-policy.ps1}}
+\def\TCTestTechnique{Decision-table and equivalence-partition testing of auto, always, never, precedence, invalid value, option position, and redirected streams.}
+\def\TCPreconditions{A native WPM build whose output can be captured through a redirected process stream.}
+\def\TCEnvironment{Native Windows x86, x64, or ARM64 with PowerShell output capture.}
+\def\TCAssumptions{Redirected capture is non-interactive; genuine-console attribute inspection remains allocated to TC-0014.}
+\def\TCInputData{The three accepted color values, an invalid value, repeated options, both option positions, and an invalid command.}
+\def\TCInitialState{No package or repository state is required or modified.}
+\def\TCProcedure{Invoke an invalid command under auto, always, and never; repeat options to verify last-option precedence; reject an invalid value; and inspect help.}
+\def\TCExpectedResult{Auto and never contain no control sequence when redirected; always contains styling while preserving the Error label; last option wins; invalid input fails with narrow usage; and help documents the option.}
+\def\TCPostConditions{No durable product state is changed; retain generated evidence under the configured build evidence directory.}
+\TCTemplate
+\end{document}

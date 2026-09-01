@@ -124,5 +124,7 @@ Planned allocation is a shared presentation/logging layer used by command,
 archive, repository, signing, trust, initialization, and upgrade code; TC-0014
 defines the controlled profiles and objective command-level verification. Its
 runner remains Blocked pending implementation. ADR-0010 fixes the event,
-renderer, redaction, and machine-envelope boundaries. No 2.0 runtime
-implementation or verification evidence is claimed by this proposed baseline.
+renderer, redaction, and machine-envelope boundaries. The CP-01A color-policy
+foundation is implemented at the shared logging/presentation adapter and
+covered by TC-0026; full semantic-event migration, genuine-console evidence,
+and the remaining TC-0014 profiles are pending, so REQ-0014 remains Proposed.

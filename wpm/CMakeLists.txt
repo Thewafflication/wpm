@@ -276,6 +276,7 @@ if(BUILD_TESTING)
   wpm_add_test_case(TC-0023 tc-0023 tc-0023-architecture-security-consistency.ps1 tc-0023-architecture-security-consistency.tex)
   wpm_add_test_case(TC-0024 tc-0024 tc-0024-local-repositories.ps1 tc-0024-local-repositories.tex)
   wpm_add_test_case(TC-0025 tc-0025 tc-0025-network-repositories.ps1 tc-0025-network-repositories.tex)
+  wpm_add_test_case(TC-0026 tc-0026 tc-0026-color-policy.ps1 tc-0026-color-policy.tex)
 
   if(WIN32)
     set_tests_properties(${WPM_TEST_NAMES} PROPERTIES

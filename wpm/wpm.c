@@ -101,6 +101,37 @@ int main(int argc, char *argv[])
 	int show_version = 0;
 	int show_diagnostics = 0;
 
+    /* Resolve and remove the global color option before command parsing so it
+       may appear before or after the command without becoming an operand. */
+    for (int i = 1; i < argc; i++) {
+        const char* color_value = NULL;
+        int remove_count = 0;
+        if (strcmp(argv[i], "--color") == 0) {
+            if (i + 1 < argc) {
+                color_value = argv[i + 1];
+                remove_count = 2;
+            }
+        }
+        else if (strncmp(argv[i], "--color=", 8) == 0) {
+            color_value = argv[i] + 8;
+            remove_count = 1;
+        }
+        if (strncmp(argv[i], "--color", 7) == 0 &&
+            (!remove_count || !wpm_set_color_policy(color_value))) {
+            printf("Error: invalid --color value%s%s; expected auto, always, or never.\n",
+                color_value ? ": " : "", color_value ? color_value : "");
+            printf("Usage: wpm [--color auto|always|never] <command> [options]\n");
+            printf("Run 'wpm --help' for more information.\n");
+            return 1;
+        }
+        if (remove_count) {
+            int j;
+            for (j = i; j + remove_count < argc; j++) argv[j] = argv[j + remove_count];
+            argc -= remove_count;
+            i--;
+        }
+    }
+
 	if (argc == 1) {
 		print_version();
         printf("Usage: wpm <command> [options]\n");
@@ -374,7 +405,9 @@ int main(int argc, char *argv[])
                 if ((argc != command_index + 3 && !make_default) || !wpm_keygen(argv[command_index + 1], argv[command_index + 2], make_default)) return 1;
                 break;
             }
-            printf("Unknown command.\n");
+            printf("Error: unknown command: %s.\n", argv[command_index]);
+            printf("Usage: wpm <command> [options]\n");
+            printf("Run 'wpm --help' for available commands.\n");
             return 1;
 
         case CMD_UPGRADE: {
@@ -518,6 +551,9 @@ void print_usage(Command c) {
 
     printf("  --verbose\n");
     printf("      Display detailed file-operation progress; may appear before or after a command\n\n");
+
+    printf("  --color <auto|always|never>\n");
+    printf("      Control semantic output styling; default is auto\n\n");
 
     printf("  --diagnose\n");
     printf("      Display runtime mode and resolved WPM locations\n\n");

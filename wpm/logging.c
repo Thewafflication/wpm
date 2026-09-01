@@ -13,6 +13,108 @@
 #include <string.h>
 #include <windows.h>
 
+typedef enum wpm_color_policy {
+    WPM_COLOR_AUTO,
+    WPM_COLOR_ALWAYS,
+    WPM_COLOR_NEVER
+} wpm_color_policy;
+
+typedef enum wpm_message_style {
+    WPM_STYLE_NONE,
+    WPM_STYLE_PROGRESS,
+    WPM_STYLE_SUCCESS,
+    WPM_STYLE_WARNING,
+    WPM_STYLE_ERROR,
+    WPM_STYLE_PROMPT,
+    WPM_STYLE_SCRIPT,
+    WPM_STYLE_RESULT
+} wpm_message_style;
+
+static wpm_color_policy wpm_color = WPM_COLOR_AUTO;
+
+int wpm_set_color_policy(const char* value)
+{
+    if (!value) return 0;
+    if (strcmp(value, "auto") == 0) wpm_color = WPM_COLOR_AUTO;
+    else if (strcmp(value, "always") == 0) wpm_color = WPM_COLOR_ALWAYS;
+    else if (strcmp(value, "never") == 0) wpm_color = WPM_COLOR_NEVER;
+    else return 0;
+    return 1;
+}
+
+static int wpm_starts_with(const char* message, const char* prefix)
+{
+    return strncmp(message, prefix, strlen(prefix)) == 0;
+}
+
+static wpm_message_style wpm_message_style_for(const char* message)
+{
+    if (wpm_starts_with(message, "Error:")) return WPM_STYLE_ERROR;
+    if (wpm_starts_with(message, "Warning:")) return WPM_STYLE_WARNING;
+    if (wpm_starts_with(message, "Result:")) return WPM_STYLE_RESULT;
+    if (wpm_starts_with(message, "Prompt:")) return WPM_STYLE_PROMPT;
+    if (wpm_starts_with(message, "--- ")) return WPM_STYLE_SCRIPT;
+    if (wpm_starts_with(message, "Installed ") ||
+        wpm_starts_with(message, "Built package:") ||
+        wpm_starts_with(message, "Verified package:") ||
+        wpm_starts_with(message, "Removed package:") ||
+        wpm_starts_with(message, "Upgraded ")) return WPM_STYLE_SUCCESS;
+    if (strstr(message, " progress:") || wpm_starts_with(message, "Downloading ") ||
+        wpm_starts_with(message, "Extracting ") ||
+        wpm_starts_with(message, "Validating ")) return WPM_STYLE_PROGRESS;
+    return WPM_STYLE_NONE;
+}
+
+static WORD wpm_console_attributes_for(wpm_message_style style)
+{
+    switch (style) {
+        case WPM_STYLE_PROGRESS: return FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_INTENSITY;
+        case WPM_STYLE_SUCCESS: return FOREGROUND_GREEN | FOREGROUND_INTENSITY;
+        case WPM_STYLE_WARNING: return FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_INTENSITY;
+        case WPM_STYLE_ERROR: return FOREGROUND_RED | FOREGROUND_INTENSITY;
+        case WPM_STYLE_PROMPT: return FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_INTENSITY;
+        case WPM_STYLE_SCRIPT: return FOREGROUND_BLUE | FOREGROUND_GREEN;
+        case WPM_STYLE_RESULT: return FOREGROUND_BLUE | FOREGROUND_GREEN | FOREGROUND_INTENSITY;
+        default: return 0;
+    }
+}
+
+static const char* wpm_ansi_for(wpm_message_style style)
+{
+    switch (style) {
+        case WPM_STYLE_PROGRESS: return "\x1b[96m";
+        case WPM_STYLE_SUCCESS: return "\x1b[92m";
+        case WPM_STYLE_WARNING: return "\x1b[93m";
+        case WPM_STYLE_ERROR: return "\x1b[91m";
+        case WPM_STYLE_PROMPT: return "\x1b[95m";
+        case WPM_STYLE_SCRIPT: return "\x1b[36m";
+        case WPM_STYLE_RESULT: return "\x1b[96m";
+        default: return "";
+    }
+}
+
+static int wpm_write_console_message(const char* message, wpm_message_style style)
+{
+    HANDLE output = GetStdHandle(STD_OUTPUT_HANDLE);
+    CONSOLE_SCREEN_BUFFER_INFO information;
+    int interactive = output != NULL && output != INVALID_HANDLE_VALUE &&
+        GetConsoleScreenBufferInfo(output, &information);
+
+    if (style == WPM_STYLE_NONE || wpm_color == WPM_COLOR_NEVER ||
+        (wpm_color == WPM_COLOR_AUTO && !interactive)) return fputs(message, stdout);
+    if (interactive) {
+        WORD attributes = wpm_console_attributes_for(style);
+        SetConsoleTextAttribute(output, attributes);
+        fputs(message, stdout);
+        SetConsoleTextAttribute(output, information.wAttributes);
+        return (int)strlen(message);
+    }
+    fputs(wpm_ansi_for(style), stdout);
+    fputs(message, stdout);
+    fputs("\x1b[0m", stdout);
+    return (int)strlen(message);
+}
+
 #ifndef WPM_DISABLE_OPERATIONAL_LOG
 static wsp_logger wpm_logger;
 static int wpm_logger_initialized;
@@ -71,21 +173,14 @@ void wpm_log_close(void)
 
 int wpm_vprintf(const char* format, va_list arguments)
 {
-#ifdef WPM_DISABLE_OPERATIONAL_LOG
-    /* Some supported CRTs do not provide a deep-copyable va_list. Replaying
-       one argument list for both console and file formatting corrupts the
-       cursor and can crash after otherwise successful commands. */
-    return vprintf(format, arguments);
-#else
     char message[8192];
     size_t length;
     int result;
-    va_list console_arguments;
-
-    va_copy(console_arguments, arguments);
-    result = vprintf(format, console_arguments);
-    va_end(console_arguments);
-    if (wpm_logger_initialized && vsnprintf(message, sizeof(message), format, arguments) >= 0) {
+    if (vsnprintf(message, sizeof(message), format, arguments) < 0) return -1;
+    message[sizeof(message) - 1] = '\0';
+    result = wpm_write_console_message(message, wpm_message_style_for(message));
+#ifndef WPM_DISABLE_OPERATIONAL_LOG
+    if (wpm_logger_initialized) {
         length = strlen(message);
         while (length > 0 && (message[length - 1] == '\n' || message[length - 1] == '\r')) {
             message[--length] = '\0';
@@ -94,8 +189,8 @@ int wpm_vprintf(const char* format, va_list arguments)
             wsp_log_write(&wpm_logger, wpm_log_level_for_message(message), "%s", message);
         }
     }
-    return result;
 #endif
+    return result;
 }
 
 int wpm_printf(const char* format, ...)
