@@ -23,9 +23,15 @@
 #define INDEX_FRESH_MS (60ULL * 60ULL * 1000ULL)
 /* URLMon status omitted by TinyCC's compact Windows headers. */
 #define WPM_BINDSTATUS_64BIT_PROGRESS 56UL
+#define WPM_BINDSTATUS_REDIRECTING 3UL
 #define WPM_DEFAULT_REPOSITORY "https://github.com/Thewafflication/wpm/releases/latest/download"
 
-typedef struct { char url[PATH_SIZE]; int priority; int order; } repository;
+typedef struct {
+    char url[PATH_SIZE];
+    int priority;
+    int order;
+    int allow_insecure_http;
+} repository;
 typedef struct { char name[128]; char version[64]; char arch[16]; char url[PATH_SIZE]; int priority; int order; } package_entry;
 
 typedef struct download_callback download_callback;
@@ -48,6 +54,8 @@ struct download_callback {
     ULONG references;
     wpm_progress progress;
     int using_64bit_progress;
+    int insecure_http;
+    char initial_url[PATH_SIZE];
 };
 
 static int repository_verbose = 0;
@@ -79,6 +87,52 @@ static int cache_path(const char* url, char* path, size_t size) {
 static int is_https_repository(const char* source) {
     return source && _strnicmp(source, "https://", 8) == 0;
 }
+static int is_http_repository(const char* source) {
+    return source && _strnicmp(source, "http://", 7) == 0;
+}
+static int is_web_repository(const char* source) {
+    return is_https_repository(source) || is_http_repository(source);
+}
+static size_t web_origin_length(const char* source) {
+    const char* authority;
+    const char* end;
+    size_t scheme_length;
+    if (is_https_repository(source)) scheme_length = 8;
+    else if (is_http_repository(source)) scheme_length = 7;
+    else return 0;
+    authority = source + scheme_length;
+    end = strchr(authority, '/');
+    return end ? (size_t)(end - source) : strlen(source);
+}
+static int same_web_origin(const char* left, const char* right) {
+    size_t left_length = web_origin_length(left);
+    size_t right_length = web_origin_length(right);
+    return left_length && left_length == right_length &&
+        _strnicmp(left, right, left_length) == 0;
+}
+static int web_locator_valid(const char* source, size_t scheme_length) {
+    const char* authority = source + scheme_length;
+    const char* end = authority;
+    if (!*authority || strchr(authority, '?') || strchr(authority, '#')) return 0;
+    while (*end && *end != '/') {
+        if (*end == '\\' || *end == '@' || *end == '?' || *end == '#') return 0;
+        end++;
+    }
+    return end > authority;
+}
+static int unc_locator_valid(const char* source) {
+    const char* server;
+    const char* share;
+    const char* end;
+    if (!source || source[0] != '\\' || source[1] != '\\' ||
+        source[2] == '.' || source[2] == '?' || source[2] == '\\') return 0;
+    server = source + 2;
+    share = strchr(server, '\\');
+    if (!share || share == server || !share[1]) return 0;
+    end = strchr(share + 1, '\\');
+    if (end == share + 1) return 0;
+    return 1;
+}
 static int repository_normalize(const char* source, char* result, size_t size) {
     size_t length;
     DWORD required;
@@ -86,14 +140,20 @@ static int repository_normalize(const char* source, char* result, size_t size) {
         printf("Error: repository locator is empty or contains a control character.\n");
         return 0;
     }
-    if (is_https_repository(source)) {
+    if (is_web_repository(source)) {
         if (strpbrk(source, " \t\r\n") || strcpy_s(result, size, source) != 0) return 0;
+        if (!web_locator_valid(result, is_https_repository(result) ? 8 : 7)) {
+            printf("Error: repository URL requires an authority and cannot contain credentials.\n");
+            return 0;
+        }
         length = strlen(result);
-        while (length > 8 && result[length - 1] == '/') result[--length] = '\0';
+        while (length > (is_https_repository(result) ? 8u : 7u) &&
+            result[length - 1] == '/') result[--length] = '\0';
         return 1;
     }
     if (strstr(source, "://")) {
-        printf("Error: repository locators must use https:// or a local directory path.\n");
+        printf("Error: repository locators must use https://, opted-in http://, "
+            "or a filesystem path.\n");
         return 0;
     }
     required = GetFullPathNameA(source, (DWORD)size, result, NULL);
@@ -102,48 +162,84 @@ static int repository_normalize(const char* source, char* result, size_t size) {
         return 0;
     }
     for (length = 0; result[length]; length++) if (result[length] == '/') result[length] = '\\';
-    if (length < 3 || (result[0] == '\\' && result[1] == '\\') ||
-        !isalpha((unsigned char)result[0]) || result[1] != ':' || result[2] != '\\') {
-        printf("Error: local repositories require a drive-qualified filesystem path.\n");
+    if (result[0] == '\\' && result[1] == '\\') {
+        if (!unc_locator_valid(result)) {
+            printf("Error: UNC repositories require a server and share and cannot use a device namespace.\n");
+            return 0;
+        }
+        while (length > 2 && result[length - 1] == '\\') result[--length] = '\0';
+        return 1;
+    }
+    if (length < 3 || !isalpha((unsigned char)result[0]) ||
+        result[1] != ':' || result[2] != '\\') {
+        printf("Error: filesystem repositories require a drive-qualified or UNC path.\n");
         return 0;
     }
     while (length > 3 && result[length - 1] == '\\') result[--length] = '\0';
     return 1;
 }
-static int parse_entry(char* line, int* priority, char** url) {
-    char* tab = strchr(line, '\t'); char* end;
+static int parse_entry(char* line, int* priority, char** url, int* allow_http) {
+    char* tab = strchr(line, '\t'); char* option; char* end;
     if (!tab) return 0; *tab = '\0'; *priority = (int)strtol(line, &end, 10); if (*end) return 0;
-    *url = tab + 1; (*url)[strcspn(*url, "\r\n")] = '\0'; return **url != '\0';
+    *url = tab + 1; (*url)[strcspn(*url, "\r\n")] = '\0';
+    option = strchr(*url, '\t');
+    *allow_http = 0;
+    if (option) {
+        *option++ = '\0';
+        if (strcmp(option, "allow-insecure-http=true") != 0) return 0;
+        *allow_http = 1;
+    }
+    return **url != '\0' && (!is_http_repository(*url) || *allow_http);
 }
 static int load_repositories(repository* result, int* count) {
     char path[PATH_SIZE], line[PATH_SIZE + 32]; FILE* input; *count = 0;
     if (!config_path(path, sizeof(path))) return 0; REPO_VERBOSE("configuration: %s", path); input = wpm_fopen(path, "r");
     if (input) {
-        while (*count < MAX_REPOSITORIES && fgets(line, sizeof(line), input)) { char* url; int priority;
-            if (parse_entry(line, &priority, &url)) { repository* r = &result[*count]; r->priority = priority; r->order = *count; strcpy_s(r->url, sizeof(r->url), url); REPO_VERBOSE("configured[%d]: priority=%d url=%s", *count, priority, url); (*count)++; }
+        while (*count < MAX_REPOSITORIES && fgets(line, sizeof(line), input)) { char* url; int priority, allow_http;
+            if (parse_entry(line, &priority, &url, &allow_http)) { repository* r = &result[*count]; r->priority = priority; r->order = *count; r->allow_insecure_http = allow_http; strcpy_s(r->url, sizeof(r->url), url); REPO_VERBOSE("configured[%d]: priority=%d transport=%s url=%s", *count, priority, allow_http ? "insecure-http" : "standard", url); (*count)++; }
         }
         fclose(input);
     }
     for (int i = 0; i < *count; i++) if (_stricmp(result[i].url, WPM_DEFAULT_REPOSITORY) == 0) { REPO_VERBOSE("loaded %d repositories", *count); return 1; }
-    if (*count < MAX_REPOSITORIES) { repository* r = &result[*count]; r->priority = 0; r->order = *count; strcpy_s(r->url, sizeof(r->url), WPM_DEFAULT_REPOSITORY); REPO_VERBOSE("built-in[%d]: priority=0 url=%s", *count, WPM_DEFAULT_REPOSITORY); (*count)++; }
+    if (*count < MAX_REPOSITORIES) { repository* r = &result[*count]; r->priority = 0; r->order = *count; r->allow_insecure_http = 0; strcpy_s(r->url, sizeof(r->url), WPM_DEFAULT_REPOSITORY); REPO_VERBOSE("built-in[%d]: priority=0 url=%s", *count, WPM_DEFAULT_REPOSITORY); (*count)++; }
     REPO_VERBOSE("loaded %d repositories", *count);
     return 1;
 }
-static int rewrite(const char* wanted, int priority, int remove) {
+static int write_entry(FILE* output, int priority, const char* url, int allow_http) {
+    return fprintf(output, "%d\t%s%s\n", priority, url,
+        allow_http ? "\tallow-insecure-http=true" : "") >= 0;
+}
+static int rewrite(const char* wanted, int priority, int allow_http, int remove) {
     char path[PATH_SIZE], temporary[PATH_SIZE], line[PATH_SIZE + 32]; FILE *input, *output; int found = 0;
     if (!config_path(path, sizeof(path)) || snprintf(temporary, sizeof(temporary), "%s.tmp", path) < 0) return 0;
     input = wpm_fopen(path, "r"); output = wpm_fopen(temporary, "w");
     if (!output) { if (input) fclose(input); printf("Error: could not write repository configuration.\n"); return 0; }
-    if (input) { while (fgets(line, sizeof(line), input)) { char original[PATH_SIZE + 32], *url; int old_priority; strcpy_s(original, sizeof(original), line);
-        if (parse_entry(line, &old_priority, &url) && _stricmp(url, wanted) == 0) { found = 1; if (!remove) fprintf(output, "%d\t%s\n", priority, wanted); } else fputs(original, output); } fclose(input); }
-    if (!remove && !found) fprintf(output, "%d\t%s\n", priority, wanted);
+    if (input) { while (fgets(line, sizeof(line), input)) { char original[PATH_SIZE + 32], *url; int old_priority, old_allow_http; strcpy_s(original, sizeof(original), line);
+        if (parse_entry(line, &old_priority, &url, &old_allow_http) && _stricmp(url, wanted) == 0) { found = 1; if (!remove) write_entry(output, priority, wanted, allow_http); } else fputs(original, output); } fclose(input); }
+    if (!remove && !found) write_entry(output, priority, wanted, allow_http);
     if (fclose(output) || !MoveFileExA(temporary, path, MOVEFILE_REPLACE_EXISTING)) { DeleteFileA(temporary); printf("Error: could not save repository configuration.\n"); return 0; }
     if (remove && !found) { printf("Error: repository is not configured: %s\n", wanted); return 0; }
     printf("Repository %s: %s\n", remove ? "removed" : (found ? "updated" : "added"), wanted); return 1;
 }
-int wpm_repo_add(const char* url, int priority) { char normalized[PATH_SIZE]; return repository_normalize(url, normalized, sizeof(normalized)) && rewrite(normalized, priority, 0); }
-int wpm_repo_remove(const char* url) { char normalized[PATH_SIZE], cached[PATH_SIZE]; if (!repository_normalize(url, normalized, sizeof(normalized)) || !rewrite(normalized, 0, 1)) return 0; if (cache_path(normalized, cached, sizeof(cached))) DeleteFileA(cached); return 1; }
-int wpm_repo_list(void) { repository repositories[MAX_REPOSITORIES]; int count, i; if (!load_repositories(repositories, &count)) return 0; if (!count) { printf("No repositories configured.\n"); return 1; } for (i = 0; i < count; i++) printf("%d\t%s\n", repositories[i].priority, repositories[i].url); return 1; }
+int wpm_repo_add(const char* url, int priority, int allow_insecure_http) {
+    char normalized[PATH_SIZE];
+    if (!repository_normalize(url, normalized, sizeof(normalized))) return 0;
+    if (is_http_repository(normalized) && !allow_insecure_http) {
+        printf("Error: plain HTTP repositories require --allow-insecure-http.\n");
+        return 0;
+    }
+    if (!is_http_repository(normalized) && allow_insecure_http) {
+        printf("Error: --allow-insecure-http is valid only for an http:// repository.\n");
+        return 0;
+    }
+    if (allow_insecure_http) {
+        printf("Warning: insecure HTTP transport exposes repository metadata and downloads; "
+            "package signatures and trust checks remain required.\n");
+    }
+    return rewrite(normalized, priority, allow_insecure_http, 0);
+}
+int wpm_repo_remove(const char* url) { char normalized[PATH_SIZE], cached[PATH_SIZE]; if (!repository_normalize(url, normalized, sizeof(normalized)) || !rewrite(normalized, 0, 0, 1)) return 0; if (cache_path(normalized, cached, sizeof(cached))) DeleteFileA(cached); return 1; }
+int wpm_repo_list(void) { repository repositories[MAX_REPOSITORIES]; int count, i; if (!load_repositories(repositories, &count)) return 0; if (!count) { printf("No repositories configured.\n"); return 1; } for (i = 0; i < count; i++) printf("%d\t%s%s\n", repositories[i].priority, repositories[i].url, repositories[i].allow_insecure_http ? "\t[insecure HTTP allowed]" : ""); return 1; }
 
 static int download_guid_equal(const GUID* left, const GUID* right) {
     return left != NULL && right != NULL && memcmp(left, right, sizeof(*left)) == 0;
@@ -216,6 +312,19 @@ static HRESULT STDMETHODCALLTYPE download_on_progress(download_callback* callbac
     ULONG current, ULONG total, ULONG status, LPCWSTR status_text) {
     unsigned long long current_64;
     unsigned long long total_64;
+    if (status == WPM_BINDSTATUS_REDIRECTING && status_text) {
+        char redirect[PATH_SIZE];
+        int converted = WideCharToMultiByte(CP_UTF8, 0, status_text, -1,
+            redirect, sizeof(redirect), NULL, NULL);
+        if (!converted || !is_web_repository(redirect) ||
+            (callback->insecure_http &&
+                (!is_http_repository(redirect) ||
+                    !same_web_origin(callback->initial_url, redirect))) ||
+            (!callback->insecure_http && is_http_repository(redirect))) {
+            printf("Error: repository redirect changed to a disallowed origin or scheme.\n");
+            return E_ABORT;
+        }
+    }
     if (status == WPM_BINDSTATUS_64BIT_PROGRESS &&
         download_parse_64bit_progress(status_text, &current_64, &total_64)) {
         wpm_progress_set(&callback->progress, current_64, total_64);
@@ -260,24 +369,167 @@ static const download_callback_vtable download_progress_vtable = {
     download_on_object_available
 };
 
-static int download(const char* url, const char* destination, const char* label) {
+static int urlmon_download(const char* url, const char* destination,
+    const char* label) {
     HRESULT result;
+    DWORD move_error = ERROR_SUCCESS;
     char temporary[PATH_SIZE];
     int succeeded;
     download_callback callback;
-    if (_strnicmp(url, "https://", 8) != 0) return 0;
+    if (!is_https_repository(url)) return 0;
     if (snprintf(temporary, sizeof(temporary), "%s.download", destination) < 0) return 0;
     memset(&callback, 0, sizeof(callback));
     callback.vtable = &download_progress_vtable;
     callback.references = 1;
+    callback.insecure_http = 0;
+    strcpy_s(callback.initial_url, sizeof(callback.initial_url), url);
     wpm_progress_start(&callback.progress,
         "Downloading", "Download", "Downloaded", label, 0);
     DeleteFileA(temporary);
     result = URLDownloadToFileA(NULL, url, temporary, 0, &callback);
-    succeeded = SUCCEEDED(result) &&
-        MoveFileExA(temporary, destination, MOVEFILE_REPLACE_EXISTING);
+    succeeded = SUCCEEDED(result);
+    if (succeeded && !MoveFileExA(temporary, destination, MOVEFILE_REPLACE_EXISTING)) {
+        move_error = GetLastError();
+        succeeded = 0;
+    }
     wpm_progress_finish(&callback.progress, succeeded);
-    if (!succeeded) DeleteFileA(temporary);
+    if (!succeeded) {
+        printf("Error: transport read failed (HRESULT 0x%08lx, filesystem error %lu): %s\n",
+            (unsigned long)result, (unsigned long)move_error, url);
+        DeleteFileA(temporary);
+    }
+    return succeeded;
+}
+
+typedef void* wpm_hinternet;
+typedef wpm_hinternet (WINAPI *internet_open_a_fn)(const char*, DWORD,
+    const char*, const char*, DWORD);
+typedef wpm_hinternet (WINAPI *internet_open_url_a_fn)(wpm_hinternet,
+    const char*, const char*, DWORD, DWORD, ULONG_PTR);
+typedef BOOL (WINAPI *internet_read_file_fn)(wpm_hinternet, void*, DWORD, DWORD*);
+typedef BOOL (WINAPI *internet_close_handle_fn)(wpm_hinternet);
+typedef BOOL (WINAPI *http_query_info_a_fn)(wpm_hinternet, DWORD, void*,
+    DWORD*, DWORD*);
+
+#define WPM_INTERNET_FLAG_RELOAD 0x80000000UL
+#define WPM_INTERNET_FLAG_NO_CACHE_WRITE 0x04000000UL
+#define WPM_INTERNET_FLAG_NO_AUTO_REDIRECT 0x00200000UL
+#define WPM_INTERNET_FLAG_NO_UI 0x00000200UL
+#define WPM_HTTP_QUERY_STATUS_CODE 19UL
+#define WPM_HTTP_QUERY_CONTENT_LENGTH 5UL
+#define WPM_HTTP_QUERY_LOCATION 33UL
+#define WPM_HTTP_QUERY_FLAG_NUMBER 0x20000000UL
+
+static int http_redirect_url(const char* initial, const char* location,
+    char* result, size_t size) {
+    size_t origin_length;
+    int written;
+    if (is_http_repository(location)) {
+        return same_web_origin(initial, location) &&
+            strcpy_s(result, size, location) == 0;
+    }
+    if (is_web_repository(location) || location[0] != '/') return 0;
+    origin_length = web_origin_length(initial);
+    written = snprintf(result, size, "%.*s%s", (int)origin_length,
+        initial, location);
+    return written > 0 && (size_t)written < size;
+}
+
+static int http_download(const char* url, const char* destination,
+    const char* label) {
+    HMODULE library = LoadLibraryA("wininet.dll");
+    internet_open_a_fn open_session = NULL;
+    internet_open_url_a_fn open_url = NULL;
+    internet_read_file_fn read_file = NULL;
+    internet_close_handle_fn close_handle = NULL;
+    http_query_info_a_fn query_info = NULL;
+    wpm_hinternet session = NULL;
+    wpm_hinternet request = NULL;
+    char current[PATH_SIZE] = "";
+    char temporary[PATH_SIZE] = "";
+    char location[PATH_SIZE];
+    unsigned char buffer[64 * 1024];
+    FILE* output = NULL;
+    wpm_progress progress;
+    unsigned long long received = 0;
+    DWORD status = 0;
+    DWORD status_size;
+    DWORD content_length = 0;
+    DWORD content_length_size;
+    DWORD location_size;
+    DWORD read;
+    int redirect_count;
+    int succeeded = 0;
+    int progress_started = 0;
+    memset(&progress, 0, sizeof(progress));
+    if (!library || !is_http_repository(url) ||
+        snprintf(temporary, sizeof(temporary), "%s.download", destination) < 0 ||
+        strcpy_s(current, sizeof(current), url) != 0) goto cleanup;
+    open_session = (internet_open_a_fn)GetProcAddress(library, "InternetOpenA");
+    open_url = (internet_open_url_a_fn)GetProcAddress(library, "InternetOpenUrlA");
+    read_file = (internet_read_file_fn)GetProcAddress(library, "InternetReadFile");
+    close_handle = (internet_close_handle_fn)GetProcAddress(library, "InternetCloseHandle");
+    query_info = (http_query_info_a_fn)GetProcAddress(library, "HttpQueryInfoA");
+    if (!open_session || !open_url || !read_file || !close_handle || !query_info) goto cleanup;
+    session = open_session("WPM/2.0", 0, NULL, NULL, 0);
+    if (!session) goto cleanup;
+    for (redirect_count = 0; redirect_count <= 5; redirect_count++) {
+        request = open_url(session, current, NULL, 0,
+            WPM_INTERNET_FLAG_RELOAD | WPM_INTERNET_FLAG_NO_CACHE_WRITE |
+                WPM_INTERNET_FLAG_NO_AUTO_REDIRECT | WPM_INTERNET_FLAG_NO_UI,
+            0);
+        if (!request) goto cleanup;
+        status_size = sizeof(status);
+        if (!query_info(request, WPM_HTTP_QUERY_STATUS_CODE |
+            WPM_HTTP_QUERY_FLAG_NUMBER, &status, &status_size, NULL)) goto cleanup;
+        if (status < 300 || status >= 400) break;
+        location_size = sizeof(location);
+        if (!query_info(request, WPM_HTTP_QUERY_LOCATION, location,
+            &location_size, NULL) ||
+            !http_redirect_url(url, location, current, sizeof(current))) {
+            printf("Error: HTTP redirect changed to a disallowed origin or scheme.\n");
+            goto cleanup;
+        }
+        close_handle(request);
+        request = NULL;
+    }
+    if (!request || status < 200 || status >= 300) goto cleanup;
+    content_length_size = sizeof(content_length);
+    if (!query_info(request, WPM_HTTP_QUERY_CONTENT_LENGTH |
+        WPM_HTTP_QUERY_FLAG_NUMBER, &content_length, &content_length_size, NULL)) {
+        content_length = 0;
+    }
+    DeleteFileA(temporary);
+    output = wpm_fopen(temporary, "wb");
+    if (!output) goto cleanup;
+    wpm_progress_start(&progress, "Downloading", "Download", "Downloaded",
+        label, 0);
+    progress_started = 1;
+    do {
+        if (!read_file(request, buffer, sizeof(buffer), &read) ||
+            (read && fwrite(buffer, 1, read, output) != read)) goto cleanup;
+        received += read;
+        wpm_progress_set(&progress, received, 0);
+    } while (read);
+    if (content_length && received != content_length) {
+        printf("Error: HTTP response was incomplete (expected %lu bytes, received %llu).\n",
+            (unsigned long)content_length, received);
+        goto cleanup;
+    }
+    if (fclose(output)) { output = NULL; goto cleanup; }
+    output = NULL;
+    succeeded = MoveFileExA(temporary, destination, MOVEFILE_REPLACE_EXISTING);
+cleanup:
+    if (output) fclose(output);
+    if (request && close_handle) close_handle(request);
+    if (session && close_handle) close_handle(session);
+    if (library) FreeLibrary(library);
+    if (progress_started) wpm_progress_finish(&progress, succeeded);
+    if (!succeeded) {
+        printf("Error: insecure HTTP read failed (status %lu, Windows error %lu): %s\n",
+            (unsigned long)status, (unsigned long)GetLastError(), current);
+        if (temporary[0]) DeleteFileA(temporary);
+    }
     return succeeded;
 }
 static int copy_local(const char* source, const char* destination) {
@@ -295,21 +547,28 @@ static int copy_local(const char* source, const char* destination) {
     }
     return 1;
 }
-static int retrieve(const char* source, const char* destination, const char* label) {
-    if (is_https_repository(source)) return download(source, destination, label);
+static int retrieve(const char* source, const char* destination, const char* label,
+    int allow_insecure_http) {
+    if (is_https_repository(source)) return urlmon_download(source, destination, label);
+    if (is_http_repository(source)) {
+        if (!allow_insecure_http) return 0;
+        printf("Warning: using insecure HTTP transport for %s; content remains subject "
+            "to package signature and trust validation.\n", source);
+        return http_download(source, destination, label);
+    }
     REPO_VERBOSE("copying local source: %s", source);
     return copy_local(source, destination);
 }
 static int index_is_fresh(const char* path) { WIN32_FILE_ATTRIBUTE_DATA data; FILETIME now; ULARGE_INTEGER a, b; GetSystemTimeAsFileTime(&now); if (!GetFileAttributesExA(path, GetFileExInfoStandard, &data)) return 0; a.LowPart = now.dwLowDateTime; a.HighPart = now.dwHighDateTime; b.LowPart = data.ftLastWriteTime.dwLowDateTime; b.HighPart = data.ftLastWriteTime.dwHighDateTime; return a.QuadPart >= b.QuadPart && (a.QuadPart - b.QuadPart) <= INDEX_FRESH_MS * 10000ULL; }
-static int index_source(const char* root, char* result, size_t size) { return is_https_repository(root) ? snprintf(result, size, "%s/index.json", root) > 0 : join_path(result, size, root, "index.json"); }
+static int index_source(const char* root, char* result, size_t size) { return is_web_repository(root) ? snprintf(result, size, "%s/index.json", root) > 0 : join_path(result, size, root, "index.json"); }
 static int refresh(repository* repo, int offline, int required) {
     char cached[PATH_SIZE], url[PATH_SIZE]; if (!cache_path(repo->url, cached, sizeof(cached))) return 0;
     REPO_VERBOSE("checking: %s", repo->url); REPO_VERBOSE("cache: %s", cached);
-    if (offline && is_https_repository(repo->url)) { if (GetFileAttributesA(cached) == INVALID_FILE_ATTRIBUTES) printf("Error: no cached index for %s while offline.\n", repo->url); else REPO_VERBOSE("using cached index (offline)"); return GetFileAttributesA(cached) != INVALID_FILE_ATTRIBUTES; }
-    if (!required && is_https_repository(repo->url) && index_is_fresh(cached)) { REPO_VERBOSE("using fresh cached index"); return 1; }
-    if (ensure_cache_directory("repositories") && index_source(repo->url, url, sizeof(url)) && retrieve(url, cached, "repository index")) { printf("Updated repository index: %s\n", repo->url); return 1; }
-    if (!is_https_repository(repo->url)) {
-        printf("Error: could not read local repository index: %s\n", repo->url);
+    if (offline && is_web_repository(repo->url)) { if (GetFileAttributesA(cached) == INVALID_FILE_ATTRIBUTES) printf("Error: no cached index for %s while offline.\n", repo->url); else REPO_VERBOSE("using cached index (offline)"); return GetFileAttributesA(cached) != INVALID_FILE_ATTRIBUTES; }
+    if (!required && is_web_repository(repo->url) && index_is_fresh(cached)) { REPO_VERBOSE("using fresh cached index"); return 1; }
+    if (ensure_cache_directory("repositories") && index_source(repo->url, url, sizeof(url)) && retrieve(url, cached, "repository index", repo->allow_insecure_http)) { printf("Updated repository index: %s\n", repo->url); return 1; }
+    if (!is_web_repository(repo->url)) {
+        printf("Error: could not read filesystem repository index: %s\n", repo->url);
         return 0;
     }
     if (GetFileAttributesA(cached) != INVALID_FILE_ATTRIBUTES) { printf("Warning: could not refresh %s; using cached index.\n", repo->url); return 1; }
@@ -351,8 +610,14 @@ static int safe_relative_item(const char* item) {
 }
 static int package_source(const char* root, const char* item, char* result, size_t size) {
     int written;
-    if (is_https_repository(root)) {
-        if (is_https_repository(item)) return strcpy_s(result, size, item) == 0;
+    if (is_web_repository(root)) {
+        if (is_https_repository(item)) {
+            return is_https_repository(root) && strcpy_s(result, size, item) == 0;
+        }
+        if (is_http_repository(item)) {
+            return is_http_repository(root) && same_web_origin(root, item) &&
+                strcpy_s(result, size, item) == 0;
+        }
         if (!safe_relative_item(item)) return 0;
         written = snprintf(result, size, "%s/%s", root, item);
         return written > 0 && (size_t)written < size;
@@ -417,11 +682,12 @@ static int obtain(repository* repositories,package_entry* selected,int offline,
     if (GetFileAttributesA(path) == INVALID_FILE_ATTRIBUTES &&
         GetFileAttributesA(legacy) != INVALID_FILE_ATTRIBUTES) strcpy_s(path,size,legacy);
     if (GetFileAttributesA(path) == INVALID_FILE_ATTRIBUTES) {
-        if (offline && is_https_repository(repo->url)) {
+        if (offline && is_web_repository(repo->url)) {
             printf("Error: package is not cached while offline: %s\n",selected->name);
             return 0;
         }
-        if (!ensure_cache_directory("packages") || !retrieve(source,path,label)) {
+        if (!ensure_cache_directory("packages") ||
+            !retrieve(source,path,label,repo->allow_insecure_http)) {
             printf("Error: could not retrieve package: %s\n",source);
             return 0;
         }

@@ -4,8 +4,8 @@
 
 /** Enable or disable detailed repository diagnostics. */
 void wpm_repo_set_verbose(int enabled);
-/** Add or reprioritize an HTTPS or local-filesystem repository. */
-int wpm_repo_add(const char* url, int priority);
+/** Add or reprioritize a supported repository locator. */
+int wpm_repo_add(const char* url, int priority, int allow_insecure_http);
 /** List configured repositories in resolution order. */
 int wpm_repo_list(void);
 /** Remove a configured repository. */

@@ -294,10 +294,19 @@ int main(int argc, char *argv[])
                 if (!wpm_repo_list()) return 1;
             } else if (strcmp(action, "add") == 0) {
                 int priority = 0;
-                if (command_index + 2 >= argc) { printf("Usage: wpm repo add <https-url|directory> [--priority <integer>]\n"); return 1; }
-                if (command_index + 3 < argc && (command_index + 5 != argc || strcmp(argv[command_index + 3], "--priority") != 0)) { printf("Usage: wpm repo add <https-url|directory> [--priority <integer>]\n"); return 1; }
-                if (command_index + 3 < argc) priority = atoi(argv[command_index + 4]);
-                if (!wpm_repo_add(argv[command_index + 2], priority)) return 1;
+                int allow_insecure_http = 0;
+                int valid = command_index + 2 < argc;
+                for (int i = command_index + 3; valid && i < argc; i++) {
+                    if (strcmp(argv[i], "--priority") == 0 && i + 1 < argc) {
+                        priority = atoi(argv[++i]);
+                    } else if (strcmp(argv[i], "--allow-insecure-http") == 0) {
+                        allow_insecure_http = 1;
+                    } else {
+                        valid = 0;
+                    }
+                }
+                if (!valid) { printf("Usage: wpm repo add <https-url|http-url|directory|UNC-path> [--priority <integer>] [--allow-insecure-http]\n"); return 1; }
+                if (!wpm_repo_add(argv[command_index + 2], priority, allow_insecure_http)) return 1;
             } else if (strcmp(action, "remove") == 0 && command_index + 3 == argc) {
                 if (!wpm_repo_remove(argv[command_index + 2])) return 1;
             } else if (strcmp(action, "update") == 0 && (command_index + 2 == argc || (command_index + 3 == argc && strcmp(argv[command_index + 2], "--offline") == 0))) {
@@ -474,7 +483,7 @@ void print_usage(Command c) {
     printf("      Remove one or more packages\n\n");
 
     printf("  repo <add|list|remove|update> ...\n");
-    printf("      Configure HTTPS or local-filesystem package repositories\n\n");
+    printf("      Configure HTTPS, opted-in HTTP, local, or UNC package repositories\n\n");
 
     printf("  keygen <private-key-file> <public-key-file> [--default]\n");
     printf("      Generate an Ed25519 signing key pair\n\n");
