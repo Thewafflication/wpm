@@ -103,7 +103,8 @@ int main(int argc, char *argv[])
 
 	if (argc == 1) {
 		print_version();
-        print_usage(0);
+        printf("Usage: wpm <command> [options]\n");
+        printf("Run 'wpm --help' for commands and options.\n");
         return 0;
 	}
     if ((argc == 8 || argc == 9 || argc == 10) && strcmp(argv[1], "--complete-self-upgrade") == 0) {
@@ -155,6 +156,11 @@ int main(int argc, char *argv[])
         }
         else if (strcmp(argv[i], "--version") == 0 && command_index == -1) {
             show_version = 1;
+        }
+        else if ((strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) &&
+                 command_index == -1) {
+            print_usage(0);
+            return 0;
         }
         else if (strcmp(argv[i], "--diagnose") == 0) {
             show_diagnostics = 1;
@@ -504,6 +510,9 @@ void print_usage(Command c) {
     printf("      Upgrade one or more packages\n\n");
 
     printf("Options:\n");
+    printf("  -h, --help\n");
+    printf("      Display this help information\n\n");
+
     printf("  --version\n");
     printf("      Display WPM and dependency version information\n\n");
 

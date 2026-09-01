@@ -24,8 +24,22 @@ $results = @(
             if ($ExitCode -ne 0) {
                 throw "Expected exit code 0, got $ExitCode."
             }
-            if ($Output -notmatch 'Waughtal Package Manager .* Version ' -or $Output -notmatch 'Usage:') {
-                throw 'Expected version and usage information in output.'
+            if ($Output -notmatch 'Waughtal Package Manager .* Version ' -or
+                $Output -notmatch "Run 'wpm --help'" -or
+                $Output -match 'Commands:') {
+                throw 'Expected compact version and help-hint output.'
+            }
+        }
+
+    Invoke-WpmTestStep `
+        -WpmExe $WpmExe `
+        -Name 'Invoke wpm --help' `
+        -Arguments @('--help') `
+        -Assert {
+            param($ExitCode, $Output)
+            if ($ExitCode -ne 0 -or $Output -notmatch 'Commands:' -or
+                $Output -notmatch '--help' -or $Output -notmatch 'Examples:') {
+                throw 'Expected complete help information.'
             }
         }
 
