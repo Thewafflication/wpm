@@ -122,13 +122,13 @@ try {
     }
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Reject unsupported file URL' -Arguments @('repo', 'add', "file:///$($repositoryDir.Replace('\', '/'))") -Assert {
         param($ExitCode, $Output)
-        if ($ExitCode -eq 0 -or $Output -notmatch 'https:// or a local directory path') {
+        if ($ExitCode -eq 0 -or $Output -notmatch 'must use https://, opted-in http://, or a filesystem path') {
             throw "Unsupported file URL was not rejected clearly. $Output"
         }
     }
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Reject device path' -Arguments @('repo', 'add', '\\.\C:\') -Assert {
         param($ExitCode, $Output)
-        if ($ExitCode -eq 0 -or $Output -notmatch 'drive-qualified') {
+        if ($ExitCode -eq 0 -or $Output -notmatch 'device namespace') {
             throw "Device path was not rejected. $Output"
         }
     }
