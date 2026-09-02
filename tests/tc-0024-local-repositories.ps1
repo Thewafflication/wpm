@@ -132,6 +132,28 @@ try {
             throw "Device path was not rejected. $Output"
         }
     }
+    $invalidDrivePath = 'C:\C:'
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Reject a colon after the drive prefix' -Arguments @('repo', 'add', $invalidDrivePath) -Assert {
+        param($ExitCode, $Output)
+        if ($ExitCode -eq 0 -or $Output -notmatch 'cannot contain a colon after the drive prefix') {
+            throw "Malformed drive path was accepted. $Output"
+        }
+    }
+    $repositoryConfig = Join-Path $dataDir 'config\repositories.txt'
+    Add-Content -LiteralPath $repositoryConfig -Value "4`t$invalidDrivePath"
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Ignore a malformed persisted repository' -Arguments @('repo', 'update', '--offline') -Assert {
+        param($ExitCode, $Output)
+        if ($ExitCode -ne 0 -or $Output -notmatch 'ignoring invalid configured filesystem repository locator' -or
+            $Output -match 'could not read filesystem repository index: C:\\C:') {
+            throw "Malformed persisted repository was not isolated. $Output"
+        }
+    }
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Remove a malformed persisted repository' -Arguments @('repo', 'remove', $invalidDrivePath) -Assert {
+        param($ExitCode, $Output)
+        if ($ExitCode -ne 0 -or $Output -notmatch 'Repository removed') {
+            throw "Malformed persisted repository could not be removed safely. $Output"
+        }
+    }
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Remove local repository by absolute path' -Arguments @('repo', 'remove', $repositoryDir) -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -ne 0 -or $Output -notmatch 'Repository removed') {

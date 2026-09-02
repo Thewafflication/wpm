@@ -147,17 +147,24 @@ static int unc_locator_valid(const char* source) {
     if (end == share + 1) return 0;
     return 1;
 }
-static int repository_normalize(const char* source, char* result, size_t size) {
+static int repository_normalize(const char* source, char* result, size_t size,
+    int report_error) {
     size_t length;
     DWORD required;
     if (!source || !*source || strpbrk(source, "\t\r\n")) {
-        printf("Error: repository locator is empty or contains a control character.\n");
+        if (report_error) {
+            printf("Error: repository locator is empty or contains a "
+                "control character.\n");
+        }
         return 0;
     }
     if (is_web_repository(source)) {
         if (strpbrk(source, " \t\r\n") || strcpy_s(result, size, source) != 0) return 0;
         if (!web_locator_valid(result, is_https_repository(result) ? 8 : 7)) {
-            printf("Error: repository URL requires an authority and cannot contain credentials.\n");
+            if (report_error) {
+                printf("Error: repository URL requires an authority and "
+                    "cannot contain credentials.\n");
+            }
             return 0;
         }
         length = strlen(result);
@@ -166,19 +173,27 @@ static int repository_normalize(const char* source, char* result, size_t size) {
         return 1;
     }
     if (strstr(source, "://")) {
-        printf("Error: repository locators must use https://, opted-in http://, "
-            "or a filesystem path.\n");
+        if (report_error) {
+            printf("Error: repository locators must use https://, opted-in "
+                "http://, or a filesystem path.\n");
+        }
         return 0;
     }
     required = GetFullPathNameA(source, (DWORD)size, result, NULL);
     if (!required || required >= size) {
-        printf("Error: repository path is invalid or too long: %s\n", source);
+        if (report_error) {
+            printf("Error: repository path is invalid or too long: %s\n",
+                source);
+        }
         return 0;
     }
     for (length = 0; result[length]; length++) if (result[length] == '/') result[length] = '\\';
     if (result[0] == '\\' && result[1] == '\\') {
         if (!unc_locator_valid(result)) {
-            printf("Error: UNC repositories require a server and share and cannot use a device namespace.\n");
+            if (report_error) {
+                printf("Error: UNC repositories require a server and share "
+                    "and cannot use a device namespace.\n");
+            }
             return 0;
         }
         while (length > 2 && result[length - 1] == '\\') result[--length] = '\0';
@@ -186,7 +201,17 @@ static int repository_normalize(const char* source, char* result, size_t size) {
     }
     if (length < 3 || !isalpha((unsigned char)result[0]) ||
         result[1] != ':' || result[2] != '\\') {
-        printf("Error: filesystem repositories require a drive-qualified or UNC path.\n");
+        if (report_error) {
+            printf("Error: filesystem repositories require a drive-qualified "
+                "or UNC path.\n");
+        }
+        return 0;
+    }
+    if (strchr(result + 2, ':')) {
+        if (report_error) {
+            printf("Error: filesystem repository paths cannot contain a "
+                "colon after the drive prefix.\n");
+        }
         return 0;
     }
     while (length > 3 && result[length - 1] == '\\') result[--length] = '\0';
@@ -206,11 +231,29 @@ static int parse_entry(char* line, int* priority, char** url, int* allow_http) {
     return **url != '\0' && (!is_http_repository(*url) || *allow_http);
 }
 static int load_repositories(repository* result, int* count) {
-    char path[PATH_SIZE], line[PATH_SIZE + 32]; FILE* input; *count = 0;
+    char path[PATH_SIZE], line[PATH_SIZE + 32], normalized[PATH_SIZE];
+    FILE* input;
+    *count = 0;
     if (!config_path(path, sizeof(path))) return 0; REPO_VERBOSE("configuration: %s", path); input = wpm_fopen(path, "r");
     if (input) {
         while (*count < MAX_REPOSITORIES && fgets(line, sizeof(line), input)) { char* url; int priority, allow_http;
-            if (parse_entry(line, &priority, &url, &allow_http)) { repository* r = &result[*count]; r->priority = priority; r->order = *count; r->allow_insecure_http = allow_http; strcpy_s(r->url, sizeof(r->url), url); REPO_VERBOSE("configured[%d]: priority=%d transport=%s url=%s", *count, priority, allow_http ? "insecure-http" : "standard", url); (*count)++; }
+            if (parse_entry(line, &priority, &url, &allow_http)) {
+                if (!repository_normalize(url, normalized, sizeof(normalized), 0) ||
+                    (!is_web_repository(url) && _stricmp(url, normalized) != 0)) {
+                    if (!is_web_repository(url)) {
+                        printf("Warning: ignoring invalid configured filesystem "
+                            "repository locator: %s\n"
+                            "  Remove it with: wpm repo remove \"%s\"\n",
+                            url, url);
+                    } else {
+                        printf("Warning: ignoring an invalid configured web "
+                            "repository locator. Remove or re-add it with "
+                            "'wpm repo'.\n");
+                    }
+                    continue;
+                }
+                { repository* r = &result[*count]; r->priority = priority; r->order = *count; r->allow_insecure_http = allow_http; strcpy_s(r->url, sizeof(r->url), normalized); REPO_VERBOSE("configured[%d]: priority=%d transport=%s url=%s", *count, priority, allow_http ? "insecure-http" : "standard", normalized); (*count)++; }
+            }
         }
         fclose(input);
     }
@@ -237,7 +280,7 @@ static int rewrite(const char* wanted, int priority, int allow_http, int remove)
 }
 int wpm_repo_add(const char* url, int priority, int allow_insecure_http) {
     char normalized[PATH_SIZE];
-    if (!repository_normalize(url, normalized, sizeof(normalized))) return 0;
+    if (!repository_normalize(url, normalized, sizeof(normalized), 1)) return 0;
     if (is_http_repository(normalized) && !allow_insecure_http) {
         printf("Error: plain HTTP repositories require --allow-insecure-http.\n");
         return 0;
@@ -252,7 +295,22 @@ int wpm_repo_add(const char* url, int priority, int allow_insecure_http) {
     }
     return rewrite(normalized, priority, allow_insecure_http, 0);
 }
-int wpm_repo_remove(const char* url) { char normalized[PATH_SIZE], cached[PATH_SIZE]; if (!repository_normalize(url, normalized, sizeof(normalized)) || !rewrite(normalized, 0, 0, 1)) return 0; if (cache_path(normalized, cached, sizeof(cached))) DeleteFileA(cached); return 1; }
+int wpm_repo_remove(const char* url) {
+    char normalized[PATH_SIZE], cached[PATH_SIZE];
+    const char* wanted;
+    if (repository_normalize(url, normalized, sizeof(normalized), 0)) {
+        wanted = normalized;
+    } else {
+        if (!url || !*url || strstr(url, "://") || strpbrk(url, "\t\r\n")) {
+            repository_normalize(url, normalized, sizeof(normalized), 1);
+            return 0;
+        }
+        wanted = url;
+    }
+    if (!rewrite(wanted, 0, 0, 1)) return 0;
+    if (cache_path(wanted, cached, sizeof(cached))) DeleteFileA(cached);
+    return 1;
+}
 int wpm_repo_list(void) { repository repositories[MAX_REPOSITORIES]; int count, i; if (!load_repositories(repositories, &count)) return 0; if (!count) { printf("No repositories configured.\n"); return 1; } for (i = 0; i < count; i++) printf("%d\t%s%s\n", repositories[i].priority, repositories[i].url, repositories[i].allow_insecure_http ? "\t[insecure HTTP allowed]" : ""); return 1; }
 
 static int download_guid_equal(const GUID* left, const GUID* right) {
