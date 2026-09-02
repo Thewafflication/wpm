@@ -1,0 +1,22 @@
+\documentclass[letterpaper]{article}
+\usepackage[letterpaper,margin=1in]{geometry}
+\input{wsp/testing/test-case-library.tex}
+\begin{document}
+\def\TCID{TC-0037}
+\def\TCTitle{Prerelease-configuration mutation results}
+\def\TCPurpose{Verify the configuration partition of REQ-0014.002 ends each successful prerelease mutation with one scope-qualified result.}
+\def\TCPriority{\TCPriorityHigh}
+\def\TCRequirementRef{REQ-0014.002}
+\def\TCDesignRef{ADR-0010 command events and machine-readable output}
+\def\TCFeatureRef{Prerelease configuration result records and \texttt{tests/tc-0037-config-mutation-results.ps1}}
+\def\TCTestTechnique{State-transition and output-partition testing.}
+\def\TCPreconditions{A native WPM build and disposable isolated data directory.}
+\def\TCEnvironment{Native Windows x86, x64, or ARM64 with PowerShell output capture.}
+\def\TCAssumptions{The unique package name is a valid configuration identity.}
+\def\TCInputData{Global true, package false, and package-override removal mutations.}
+\def\TCInitialState{No prerelease configuration exists in the isolated data root.}
+\def\TCProcedure{Set the global value, set one package override, and remove that override; require exactly one expected final result after each command.}
+\def\TCExpectedResult{Global and package settings identify scope and effective Boolean value; removal identifies the package override; each record is the final nonempty line.}
+\def\TCPostConditions{Remove disposable state, restore the data-root environment, and retain configured evidence.}
+\TCTemplate
+\end{document}

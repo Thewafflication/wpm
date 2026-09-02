@@ -286,6 +286,7 @@ if(BUILD_TESTING)
   wpm_add_test_case(TC-0034 tc-0034 tc-0034-result-summary-consistency.ps1 tc-0034-result-summary-consistency.tex)
   wpm_add_test_case(TC-0035 tc-0035 tc-0035-verbose-operation-details.ps1 tc-0035-verbose-operation-details.tex)
   wpm_add_test_case(TC-0036 tc-0036 tc-0036-key-mutation-results.ps1 tc-0036-key-mutation-results.tex)
+  wpm_add_test_case(TC-0037 tc-0037 tc-0037-config-mutation-results.ps1 tc-0037-config-mutation-results.tex)
 
   if(WIN32)
     set_tests_properties(${WPM_TEST_NAMES} PROPERTIES
