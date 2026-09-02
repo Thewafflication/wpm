@@ -100,14 +100,21 @@ try {
             throw "HTTP refresh did not warn and identify its source. $Output"
         }
         $outputLines = @($Output -split '\r?\n')
-        $knownStarts = @($outputLines | Where-Object {
-            $_ -match '^Download progress: repository index: 0% \(0/[1-9][0-9]* bytes\)$'
+        $updatedLine = "Updated repository index: $httpRoot"
+        $updatedIndexes = @(for ($i = 0; $i -lt $outputLines.Count; $i++) {
+            if ($outputLines[$i] -eq $updatedLine) { $i }
         })
-        $completions = @($outputLines | Where-Object {
-            $_ -match '^Downloaded repository index: [1-9][0-9]* bytes$'
-        })
-        if ($knownStarts.Count -ne 1 -or $completions.Count -ne 1) {
+        if ($updatedIndexes.Count -ne 1 -or $updatedIndexes[0] -lt 2) {
             throw "Known-length HTTP progress was not concise and stable. $Output"
+        }
+        $updatedIndex = $updatedIndexes[0]
+        $startMatch = [regex]::Match($outputLines[$updatedIndex - 2],
+            '^Download progress: repository index: 0% \(0/([1-9][0-9]*) bytes\)$')
+        $completionMatch = [regex]::Match($outputLines[$updatedIndex - 1],
+            '^Downloaded repository index: ([1-9][0-9]*) bytes$')
+        if (-not $startMatch.Success -or -not $completionMatch.Success -or
+            $startMatch.Groups[1].Value -ne $completionMatch.Groups[1].Value) {
+            throw "Loopback HTTP progress did not report one stable start/completion sequence. $Output"
         }
     }
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Retain signature policy over HTTP' -Arguments @('install', $packageName) -Assert {

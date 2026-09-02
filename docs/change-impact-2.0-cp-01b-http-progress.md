@@ -27,9 +27,11 @@ remains authoritative; progress presentation does not relax validation.
 The principal risks are displaying a total different from the value enforced
 after transfer or making redirected output noisy. TC-0025's isolated Python
 loopback server supplies a deterministic nonzero `Content-Length`. The refresh
-step now requires exactly two matching repository-index progress lines: one
-stable zero-percent start with a nonzero total and one byte-qualified
-completion. Its existing HTTP policy, warning, origin, credential, trust,
-package-install, and UNC assertions remain unchanged. REQ-0014.004 remains
-Planned overall until every lifecycle phase and bounded long-operation output
-has objective evidence.
+step requires the loopback repository's update record to be immediately
+preceded by one stable zero-percent start and one byte-qualified completion
+with the same total. Scoping the assertion to that repository is important
+because developer and CI configurations can also refresh built-in HTTPS
+repositories in the same command. Existing HTTP policy, warning, origin,
+credential, trust, package-install, and UNC assertions remain unchanged.
+REQ-0014.004 remains Planned overall until every lifecycle phase and bounded
+long-operation output has objective evidence.
