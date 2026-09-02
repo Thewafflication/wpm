@@ -2592,6 +2592,8 @@ int wpm_archive_install(const char* archive_path, int allow_unsigned) {
     if (!wpm_validate_package_signature(staging_path, allow_unsigned, signing_key_id, sizeof(signing_key_id))) goto cleanup;
     if (!verify_package_index(staging_path, display_name)) goto cleanup;
     if (!read_package_metadata(staging_path, &metadata)) goto cleanup;
+    verbose_log("Resolved package identity: %s %s %s", metadata.name,
+        metadata.arch, metadata.version);
     if (!installed_architecture_is_compatible(&metadata)) goto cleanup;
     print_package_progress(display_name, "Installing package");
     if (!run_package_script(staging_path, ".wpm\\install.cmd", "install", metadata.name, NULL)) goto cleanup;
@@ -2872,14 +2874,18 @@ int wpm_archive_remove(const char* package_name) {
         printf("Error: stored package archive not found: %s\n", stored_archive_path);
         return 0;
     }
+    verbose_log("Removing archive: %s", stored_archive_path);
     if (!create_directories(temp_root) || !remove_directory_tree_with_retry(staging_path)) {
         printf("Error: could not prepare removal staging directory.\n");
         return 0;
     }
+    verbose_log("Using removal staging directory: %s", staging_path);
 
     if (!wpm_archive_extract_with_label(stored_archive_path, staging_path, archive_name)) goto cleanup;
     if (!verify_package_index(staging_path, archive_name)) goto cleanup;
     if (!read_package_metadata(staging_path, &metadata)) goto cleanup;
+    verbose_log("Resolved package identity: %s %s %s", metadata.name,
+        metadata.arch, metadata.version);
     wpm_archive_set_repository_url(NULL);
     if (load_archive_repository(stored_archive_path, repository_url, sizeof(repository_url))) {
         wpm_archive_set_repository_url(repository_url);
@@ -2888,6 +2894,7 @@ int wpm_archive_remove(const char* package_name) {
         archive_name, NULL);
     wpm_archive_set_repository_url(NULL);
     if (!script_success) goto cleanup;
+    verbose_log("Deleting retained archive: %s", stored_archive_path);
     if (!DeleteFileA(stored_archive_path)) {
         printf("Error: could not remove stored package archive: %s\n", stored_archive_path);
         goto cleanup;

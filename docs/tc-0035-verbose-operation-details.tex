@@ -1,0 +1,22 @@
+\documentclass[letterpaper]{article}
+\usepackage[letterpaper,margin=1in]{geometry}
+\input{wsp/testing/test-case-library.tex}
+\begin{document}
+\def\TCID{TC-0035}
+\def\TCTitle{Verbose install and removal operation details}
+\def\TCPurpose{Verify the install and remove partitions of REQ-0014.005 provide useful lifecycle detail without disclosing an unrelated environment secret.}
+\def\TCPriority{\TCPriorityHigh}
+\def\TCRequirementRef{REQ-0014.005}
+\def\TCDesignRef{ADR-0010 command events and machine-readable output}
+\def\TCFeatureRef{Verbose archive lifecycle diagnostics and \texttt{tests/tc-0035-verbose-operation-details.ps1}}
+\def\TCTestTechnique{Output-partition, lifecycle-transition, and secret non-disclosure testing.}
+\def\TCPreconditions{A native WPM build and disposable isolated data directory.}
+\def\TCEnvironment{Native Windows x86, x64, or ARM64 with PowerShell output capture.}
+\def\TCAssumptions{The arbitrary environment secret is unrelated to package execution and must never be inspected or printed by WPM.}
+\def\TCInputData{One unsigned any-architecture package with successful install and remove scripts plus a unique environment-secret sentinel.}
+\def\TCInitialState{Point WPM at nonexistent isolated data and build the package outside that data root.}
+\def\TCProcedure{Install the archive under verbose output and inspect its identity, staging, validation, script, retention, and final-result details; then remove it under verbose output and inspect the symmetric identity, staging, validation, script, retained-artifact deletion, and final-result details. Search both outputs for the secret sentinel.}
+\def\TCExpectedResult{Verbose install and remove output supplies the operation-specific details without duplicating or replacing the stable final result, package scripts remain framed with their exit status, and neither operation emits the unrelated environment secret.}
+\def\TCPostConditions{Remove disposable state, restore both environment variables, and retain configured evidence.}
+\TCTemplate
+\end{document}

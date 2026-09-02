@@ -284,6 +284,7 @@ if(BUILD_TESTING)
   wpm_add_test_case(TC-0032 tc-0032 tc-0032-failure-log-guidance.ps1 tc-0032-failure-log-guidance.tex)
   wpm_add_test_case(TC-0033 tc-0033 tc-0033-script-output-framing.ps1 tc-0033-script-output-framing.tex)
   wpm_add_test_case(TC-0034 tc-0034 tc-0034-result-summary-consistency.ps1 tc-0034-result-summary-consistency.tex)
+  wpm_add_test_case(TC-0035 tc-0035 tc-0035-verbose-operation-details.ps1 tc-0035-verbose-operation-details.tex)
 
   if(WIN32)
     set_tests_properties(${WPM_TEST_NAMES} PROPERTIES
