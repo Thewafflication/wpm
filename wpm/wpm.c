@@ -620,9 +620,11 @@ int main(int argc, char *argv[])
             if (strcmp(action, "default") == 0 && command_index + 2 < argc && strcmp(argv[command_index + 2], "--clear") == 0) {
                 if (!wpm_clear_default_key()) return 1;
                 printf("Default signing key cleared.\n");
+                printf("Result: default signing key cleared\n");
             }
             else if (strcmp(action, "default") == 0 && command_index + 2 < argc) {
                 if (!wpm_set_default_key(argv[command_index + 2])) return 1;
+                printf("Result: default signing key configured\n");
             }
             else { printf("Usage: wpm key default <private-key-file>|--clear\n"); return 1; }
             break;

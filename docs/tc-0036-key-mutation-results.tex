@@ -1,0 +1,22 @@
+\documentclass[letterpaper]{article}
+\usepackage[letterpaper,margin=1in]{geometry}
+\input{wsp/testing/test-case-library.tex}
+\begin{document}
+\def\TCID{TC-0036}
+\def\TCTitle{Key-management mutation results}
+\def\TCPurpose{Verify the key-management partition of REQ-0014.002 ends each successful mutation with one unambiguous result based only on public identity or operation state.}
+\def\TCPriority{\TCPriorityHigh}
+\def\TCRequirementRef{REQ-0014.002}
+\def\TCDesignRef{ADR-0010 command events and machine-readable output; WPM signing trust model}
+\def\TCFeatureRef{Key generation, default-key, trust, and revocation results plus \texttt{tests/tc-0036-key-mutation-results.ps1}}
+\def\TCTestTechnique{State-transition, idempotence, output-partition, and secret non-disclosure testing.}
+\def\TCPreconditions{A native WPM build and disposable isolated data directory.}
+\def\TCEnvironment{Native Windows x86, x64, or ARM64 with PowerShell output capture and filesystem ACL support.}
+\def\TCAssumptions{A WPM data-root override confines trust mutations to disposable test state.}
+\def\TCInputData{One generated Ed25519 key pair and its derived 64-character public key identifier.}
+\def\TCInitialState{No default key or trusted key exists in the isolated data root.}
+\def\TCProcedure{Generate a key pair, configure it as default, add it to trust twice, revoke it, and clear the default; require exactly one expected final result after each command.}
+\def\TCExpectedResult{Generation, default configuration/clear, trust add/idempotent add, and revocation each end with a stable result; identity-bearing results use only the public key ID and no private material is emitted.}
+\def\TCPostConditions{Remove disposable keys and state, restore the data-root environment, and retain configured evidence.}
+\TCTemplate
+\end{document}

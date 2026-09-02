@@ -21,7 +21,7 @@ every row that is not `Verified` or lacks objective evidence.
 | Requirement | Test case | Verification method | State | Evidence |
 | --- | --- | --- | --- | --- |
 | REQ-0014.001 | TC-0014 | Automated test and inspection | Planned | TC-0027 command inventory and TC-0030 executable nested-action examples produced; recovery workflow demonstration pending |
-| REQ-0014.002 | TC-0014 | Automated test and inspection | Planned | TC-0034 package install/remove and repository add/update/remove final-result evidence produced; remaining mutating-command consistency pending |
+| REQ-0014.002 | TC-0014 | Automated test and inspection | Planned | TC-0034 package/repository results and TC-0036 key generation/default/trust/revoke results produced; remaining mutating-command consistency pending |
 | REQ-0014.003 | TC-0014 | Automated test and demonstration | Planned | TC-0026 redirected auto/always/never, option-position, and precedence evidence produced; genuine-console and every-class evidence pending |
 | REQ-0014.004 | TC-0014 | Automated test | Planned | TC-0025 known-length HTTP start/completion progress evidence produced; remaining lifecycle phases and bounded long-operation evidence pending |
 | REQ-0014.005 | TC-0014 | Automated test and secret-redaction inspection | Planned | TC-0025 verbose credential non-disclosure and TC-0035 install/remove lifecycle, identity, staging, script, retained-artifact, final-result, and environment-secret evidence produced; remaining mutating commands and broader secret classes pending |
