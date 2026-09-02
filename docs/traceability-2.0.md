@@ -23,7 +23,7 @@ every row that is not `Verified` or lacks objective evidence.
 | REQ-0014.001 | TC-0014 | Automated test and inspection | Planned | TC-0027 command inventory and TC-0030 executable nested-action examples produced; recovery workflow demonstration pending |
 | REQ-0014.002 | TC-0014 | Automated test and inspection | Planned | TC-0034 install/remove identity-qualified final-result evidence produced; remaining mutating-command consistency pending |
 | REQ-0014.003 | TC-0014 | Automated test and demonstration | Planned | TC-0026 redirected auto/always/never, option-position, and precedence evidence produced; genuine-console and every-class evidence pending |
-| REQ-0014.004 | TC-0014 | Automated test | Planned | Not yet produced |
+| REQ-0014.004 | TC-0014 | Automated test | Planned | TC-0025 known-length HTTP start/completion progress evidence produced; remaining lifecycle phases and bounded long-operation evidence pending |
 | REQ-0014.005 | TC-0014 | Automated test and secret-redaction inspection | Planned | Not yet produced |
 | REQ-0014.006 | TC-0014 | Automated test and inspection | Planned | TC-0031 custom-location/level and TC-0032 failure log-path guidance evidence produced; secret inspection pending |
 | REQ-0014.007 | TC-0014 | Automated negative test | Planned | TC-0026 through TC-0030 cover command, help, option, operand, and nested-action/basic-value partitions; broader semantic values pending |

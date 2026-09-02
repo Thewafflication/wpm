@@ -99,6 +99,16 @@ try {
             $Output -notmatch [regex]::Escape($httpRoot)) {
             throw "HTTP refresh did not warn and identify its source. $Output"
         }
+        $outputLines = @($Output -split '\r?\n')
+        $knownStarts = @($outputLines | Where-Object {
+            $_ -match '^Download progress: repository index: 0% \(0/[1-9][0-9]* bytes\)$'
+        })
+        $completions = @($outputLines | Where-Object {
+            $_ -match '^Downloaded repository index: [1-9][0-9]* bytes$'
+        })
+        if ($knownStarts.Count -ne 1 -or $completions.Count -ne 1) {
+            throw "Known-length HTTP progress was not concise and stable. $Output"
+        }
     }
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Retain signature policy over HTTP' -Arguments @('install', $packageName) -Assert {
         param($ExitCode, $Output)

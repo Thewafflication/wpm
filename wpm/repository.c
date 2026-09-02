@@ -575,13 +575,14 @@ static int http_download(const char* url, const char* destination,
     output = wpm_fopen(temporary, "wb");
     if (!output) goto cleanup;
     wpm_progress_start(&progress, "Downloading", "Download", "Downloaded",
-        label, 0);
+        label, (unsigned long long)content_length);
     progress_started = 1;
     do {
         if (!read_file(request, buffer, sizeof(buffer), &read) ||
             (read && fwrite(buffer, 1, read, output) != read)) goto cleanup;
         received += read;
-        wpm_progress_set(&progress, received, 0);
+        wpm_progress_set(&progress, received,
+            (unsigned long long)content_length);
     } while (read);
     if (content_length && received != content_length) {
         printf("Error: HTTP response was incomplete (expected %lu bytes, received %llu).\n",
