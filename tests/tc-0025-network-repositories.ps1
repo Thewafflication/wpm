@@ -127,10 +127,11 @@ try {
             throw "Cross-origin HTTP package URL was not rejected. $Output"
         }
     }
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Reject URL credentials' -Arguments @('repo', 'add', "http://user:secret@127.0.0.1:$port", '--allow-insecure-http') -Assert {
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Reject and redact URL credentials in verbose mode' -Arguments @('repo', 'add', "http://user:secret@127.0.0.1:$port", '--allow-insecure-http', '--verbose') -Assert {
         param($ExitCode, $Output)
-        if ($ExitCode -eq 0 -or $Output -match 'secret@') {
-            throw "Credential-bearing URL was accepted or disclosed. $Output"
+        if ($ExitCode -eq 0 -or $Output -notmatch 'Verbose:' -or
+            $Output -match 'user:secret' -or $Output -match 'secret@') {
+            throw "Credential-bearing URL was accepted, verbose mode was not active, or credentials were disclosed. $Output"
         }
     }
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Reject HTTP opt-in on HTTPS' -Arguments @('repo', 'add', 'https://packages.example.test', '--allow-insecure-http') -Assert {

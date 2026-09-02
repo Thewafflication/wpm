@@ -4,9 +4,9 @@
 \begin{document}
 \def\TCID{TC-0025}
 \def\TCTitle{UNC and opted-in HTTP repositories}
-\def\TCPurpose{Verify the CP-03B deterministic network-transport slice of REQ-0016, including UNC locator handling, repository-scoped HTTP opt-in and warnings, origin confinement, credential rejection, unchanged package trust, and concise known-length HTTP progress under REQ-0014.004.}
+\def\TCPurpose{Verify the CP-03B deterministic network-transport slice of REQ-0016, including UNC locator handling, repository-scoped HTTP opt-in and warnings, origin confinement, verbose credential redaction, unchanged package trust, and concise known-length HTTP progress under REQ-0014.004.}
 \def\TCPriority{\TCPriorityHigh}
-\def\TCRequirementRef{REQ-0014.004; REQ-0016.001, REQ-0016.003 through REQ-0016.006, and REQ-0016.008}
+\def\TCRequirementRef{REQ-0014.004, REQ-0014.005; REQ-0016.001, REQ-0016.003 through REQ-0016.006, and REQ-0016.008}
 \def\TCDesignRef{ADR-0011 and DFS threats WPM-THR-013 and WPM-THR-014}
 \def\TCFeatureRef{Repository locator parsing, persisted HTTP policy, URLMon transport adapter, UNC filesystem adapter, and \texttt{tests/tc-0025-network-repositories.ps1}}
 \def\TCTestTechnique{Decision-table, syntax, equivalence-partition, data-flow security, interface, and negative trust testing.}
@@ -15,8 +15,8 @@
 \def\TCAssumptions{Loopback HTTP and UNC parsing/failure tests do not substitute for managed SMB authentication/disconnection or proxy/redirect environment evidence retained by TC-0016.}
 \def\TCInputData{Signed-contract version-1 repository layout with an unsigned test package; opted-in and non-opted-in HTTP locators; same- and cross-origin URLs; credential-bearing URL; valid and malformed UNC paths.}
 \def\TCInitialState{Create disposable package source, repository, cache/configuration root, and loopback server. No repository or package signer is trusted.}
-\def\TCProcedure{\par\begin{enumerate}\item Prove HTTP add fails without the repository-scoped option, then add with the option and inspect the persisted/listed policy.\item Refresh from loopback HTTP and require exactly one stable known-length start line and one completion line.\item Install from loopback HTTP, checking warnings and unchanged unsigned-package rejection.\item Reject cross-origin package URLs, credential-bearing locators, and misplaced HTTP permission.\item Add, list, fail access to, and remove a UNC locator; reject incomplete UNC grammar.\end{enumerate}}
-\def\TCExpectedResult{HTTP is disabled by default, opt-in persists only on the selected HTTP repository, each access warns, known-length redirected progress is concise and byte-qualified, locator output is useful and secret-safe, cross-origin content fails closed, package trust is unchanged, and UNC locators are accepted or rejected by grammar with actionable unavailable-source output.}
+\def\TCProcedure{\par\begin{enumerate}\item Prove HTTP add fails without the repository-scoped option, then add with the option and inspect the persisted/listed policy.\item Refresh from loopback HTTP and require exactly one stable known-length start line and one completion line.\item Install from loopback HTTP, checking warnings and unchanged unsigned-package rejection.\item Reject cross-origin package URLs, a credential-bearing locator under verbose output, and misplaced HTTP permission.\item Add, list, fail access to, and remove a UNC locator; reject incomplete UNC grammar.\end{enumerate}}
+\def\TCExpectedResult{HTTP is disabled by default, opt-in persists only on the selected HTTP repository, each access warns, known-length redirected progress is concise and byte-qualified, verbose rejection does not disclose URL credentials, locator output is useful and secret-safe, cross-origin content fails closed, package trust is unchanged, and UNC locators are accepted or rejected by grammar with actionable unavailable-source output.}
 \def\TCPostConditions{Stop the loopback server, remove disposable files, restore the prior WPM data-root environment, and retain generated evidence under the configured build evidence directory.}
 \TCTemplate
 \end{document}
