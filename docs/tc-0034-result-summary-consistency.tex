@@ -4,19 +4,19 @@
 \begin{document}
 \def\TCID{TC-0034}
 \def\TCTitle{Mutating-command result summaries}
-\def\TCPurpose{Verify REQ-0014.002 finishes install and remove with one unambiguous per-identity result summary consistent with the upgrade command's summary.}
+\def\TCPurpose{Verify REQ-0014.002 finishes install, remove, and repository mutations with one unambiguous identity- or operation-qualified result summary.}
 \def\TCPriority{\TCPriorityHigh}
 \def\TCRequirementRef{REQ-0014.002}
 \def\TCDesignRef{ADR-0010 command events and machine-readable output}
-\def\TCFeatureRef{Result summaries in \texttt{wpm\_archive\_install}/\texttt{wpm\_archive\_remove} and \texttt{tests/tc-0034-result-summary-consistency.ps1}}
+\def\TCFeatureRef{Result summaries in archive and repository mutation functions plus \texttt{tests/tc-0034-result-summary-consistency.ps1}}
 \def\TCTestTechnique{Inspection and output-partition testing.}
 \def\TCPreconditions{A native WPM build and disposable isolated data directory.}
 \def\TCEnvironment{Native Windows x86, x64, or ARM64 with PowerShell output capture.}
 \def\TCAssumptions{The test paths contain no protected data.}
-\def\TCInputData{A single any-architecture package.}
+\def\TCInputData{A single any-architecture package and its local repository directory.}
 \def\TCInitialState{Point WPM at nonexistent isolated data and build the package.}
-\def\TCProcedure{Install the package and inspect the output for exactly one identity-qualified installed summary, then remove it and inspect for exactly one identity-qualified removed summary.}
-\def\TCExpectedResult{Install ends with one \texttt{Result: <name> <arch> installed} line and remove ends with one \texttt{Result: <name> <arch> removed} line, matching the upgrade summary shape.}
+\def\TCProcedure{Add and refresh the local repository, install and remove its package archive, and remove the repository; after each successful mutation require exactly one corresponding final result record.}
+\def\TCExpectedResult{Package install/remove end with one identity-qualified result; repository add/remove end with one locator-qualified result; repository update ends with one operation-qualified result. Each is the final nonempty output line.}
 \def\TCPostConditions{Remove disposable state and retain configured evidence.}
 \TCTemplate
 \end{document}

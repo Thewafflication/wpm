@@ -293,7 +293,9 @@ int wpm_repo_add(const char* url, int priority, int allow_insecure_http) {
         printf("Warning: insecure HTTP transport exposes repository metadata and downloads; "
             "package signatures and trust checks remain required.\n");
     }
-    return rewrite(normalized, priority, allow_insecure_http, 0);
+    if (!rewrite(normalized, priority, allow_insecure_http, 0)) return 0;
+    printf("Result: repository configured %s\n", normalized);
+    return 1;
 }
 int wpm_repo_remove(const char* url) {
     char normalized[PATH_SIZE], cached[PATH_SIZE];
@@ -309,6 +311,7 @@ int wpm_repo_remove(const char* url) {
     }
     if (!rewrite(wanted, 0, 0, 1)) return 0;
     if (cache_path(wanted, cached, sizeof(cached))) DeleteFileA(cached);
+    printf("Result: repository removed %s\n", wanted);
     return 1;
 }
 int wpm_repo_list(void) { repository repositories[MAX_REPOSITORIES]; int count, i; if (!load_repositories(repositories, &count)) return 0; if (!count) { printf("No repositories configured.\n"); return 1; } for (i = 0; i < count; i++) printf("%d\t%s%s\n", repositories[i].priority, repositories[i].url, repositories[i].allow_insecure_http ? "\t[insecure HTTP allowed]" : ""); return 1; }
@@ -648,7 +651,7 @@ static int refresh(repository* repo, int offline, int required) {
     printf("Warning: could not retrieve repository index: %s\n", repo->url); return 0;
 }
 static int report_available_updates(void);
-int wpm_repo_update(int offline) { repository repositories[MAX_REPOSITORIES]; int count, i, refreshed = 0; printf("Updating repositories...\n"); if (!load_repositories(repositories, &count)) return 0; if (!count) { printf("No repositories configured.\n"); return 1; } for (i = 0; i < count; i++) if (refresh(&repositories[i], offline, 1)) refreshed = 1; if (!refreshed) return 0; return report_available_updates(); }
+int wpm_repo_update(int offline) { repository repositories[MAX_REPOSITORIES]; int count, i, refreshed = 0; printf("Updating repositories...\n"); if (!load_repositories(repositories, &count)) return 0; if (!count) { printf("No repositories configured.\n"); printf("Result: repositories updated\n"); return 1; } for (i = 0; i < count; i++) if (refresh(&repositories[i], offline, 1)) refreshed = 1; if (!refreshed || !report_available_updates()) return 0; printf("Result: repositories updated\n"); return 1; }
 
 static const char* skip_ws(const char* p) { while (*p && isspace((unsigned char)*p)) p++; return p; }
 static int json_string(const char** source, char* output, size_t size) { const char* p = skip_ws(*source); size_t n = 0; if (*p++ != '"') return 0; while (*p && *p != '"') { if (*p == '\\') { p++; if (!*p) return 0; } if (n + 1 >= size) return 0; output[n++] = *p++; } if (*p != '"') return 0; output[n] = '\0'; *source = p + 1; return 1; }
