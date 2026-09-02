@@ -2621,6 +2621,7 @@ cleanup:
     if (!success) return 0;
 
     printf("Installed package; archive stored at: %s\n", stored_archive_path);
+    printf("Result: %s %s installed\n", metadata.name, metadata.arch);
     return 1;
 }
 
@@ -2839,6 +2840,7 @@ int wpm_archive_remove(const char* package_name) {
     char stored_archive_name[WPM_PATH_SIZE];
     char stored_archive_path[WPM_PATH_SIZE];
     char repository_url[WPM_PATH_SIZE];
+    wpm_package_metadata metadata;
     char* extension;
     int written;
     int script_success;
@@ -2877,6 +2879,7 @@ int wpm_archive_remove(const char* package_name) {
 
     if (!wpm_archive_extract_with_label(stored_archive_path, staging_path, archive_name)) goto cleanup;
     if (!verify_package_index(staging_path, archive_name)) goto cleanup;
+    if (!read_package_metadata(staging_path, &metadata)) goto cleanup;
     wpm_archive_set_repository_url(NULL);
     if (load_archive_repository(stored_archive_path, repository_url, sizeof(repository_url))) {
         wpm_archive_set_repository_url(repository_url);
@@ -2902,5 +2905,6 @@ cleanup:
     if (!success) return 0;
 
     printf("Removed package: %s\n", archive_name);
+    printf("Result: %s %s removed\n", metadata.name, metadata.arch);
     return 1;
 }

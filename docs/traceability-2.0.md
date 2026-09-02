@@ -21,7 +21,7 @@ every row that is not `Verified` or lacks objective evidence.
 | Requirement | Test case | Verification method | State | Evidence |
 | --- | --- | --- | --- | --- |
 | REQ-0014.001 | TC-0014 | Automated test and inspection | Planned | TC-0027 command inventory and TC-0030 executable nested-action examples produced; recovery workflow demonstration pending |
-| REQ-0014.002 | TC-0014 | Automated test and inspection | Planned | Not yet produced |
+| REQ-0014.002 | TC-0014 | Automated test and inspection | Planned | TC-0034 install/remove identity-qualified final-result evidence produced; remaining mutating-command consistency pending |
 | REQ-0014.003 | TC-0014 | Automated test and demonstration | Planned | TC-0026 redirected auto/always/never, option-position, and precedence evidence produced; genuine-console and every-class evidence pending |
 | REQ-0014.004 | TC-0014 | Automated test | Planned | Not yet produced |
 | REQ-0014.005 | TC-0014 | Automated test and secret-redaction inspection | Planned | Not yet produced |
