@@ -70,4 +70,12 @@ None. Applicability changes require the normal WSP adoption and requirement-chan
 
 ## Implementation Record
 
-`wpm/main.c` and `tests/tc-0005-package-index-signature-verification.ps1` currently implement and verify this requirement.
+`wpm/archive.c` and `tests/tc-0005-package-index-signature-verification.ps1`
+implement and verify this requirement. Indexed file verification uses WCRT
+1.2.5 worker pools with up to four workers, bounded by the processor count,
+and batches of at most 16 files. Each worker owns its stream and hash state;
+libsodium initialization precedes worker creation. Results and progress are
+reported by the calling thread in index order after each batch finishes.
+If a pool or task cannot be allocated, verification runs synchronously;
+files are never skipped. All workers finish before staging cleanup or script
+execution. Signed-package index completeness checks remain mandatory.

@@ -6,6 +6,7 @@
 #include <stdarg.h>
 #include <limits.h>
 #include <windows.h>
+#include <wcrt/thread_pool.h>
 
 #include "archive.h"
 #include "logging.h"
@@ -1840,6 +1841,72 @@ static int measure_package_index_bytes(
     return valid;
 }
 
+#define WPM_VERIFY_BATCH_SIZE 16
+#define WPM_VERIFY_MAX_WORKERS 4
+
+typedef struct wpm_verify_file {
+    char filename[WPM_PATH_SIZE];
+    char path[WPM_PATH_SIZE];
+    char expected_hash[WPM_BLAKE2B_HEX_SIZE];
+    unsigned long long expected_size;
+    int valid;
+} wpm_verify_file;
+
+/* WCRT 1.2.5 safely allocates distinct streams to workers. Each stream and
+ * hash state has one owner; console/progress output stays on the caller. */
+static void verify_file_task(void* argument) {
+    wpm_verify_file* task = argument;
+    unsigned char buffer[64 * 1024];
+    unsigned char hash[WPM_BLAKE2B_BYTES];
+    char hex[WPM_BLAKE2B_HEX_SIZE];
+    crypto_generichash_state state;
+    unsigned long long bytes = 0;
+    size_t count;
+    FILE* file;
+
+    task->valid = 0;
+    file = wpm_fopen(task->path, "rb");
+    if (!file) return;
+    if (crypto_generichash_init(&state, NULL, 0, sizeof(hash)) != 0) goto done;
+    for (;;) {
+        count = fread(buffer, 1, sizeof(buffer), file);
+        if (ferror(file)) goto done;
+        if (!count) break;
+        if (count > task->expected_size - bytes) goto done;
+        bytes += count;
+        if (crypto_generichash_update(&state, buffer, count) != 0) goto done;
+    }
+    if (bytes != task->expected_size ||
+        crypto_generichash_final(&state, hash, sizeof(hash)) != 0) goto done;
+    sodium_bin2hex(hex, sizeof(hex), hash, sizeof(hash));
+    task->valid = _stricmp(hex, task->expected_hash) == 0;
+done:
+    if (fclose(file) != 0) task->valid = 0;
+}
+
+static int verify_file_batch(wcrt_thread_pool* pool, wpm_verify_file* tasks,
+    size_t count, wpm_progress* progress) {
+    size_t i;
+    for (i = 0; i < count; ++i) {
+        verbose_log("Verifying file: %s", tasks[i].filename);
+        /* Resource pressure must not cause a file to be skipped. */
+        if (!pool || wcrt_thread_pool_submit(pool, verify_file_task, &tasks[i]) != 0)
+            verify_file_task(&tasks[i]);
+    }
+    if (pool && wcrt_thread_pool_wait(pool) != 0) {
+        printf("Error: could not wait for package verification.\n");
+        return 0;
+    }
+    for (i = 0; i < count; ++i) {
+        if (!tasks[i].valid) {
+            printf("Error: package signature verification failed for %s.\n", tasks[i].filename);
+            return 0;
+        }
+        if (progress) wpm_progress_add(progress, tasks[i].expected_size);
+    }
+    return 1;
+}
+
 static int verify_package_index_contents(
     const char* destination_dir,
     const char* index_path,
@@ -1848,6 +1915,12 @@ static int verify_package_index_contents(
     char line[WPM_PATH_SIZE + WPM_BLAKE2B_HEX_SIZE + 64];
     FILE* index;
     unsigned long line_number = 0;
+    wpm_verify_file* tasks;
+    wcrt_thread_pool* pool;
+    SYSTEM_INFO system_info;
+    size_t worker_count;
+    size_t task_count = 0;
+    int verified = 0;
 
     verbose_log("Verifying package index: %s", index_path);
 
@@ -1857,6 +1930,22 @@ static int verify_package_index_contents(
         return 0;
     }
 
+    if (!ensure_sodium_ready()) {
+        fclose(index);
+        return 0;
+    }
+    tasks = calloc(WPM_VERIFY_BATCH_SIZE, sizeof(*tasks));
+    if (!tasks) {
+        printf("Error: could not allocate package verification tasks.\n");
+        fclose(index);
+        return 0;
+    }
+    GetSystemInfo(&system_info);
+    worker_count = system_info.dwNumberOfProcessors;
+    if (worker_count > WPM_VERIFY_MAX_WORKERS) worker_count = WPM_VERIFY_MAX_WORKERS;
+    pool = worker_count > 1 ? wcrt_thread_pool_create(worker_count) : NULL;
+    verbose_log("Package verification workers: %lu", (unsigned long)(pool ? worker_count : 1));
+
     while (fgets(line, sizeof(line), index)) {
         char* comma;
         char* second_comma;
@@ -1865,11 +1954,9 @@ static int verify_package_index_contents(
         char* expected_size_text;
         char* expected_hash;
         char* algorithm;
-        char actual_hash[WPM_BLAKE2B_HEX_SIZE];
         char relative_path[WPM_PATH_SIZE];
         char file_path[WPM_PATH_SIZE];
         unsigned long long expected_size;
-        unsigned long long actual_size;
         char trailing;
 
         line_number++;
@@ -1880,15 +1967,13 @@ static int verify_package_index_contents(
         comma = strchr(line, ',');
         if (!comma) {
             printf("Error: invalid package index entry at line %lu.\n", line_number);
-            fclose(index);
-            return 0;
+            goto verification_done;
         }
         second_comma = strchr(comma + 1, ',');
         third_comma = second_comma ? strchr(second_comma + 1, ',') : NULL;
         if (!second_comma || !third_comma) {
             printf("Error: invalid package index entry at line %lu.\n", line_number);
-            fclose(index);
-            return 0;
+            goto verification_done;
         }
 
         *comma = '\0';
@@ -1908,8 +1993,7 @@ static int verify_package_index_contents(
             strlen(expected_hash) != WPM_BLAKE2B_HEX_SIZE - 1 ||
             _stricmp(algorithm, "blake2b") != 0) {
             printf("Error: invalid package index entry at line %lu.\n", line_number);
-            fclose(index);
-            return 0;
+            goto verification_done;
         }
 
         strcpy_s(relative_path, sizeof(relative_path), filename);
@@ -1919,30 +2003,30 @@ static int verify_package_index_contents(
 
         if (!join_path(file_path, sizeof(file_path), destination_dir, relative_path)) {
             printf("Error: indexed package path is too long.\n");
-            fclose(index);
-            return 0;
+            goto verification_done;
         }
 
-        verbose_log("Verifying file: %s", filename);
-
-        if (!file_exists_at_path(file_path) ||
-            !get_file_size_bytes(file_path, &actual_size) ||
-            actual_size != expected_size ||
-            !calculate_file_blake2b(file_path, actual_hash, sizeof(actual_hash), progress) ||
-            _stricmp(actual_hash, expected_hash) != 0) {
-            printf("Error: package signature verification failed for %s.\n", filename);
-            fclose(index);
-            return 0;
+        strcpy_s(tasks[task_count].filename, sizeof(tasks[task_count].filename), filename);
+        strcpy_s(tasks[task_count].path, sizeof(tasks[task_count].path), file_path);
+        strcpy_s(tasks[task_count].expected_hash, sizeof(tasks[task_count].expected_hash), expected_hash);
+        tasks[task_count].expected_size = expected_size;
+        if (++task_count == WPM_VERIFY_BATCH_SIZE) {
+            if (!verify_file_batch(pool, tasks, task_count, progress)) goto verification_done;
+            task_count = 0;
         }
     }
 
     if (ferror(index)) {
         printf("Error: could not read package index.\n");
-        fclose(index);
-        return 0;
+        goto verification_done;
     }
 
-    fclose(index);
+    verified = verify_file_batch(pool, tasks, task_count, progress);
+verification_done:
+    wcrt_thread_pool_destroy(pool);
+    free(tasks);
+    if (fclose(index) != 0) verified = 0;
+    if (!verified) return 0;
     {
         char signature_path[WPM_PATH_SIZE];
         wpm_index_paths paths;

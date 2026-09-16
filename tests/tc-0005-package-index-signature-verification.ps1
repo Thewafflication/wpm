@@ -38,6 +38,13 @@ try {
     New-Item -ItemType Directory -Force -Path (Join-Path $sourceDir 'nested') | Out-Null
     Set-Content -LiteralPath (Join-Path $sourceDir 'hello.txt') -Value 'hello from wpm'
     Set-Content -LiteralPath (Join-Path $sourceDir 'nested\data.txt') -Value 'nested package data'
+    # More files than WCRT stream slots and several verification batches, with
+    # distinct contents, an empty file, and files spanning multiple read buffers.
+    for ($i = 0; $i -lt 49; $i++) {
+        $payload = [byte[]]::new($(if ($i -eq 0) { 0 } else { 131073 + $i }))
+        [Random]::new($i).NextBytes($payload)
+        [IO.File]::WriteAllBytes((Join-Path $sourceDir ('nested\worker-{0:d2}.bin' -f $i)), $payload)
+    }
     Set-Content -LiteralPath (Join-Path $sourceDir 'ignored.txt') -Value 'ignored package data'
     Set-Content -LiteralPath (Join-Path $sourceDir 'trace.log') -Value 'ignored log data'
     Set-Content -LiteralPath (Join-Path $sourceDir '.wpm\package.txt') -Value @(
@@ -160,6 +167,40 @@ try {
                 throw 'tampered install did not remove its staging directory'
             }
         }
+
+    foreach ($fault in @('same-size', 'missing', 'truncated', 'malformed-index')) {
+        $variantDir = Join-Path $testRoot $fault
+        $variantPath = Join-Path $outputDir "$fault.zip"
+        $results += New-WpmManualStep -Name "Create $fault verification fixture" -Action {
+            Expand-Archive -LiteralPath $archivePath -DestinationPath $variantDir
+            $target = Join-Path $variantDir 'nested\worker-48.bin'
+            switch ($fault) {
+                'same-size' {
+                    $bytes = [IO.File]::ReadAllBytes($target)
+                    $bytes[65536] = $bytes[65536] -bxor 255
+                    [IO.File]::WriteAllBytes($target, $bytes)
+                }
+                'missing' { Remove-Item -LiteralPath $target }
+                'truncated' { [IO.File]::WriteAllBytes($target, [byte[]]::new(0)) }
+                'malformed-index' {
+                    Add-Content -LiteralPath (Join-Path $variantDir '.wpm\index.csv') -Value 'invalid-entry'
+                }
+            }
+            Compress-Archive -Path (Join-Path $variantDir '*') -DestinationPath $variantPath
+        }
+        $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name "Reject $fault after earlier verification batches" `
+            -Arguments @('install', $variantPath, '--allow-unsigned') -Assert {
+                param($ExitCode, $Output)
+                if ($ExitCode -eq 0) { throw "Accepted $fault package." }
+                $expected = if ($fault -eq 'malformed-index') { 'invalid package index entry' } else {
+                    'signature verification failed for nested/worker-48.bin'
+                }
+                if (-not $Output.Contains($expected)) { throw "Missing failure detail: $expected" }
+                if (Test-Path -LiteralPath (Join-Path $wpmDataDir "temp\$fault")) {
+                    throw 'Failed verification left its staging directory behind.'
+                }
+            }
+    }
 }
 finally {
     $finished = Get-Date

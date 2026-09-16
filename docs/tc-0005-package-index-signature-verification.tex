@@ -51,6 +51,10 @@ margin=1in
 		\item Install the generated archive.
 		\item Create a tampered copy of the archive by changing an indexed file.
 		\item Attempt to install the tampered archive.
+		\item Exercise multiple verification batches with 49 distinct payloads,
+		including an empty file and files larger than one read buffer.
+		\item Reject same-size corruption, missing and truncated files, and a
+		malformed index entry after earlier valid batches.
 	\end{enumerate}
 }
 
@@ -66,6 +70,8 @@ margin=1in
 		\item \texttt{.wpm/index.csv} is not indexed.
 		\item Untampered install exits 0.
 		\item Tampered install exits non-zero and reports signature verification failure.
+		\item Later-batch failures report the affected file (or invalid index entry)
+		and remove the staging directory.
 	\end{enumerate}
 }
 
