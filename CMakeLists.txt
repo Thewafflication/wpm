@@ -58,6 +58,7 @@ if(WIN32)
          EXISTS "${WPM_WCRT_INSTALLATION}/include/dirent.h" AND
          EXISTS "${WPM_WCRT_INSTALLATION}/include/stdio.h" AND
          EXISTS "${WPM_WCRT_INSTALLATION}/include/wcrt/thread_pool.h" AND
+         EXISTS "${WPM_WCRT_INSTALLATION}/include/wcrt/cpu.h" AND
          EXISTS "${WPM_WCRT_INSTALLATION}/${wpm_arch}/lib/libwcrt.a" AND
          EXISTS "${WPM_WCRT_INSTALLATION}/${wpm_arch}/lib/wcrt-startup-console.o")
         set(WPM_WCRT_ROOT "${WPM_WCRT_INSTALLATION}")
@@ -67,7 +68,7 @@ if(WIN32)
   endif()
 
   if(NOT WPM_WCRT_ROOT)
-    message(FATAL_ERROR "WCRT 1.2.5 or newer was not found. Install it or set WPM_WCRT_ROOT.")
+    message(FATAL_ERROR "WCRT 1.3.0 or newer was not found. Install it or set WPM_WCRT_ROOT.")
   endif()
 
   set(WPM_WCRT_TARGET_ROOT "${WPM_WCRT_ROOT}/${wpm_arch}")
@@ -78,6 +79,7 @@ if(WIN32)
 
   foreach(WPM_WCRT_REQUIRED_FILE
       "include/wcrt/thread_pool.h"
+      "include/wcrt/cpu.h"
       "include/dirent.h"
       "include/stdio.h"
       "include/errno.h"
@@ -88,7 +90,7 @@ if(WIN32)
     if(NOT EXISTS "${WPM_WCRT_ROOT}/${WPM_WCRT_REQUIRED_FILE}")
       message(FATAL_ERROR
         "The WCRT SDK at ${WPM_WCRT_ROOT} is missing ${WPM_WCRT_REQUIRED_FILE}. "
-        "Install WCRT 1.2.5 or newer.")
+        "Install WCRT 1.3.0 or newer.")
     endif()
   endforeach()
   foreach(WPM_WCRT_REQUIRED_FILE
@@ -98,7 +100,7 @@ if(WIN32)
     if(NOT EXISTS "${WPM_WCRT_TARGET_ROOT}/${WPM_WCRT_REQUIRED_FILE}")
       message(FATAL_ERROR
         "The WCRT SDK at ${WPM_WCRT_ROOT} has no ${wpm_arch} target file "
-        "${WPM_WCRT_REQUIRED_FILE}. Install WCRT 1.2.5 or newer.")
+        "${WPM_WCRT_REQUIRED_FILE}. Install WCRT 1.3.0 or newer.")
     endif()
   endforeach()
 
@@ -117,9 +119,9 @@ if(WIN32)
     endif()
   endif()
   if(NOT WPM_WCRT_VERSION STREQUAL "unknown" AND
-      WPM_WCRT_VERSION VERSION_LESS "1.2.5")
+      WPM_WCRT_VERSION VERSION_LESS "1.3.0")
     message(FATAL_ERROR
-      "WCRT ${WPM_WCRT_VERSION} is too old; WPM requires WCRT 1.2.5 or newer.")
+      "WCRT ${WPM_WCRT_VERSION} is too old; WPM requires WCRT 1.3.0 or newer.")
   endif()
   message(STATUS "WCRT version: ${WPM_WCRT_VERSION}")
   include_directories(BEFORE "${WPM_WCRT_ROOT}/include")

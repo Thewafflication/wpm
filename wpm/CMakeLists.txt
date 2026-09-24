@@ -102,6 +102,9 @@ target_compile_definitions(wpm PRIVATE
   WPM_ZLIB_NG_BUFFER_BYTES=${WPM_ZLIB_NG_BUFFER_BYTES}U
   WPM_ZLIB_NG_COMPRESSION_LEVEL=${WPM_ZLIB_NG_COMPRESSION_LEVEL}
 )
+if(WPM_BLAKE2B_SIMD_ENABLED)
+  target_compile_definitions(wpm PRIVATE WPM_BLAKE2B_SIMD=1)
+endif()
 if(WIN32)
   # Let WCRT establish its time_t and wint_t before TinyCC's WinAPI headers.
   target_compile_options(wpm PRIVATE -include wchar.h)
@@ -143,6 +146,31 @@ if(WIN32)
 endif()
 
 if(BUILD_TESTING)
+  if(WIN32)
+    add_executable(wpm-blake2b-test "${CMAKE_SOURCE_DIR}/tests/blake2b-simd.c"
+      "${wcrt_console_startup}")
+    target_include_directories(wpm-blake2b-test PRIVATE
+      "${CMAKE_SOURCE_DIR}/third_party/libsodium/src/libsodium/crypto_generichash/blake2b/ref")
+    target_compile_options(wpm-blake2b-test PRIVATE -include wchar.h)
+    target_compile_definitions(wpm-blake2b-test PRIVATE SODIUM_STATIC _WINT_T NATIVE_LITTLE_ENDIAN)
+    if(WPM_BLAKE2B_SIMD_ENABLED)
+      target_compile_definitions(wpm-blake2b-test PRIVATE WPM_TEST_SIMD=1
+        HAVE_EMMINTRIN_H=1 HAVE_TMMINTRIN_H=1 HAVE_SMMINTRIN_H=1 HAVE_AVX2INTRIN_H=1)
+    endif()
+    target_link_options(wpm-blake2b-test PRIVATE -nostdlib
+      "${WPM_TCC_ROOT}/lib/kernel32.def"
+      "${CMAKE_CURRENT_SOURCE_DIR}/tcc_support/advapi32.def")
+    target_link_libraries(wpm-blake2b-test PRIVATE libsodium
+      "${WPM_WCRT_TARGET_ROOT}/lib/libwcrt.a")
+    if(wpm_arch STREQUAL "x86")
+      target_link_libraries(wpm-blake2b-test PRIVATE "${tcc_bin_dir}/lib/i386-win32-libtcc1.a")
+    elseif(wpm_arch STREQUAL "x64")
+      target_link_libraries(wpm-blake2b-test PRIVATE "${tcc_bin_dir}/lib/x86_64-win32-libtcc1.a")
+    else()
+      target_link_libraries(wpm-blake2b-test PRIVATE "${tcc_bin_dir}/lib/arm64-win32-libtcc1.a")
+    endif()
+    add_test(NAME blake2b-simd COMMAND wpm-blake2b-test)
+  endif()
   find_program(WPM_POWERSHELL_EXECUTABLE NAMES pwsh powershell)
   if(NOT WPM_POWERSHELL_EXECUTABLE)
     message(FATAL_ERROR "PowerShell is required to run the WPM tests")

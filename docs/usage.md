@@ -49,6 +49,13 @@ wpm --verbose install package.zip
 
 Verbose output also reports whether WPM is running in managed or portable mode.
 
+`wpm --version --verbose` also reports CPU vendor and brand, process architecture,
+system logical processor and physical core counts, the process affinity processor
+count, and usable instruction sets (including SSE/AVX or ARM features). Detection
+uses WCRT 1.3.0; unavailable values are shown as unknown. Under emulation, the
+architecture and instruction sets describe the executing process. Instruction
+sets reflect operating-system support as well as CPU capabilities.
+
 Repository-index downloads, package downloads, archive extraction, and indexed
 package validation show byte progress without requiring `--verbose`. In an
 interactive console, WPM updates a progress bar in place at most once
@@ -398,8 +405,15 @@ automation and testing.
 ## Building WPM from source
 
 WPM is a C99 project built with CMake. On Windows, the included presets use
-TinyCC, WCRT 1.2.5 or newer, and Ninja. Microsoft C compiler builds are not
+TinyCC, WCRT 1.3.0 or newer, and Ninja. Microsoft C compiler builds are not
 supported.
+
+The x86/x64 presets also use Clang to compile the three BLAKE2b SIMD kernels;
+set `WPM_SIMD_CLANG` to its executable if automatic discovery fails, or use
+`-DWPM_BLAKE2B_SIMD=OFF` to build without it. CPU detection selects AVX2,
+SSE4.1, SSSE3, then scalar, with AVX2 also gated on OS XSAVE support and the
+enabled SSE/AVX state in XCR0. ARM64 uses scalar BLAKE2b. The selected backend
+is printed during hashing initialization with `--verbose`.
 
 ```powershell
 cmake --preset x86-debug

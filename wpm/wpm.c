@@ -11,6 +11,78 @@
 #include "signing.h"
 #include <stdlib.h>
 #include <windows.h>
+#ifdef WPM_HAS_WCRT
+#include <wcrt/cpu.h>
+#endif
+
+#ifdef WPM_HAS_WCRT
+static void print_cpu_count(const char* label, unsigned long count)
+{
+    if (count) printf("  %s: %lu\n", label, count);
+    else printf("  %s: unknown\n", label);
+}
+#endif
+
+static void print_cpu_info(void)
+{
+#ifdef WPM_HAS_WCRT
+    static const struct {
+        unsigned long flag;
+        const char* name;
+    } features[] = {
+        { WCRT_CPU_MMX, "MMX" },
+        { WCRT_CPU_SSE, "SSE" },
+        { WCRT_CPU_SSE2, "SSE2" },
+        { WCRT_CPU_SSE3, "SSE3" },
+        { WCRT_CPU_SSSE3, "SSSE3" },
+        { WCRT_CPU_SSE41, "SSE4.1" },
+        { WCRT_CPU_SSE42, "SSE4.2" },
+        { WCRT_CPU_AES, "AES" },
+        { WCRT_CPU_AVX, "AVX" },
+        { WCRT_CPU_AVX2, "AVX2" },
+        { WCRT_CPU_FMA, "FMA" },
+        { WCRT_CPU_AVX512F, "AVX512F" },
+        { WCRT_CPU_BMI1, "BMI1" },
+        { WCRT_CPU_BMI2, "BMI2" },
+        { WCRT_CPU_NEON, "NEON" },
+        { WCRT_CPU_ARM_CRYPTO, "ARM-CRYPTO" },
+        { WCRT_CPU_ARM_CRC32, "ARM-CRC32" },
+        { WCRT_CPU_ARM_ATOMICS, "ARM-ATOMICS" }
+    };
+    const struct wcrt_cpu_info* cpu = wcrt_cpu_get_info();
+    const char* architecture = "unknown";
+    size_t i;
+    int printed = 0;
+
+    if (cpu) {
+        switch (cpu->architecture) {
+            case WCRT_CPU_ARCH_X86: architecture = "x86"; break;
+            case WCRT_CPU_ARCH_X64: architecture = "x64"; break;
+            case WCRT_CPU_ARCH_ARM64: architecture = "arm64"; break;
+        }
+    }
+    printf("CPU:\n");
+    printf("  Process architecture: %s\n", architecture);
+    printf("  Vendor: %s\n", cpu && cpu->vendor[0] ? cpu->vendor : "unknown");
+    printf("  Brand: %s\n", cpu && cpu->brand[0] ? cpu->brand : "unknown");
+    print_cpu_count("Logical processors (system)", wcrt_cpu_logical_count());
+    print_cpu_count("Physical cores (system)", wcrt_cpu_core_count());
+    print_cpu_count("Available processors (process affinity)", wcrt_cpu_available_count());
+    printf("  Usable instruction sets:");
+    if (cpu) {
+        for (i = 0; i < sizeof(features) / sizeof(features[0]); i++) {
+            if (cpu->features & features[i].flag) {
+                printf(" %s", features[i].name);
+                printed = 1;
+            }
+        }
+    }
+    if (!printed) printf(" %s", cpu ? "none detected" : "unknown");
+    printf("\n");
+#else
+    printf("CPU: detection unavailable\n");
+#endif
+}
 
 static const char* command_name(Command command)
 {
@@ -461,7 +533,10 @@ int main(int argc, char *argv[])
 
     if (show_version) {
         print_version();
-        if (verbose) print_runtime_mode();
+        if (verbose) {
+            print_runtime_mode();
+            print_cpu_info();
+        }
         return 0;
     }
 

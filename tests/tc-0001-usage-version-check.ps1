@@ -63,6 +63,9 @@ $results = @(
             if ($expectsWcrt -and $Output -notmatch $wcrtVersionPattern) {
                 throw 'Expected the WCRT runtime dependency version in output.'
             }
+            if ($Output -match '(?m)^CPU:') {
+                throw 'CPU details should require --version --verbose.'
+            }
         }
 
     Invoke-WpmTestStep `
@@ -95,6 +98,15 @@ $results = @(
             }
             if ($expectsWcrt -and $Output -notmatch $wcrtVersionPattern) {
                 throw 'Expected the WCRT runtime dependency version in combined verbose version output.'
+            }
+            if ($expectsWcrt -and ($Output -notmatch '(?m)^CPU:' -or
+                $Output -notmatch 'Process architecture: (x86|x64|arm64|unknown)' -or
+                $Output -notmatch 'Vendor: .+' -or $Output -notmatch 'Brand: .+' -or
+                $Output -notmatch 'Logical processors \(system\): ([1-9][0-9]*|unknown)' -or
+                $Output -notmatch 'Physical cores \(system\): ([1-9][0-9]*|unknown)' -or
+                $Output -notmatch 'Available processors \(process affinity\): ([1-9][0-9]*|unknown)' -or
+                $Output -notmatch 'Usable instruction sets: .+')) {
+                throw 'Expected CPU identity, processor counts, and usable instruction sets.'
             }
         }
 )

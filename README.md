@@ -91,7 +91,7 @@ All supported Windows builds use TinyCC and link their C library calls to WCRT.
 The standard x86, x64, and ARM64 presets find the newest package beneath
 `%ProgramFiles%\WCRT`, or use
 `WPM_WCRT_ROOT` when that CMake or environment variable is set. The selected
-WCRT 1.2.5-or-newer package provides shared headers, its bounded POSIX
+WCRT 1.3.0-or-newer package provides shared headers, its bounded POSIX
 compatibility declarations, and architecture-specific
 targets beneath its `x86`, `x64`, and `arm64` directories. Microsoft C compiler
 builds are not supported.
@@ -100,6 +100,18 @@ Indexed package verification uses up to four WCRT worker threads, each with
 its own file stream. Work is bounded in batches; progress and errors are
 reported in index order. Verification falls back to synchronous work if
 worker-pool resources are unavailable.
+
+On x86/x64, BLAKE2b selects AVX2, SSE4.1, SSSE3, or the scalar fallback at
+runtime. AVX2 requires both CPU support and OS support for saving SSE/AVX state.
+Selection happens during libsodium initialization before verification workers
+start. `--verbose` reports the selected implementation.
+
+The x86/x64 build requires Clang with `llvm-objcopy` and `llvm-nm` for these
+three compression kernels only;
+TinyCC still compiles WPM and links the executable against WCRT. CMake finds
+Clang in PATH, LLVM, or Visual Studio, or accepts `-DWPM_SIMD_CLANG=<path>`.
+Use `-DWPM_BLAKE2B_SIMD=OFF` for a scalar-only build without Clang. ARM64 keeps
+the scalar implementation. All implementations preserve existing package hashes.
 
 ```powershell
 cmake --preset x64-release

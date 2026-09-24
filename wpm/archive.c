@@ -1119,6 +1119,14 @@ static int ensure_sodium_ready(void) {
     }
 
     initialized = 1;
+#ifdef WPM_BLAKE2B_SIMD
+    verbose_log("BLAKE2b implementation: %s",
+        sodium_runtime_has_avx2() ? "AVX2" :
+        sodium_runtime_has_sse41() ? "SSE4.1" :
+        sodium_runtime_has_ssse3() ? "SSSE3" : "scalar");
+#else
+    verbose_log("BLAKE2b implementation: scalar");
+#endif
     return 1;
 }
 

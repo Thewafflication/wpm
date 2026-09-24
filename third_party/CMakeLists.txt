@@ -232,6 +232,9 @@ set_target_properties(libsodium PROPERTIES
 )
 wpm_third_party_set_archive_output(libsodium)
 
+include("${CMAKE_SOURCE_DIR}/cmake/Blake2bSimd.cmake")
+set(WPM_BLAKE2B_SIMD_ENABLED ${WPM_BLAKE2B_SIMD_ENABLED} PARENT_SCOPE)
+
 add_custom_target(wpm-third-party
   DEPENDS
     zlib-ng
