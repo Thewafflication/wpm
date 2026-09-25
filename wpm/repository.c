@@ -13,6 +13,7 @@
 #endif
 #include "archive.h"
 #include "helpers.h"
+#include "https.h"
 #include "repository.h"
 #include "logging.h"
 #include "progress.h"
@@ -625,7 +626,21 @@ static int copy_local(const char* source, const char* destination) {
 }
 static int retrieve(const char* source, const char* destination, const char* label,
     int allow_insecure_http) {
-    if (is_https_repository(source)) return urlmon_download(source, destination, label);
+    if (is_https_repository(source)) {
+        const char* backend = getenv("WPM_HTTPS_BACKEND");
+        if (!backend || !*backend || _stricmp(backend, "bundled") == 0)
+            return wpm_https_download(source, destination, label);
+        if (_stricmp(backend, "urlmon") == 0) {
+            const char* ca_file = getenv("WPM_TLS_CA_FILE");
+            if (ca_file && *ca_file) {
+                printf("Error: WPM_TLS_CA_FILE requires the bundled HTTPS backend.\n");
+                return 0;
+            }
+            return urlmon_download(source, destination, label);
+        }
+        printf("Error: WPM_HTTPS_BACKEND must be bundled or urlmon.\n");
+        return 0;
+    }
     if (is_http_repository(source)) {
         if (!allow_insecure_http) return 0;
         printf("Warning: using insecure HTTP transport for %s; content remains subject "

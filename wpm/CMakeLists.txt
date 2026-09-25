@@ -27,6 +27,8 @@ add_custom_target(wpm_version_header ALL
 )
 
 set(wpm_sources
+  "https.c"
+  "https.h"
   "wpm.c"
   "logging.c"
   "logging.h"
@@ -45,6 +47,10 @@ set(wpm_sources
   "${WPM_ICON_FILE}"
   "${WPM_ICON_SOURCE}"
 )
+
+set_source_files_properties("https.c" "${CMAKE_SOURCE_DIR}/tests/https-probe.c"
+  PROPERTIES OBJECT_DEPENDS
+  "${CMAKE_SOURCE_DIR}/wpm/https.c;${CMAKE_SOURCE_DIR}/cmake/wpm_mbedtls_config.h;${CMAKE_BINARY_DIR}/third_party/wpm_ca_bundle.h")
 
 add_executable(wpm ${wpm_sources})
 
@@ -105,6 +111,9 @@ target_compile_definitions(wpm PRIVATE
 if(WPM_BLAKE2B_SIMD_ENABLED)
   target_compile_definitions(wpm PRIVATE WPM_BLAKE2B_SIMD=1)
 endif()
+if(WPM_ZLIB_SSE2_ENABLED)
+  target_compile_definitions(wpm PRIVATE WPM_ZLIB_SSE2=1)
+endif()
 if(WIN32)
   # Let WCRT establish its time_t and wint_t before TinyCC's WinAPI headers.
   target_compile_options(wpm PRIVATE -include wchar.h)
@@ -116,11 +125,14 @@ if(WIN32)
   )
 endif()
 target_link_libraries(wpm PRIVATE minizip-ng zlib-ng libsodium)
+target_link_libraries(wpm PRIVATE wpm-mbedtls)
+target_include_directories(wpm PRIVATE "${CMAKE_BINARY_DIR}/third_party")
 if(WIN32)
   # Use explicit import definitions so cross-architecture builds don't depend
   # on matching system DLLs being installed on the build host.
   target_link_options(wpm PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/tcc_support/urlmon.def"
+    "${WPM_TCC_ROOT}/lib/ws2_32.def"
     "${CMAKE_CURRENT_SOURCE_DIR}/tcc_support/advapi32.def"
     "${CMAKE_CURRENT_SOURCE_DIR}/tcc_support/version.def"
     "${CMAKE_CURRENT_SOURCE_DIR}/tcc_support/kernel32-extra.def"
@@ -147,6 +159,24 @@ endif()
 
 if(BUILD_TESTING)
   if(WIN32)
+    add_executable(wpm-https-test "${CMAKE_SOURCE_DIR}/tests/https-probe.c"
+      helpers.c progress.c "${wcrt_console_startup}")
+    target_compile_options(wpm-https-test PRIVATE -include wchar.h)
+    target_compile_definitions(wpm-https-test PRIVATE _WINT_T WCRT_POSIX=1)
+    target_include_directories(wpm-https-test PRIVATE "${CMAKE_BINARY_DIR}/third_party")
+    target_link_options(wpm-https-test PRIVATE -nostdlib
+      "${WPM_TCC_ROOT}/lib/kernel32.def" "${WPM_TCC_ROOT}/lib/ws2_32.def"
+      "${CMAKE_CURRENT_SOURCE_DIR}/tcc_support/advapi32.def")
+    target_link_libraries(wpm-https-test PRIVATE wpm-mbedtls
+      "${WPM_WCRT_TARGET_ROOT}/lib/libwcrt.a")
+    if(wpm_arch STREQUAL "x86")
+      target_link_libraries(wpm-https-test PRIVATE "${tcc_bin_dir}/lib/i386-win32-libtcc1.a")
+    elseif(wpm_arch STREQUAL "x64")
+      target_link_libraries(wpm-https-test PRIVATE "${tcc_bin_dir}/lib/x86_64-win32-libtcc1.a")
+    else()
+      target_link_libraries(wpm-https-test PRIVATE "${tcc_bin_dir}/lib/arm64-win32-libtcc1.a")
+    endif()
+    add_test(NAME https-parser COMMAND wpm-https-test --self-test)
     add_executable(wpm-blake2b-test "${CMAKE_SOURCE_DIR}/tests/blake2b-simd.c"
       "${wcrt_console_startup}")
     target_include_directories(wpm-blake2b-test PRIVATE
@@ -170,10 +200,37 @@ if(BUILD_TESTING)
       target_link_libraries(wpm-blake2b-test PRIVATE "${tcc_bin_dir}/lib/arm64-win32-libtcc1.a")
     endif()
     add_test(NAME blake2b-simd COMMAND wpm-blake2b-test)
+    if(WPM_ZLIB_SSE2_ENABLED)
+      add_executable(wpm-zlib-test "${CMAKE_SOURCE_DIR}/tests/zlib-sse2.c"
+        "${wcrt_console_startup}")
+      target_compile_options(wpm-zlib-test PRIVATE -include wchar.h)
+      target_compile_definitions(wpm-zlib-test PRIVATE _WINT_T WCRT_POSIX=1 "__int64=long long")
+      target_link_options(wpm-zlib-test PRIVATE -nostdlib
+        "${WPM_TCC_ROOT}/lib/kernel32.def")
+      target_link_libraries(wpm-zlib-test PRIVATE zlib-ng
+        "${WPM_WCRT_TARGET_ROOT}/lib/libwcrt.a")
+      if(wpm_arch STREQUAL "x86")
+        target_link_libraries(wpm-zlib-test PRIVATE "${tcc_bin_dir}/lib/i386-win32-libtcc1.a")
+      else()
+        target_link_libraries(wpm-zlib-test PRIVATE "${tcc_bin_dir}/lib/x86_64-win32-libtcc1.a")
+      endif()
+      add_test(NAME zlib-sse2 COMMAND wpm-zlib-test)
+    endif()
   endif()
   find_program(WPM_POWERSHELL_EXECUTABLE NAMES pwsh powershell)
   if(NOT WPM_POWERSHELL_EXECUTABLE)
     message(FATAL_ERROR "PowerShell is required to run the WPM tests")
+  endif()
+  find_package(Python3 COMPONENTS Interpreter REQUIRED)
+  find_program(WPM_TLS_POWERSHELL_EXECUTABLE NAMES pwsh REQUIRED)
+  add_test(NAME https-integration COMMAND "${WPM_TLS_POWERSHELL_EXECUTABLE}" -NoProfile
+    -File "${CMAKE_SOURCE_DIR}/tests/test-https.ps1" -Probe $<TARGET_FILE:wpm-https-test>
+    -Python "${Python3_EXECUTABLE}")
+  set_tests_properties(https-integration PROPERTIES TIMEOUT 180)
+  if(wpm_arch STREQUAL "x86")
+    add_test(NAME https-legacy-imports COMMAND "${WPM_POWERSHELL_EXECUTABLE}" -NoProfile
+      -File "${CMAKE_SOURCE_DIR}/tests/verify-legacy-tls-imports.ps1"
+      -Executable $<TARGET_FILE:wpm-https-test>)
   endif()
 
   option(WPM_RUN_TESTS_AFTER_BUILD "Run WPM tests as part of the default build" OFF)
@@ -331,6 +388,10 @@ if(BUILD_TESTING)
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     COMMENT "Running WPM tests"
   )
+  add_dependencies(check wpm-https-test wpm-blake2b-test)
+  if(TARGET wpm-zlib-test)
+    add_dependencies(check wpm-zlib-test)
+  endif()
 
   if(WPM_BUILD_TEST_REPORTS)
     add_custom_target(test-reports DEPENDS ${WPM_TEST_REPORT_TEX_OUTPUTS})
@@ -354,6 +415,16 @@ if(BUILD_TESTING)
       VERBATIM
     )
     add_dependencies(verify test-reports)
+    add_custom_target(check-components
+      COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
+        -R "^(https-.*|blake2b-simd|zlib-sse2)$"
+      DEPENDS wpm-https-test wpm-blake2b-test
+      WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+      VERBATIM)
+    if(TARGET wpm-zlib-test)
+      add_dependencies(check-components wpm-zlib-test)
+    endif()
+    add_dependencies(verify check-components)
   else()
     add_custom_target(verify)
     add_dependencies(verify check)

@@ -55,6 +55,10 @@ count, and usable instruction sets (including SSE/AVX or ARM features). Detectio
 uses WCRT 1.3.0; unavailable values are shown as unknown. Under emulation, the
 architecture and instruction sets describe the executing process. Instruction
 sets reflect operating-system support as well as CPU capabilities.
+It also identifies whether compression/extraction kernels use SSE2 or scalar code.
+The selected HTTPS backend and CA trust source are included as well. HTTPS uses
+bundled Mbed TLS by default; see [bundled HTTPS](bundled-https.md) for private-CA
+configuration, the optional URLMon backend, and legacy Windows limitations.
 
 Repository-index downloads, package downloads, archive extraction, and indexed
 package validation show byte progress without requiring `--verbose`. In an
@@ -414,6 +418,11 @@ set `WPM_SIMD_CLANG` to its executable if automatic discovery fails, or use
 SSE4.1, SSSE3, then scalar, with AVX2 also gated on OS XSAVE support and the
 enabled SSE/AVX state in XCR0. ARM64 uses scalar BLAKE2b. The selected backend
 is printed during hashing initialization with `--verbose`.
+
+Compression and extraction additionally use TinyCC-compiled SSE2 kernels when
+WCRT reports CPU/OS support. These require a TinyCC package with SSE2 intrinsic
+support (tested with `0.9.28-rc.1448+72495402`). Disable them
+with `-DWPM_ZLIB_SSE2=OFF`. ARM64 and CPUs without usable SSE2 retain scalar paths.
 
 ```powershell
 cmake --preset x86-debug

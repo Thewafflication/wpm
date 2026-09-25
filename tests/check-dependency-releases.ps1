@@ -9,7 +9,8 @@ $ErrorActionPreference = 'Stop'
 $dependencies = @(
     @{ Name = 'minizip-ng'; Path = 'third_party/minizip-ng'; Repository = 'zlib-ng/minizip-ng' },
     @{ Name = 'zlib-ng'; Path = 'third_party/zlib-ng'; Repository = 'zlib-ng/zlib-ng' },
-    @{ Name = 'libsodium'; Path = 'third_party/libsodium'; Repository = 'jedisct1/libsodium' }
+    @{ Name = 'libsodium'; Path = 'third_party/libsodium'; Repository = 'jedisct1/libsodium' },
+    @{ Name = 'Mbed TLS 3.6 LTS'; Path = 'third_party/mbedtls'; Repository = 'Mbed-TLS/mbedtls'; TagPattern = '^mbedtls-3\.6\.\d+$' }
 )
 $dependencyWarnings = [System.Collections.Generic.List[string]]::new()
 
@@ -58,9 +59,17 @@ foreach ($dependency in $dependencies) {
             throw "could not read the pinned submodule commit"
         }
 
-        $release = Invoke-RestMethod `
-            -Uri "https://api.github.com/repos/$($dependency.Repository)/releases/latest" `
-            -Headers $headers
+        if ($dependency.TagPattern) {
+            $releases = Invoke-RestMethod `
+                -Uri "https://api.github.com/repos/$($dependency.Repository)/releases?per_page=100" `
+                -Headers $headers
+            $release = $releases | Where-Object { -not $_.draft -and -not $_.prerelease -and $_.tag_name -match $dependency.TagPattern } |
+                Sort-Object { ConvertTo-ReleaseVersion $_.tag_name } -Descending | Select-Object -First 1
+        } else {
+            $release = Invoke-RestMethod `
+                -Uri "https://api.github.com/repos/$($dependency.Repository)/releases/latest" `
+                -Headers $headers
+        }
         $latestTag = [string]$release.tag_name
         if (-not $latestTag) { throw 'the latest GitHub release has no tag' }
 

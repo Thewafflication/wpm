@@ -11,6 +11,7 @@
 #include "signing.h"
 #include <stdlib.h>
 #include <windows.h>
+#include "mbedtls/version.h"
 #ifdef WPM_HAS_WCRT
 #include <wcrt/cpu.h>
 #endif
@@ -79,6 +80,12 @@ static void print_cpu_info(void)
     }
     if (!printed) printf(" %s", cpu ? "none detected" : "unknown");
     printf("\n");
+#ifdef WPM_ZLIB_SSE2
+    printf("  Compression/extraction kernels: %s\n",
+        wcrt_cpu_has_features(WCRT_CPU_SSE2) ? "SSE2" : "scalar");
+#else
+    printf("  Compression/extraction kernels: scalar\n");
+#endif
 #else
     printf("CPU: detection unavailable\n");
 #endif
@@ -317,6 +324,8 @@ static void print_runtime_mode(void)
     char managed_root[MAX_PATH];
     char program_files[MAX_PATH];
     DWORD path_length;
+    const char* https_backend = getenv("WPM_HTTPS_BACKEND");
+    const char* ca_file = getenv("WPM_TLS_CA_FILE");
 
     if (!wpm_get_environment_variable("ProgramW6432", program_files, sizeof(program_files)) &&
         !wpm_get_environment_variable("ProgramFiles", program_files, sizeof(program_files))) {
@@ -335,6 +344,12 @@ static void print_runtime_mode(void)
     if (path_length > 0 && path_length < sizeof(executable_path)) {
         printf("Executable: %s\n", executable_path);
     }
+    if (!https_backend || !*https_backend || _stricmp(https_backend, "bundled") == 0) {
+        printf("HTTPS backend: Mbed TLS %s (TLS 1.2)\n", MBEDTLS_VERSION_STRING);
+        printf("TLS trust: %s\n", ca_file && *ca_file ? "configured CA file" : "embedded Mozilla CA bundle");
+    } else if (_stricmp(https_backend, "urlmon") == 0) {
+        printf("HTTPS backend: URLMon (Windows TLS and certificate store)\n");
+    } else printf("HTTPS backend: invalid WPM_HTTPS_BACKEND setting\n");
 }
 
 static void print_diagnostics(void)
@@ -819,6 +834,7 @@ void print_version()
 	printf("Waughtal Package Manager (wpm) Version %s \n", WPM_VERSION);
     printf("=================================================================\n");
     printf("Dependencies:\n");
+    printf("  mbedTLS %s (bundled TLS 1.2, embedded CA roots)\n", MBEDTLS_VERSION_STRING);
     printf("  minizip-ng %s (commit %s%s)\n",
         WPM_MINIZIP_NG_VERSION,
         WPM_MINIZIP_NG_COMMIT,

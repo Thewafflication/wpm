@@ -86,6 +86,8 @@ if(WIN32)
   )
 endif()
 wpm_third_party_set_archive_output(zlib-ng)
+include("${CMAKE_SOURCE_DIR}/cmake/ZlibSse2.cmake")
+set(WPM_ZLIB_SSE2_ENABLED "${WPM_ZLIB_SSE2_ENABLED}" PARENT_SCOPE)
 
 set(MINIZIP_NG_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/minizip-ng")
 if(NOT EXISTS "${MINIZIP_NG_SOURCE_DIR}/CMakeLists.txt")
@@ -241,3 +243,6 @@ add_custom_target(wpm-third-party
     minizip-ng
     libsodium
 )
+
+include("${CMAKE_SOURCE_DIR}/cmake/MbedTls.cmake")
+add_dependencies(wpm-third-party wpm-mbedtls)

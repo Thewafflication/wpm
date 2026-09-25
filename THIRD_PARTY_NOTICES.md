@@ -2,6 +2,29 @@
 
 WPM includes the following third-party software.
 
+## Mbed TLS
+
+- Project: [Mbed TLS](https://github.com/Mbed-TLS/mbedtls)
+- Version: 3.6.7, pinned commit `068ff080b369adfac81509f9b57b2afabaf82dc5`
+- Copyright: The Mbed TLS Contributors
+- License: Apache-2.0 OR GPL-2.0-or-later; WPM uses the GPL option as part of
+  this GPL-3.0-or-later work. The upstream license is retained in
+  `third_party/mbedtls/LICENSE`; WPM's GPL text is in `LICENSE.txt`.
+- Bundled source: `third_party/mbedtls` (Git submodule); no upstream modifications.
+- Purpose: app-local TLS 1.2 and X.509 certificate verification.
+
+## Mozilla CA certificate data
+
+- Source: [curl's Mozilla CA extraction](https://curl.se/docs/caextract.html)
+- Snapshot: Mozilla certificate data dated 2026-08-13, downloaded 2026-09-24.
+- Source form: [WPM's retained PEM and provenance](https://github.com/Thewafflication/wpm/tree/master/third_party/certificates)
+- License: MPL-2.0. This Source Code Form is subject to the terms of the Mozilla
+  Public License, v. 2.0. If a copy of the MPL was not distributed with this file,
+  You can obtain one at https://mozilla.org/MPL/2.0/.
+- Purpose: embedded HTTPS trust anchors, independent of Windows' certificate store.
+
+No OneCoreAPI, Wine, or ReactOS source is included in this transport.
+
 ## WCRT (optional build dependency)
 
 - Project: Waughtal C Run Time (WCRT)

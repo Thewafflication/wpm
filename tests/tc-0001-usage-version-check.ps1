@@ -53,6 +53,7 @@ $results = @(
                 throw "Expected exit code 0, got $ExitCode."
             }
             if ($Output -notmatch 'Dependencies:' -or
+                $Output -notmatch 'mbedTLS \d+\.\d+\.\d+ \(bundled TLS 1\.2, embedded CA roots\)' -or
                 $Output -notmatch 'minizip-ng .+commit ' -or
                 $Output -notmatch 'zlib-ng .+commit ' -or
                 $Output -notmatch 'libsodium .+commit ' -or

@@ -42,6 +42,13 @@ with the downloaded WPM executable in an isolated temporary trust store, and
 then runs the packaged `setup.cmd`. Its initial trust anchor is GitHub HTTPS;
 the public-key identifier is documented below for independent verification.
 
+Once installed, WPM uses bundled Mbed TLS and embedded Mozilla CA roots for
+HTTPS repositories, independently of Windows' TLS stack. This is intended to
+enable repository access on Windows 2000/XP without OneCoreAPI or system changes;
+execution on those legacy systems still needs validation. The bootstrap script
+itself retains the downloader requirement above. See [bundled HTTPS](docs/bundled-https.md)
+for configuration and current limitations.
+
 See the [usage guide](docs/usage.md) for commands, examples, and the WPM
 package layout.
 
@@ -112,6 +119,13 @@ TinyCC still compiles WPM and links the executable against WCRT. CMake finds
 Clang in PATH, LLVM, or Visual Studio, or accepts `-DWPM_SIMD_CLANG=<path>`.
 Use `-DWPM_BLAKE2B_SIMD=OFF` for a scalar-only build without Clang. ARM64 keeps
 the scalar implementation. All implementations preserve existing package hashes.
+
+Compression and extraction use SSE2 hash-table sliding and inflate copy kernels
+when WCRT reports usable SSE2. TinyCC compiles these kernels; older CPUs and
+ARM64 retain scalar code. This requires TinyCC's SSE2 intrinsic and inline-assembly
+support (tested with package `0.9.28-rc.1448+72495402`). Set `WPM_ZLIB_SSE2=OFF`
+for a scalar zlib-ng build. `--version --verbose` reports the selected kernels.
+See [SSE2 compression and extraction](docs/zlib-sse2.md) for validation and benchmarks.
 
 ```powershell
 cmake --preset x64-release
