@@ -464,6 +464,15 @@ static int urlmon_download(const char* url, const char* destination,
     DeleteFileA(temporary);
     result = URLDownloadToFileA(NULL, url, temporary, 0, &callback);
     succeeded = SUCCEEDED(result);
+    if (succeeded) {
+        WIN32_FILE_ATTRIBUTE_DATA information;
+        /* Cached URLMon responses need not deliver byte callbacks. */
+        if (GetFileAttributesExA(temporary, GetFileExInfoStandard, &information)) {
+            unsigned long long size = ((unsigned long long)information.nFileSizeHigh << 32) |
+                information.nFileSizeLow;
+            wpm_progress_set(&callback.progress, size, size);
+        }
+    }
     if (succeeded && !MoveFileExA(temporary, destination, MOVEFILE_REPLACE_EXISTING)) {
         move_error = GetLastError();
         succeeded = 0;
@@ -627,18 +636,14 @@ static int copy_local(const char* source, const char* destination) {
 static int retrieve(const char* source, const char* destination, const char* label,
     int allow_insecure_http) {
     if (is_https_repository(source)) {
-        const char* backend = getenv("WPM_HTTPS_BACKEND");
-        if (!backend || !*backend || _stricmp(backend, "bundled") == 0)
+        wpm_https_backend backend = wpm_https_get_backend();
+        if (backend == WPM_HTTPS_BUNDLED)
             return wpm_https_download(source, destination, label);
-        if (_stricmp(backend, "urlmon") == 0) {
-            const char* ca_file = getenv("WPM_TLS_CA_FILE");
-            if (ca_file && *ca_file) {
-                printf("Error: WPM_TLS_CA_FILE requires the bundled HTTPS backend.\n");
-                return 0;
-            }
+        if (backend == WPM_HTTPS_URLMON) {
             return urlmon_download(source, destination, label);
         }
-        printf("Error: WPM_HTTPS_BACKEND must be bundled or urlmon.\n");
+        printf("Error: WPM_HTTPS_BACKEND must be auto, bundled or urlmon; "
+            "WPM_TLS_CA_FILE requires auto or bundled.\n");
         return 0;
     }
     if (is_http_repository(source)) {

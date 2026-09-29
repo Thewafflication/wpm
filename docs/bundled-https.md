@@ -1,7 +1,7 @@
 # Bundled HTTPS transport
 
-WPM now uses an app-local Mbed TLS 3.6.7 TLS 1.2 client for HTTPS repositories
-and package downloads. Mbed TLS and a pinned Mozilla CA snapshot are linked into
+WPM includes an app-local Mbed TLS 3.6.7 TLS 1.2 client for HTTPS repositories
+and package downloads on legacy Windows. Mbed TLS and a pinned Mozilla CA snapshot are linked into
 the executable. It does not install OneCoreAPI, replace Schannel, modify system
 DLLs, or change the machine's certificate store. Package signatures remain
 required under the existing trust policy.
@@ -34,7 +34,18 @@ but WPM uses the upstream library directly and copies no compatibility-layer cod
 
 ## Configuration
 
-The default is `WPM_HTTPS_BACKEND=bundled`. The CA bundle comes from
+The default is `WPM_HTTPS_BACKEND=auto`. Before connecting, WPM selects URLMon
+on Windows 8 and newer (including Windows 11), preserving Windows proxy/PAC and
+enterprise certificate integration. Windows 2000, XP, Vista, and 7 select bundled
+TLS. This uses the XP-compatible `GetVersionExA` API; unmanifested modern apps
+report version 6.2, which still selects URLMon. OS compatibility settings can affect
+the reported version; explicitly choose a backend if needed.
+
+Setting `WPM_TLS_CA_FILE` with `auto` selects bundled TLS on any OS. Setting
+`WPM_HTTPS_BACKEND=bundled` also explicitly selects it. No failed connection or
+certificate check triggers a retry with another backend or trust store.
+
+The bundled CA snapshot comes from
 `third_party/certificates/cacert.pem`; its source, snapshot date, hash, and update
 procedure are recorded beside it. Updating WPM refreshes the embedded snapshot
 when maintainers update that source file.
@@ -48,7 +59,21 @@ as WPM's executable; it defines which HTTPS endpoints are trusted.
 environments that need its proxy integration. It uses Windows TLS/certificate
 validation and therefore does not solve old Windows TLS limitations. A custom
 CA-file setting cannot be combined with URLMon. `--version --verbose` reports
-the backend and trust source.
+the selected backend and trust source. TLS diagnostics are retained in the
+operational log. Download progress uses native Windows output handles and always
+retains a completion line with the byte count, including short index downloads.
+
+To recover an affected corporate Windows 11 installation still running 1.2.4,
+use a PowerShell session with the Windows transport explicitly selected:
+
+```powershell
+$env:WPM_HTTPS_BACKEND = 'urlmon'
+wpm update
+wpm upgrade wpm
+```
+
+An existing `WPM_TLS_CA_FILE` is intentionally incompatible with URLMon; do not
+discard a configured trust policy merely to work around a connection failure.
 
 This initial bundled backend supports direct IPv4 connections and ASCII DNS
 names. It does not yet support IPv6 literals, proxy/PAC authentication, client

@@ -1,6 +1,7 @@
 param(
     [Parameter(Mandatory = $true)][string]$Probe,
-    [Parameter(Mandatory = $true)][string]$Python
+    [Parameter(Mandatory = $true)][string]$Python,
+    [Parameter(Mandatory = $true)][string]$WpmExe
 )
 $ErrorActionPreference = 'Stop'
 $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../out'))
@@ -42,7 +43,7 @@ try {
             } finally { $leaf.Dispose() }
         } finally { $key.Dispose() }
     }
-    & $Python (Join-Path $PSScriptRoot 'https-integration.py') --probe $Probe --fixtures $fixture
+    & $Python (Join-Path $PSScriptRoot 'https-integration.py') --probe $Probe --fixtures $fixture --wpm $WpmExe
     if ($LASTEXITCODE -ne 0) { throw 'HTTPS integration tests failed.' }
 } finally {
     $ca.Dispose()

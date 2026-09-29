@@ -10,9 +10,42 @@ import threading
 parser = argparse.ArgumentParser()
 parser.add_argument('--probe', required=True)
 parser.add_argument('--fixtures', required=True)
+parser.add_argument('--wpm', required=True)
 args = parser.parse_args()
+progress = subprocess.run([args.probe, '--progress-test'], capture_output=True, text=True, timeout=10)
+assert progress.returncode == 0, progress
+for expected in ('Downloaded short index: 17 bytes',
+                 'Downloaded large unknown: 4294967297 bytes',
+                 'Download failed: partial after 23 bytes',
+                 ': 18446744073709551615 bytes'):
+    assert expected in progress.stdout, progress.stdout
 fixtures = Path(args.fixtures)
 payload = bytes(range(256)) * 1024
+
+# Exercise production logging and backend diagnostics without external traffic.
+env = os.environ.copy()
+env['WPM_DATA_DIR'] = str(fixtures / 'wpm-data')
+env['WPM_LOG_FILE'] = str(fixtures / 'operational.log')
+env['WPM_HTTPS_BACKEND'] = 'auto'
+env.pop('WPM_TLS_CA_FILE', None)
+version = subprocess.run([args.wpm, '--version', '--verbose'], env=env,
+                         capture_output=True, text=True, timeout=10)
+assert version.returncode == 0 and 'HTTPS backend: URLMon' in version.stdout, version.stdout
+env['WPM_TLS_CA_FILE'] = str(fixtures / 'invalid-ca.pem')
+Path(env['WPM_TLS_CA_FILE']).write_text('invalid certificate')
+version = subprocess.run([args.wpm, '--version', '--verbose'], env=env,
+                         capture_output=True, text=True, timeout=10)
+assert version.returncode == 0 and 'HTTPS backend: Mbed TLS' in version.stdout, version.stdout
+failed = subprocess.run([args.wpm, 'update'], env=env,
+                        capture_output=True, text=True, timeout=10)
+assert failed.returncode != 0, failed.stdout
+log = Path(env['WPM_LOG_FILE']).read_text()
+assert 'could not load complete TLS CA bundle' in log, log
+assert 'bundled HTTPS download failed' in log, log
+env['WPM_HTTPS_BACKEND'] = 'urlmon'
+conflict = subprocess.run([args.wpm, 'update'], env=env,
+                          capture_output=True, text=True, timeout=10)
+assert conflict.returncode != 0 and 'WPM_TLS_CA_FILE requires' in conflict.stdout, conflict.stdout
 
 
 class Server:
@@ -114,6 +147,8 @@ def check(server, path, succeeds, trust=True):
                             env=env, capture_output=True, text=True, timeout=30)
     assert (result.returncode == 0) == succeeds, (path, result.returncode, result.stdout, result.stderr)
     assert destination.read_bytes() == (payload if succeeds else b'unchanged'), path
+    if succeeds:
+        assert f'Downloaded TLS test: {len(payload)} bytes' in result.stdout, result.stdout
     assert not list(fixtures.glob(destination.name + '*.download')), path
     print('PASS', path, 'trusted' if trust else 'untrusted')
 

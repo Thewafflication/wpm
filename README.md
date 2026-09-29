@@ -42,10 +42,11 @@ with the downloaded WPM executable in an isolated temporary trust store, and
 then runs the packaged `setup.cmd`. Its initial trust anchor is GitHub HTTPS;
 the public-key identifier is documented below for independent verification.
 
-Once installed, WPM uses bundled Mbed TLS and embedded Mozilla CA roots for
-HTTPS repositories, independently of Windows' TLS stack. This is intended to
+Once installed, WPM selects Windows HTTPS on Windows 8 and newer to preserve
+system proxy and certificate integration. On older Windows it uses bundled Mbed
+TLS and embedded Mozilla CA roots, independently of Windows' TLS stack, to
 enable repository access on Windows 2000/XP without OneCoreAPI or system changes;
-execution on those legacy systems still needs validation. The bootstrap script
+broader execution on those legacy systems still needs validation. The bootstrap script
 itself retains the downloader requirement above. See [bundled HTTPS](docs/bundled-https.md)
 for configuration and current limitations.
 

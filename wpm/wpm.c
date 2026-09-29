@@ -5,6 +5,7 @@
 #include "wpm.h"
 #include "archive.h"
 #include "helpers.h"
+#include "https.h"
 #include "init.h"
 #include "logging.h"
 #include "repository.h"
@@ -324,7 +325,7 @@ static void print_runtime_mode(void)
     char managed_root[MAX_PATH];
     char program_files[MAX_PATH];
     DWORD path_length;
-    const char* https_backend = getenv("WPM_HTTPS_BACKEND");
+    wpm_https_backend https_backend = wpm_https_get_backend();
     const char* ca_file = getenv("WPM_TLS_CA_FILE");
 
     if (!wpm_get_environment_variable("ProgramW6432", program_files, sizeof(program_files)) &&
@@ -344,10 +345,10 @@ static void print_runtime_mode(void)
     if (path_length > 0 && path_length < sizeof(executable_path)) {
         printf("Executable: %s\n", executable_path);
     }
-    if (!https_backend || !*https_backend || _stricmp(https_backend, "bundled") == 0) {
+    if (https_backend == WPM_HTTPS_BUNDLED) {
         printf("HTTPS backend: Mbed TLS %s (TLS 1.2)\n", MBEDTLS_VERSION_STRING);
         printf("TLS trust: %s\n", ca_file && *ca_file ? "configured CA file" : "embedded Mozilla CA bundle");
-    } else if (_stricmp(https_backend, "urlmon") == 0) {
+    } else if (https_backend == WPM_HTTPS_URLMON) {
         printf("HTTPS backend: URLMon (Windows TLS and certificate store)\n");
     } else printf("HTTPS backend: invalid WPM_HTTPS_BACKEND setting\n");
 }

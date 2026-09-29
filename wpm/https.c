@@ -12,6 +12,37 @@
 #include "helpers.h"
 #include "progress.h"
 #include "wpm_ca_bundle.h"
+#include "logging.h"
+
+static wpm_https_backend https_select_backend(const char* backend,
+    const char* ca_file, DWORD major, DWORD minor)
+{
+    if (backend && *backend && _stricmp(backend, "auto") != 0) {
+        if (_stricmp(backend, "bundled") == 0) return WPM_HTTPS_BUNDLED;
+        if (_stricmp(backend, "urlmon") == 0 && (!ca_file || !*ca_file))
+            return WPM_HTTPS_URLMON;
+        return WPM_HTTPS_INVALID;
+    }
+    if (ca_file && *ca_file) return WPM_HTTPS_BUNDLED;
+    /* Unmanifested modern applications report 6.2; XP/2000 report 5.x.
+       Select once, never retry a failed certificate check with other trust. */
+    return major > 6 || (major == 6 && minor >= 2) ?
+        WPM_HTTPS_URLMON : WPM_HTTPS_BUNDLED;
+}
+
+wpm_https_backend wpm_https_get_backend(void)
+{
+    OSVERSIONINFOA version;
+    char backend[32] = "", ca_file[4096] = "";
+    /* WCRT getenv uses shared storage: keep these two settings independent. */
+    if (GetEnvironmentVariableA("WPM_HTTPS_BACKEND", backend, sizeof(backend)) >= sizeof(backend) ||
+        GetEnvironmentVariableA("WPM_TLS_CA_FILE", ca_file, sizeof(ca_file)) >= sizeof(ca_file))
+        return WPM_HTTPS_INVALID;
+    memset(&version, 0, sizeof(version));
+    version.dwOSVersionInfoSize = sizeof(version);
+    GetVersionExA(&version);
+    return https_select_backend(backend, ca_file, version.dwMajorVersion, version.dwMinorVersion);
+}
 
 #define HTTPS_URL_SIZE 4096
 #define HTTPS_LINE_SIZE 8192
@@ -200,7 +231,11 @@ static int https_open(https_connection* connection, const https_url* url, mbedtl
     if (!acquire || !connection->random || !connection->release ||
         !acquire(&connection->provider, NULL, NULL, 1, 0xf0000000UL)) return 0;
     host = gethostbyname(url->host);
-    if (!host || host->h_addrtype != AF_INET || host->h_length != 4) return 0;
+    if (!host || host->h_addrtype != AF_INET || host->h_length != 4) {
+        printf("Error: HTTPS DNS lookup failed for %s (Winsock %d).\n",
+            url->host, WSAGetLastError());
+        return 0;
+    }
     for (i = 0; host->h_addr_list[i]; i++) {
         struct sockaddr_in address;
         u_long nonblocking = 1;
@@ -218,7 +253,11 @@ static int https_open(https_connection* connection, const https_url* url, mbedtl
         closesocket(connection->socket);
         connection->socket = INVALID_SOCKET;
     }
-    if (connection->socket == INVALID_SOCKET) return 0;
+    if (connection->socket == INVALID_SOCKET) {
+        printf("Error: HTTPS direct connection failed for %s:%u; check network/proxy settings.\n",
+            url->host, (unsigned)url->port);
+        return 0;
+    }
     result = mbedtls_ssl_config_defaults(&connection->config, MBEDTLS_SSL_IS_CLIENT,
         MBEDTLS_SSL_TRANSPORT_STREAM, MBEDTLS_SSL_PRESET_DEFAULT);
     if (result != 0) return 0;

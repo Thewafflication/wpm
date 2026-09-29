@@ -387,7 +387,12 @@ credential-bearing, and unsupported locators are rejected. Filesystem and UNC
 sources are never modified, and WPM never searches for media after a drive-
 letter or identity change.
 
-HTTPS uses the Windows TLS validation stack. UNC uses the caller's Windows
+HTTPS selects the Windows TLS validation stack on Windows 8 and newer and
+bundled Mbed TLS with embedded CA roots on older systems. An explicit backend
+or private CA setting takes precedence; a custom CA always requires bundled
+TLS, and connection failure never changes the selected trust policy. See
+[bundled HTTPS](bundled-https.md) for selection, verification, and limitations.
+UNC uses the caller's Windows
 authorization. HTTP requires persisted repository-scoped opt-in, warning, and
 audit identity; redirects are reparsed and cannot downgrade or change origin
 silently. These transports provide different access protection but never

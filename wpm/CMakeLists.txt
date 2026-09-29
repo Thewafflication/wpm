@@ -225,7 +225,7 @@ if(BUILD_TESTING)
   find_program(WPM_TLS_POWERSHELL_EXECUTABLE NAMES pwsh REQUIRED)
   add_test(NAME https-integration COMMAND "${WPM_TLS_POWERSHELL_EXECUTABLE}" -NoProfile
     -File "${CMAKE_SOURCE_DIR}/tests/test-https.ps1" -Probe $<TARGET_FILE:wpm-https-test>
-    -Python "${Python3_EXECUTABLE}")
+    -Python "${Python3_EXECUTABLE}" -WpmExe $<TARGET_FILE:wpm>)
   set_tests_properties(https-integration PROPERTIES TIMEOUT 180)
   if(wpm_arch STREQUAL "x86")
     add_test(NAME https-legacy-imports COMMAND "${WPM_POWERSHELL_EXECUTABLE}" -NoProfile

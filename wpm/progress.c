@@ -12,6 +12,21 @@
 #define WPM_PROGRESS_BAR_MIN_WIDTH 10
 #define WPM_PROGRESS_BAR_MAX_WIDTH 160
 
+/* Progress must not depend on CRT stdout buffering while moving the native
+   console cursor. WriteFile works on XP consoles and redirected handles. */
+static void progress_write(const char* text) {
+    HANDLE output = GetStdHandle(STD_OUTPUT_HANDLE);
+    size_t remaining = strlen(text);
+    fflush(stdout);
+    while (remaining) {
+        DWORD written;
+        DWORD requested = remaining > MAXDWORD ? MAXDWORD : (DWORD)remaining;
+        if (!WriteFile(output, text, requested, &written, NULL) || !written) return;
+        text += written;
+        remaining -= written;
+    }
+}
+
 static int progress_stdout_is_interactive(void) {
     DWORD mode;
     HANDLE output = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -57,26 +72,26 @@ static int progress_clear_console_line(void) {
 static void progress_write_line(wpm_progress* progress, const char* line, int final) {
     size_t length = strlen(line);
     if (!progress->interactive) {
-        printf("%s\n", line);
-        fflush(stdout);
+        progress_write(line);
+        progress_write("\r\n");
         return;
     }
     if (progress_clear_console_line()) {
-        printf("%s", line);
+        progress_write(line);
         progress->rendered_length = length;
     }
     else {
-        printf("\r%s", line);
+        progress_write("\r");
+        progress_write(line);
         if (progress->rendered_length > length) {
             size_t remaining = progress->rendered_length - length;
-            while (remaining--) putchar(' ');
+            while (remaining--) progress_write(" ");
         }
         else {
             progress->rendered_length = length;
         }
     }
-    if (final) putchar('\n');
-    fflush(stdout);
+    if (final) progress_write("\r\n");
 }
 
 static void progress_render(wpm_progress* progress, int force) {
@@ -214,23 +229,25 @@ void wpm_progress_add(wpm_progress* progress, unsigned long long bytes) {
 
 void wpm_progress_finish(wpm_progress* progress, int succeeded) {
     char line[512];
+    int label_width = 300;
     if (!progress || !progress->started) return;
     if (succeeded && progress->total) progress->current = progress->total;
-    if (progress->interactive && succeeded && progress->total) {
-        progress_render(progress, 1);
-        putchar('\n');
-        fflush(stdout);
+    if (progress->interactive) {
+        int fixed = snprintf(line, sizeof(line), succeeded ?
+            "%s : %llu bytes" : "%s failed:  after %llu bytes",
+            succeeded ? progress->completed_verb : progress->noun, progress->current);
+        int available = progress_console_width() - fixed - 1;
+        if (available < label_width) label_width = available;
+        if (label_width < 0) label_width = 0;
+    }
+    if (succeeded) {
+        snprintf(line, sizeof(line), "%s %.*s: %llu bytes",
+            progress->completed_verb, label_width, progress->label, progress->current);
     }
     else {
-        if (succeeded) {
-            snprintf(line, sizeof(line), "%s %s: %llu bytes",
-                progress->completed_verb, progress->label, progress->current);
-        }
-        else {
-            snprintf(line, sizeof(line), "%s failed: %s after %llu bytes",
-                progress->noun, progress->label, progress->current);
-        }
-        progress_write_line(progress, line, 1);
+        snprintf(line, sizeof(line), "%s failed: %.*s after %llu bytes",
+            progress->noun, label_width, progress->label, progress->current);
     }
+    progress_write_line(progress, line, 1);
     progress->started = 0;
 }
