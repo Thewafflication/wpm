@@ -114,4 +114,3 @@ especially for scalar fallback and slower storage or CPUs.
 - [Run metadata, controls, and executable hashes](data/validation-wcrt131-2026-09-30/metadata.json)
 - [Runtime identity and correctness checks](data/validation-wcrt131-2026-09-30/runtime.json)
 - [WCRT issue #5](https://github.com/Thewafflication/wcrt/issues/5)
-
