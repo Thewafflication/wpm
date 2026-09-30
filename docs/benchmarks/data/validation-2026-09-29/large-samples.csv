@@ -1,0 +1,4 @@
+case,files,bytes_per_file,round,position,mode,backend,buffered,valid,elapsed_ms,first_progress_ms,max_progress_gap_ms,progress_adds,intermediate_renders,bytes,process_read_ops,process_read_bytes
+10x10MiB,10,10485760,1,1,scalar,scalar,0,1,368458.5167,368442.7745,368442.7745,10,1,104857600,104860614,104867456
+10x10MiB,10,10485760,1,2,simd,avx2,0,1,245136.3049,245124.7355,245124.7355,10,1,104857600,104860614,104866993
+1x1GiB,1,1073741824,1,1,scalar,scalar,0,1,3336435.1239,3336430.8996,3336430.8996,1,1,1073741824,1073742216,1073749067

@@ -1,0 +1,16 @@
+{
+  "purpose": "Supplemental buffering control, not production behavior",
+  "case": "100x100KiB",
+  "backend": "avx2",
+  "buffered": true,
+  "valid": true,
+  "elapsed_ms": 14695.4575,
+  "first_progress_ms": 2099.6714,
+  "max_progress_gap_ms": 2538.4568,
+  "progress_adds": 100,
+  "intermediate_renders": 6,
+  "bytes": 10240000,
+  "samples": 1,
+  "wcrt_sha256": "BB77C9A17A25A7162EB17E052A07082EE5AED98DE6CDF5D5B73DEB90C42E2B93",
+  "notes": "A single --buffered run against the completed small-case fixture; OS cache not evicted. No process I/O totals were collected for this manual control."
+}

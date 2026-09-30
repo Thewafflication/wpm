@@ -1,0 +1,48 @@
+{
+  "cpu": {
+    "Name": "12th Gen Intel(R) Core(TM) i7-12700H",
+    "NumberOfCores": 14,
+    "NumberOfLogicalProcessors": 20
+  },
+  "os": {
+    "Caption": "Microsoft Windows 11 Pro for Workstations",
+    "Version": "10.0.26200",
+    "BuildNumber": "26200",
+    "TotalVisibleMemorySize": 33272312
+  },
+  "storage": {
+    "FriendlyName": "SAMSUNG MZAL41T0HBLB-00BL2",
+    "MediaType": "SSD",
+    "BusType": "NVMe",
+    "Size": 1024209543168
+  },
+  "power_scheme": "Power Scheme GUID: 381b4222-f694-41f0-9685-ff5bb260df2e  (Balanced)",
+  "revision": "7ae159858221841da33e58bef3d604dd18d63e7d",
+  "configuration": "x64 Release",
+  "tcc": "0.9.28-rc.1448+72495402",
+  "clang": "22.1.3",
+  "wcrt": "1.3.0",
+  "libsodium": "1.0.22 / 77e1ce5d6dee871c49ef211222ba18ef0c486bda",
+  "source_hashes": [
+    {
+      "Path": "C:\\Users\\jmwau\\source\\repos\\wpm\\wpm\\archive.c",
+      "Hash": "29EDC6AE95CFEA44E7E09FFF8D68558BA562C21EA301EE3954B076D8F1AAFCC7"
+    },
+    {
+      "Path": "C:\\Users\\jmwau\\source\\repos\\wpm\\wpm\\progress.c",
+      "Hash": "789F9E6BAA02714BBB4F9B2C82BBBA13731353D0B7DBA4A614F9CDE0FEE2513B"
+    },
+    {
+      "Path": "C:\\Users\\jmwau\\source\\repos\\wpm\\tests\\validation-benchmark.c",
+      "Hash": "7FB34C22BDFB97371FE79FF967993111FC188622E9677CD94359492765A8468D"
+    },
+    {
+      "Path": "C:\\Users\\jmwau\\source\\repos\\wpm\\tests\\benchmark-validation.py",
+      "Hash": "987AB8E735F0A511BEAAE2809970C97F6DE614696A797D06164E7750BC274DF4"
+    },
+    {
+      "Path": "C:\\Users\\jmwau\\source\\repos\\wpm\\wpm\\CMakeLists.txt",
+      "Hash": "628BC161B6F6620CEEA5CC24B96398BA4525E1D5E6942B4E0EDB6B1B93AF1759"
+    }
+  ]
+}

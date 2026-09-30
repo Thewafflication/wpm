@@ -1,0 +1,14 @@
+{
+  "description": "Final harness adds an opt-in setvbuf control; default validation behavior and timer boundaries are unchanged. The final runner collects process I/O totals and supports reduced repetitions for large cases.",
+  "source_hashes": [
+    {
+      "Path": "C:\\Users\\jmwau\\source\\repos\\wpm\\tests\\validation-benchmark.c",
+      "Hash": "C947650B173757E06514DF952B922950B4A78629E3A20022743C66874C1D1CB2"
+    },
+    {
+      "Path": "C:\\Users\\jmwau\\source\\repos\\wpm\\tests\\benchmark-validation.py",
+      "Hash": "937BB0D7CD00BDFE13D094B02468388E710C5E25156ED582C6DE446EF962E517"
+    }
+  ],
+  "early_run": "Initial suite completed 10 measured runs per backend for both small cases, with two warmups per backend per case. Stopped during the first large-case warmup due to observed I/O cost. Original executable hashes were not persisted before that stop; initial source hashes are retained in machine.json. No interrupted sample is included."
+}

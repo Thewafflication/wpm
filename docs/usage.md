@@ -52,7 +52,7 @@ Verbose output also reports whether WPM is running in managed or portable mode.
 `wpm --version --verbose` also reports CPU vendor and brand, process architecture,
 system logical processor and physical core counts, the process affinity processor
 count, and usable instruction sets (including SSE/AVX or ARM features). Detection
-uses WCRT 1.3.0; unavailable values are shown as unknown. Under emulation, the
+uses WCRT 1.3.1; unavailable values are shown as unknown. Under emulation, the
 architecture and instruction sets describe the executing process. Instruction
 sets reflect operating-system support as well as CPU capabilities.
 It also identifies whether compression/extraction kernels use SSE2 or scalar code.
@@ -409,7 +409,7 @@ automation and testing.
 ## Building WPM from source
 
 WPM is a C99 project built with CMake. On Windows, the included presets use
-TinyCC, WCRT 1.3.0 or newer, and Ninja. Microsoft C compiler builds are not
+TinyCC, WCRT 1.3.1 or newer, and Ninja. Microsoft C compiler builds are not
 supported.
 
 The x86/x64 presets also use Clang to compile the three BLAKE2b SIMD kernels;

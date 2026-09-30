@@ -1,0 +1,14 @@
+{
+  "status": "incomplete_due_to_timeout",
+  "completed_samples": 3,
+  "timed_out_case": "1x1GiB",
+  "timed_out_backend": "avx2",
+  "timeout_seconds": 3600,
+  "timeout_scope": "whole child process, including startup",
+  "runner_exit_code": 1,
+  "validation_result_for_timed_out_attempt": "unknown",
+  "final_io_counters_for_timed_out_attempt": "not retained",
+  "summary_json_generated": false,
+  "cache_policy_clarification": "Zero additional warmups for large cases; regular OS-cached files freshly generated before each case; no cache eviction. The metadata's generic warmup wording is superseded by its explicit warmups_per_backend_per_case=0.",
+  "issue": "https://github.com/Thewafflication/wcrt/issues/5"
+}

@@ -93,3 +93,5 @@ in this repository, so that change must be made where its archive is assembled.
 
 - REQ-0003, REQ-0004, TC-0003, and TC-0004
 - ADR-0003 and ADR-0008
+- [ADR-0015: Validation performance and progress reporting](adr-0015-validation-performance-and-progress.md)
+- [Local indexed-file validation benchmark](benchmarks/validation-2026-09-29.md)

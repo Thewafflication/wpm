@@ -157,6 +157,27 @@ if(WIN32)
   endif()
 endif()
 
+option(WPM_BUILD_VALIDATION_BENCHMARK "Build the standalone indexed-file validation benchmark" OFF)
+if(WIN32 AND WPM_BUILD_VALIDATION_BENCHMARK)
+  # Exercise archive.c's private validation path without extraction or installation.
+  set(wpm_validation_sources ${wpm_sources})
+  list(REMOVE_ITEM wpm_validation_sources "wpm.c" "archive.c")
+  add_executable(wpm-validation-benchmark ${wpm_validation_sources}
+    "${CMAKE_SOURCE_DIR}/tests/validation-benchmark.c" "${wcrt_console_startup}")
+  foreach(property COMPILE_OPTIONS COMPILE_DEFINITIONS INCLUDE_DIRECTORIES LINK_OPTIONS LINK_LIBRARIES)
+    get_target_property(wpm_validation_property wpm ${property})
+    if(wpm_validation_property)
+      set_property(TARGET wpm-validation-benchmark PROPERTY ${property} "${wpm_validation_property}")
+    endif()
+  endforeach()
+  target_include_directories(wpm-validation-benchmark PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+  set_property(SOURCE "${CMAKE_SOURCE_DIR}/tests/validation-benchmark.c" APPEND PROPERTY
+    OBJECT_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/archive.c")
+  add_custom_command(TARGET wpm-validation-benchmark POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${WPM_WCRT_TARGET_ROOT}/bin/wcrt.dll"
+      "$<TARGET_FILE_DIR:wpm-validation-benchmark>/wcrt.dll")
+endif()
+
 if(BUILD_TESTING)
   if(WIN32)
     add_executable(wpm-https-test "${CMAKE_SOURCE_DIR}/tests/https-probe.c"

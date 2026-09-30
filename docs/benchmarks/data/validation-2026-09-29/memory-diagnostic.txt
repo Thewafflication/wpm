@@ -1,0 +1,8 @@
+Command: out/build/validation-simd/wpm/wpm-blake2b-test.exe --benchmark
+Single diagnostic run after the file-validation suite ended.
+PASS dispatch priority and scalar fallback for all feature masks
+Host selection: avx2
+scalar: 13.2 MiB/s (64 MiB, memory only)
+ssse3: 52.4 MiB/s (64 MiB, memory only)
+sse4.1: 64.5 MiB/s (64 MiB, memory only)
+avx2: 95.8 MiB/s (64 MiB, memory only)

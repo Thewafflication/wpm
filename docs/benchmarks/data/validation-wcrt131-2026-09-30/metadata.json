@@ -1,0 +1,43 @@
+{
+  "utc_started": "2026-09-30T14:14:26.773573+00:00",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "python": "3.12.3",
+  "rounds": 10,
+  "warmups_per_backend_per_case": 2,
+  "cases": [
+    "1000x1KiB",
+    "100x100KiB",
+    "10x10MiB",
+    "1x1GiB"
+  ],
+  "buffered": false,
+  "units": "binary: KiB=1024, MiB=1048576, GiB=1073741824",
+  "cache_policy": "regular OS-cached file I/O; no cache eviction; see warmup count",
+  "executables": {
+    "scalar": {
+      "path": "C:\\Users\\jmwau\\source\\repos\\wpm\\out\\build\\validation-scalar-wcrt131\\wpm\\wpm-validation-benchmark.exe",
+      "sha256": "bd577c5d973038a6e4645d249f81a675286ec4d8241a8fb973431d4e903eb2b9"
+    },
+    "simd": {
+      "path": "C:\\Users\\jmwau\\source\\repos\\wpm\\out\\build\\validation-simd-wcrt131\\wpm\\wpm-validation-benchmark.exe",
+      "sha256": "29e786d2ade1ab253158765cab78ad56f0956c4bb7be2359a7eb775295f7eff0"
+    }
+  },
+  "negative_controls": [
+    {
+      "mode": "scalar",
+      "valid": "pass",
+      "corruption": "rejected",
+      "truncation": "rejected",
+      "unindexed_file": "rejected"
+    },
+    {
+      "mode": "simd",
+      "valid": "pass",
+      "corruption": "rejected",
+      "truncation": "rejected",
+      "unindexed_file": "rejected"
+    }
+  ],
+  "utc_finished": "2026-09-30T14:20:43.159798+00:00"
+}

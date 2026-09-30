@@ -52,3 +52,11 @@ to measure each supported backend over 64 MiB in memory. This isolates hash
 throughput; it does not measure disk access, decompression, or package-level
 speedup. The benchmark flag is confined to the test executable, and timing is
 not a test pass/fail condition.
+
+For file-I/O validation measurements across small and large files, see the
+[indexed-file benchmark procedure](benchmarks/validation-method.md),
+[2026-09-29 local report](benchmarks/validation-2026-09-29.md), and proposed
+[ADR-0015](adr-0015-validation-performance-and-progress.md). That benchmark
+also records gaps between progress notifications from the production verifier.
+The [WCRT 1.3.1 rerun](benchmarks/validation-wcrt-1.3.1-2026-09-30.md) removes
+the earlier byte-at-a-time I/O bottleneck and shows AVX2 speedups on large files.
