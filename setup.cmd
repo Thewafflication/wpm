@@ -1,5 +1,8 @@
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
+if defined WPM_ENVIRONMENT_REGISTRY_KEY (
+    set "WPM_REGKEY=%WPM_ENVIRONMENT_REGISTRY_KEY%"
+)
 set "SOURCE_ROOT=%~dp0"
 
 set "WPM_INSTALL_SCOPE="
@@ -14,14 +17,16 @@ if /I "%~1"=="--machine" (
 if not defined WPM_INSTALL_SCOPE (
     rem Windows NT 5.x has no UAC or integrity-level SIDs. Its administrators
     rem already run with their full token, so retain the historical machine-wide
-    rem installation behavior without relying on the newer whoami /groups syntax.
+    rem installation behavior without relying on the newer whoami /groups
+    rem syntax.
     set "WPM_LEGACY_WINDOWS="
     ver | findstr /R /C:" 5\.[0-2]\." >nul
     if not errorlevel 1 set "WPM_LEGACY_WINDOWS=1"
     if defined WPM_LEGACY_WINDOWS (
         set "WPM_INSTALL_SCOPE=machine"
     ) else (
-        whoami /groups /fo csv /nh 2>nul | findstr /C:"S-1-16-12288" /C:"S-1-16-16384" >nul
+        whoami /groups /fo csv /nh 2>nul | findstr /C:"S-1-16-12288" ^
+/C:"S-1-16-16384" >nul
         if errorlevel 1 (
             set "WPM_INSTALL_SCOPE=user"
         ) else (
@@ -42,7 +47,7 @@ if not exist "%SOURCE_EXE%" (
 if /I "%WPM_INSTALL_SCOPE%"=="user" (
     if not defined WPM_INSTALL_DIR set "WPM_INSTALL_DIR=%LocalAppData%\WPM"
     if not defined WPM_DATA_DIR set "WPM_DATA_DIR=%LocalAppData%\WPM\data"
-    if not defined WPM_ENVIRONMENT_REGISTRY_KEY set "WPM_ENVIRONMENT_REGISTRY_KEY=HKCU\Environment"
+    if not defined WPM_REGKEY set "WPM_REGKEY=HKCU\Environment"
 ) else if not defined WPM_INSTALL_DIR (
     if defined ProgramW6432 (
         set "WPM_INSTALL_DIR=%ProgramW6432%\WPM"
@@ -50,7 +55,10 @@ if /I "%WPM_INSTALL_SCOPE%"=="user" (
         set "WPM_INSTALL_DIR=%ProgramFiles%\WPM"
     )
 )
-if not defined WPM_ENVIRONMENT_REGISTRY_KEY set "WPM_ENVIRONMENT_REGISTRY_KEY=HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment"
+if not defined WPM_REGKEY (
+    set "WPM_REGKEY=HKLM\SYSTEM\CurrentControlSet"
+    set "WPM_REGKEY=!WPM_REGKEY!\Control\Session Manager\Environment"
+)
 
 if not exist "%WPM_INSTALL_DIR%" mkdir "%WPM_INSTALL_DIR%"
 if errorlevel 1 (
@@ -71,7 +79,11 @@ if exist "%SOURCE_RUNTIME_DIR%wcrt.dll" (
     )
 )
 
-for %%F in ("%SOURCE_ROOT%README.md" "%SOURCE_ROOT%LICENSE.txt" "%SOURCE_ROOT%THIRD_PARTY_NOTICES.md") do (
+for %%F in (
+    "%SOURCE_ROOT%README.md"
+    "%SOURCE_ROOT%LICENSE.txt"
+    "%SOURCE_ROOT%THIRD_PARTY_NOTICES.md"
+) do (
     if not exist "%%~fF" (
         echo Error: required WPM distribution file not found: "%%~fF"
         exit /b 1
@@ -84,12 +96,14 @@ for %%F in ("%SOURCE_ROOT%README.md" "%SOURCE_ROOT%LICENSE.txt" "%SOURCE_ROOT%TH
 )
 
 if not exist "%SOURCE_ROOT%docs\usage.md" (
-    echo Error: required WPM documentation not found: "%SOURCE_ROOT%docs\usage.md"
+    echo Error: required WPM documentation not found: ^
+"%SOURCE_ROOT%docs\usage.md"
     exit /b 1
 )
 if not exist "%WPM_INSTALL_DIR%\docs" mkdir "%WPM_INSTALL_DIR%\docs"
 if errorlevel 1 (
-    echo Error: could not create documentation directory: "%WPM_INSTALL_DIR%\docs"
+    echo Error: could not create documentation directory: ^
+"%WPM_INSTALL_DIR%\docs"
     exit /b 1
 )
 for %%F in ("%SOURCE_ROOT%docs\*.md") do (
@@ -101,21 +115,26 @@ for %%F in ("%SOURCE_ROOT%docs\*.md") do (
 )
 
 echo Configuring the persistent WPM environment variable...
-if /I "%WPM_VERBOSE%"=="1" echo   Registry operation: key="%WPM_ENVIRONMENT_REGISTRY_KEY%" value=WPM type=REG_SZ data="%WPM_INSTALL_DIR%"
-reg add "%WPM_ENVIRONMENT_REGISTRY_KEY%" /v WPM /t REG_SZ /d "%WPM_INSTALL_DIR%" /f >nul
+if /I "%WPM_VERBOSE%"=="1" echo   Registry operation: key="%WPM_REGKEY%" ^
+value=WPM type=REG_SZ data="%WPM_INSTALL_DIR%"
+reg add "%WPM_REGKEY%" /v WPM /t REG_SZ /d "%WPM_INSTALL_DIR%" /f >nul
 set "WPM_REGISTRY_EXIT=!errorlevel!"
-if /I "%WPM_VERBOSE%"=="1" echo   Registry result: WPM value exit code !WPM_REGISTRY_EXIT!
+if /I "%WPM_VERBOSE%"=="1" echo   Registry result: WPM value exit code ^
+!WPM_REGISTRY_EXIT!
 if not "!WPM_REGISTRY_EXIT!"=="0" (
-    echo Error: could not set the WPM environment variable. Run setup from an elevated command prompt.
+    echo Error: could not set the WPM environment variable. Run setup from an ^
+elevated command prompt.
     exit /b 1
 )
 
 if /I "%WPM_INSTALL_SCOPE%"=="user" (
     echo Configuring the persistent WPM data directory...
-    if /I "%WPM_VERBOSE%"=="1" echo   Registry operation: key="%WPM_ENVIRONMENT_REGISTRY_KEY%" value=WPM_DATA_DIR type=REG_SZ data="%WPM_DATA_DIR%"
-    reg add "%WPM_ENVIRONMENT_REGISTRY_KEY%" /v WPM_DATA_DIR /t REG_SZ /d "%WPM_DATA_DIR%" /f >nul
+    if /I "%WPM_VERBOSE%"=="1" echo   Registry operation: key="%WPM_REGKEY%" ^
+value=WPM_DATA_DIR type=REG_SZ data="%WPM_DATA_DIR%"
+    reg add "%WPM_REGKEY%" /v WPM_DATA_DIR /t REG_SZ /d "%WPM_DATA_DIR%" /f >nul
     set "WPM_REGISTRY_EXIT=!errorlevel!"
-    if /I "%WPM_VERBOSE%"=="1" echo   Registry result: WPM_DATA_DIR value exit code !WPM_REGISTRY_EXIT!
+    if /I "%WPM_VERBOSE%"=="1" echo   Registry result: WPM_DATA_DIR value ^
+exit code !WPM_REGISTRY_EXIT!
     if not "!WPM_REGISTRY_EXIT!"=="0" (
         echo Error: could not set the WPM user data directory.
         exit /b 1
@@ -125,8 +144,12 @@ if /I "%WPM_INSTALL_SCOPE%"=="user" (
 set "WPM_PATH="
 set "WPM_PATH_CHANGED=0"
 echo Reading the persistent Path...
-if /I "%WPM_VERBOSE%"=="1" echo   Registry operation: key="%WPM_ENVIRONMENT_REGISTRY_KEY%" value=Path action=query
-for /f "tokens=1,2,*" %%A in ('reg query "%WPM_ENVIRONMENT_REGISTRY_KEY%" /v Path 2^>nul ^| find /I "Path"') do set "WPM_PATH=%%C"
+if /I "%WPM_VERBOSE%"=="1" echo   Registry operation: key="%WPM_REGKEY%" ^
+value=Path action=query
+set "WPM_QUERY=reg query "%WPM_REGKEY%" /v Path"
+for /f "tokens=1,2,*" %%A in ('!WPM_QUERY! 2^>nul') do (
+    if /I "%%A"=="Path" set "WPM_PATH=%%C"
+)
 echo;!WPM_PATH!;| findstr /I /C:"WPM" >nul
 if errorlevel 1 (
     if /I "%WPM_VERBOSE%"=="1" echo   Path decision: append %%WPM%%
@@ -137,22 +160,28 @@ if errorlevel 1 (
 )
 if "!WPM_PATH_CHANGED!"=="1" (
     echo Configuring the persistent Path...
-    if /I "%WPM_VERBOSE%"=="1" echo   Registry operation: key="%WPM_ENVIRONMENT_REGISTRY_KEY%" value=Path type=REG_EXPAND_SZ action=append-%%WPM%%
-    reg add "%WPM_ENVIRONMENT_REGISTRY_KEY%" /v Path /t REG_EXPAND_SZ /d "!WPM_PATH!" /f >nul
+    if /I "%WPM_VERBOSE%"=="1" echo   Registry operation: key="%WPM_REGKEY%" ^
+value=Path type=REG_EXPAND_SZ action=append-%%WPM%%
+    reg add "%WPM_REGKEY%" /v Path /t REG_EXPAND_SZ /d "!WPM_PATH!" /f >nul
     set "WPM_REGISTRY_EXIT=!errorlevel!"
-    if /I "%WPM_VERBOSE%"=="1" echo   Registry result: Path value exit code !WPM_REGISTRY_EXIT!
+    if /I "%WPM_VERBOSE%"=="1" echo   Registry result: Path value exit code ^
+!WPM_REGISTRY_EXIT!
     if not "!WPM_REGISTRY_EXIT!"=="0" (
-        echo Error: could not add %%WPM%% to the system Path. Run setup from an elevated command prompt.
+        echo Error: could not add %%WPM%% to the system Path. Run setup from ^
+an elevated command prompt.
         exit /b 1
     )
 ) else (
     echo Persistent Path already contains %%WPM%%; no registry write is needed.
 )
 
-echo WPM executable, licenses, and documentation installed to "%WPM_INSTALL_DIR%"
+echo WPM executable, licenses, and documentation installed to ^
+"%WPM_INSTALL_DIR%"
 if /I "%WPM_INSTALL_SCOPE%"=="user" (
-    echo The user WPM variable and Path have been updated. Open a new command prompt to use wpm.
+    echo The user WPM variable and Path have been updated. Open a new command ^
+prompt to use wpm.
 ) else (
-    echo The system WPM variable and Path have been updated. Open a new command prompt to use wpm.
+    echo The system WPM variable and Path have been updated. Open a new ^
+command prompt to use wpm.
 )
 exit /b 0

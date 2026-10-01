@@ -7,10 +7,18 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $dependencies = @(
-    @{ Name = 'minizip-ng'; Path = 'third_party/minizip-ng'; Repository = 'zlib-ng/minizip-ng' },
-    @{ Name = 'zlib-ng'; Path = 'third_party/zlib-ng'; Repository = 'zlib-ng/zlib-ng' },
-    @{ Name = 'libsodium'; Path = 'third_party/libsodium'; Repository = 'jedisct1/libsodium' },
-    @{ Name = 'Mbed TLS 3.6 LTS'; Path = 'third_party/mbedtls'; Repository = 'Mbed-TLS/mbedtls'; TagPattern = '^mbedtls-3\.6\.\d+$' }
+    @{ Name = 'minizip-ng'; Path = 'third_party/minizip-ng'; Repository = `
+            'zlib-ng/minizip-ng'
+    },
+    @{ Name = 'zlib-ng'; Path = 'third_party/zlib-ng'; Repository = `
+            'zlib-ng/zlib-ng'
+    },
+    @{ Name = 'libsodium'; Path = 'third_party/libsodium'; Repository = `
+            'jedisct1/libsodium'
+    },
+    @{ Name = 'Mbed TLS 3.6 LTS'; Path = 'third_party/mbedtls'; Repository = `
+            'Mbed-TLS/mbedtls'; TagPattern = '^mbedtls-3\.6\.\d+$'
+    }
 )
 $dependencyWarnings = [System.Collections.Generic.List[string]]::new()
 
@@ -24,7 +32,9 @@ function Write-DependencyWarning([string]$Message) {
 }
 
 function Write-DependencySummary {
-    if (-not $SummaryPath) { return }
+    if (-not $SummaryPath) {
+        return
+    }
 
     $lines = [System.Collections.Generic.List[string]]::new()
     $lines.Add('## Dependency warnings')
@@ -41,13 +51,23 @@ function Write-DependencySummary {
 }
 
 function ConvertTo-ReleaseVersion([string]$Tag) {
-    if ($Tag -notmatch '(?<!\d)(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?') { return $null }
-    $revision = if ($Matches[4]) { [int]$Matches[4] } else { 0 }
-    return [version]::new([int]$Matches[1], [int]$Matches[2], [int]$Matches[3], $revision)
+    if ($Tag -notmatch '(?<!\d)(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?') {
+        return `
+            $null
+    }
+    $revision = if ($Matches[4]) {
+        [int]$Matches[4]
+    } else {
+        0
+    }
+    return [version]::new([int]$Matches[1], [int]$Matches[2], `
+            [int]$Matches[3], $revision)
 }
 
 $headers = @{ Accept = 'application/vnd.github+json' }
-if ($GitHubToken) { $headers.Authorization = "Bearer $GitHubToken" }
+if ($GitHubToken) {
+    $headers.Authorization = "Bearer $GitHubToken"
+}
 
 foreach ($dependency in $dependencies) {
     try {
@@ -61,52 +81,86 @@ foreach ($dependency in $dependencies) {
 
         if ($dependency.TagPattern) {
             $releases = Invoke-RestMethod `
-                -Uri "https://api.github.com/repos/$($dependency.Repository)/releases?per_page=100" `
+                -Uri (
+                "https://api.github.com/repos/" +
+                "$($dependency.Repository)/releases?per_page=" +
+                "100"
+            ) `
                 -Headers $headers
-            $release = $releases | Where-Object { -not $_.draft -and -not $_.prerelease -and $_.tag_name -match $dependency.TagPattern } |
-                Sort-Object { ConvertTo-ReleaseVersion $_.tag_name } -Descending | Select-Object -First 1
+            $release = $releases | Where-Object { -not $_.draft -and -not `
+                    $_.prerelease -and $_.tag_name -match `
+                        $dependency.TagPattern } |
+                Sort-Object { ConvertTo-ReleaseVersion $_.tag_name } `
+                    -Descending | Select-Object -First 1
         } else {
             $release = Invoke-RestMethod `
-                -Uri "https://api.github.com/repos/$($dependency.Repository)/releases/latest" `
+                -Uri (
+                "https://api.github.com/repos/" +
+                "$($dependency.Repository)/releases/latest"
+            ) `
                 -Headers $headers
         }
         $latestTag = [string]$release.tag_name
-        if (-not $latestTag) { throw 'the latest GitHub release has no tag' }
+        if (-not $latestTag) {
+            throw 'the latest GitHub release has no tag'
+        }
 
-        $currentOutput = & git -c $gitSafety -C $path describe --tags --exact-match HEAD 2>$null
+        $currentOutput = & git -c $gitSafety -C $path describe --tags `
+            --exact-match HEAD 2>$null
         $currentTag = "$currentOutput".Trim()
         $currentVersion = ConvertTo-ReleaseVersion $currentTag
         $latestVersion = ConvertTo-ReleaseVersion $latestTag
 
         if ($currentVersion -and $latestVersion) {
             if ($latestVersion -gt $currentVersion) {
-                Write-DependencyWarning "$($dependency.Name) is pinned to $currentTag; GitHub release $latestTag is available."
+                Write-DependencyWarning (
+                    "$($dependency.Name) is pinned to $currentTag" +
+                    "; GitHub release $latestTag is available."
+                )
             } else {
-                Write-Host "$($dependency.Name) is pinned to $currentTag; latest GitHub release is $latestTag."
+                Write-Host (
+                    "$($dependency.Name) is pinned to $currentTag" +
+                    "; latest GitHub release is $latestTag."
+                )
             }
             continue
         }
 
         # Untagged pins cannot be compared by version. Fall back to ancestry
         # when the latest release tag is available in the submodule checkout.
-        & git -c $gitSafety -C $path rev-parse --verify --quiet "refs/tags/$latestTag^{commit}" *> $null
+        & git -c $gitSafety -C $path rev-parse --verify --quiet `
+            "refs/tags/$latestTag^{commit}" *> $null
         if ($LASTEXITCODE -ne 0) {
             throw "latest release tag '$latestTag' was not fetched"
         }
 
-        & git -c $gitSafety -C $path merge-base --is-ancestor $pinnedCommit "refs/tags/$latestTag^{commit}"
+        & git -c $gitSafety -C $path merge-base --is-ancestor $pinnedCommit `
+            "refs/tags/$latestTag^{commit}"
         $isOlder = $LASTEXITCODE -eq 0
-        & git -c $gitSafety -C $path merge-base --is-ancestor "refs/tags/$latestTag^{commit}" $pinnedCommit
+        & git -c $gitSafety -C $path merge-base --is-ancestor `
+            "refs/tags/$latestTag^{commit}" $pinnedCommit
         $containsLatest = $LASTEXITCODE -eq 0
 
         if ($isOlder -and -not $containsLatest) {
-            if (-not $currentTag) { $currentTag = $pinnedCommit.Substring(0, 12) }
-            Write-DependencyWarning "$($dependency.Name) is pinned to $currentTag; GitHub release $latestTag is available."
+            if (-not $currentTag) {
+                $currentTag = $pinnedCommit.Substring(0, `
+                        12)
+            }
+            Write-DependencyWarning (
+                "$($dependency.Name) is pinned to $currentTag" +
+                "; GitHub release $latestTag is available."
+            )
         } else {
-            Write-Host "$($dependency.Name) contains the latest released tag ($latestTag)."
+            Write-Host (
+                "$($dependency.Name) contains the latest rele" +
+                "ased tag ($latestTag)."
+            )
         }
     } catch {
-        Write-DependencyWarning "Could not check $($dependency.Name) release freshness: $($_.Exception.Message)"
+        Write-DependencyWarning (
+            "Could not check $($dependency.Name) release " +
+            "freshness: $($_.Exception.Message)"
+        )
     }
 }
 

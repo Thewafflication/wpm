@@ -48,7 +48,10 @@ jobs:
               choco install $Name --yes --no-progress
               if ($LASTEXITCODE -eq 0) { return }
               if ($attempt -eq 3) {
-                throw "Chocolatey failed to install $Name after 3 attempts."
+                throw (
+                    "Chocolatey failed to install " +
+                    "$Name after 3 attempts."
+                )
               }
               Start-Sleep -Seconds 15
             }
@@ -56,12 +59,16 @@ jobs:
           Install-ChocolateyPackage pandoc
           Install-ChocolateyPackage miktex
           Install-ChocolateyPackage poppler
-          $machinePath = [Environment]::GetEnvironmentVariable('Path', 'Machine')
-          $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+          $machinePath = [Environment]::GetEnvironmentVariable('Path', `
+              'Machine')
+          $userPath = [Environment]::GetEnvironmentVariable('Path', `
+              'User')
           $env:Path = "$machinePath;$userPath"
-          "PATH=$env:Path" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          "PATH=$env:Path" | Out-File $env:GITHUB_ENV -Encoding utf8 `
+              -Append
           initexmf --admin --set-config-value=[MPM]AutoInstall=1
-          if ($LASTEXITCODE -ne 0) { throw 'MiKTeX configuration failed.' }
+          if ($LASTEXITCODE -ne 0) { throw `
+              'MiKTeX configuration failed.' }
           python -m pip install --disable-pip-version-check `
             --requirement wsp/tools/pdf/requirements.txt
           if ($LASTEXITCODE -ne 0) {
@@ -84,7 +91,8 @@ jobs:
           } else {
             (git describe --tags --always --dirty).Trim()
           }
-          "version=$version" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "version=$version" | Out-File $env:GITHUB_OUTPUT -Encoding `
+              utf8 -Append
           wsp/tools/Build-Documentation.ps1 `
             -RepositoryRoot . `
             -ManifestPath documentation/documentation-manifest.json `
@@ -108,18 +116,24 @@ jobs:
       - name: Add documentation to job summary
         shell: pwsh
         run: |
-          $checksum = (Get-Content -LiteralPath output/pdf/SHA256SUMS -Raw).Trim()
+          $checksum = (Get-Content -LiteralPath output/pdf/SHA256SUMS `
+              -Raw).Trim()
           @(
             '## Engineering documentation'
             ''
-            'The verified PDF is available in the `wpm-release-documentation` artifact.'
+            (
+                'The verified PDF is available in' +
+                ' the `wpm-release-documentation`' +
+                ' artifact.'
+            )
             ''
             '**SHA-256**'
             ''
             '```text'
             $checksum
             '```'
-          ) | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+          ) | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding `
+              utf8 -Append
 
       - name: Render every page for visual review
         shell: pwsh
@@ -145,10 +159,10 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: >-
-          gh attestation verify
-          output/pdf/wpm-engineering-documentation.pdf
-          --repo ${{ github.repository }}
+        run: |
+          gh attestation verify `
+            output/pdf/wpm-engineering-documentation.pdf `
+            --repo ${{ github.repository }}
 
       - name: Upload documentation PDF
         uses: actions/upload-artifact@v7

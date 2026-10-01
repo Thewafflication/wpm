@@ -26,7 +26,9 @@ if(DEFINED ENV{WPM_TCC_ROOT} AND NOT "$ENV{WPM_TCC_ROOT}" STREQUAL "")
   file(TO_CMAKE_PATH "$ENV{WPM_TCC_ROOT}" WPM_TCC_ROOT)
 else()
   file(TO_CMAKE_PATH "$ENV{ProgramFiles}/TinyCC" WPM_TCC_INSTALL_ROOT)
-  file(GLOB WPM_TCC_INSTALLATIONS LIST_DIRECTORIES TRUE
+  file(
+    GLOB WPM_TCC_INSTALLATIONS
+    LIST_DIRECTORIES TRUE
     "${WPM_TCC_INSTALL_ROOT}/*"
   )
   list(SORT WPM_TCC_INSTALLATIONS COMPARE NATURAL ORDER DESCENDING)
@@ -38,24 +40,49 @@ else()
   endforeach()
 
   if(NOT WPM_TCC_ROOT)
-    get_filename_component(WPM_TCC_ROOT
+    get_filename_component(
+      WPM_TCC_ROOT
       "${CMAKE_CURRENT_LIST_DIR}/../../out/tools/tcc"
       ABSOLUTE
     )
   endif()
 endif()
 
-set(CMAKE_C_COMPILER "${WPM_TCC_ROOT}/${WPM_TCC_DRIVER}" CACHE FILEPATH "TinyCC compiler")
-get_filename_component(WPM_TCC_ARCHIVER_SCRIPT
+set(
+  CMAKE_C_COMPILER
+  "${WPM_TCC_ROOT}/${WPM_TCC_DRIVER}"
+  CACHE FILEPATH
+  "TinyCC compiler"
+)
+get_filename_component(
+  WPM_TCC_ARCHIVER_SCRIPT
   "${CMAKE_CURRENT_LIST_DIR}/../TinyCCArchiver.ps1"
   ABSOLUTE
 )
 find_program(WPM_TCC_ARCHIVER_POWERSHELL_EXECUTABLE powershell.exe REQUIRED)
-set(CMAKE_AR "${WPM_TCC_ARCHIVER_POWERSHELL_EXECUTABLE}" CACHE FILEPATH "PowerShell used by the TinyCC archiver")
-string(REPLACE "'" "''" WPM_TCC_COMPILER_POWERSHELL_LITERAL "${CMAKE_C_COMPILER}")
+set(
+  CMAKE_AR
+  "${WPM_TCC_ARCHIVER_POWERSHELL_EXECUTABLE}"
+  CACHE FILEPATH
+  "PowerShell used by the TinyCC archiver"
+)
+string(
+  REPLACE
+  "'"
+  "''"
+  WPM_TCC_COMPILER_POWERSHELL_LITERAL
+  "${CMAKE_C_COMPILER}"
+)
+string(
+  CONCAT
+  WPM_TCC_ENCODE_COMMAND
+  "[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("
+  "'${WPM_TCC_COMPILER_POWERSHELL_LITERAL}'))"
+)
 execute_process(
-  COMMAND "${WPM_TCC_ARCHIVER_POWERSHELL_EXECUTABLE}" -NoProfile -Command
-    "[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes('${WPM_TCC_COMPILER_POWERSHELL_LITERAL}'))"
+  COMMAND
+    "${WPM_TCC_ARCHIVER_POWERSHELL_EXECUTABLE}" -NoProfile -Command
+    "${WPM_TCC_ENCODE_COMMAND}"
   OUTPUT_VARIABLE WPM_TCC_COMPILER_BASE64
   OUTPUT_STRIP_TRAILING_WHITESPACE
   COMMAND_ERROR_IS_FATAL ANY
@@ -64,12 +91,25 @@ execute_process(
 # TinyCC exposes its archive writer through `tcc -ar`, rather than through a
 # separate ar.exe program. Encode the compiler path so nested cmd.exe parsing
 # cannot split a TinyCC installation below Program Files.
-set(CMAKE_C_ARCHIVE_CREATE "<CMAKE_AR> -NoProfile -ExecutionPolicy Bypass -File \"${WPM_TCC_ARCHIVER_SCRIPT}\" ${WPM_TCC_COMPILER_BASE64} rc <TARGET> <OBJECTS>")
-set(CMAKE_C_ARCHIVE_APPEND "<CMAKE_AR> -NoProfile -ExecutionPolicy Bypass -File \"${WPM_TCC_ARCHIVER_SCRIPT}\" ${WPM_TCC_COMPILER_BASE64} r <TARGET> <OBJECTS>")
+string(
+  CONCAT
+  CMAKE_C_ARCHIVE_CREATE
+  "<CMAKE_AR> -NoProfile -ExecutionPolicy Bypass -File "
+  "\"${WPM_TCC_ARCHIVER_SCRIPT}\" ${WPM_TCC_COMPILER_BASE64} "
+  "rc <TARGET> <OBJECTS>"
+)
+string(
+  CONCAT
+  CMAKE_C_ARCHIVE_APPEND
+  "<CMAKE_AR> -NoProfile -ExecutionPolicy Bypass -File "
+  "\"${WPM_TCC_ARCHIVER_SCRIPT}\" ${WPM_TCC_COMPILER_BASE64} "
+  "r <TARGET> <OBJECTS>"
+)
 set(CMAKE_C_ARCHIVE_FINISH "")
 
 if(NOT EXISTS "${CMAKE_C_COMPILER}")
-  message(FATAL_ERROR
+  message(
+    FATAL_ERROR
     "TinyCC was not found at ${CMAKE_C_COMPILER}. "
     "Install the multi-architecture Windows package there or set WPM_TCC_ROOT."
   )

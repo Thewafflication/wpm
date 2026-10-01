@@ -7,24 +7,27 @@
 #endif
 #include "helpers.h"
 
-FILE* wpm_fopen(const char* path, const char* mode) {
+FILE *wpm_fopen(const char *path, const char *mode) {
     return fopen(path, mode);
 }
 
-int wpm_get_environment_variable(const char* name, char* result, size_t result_size) {
+int wpm_get_environment_variable(const char *name, char *result,
+                                 size_t result_size) {
 #ifdef _WIN32
     DWORD length = GetEnvironmentVariableA(name, result, (DWORD)result_size);
     return length > 0 && length < result_size;
 #else
-    const char* value = getenv(name);
-    if (!value || !value[0] || strlen(value) >= result_size) return 0;
+    const char *value = getenv(name);
+    if (!value || !value[0] || strlen(value) >= result_size) {
+        return 0;
+    }
     memcpy(result, value, strlen(value) + 1);
     return 1;
 #endif
 }
 
-int file_exists(const char* path) {
-    FILE* f = wpm_fopen(path, "r");
+int file_exists(const char *path) {
+    FILE *f = wpm_fopen(path, "r");
     if (f) {
         fclose(f);
         return 1;

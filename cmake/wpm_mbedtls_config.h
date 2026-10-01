@@ -1,4 +1,5 @@
-/* Portable TLS 1.2 client: no OS TLS, assembler, PSA, or newer Windows imports. */
+/* Portable TLS 1.2 client: no OS TLS, assembler, PSA, or newer Windows imports.
+ */
 #ifndef WPM_MBEDTLS_CONFIG_H
 #define WPM_MBEDTLS_CONFIG_H
 #define MBEDTLS_HAVE_TIME
@@ -33,7 +34,8 @@
 #define MBEDTLS_PKCS1_V21
 #define MBEDTLS_POLY1305_C
 #define MBEDTLS_RSA_C
-/* Parse legacy self-signed roots; default X.509 profile still rejects SHA-1 leaves. */
+/* Parse legacy self-signed roots; default X.509 profile still rejects SHA-1
+ * leaves. */
 #define MBEDTLS_SHA1_C
 #define MBEDTLS_SHA256_C
 #define MBEDTLS_SHA512_C

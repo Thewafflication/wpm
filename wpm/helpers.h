@@ -9,7 +9,7 @@
  * @param[in] path Path to test.
  * @return Nonzero when the file can be opened; otherwise zero.
  */
-int file_exists(const char* path);
+int file_exists(const char *path);
 
 /**
  * Open a file through the compiler-appropriate CRT interface.
@@ -17,7 +17,7 @@ int file_exists(const char* path);
  * @param[in] mode Standard C file-open mode.
  * @return An owned stream on success; NULL on failure.
  */
-FILE* wpm_fopen(const char* path, const char* mode);
+FILE *wpm_fopen(const char *path, const char *mode);
 
 /**
  * Read a nonempty environment variable into a caller-owned buffer.
@@ -26,6 +26,7 @@ FILE* wpm_fopen(const char* path, const char* mode);
  * @param[in] result_size Capacity of @p result in bytes.
  * @return Nonzero when present and fully copied; otherwise zero.
  */
-int wpm_get_environment_variable(const char* name, char* result, size_t result_size);
+int wpm_get_environment_variable(const char *name, char *result,
+                                 size_t result_size);
 
 #endif

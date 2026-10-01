@@ -1,6 +1,44 @@
-$wspLoggingModule = Join-Path $PSScriptRoot '..\wsp\tools\logging\Wsp.Logging.psm1'
+$wspLoggingModule = Join-Path $PSScriptRoot `
+    '..\wsp\tools\logging\Wsp.Logging.psm1'
 Import-Module $wspLoggingModule -Force
 Set-WspLogConfiguration -ConsoleLevel Info -FileLevel Debug -Color Auto
+function Get-WpmSourceText {
+    <#
+    .SYNOPSIS
+    Reads command source for formatting-independent static assertions.
+    .DESCRIPTION
+    Reassembles the bootstrap's quoted PowerShell arguments, removes explicit
+    line continuations, and joins adjacent concatenated string fragments.
+    This does not execute source or infer behavior from missing commands.
+    .PARAMETER Path
+    Controlled source file to read. The file is never modified.
+    #>
+    param([Parameter(Mandatory)][string]$Path)
+    $content = Get-Content -Raw -LiteralPath $Path
+    if ($Path -like '*.cmd' -and $content -match 'powershell.exe.*-Command') {
+        $parts = [regex]::Matches(
+            $content, '(?m)^ {4}"(.*)"(?: \^)?\r?$')
+        $content = ($parts | ForEach-Object {
+            $_.Groups[1].Value.Replace('\"', '"')
+        }) -join ' '
+    }
+    $content = $content -replace '`\r?\n\s*', ' '
+    $content = $content -replace '\^\r?\n\s*', ' '
+    $single = "'((?:''|[^'])*)'\s*\+\s*'((?:''|[^'])*)'"
+    $double = '"((?:`.|[^"`])*)"\s*\+\s*"((?:`.|[^"`])*)"'
+    do {
+        $previous = $content
+        $content = [regex]::Replace($content, $single, {
+            param($match)
+            "'" + $match.Groups[1].Value + $match.Groups[2].Value + "'"
+        })
+        $content = [regex]::Replace($content, $double, {
+            param($match)
+            '"' + $match.Groups[1].Value + $match.Groups[2].Value + '"'
+        })
+    } while ($previous -ne $content)
+    return ($content -replace '\s+', ' ')
+}
 if ($env:WPM_TEST_LOG_FILE) {
     Set-WspLogFile -Path $env:WPM_TEST_LOG_FILE
 }
@@ -15,17 +53,39 @@ function Escape-Latex {
     $escaped = [System.Text.StringBuilder]::new()
     foreach ($char in $Value.ToCharArray()) {
         $null = switch ($char) {
-            '\' { $escaped.Append('\textbackslash{}'); break }
-            '{' { $escaped.Append('\{'); break }
-            '}' { $escaped.Append('\}'); break }
-            '&' { $escaped.Append('\&'); break }
-            '%' { $escaped.Append('\%'); break }
-            '$' { $escaped.Append('\$'); break }
-            '#' { $escaped.Append('\#'); break }
-            '_' { $escaped.Append('\_'); break }
-            '~' { $escaped.Append('\textasciitilde{}'); break }
-            '^' { $escaped.Append('\textasciicircum{}'); break }
-            default { $escaped.Append($char) }
+            '\' {
+                $escaped.Append('\textbackslash{}'); break
+            }
+            '{' {
+                $escaped.Append('\{'); break
+            }
+            '}' {
+                $escaped.Append('\}'); break
+            }
+            '&' {
+                $escaped.Append('\&'); break
+            }
+            '%' {
+                $escaped.Append('\%'); break
+            }
+            '$' {
+                $escaped.Append('\$'); break
+            }
+            '#' {
+                $escaped.Append('\#'); break
+            }
+            '_' {
+                $escaped.Append('\_'); break
+            }
+            '~' {
+                $escaped.Append('\textasciitilde{}'); break
+            }
+            '^' {
+                $escaped.Append('\textasciicircum{}'); break
+            }
+            default {
+                $escaped.Append($char)
+            }
         }
     }
 
@@ -54,8 +114,7 @@ function Invoke-WpmTestStep {
         $ErrorActionPreference = 'Continue'
         $outputLines = & $WpmExe @Arguments 2>&1
         $exitCode = $LASTEXITCODE
-    }
-    finally {
+    } finally {
         $ErrorActionPreference = $previousErrorActionPreference
     }
     $output = ($outputLines -join "`n")
@@ -64,8 +123,7 @@ function Invoke-WpmTestStep {
 
     try {
         & $Assert $exitCode $output
-    }
-    catch {
+    } catch {
         $status = 'Fail'
         $diagnostic = $_.Exception.Message
     }
@@ -95,8 +153,7 @@ function New-WpmManualStep {
 
     try {
         $output = (& $Action 2>&1) -join "`n"
-    }
-    catch {
+    } catch {
         $status = 'Fail'
         $diagnostic = $_.Exception.Message
         $output = "$output`n$diagnostic".Trim()
@@ -105,7 +162,11 @@ function New-WpmManualStep {
     [PSCustomObject]@{
         Name = $Name
         Command = 'PowerShell validation'
-        ExitCode = if ($status -eq 'Pass') { 0 } else { 1 }
+        ExitCode = if ($status -eq 'Pass') {
+            0
+        } else {
+            1
+        }
         Status = $status
         Diagnostic = $diagnostic
         Output = $output
@@ -134,30 +195,50 @@ function Write-WpmTestEvidence {
         [string]$EvidenceTex
     )
 
-    $evidencePath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($EvidenceTex)
-    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $evidencePath) | Out-Null
-    $overallStatus = if ($Results.Count -eq 0 -or $Results.Status -contains 'Fail') { 'Fail' } else { 'Pass' }
+    $providerPath = $ExecutionContext.SessionState.Path
+    $evidencePath = $providerPath.GetUnresolvedProviderPathFromPSPath(
+        $EvidenceTex)
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent `
+            $evidencePath) | Out-Null
+    $overallStatus = if ($Results.Count -eq 0 -or $Results.Status -contains `
+            'Fail') {
+        'Fail'
+    } else {
+        'Pass'
+    }
 
     $lines = [System.Collections.Generic.List[string]]::new()
     $lines.Add('\section*{Automated Execution Results}')
     $lines.Add('\begin{description}')
     $lines.Add("\item[Test Case Identifier] $(Escape-Latex $TestCaseId)")
-    $lines.Add("\item[Execution Timestamp] $(Escape-Latex $Started.ToString('o'))")
-    $lines.Add("\item[Completed Timestamp] $(Escape-Latex $Finished.ToString('o'))")
+    $lines.Add((
+            "\item[Execution Timestamp] " +
+            "$(Escape-Latex $Started.ToString('o'))"
+        ))
+    $lines.Add((
+            "\item[Completed Timestamp] " +
+            "$(Escape-Latex $Finished.ToString('o'))"
+        ))
     $lines.Add("\item[Software Under Test] $(Escape-Latex $WpmExe)")
-    $lines.Add("\item[Environment] $(Escape-Latex "$([Environment]::OSVersion.VersionString); PowerShell $($PSVersionTable.PSVersion)")")
+    $environment = "$([Environment]::OSVersion.VersionString); " +
+        "PowerShell $($PSVersionTable.PSVersion)"
+    $lines.Add("\item[Environment] $(Escape-Latex $environment)")
     $lines.Add("\item[Overall Status] $(Escape-Latex $overallStatus)")
     $lines.Add('\end{description}')
 
     $stepNumber = 1
     foreach ($result in $Results) {
-        $lines.Add("\subsubsection*{Step ${stepNumber}: $(Escape-Latex $result.Name)}")
+        $lines.Add((
+                "\subsubsection*{Step ${stepNumber}: " +
+                "$(Escape-Latex $result.Name)}"
+            ))
         $lines.Add('\begin{description}')
         $lines.Add('\item[Command] \mbox{}')
-    $lines.Add('\begin{verbatim}')
-    $lines.Add((Format-WpmEvidenceText $result.Command))
-    $lines.Add('\end{verbatim}')
-        $lines.Add("\item[Exit Code] $(Escape-Latex ([string]$result.ExitCode))")
+        $lines.Add('\begin{verbatim}')
+        $lines.Add((Format-WpmEvidenceText $result.Command))
+        $lines.Add('\end{verbatim}')
+        $lines.Add( `
+                "\item[Exit Code] $(Escape-Latex ([string]$result.ExitCode))")
         $lines.Add("\item[Status] $(Escape-Latex $result.Status)")
         if ($result.Diagnostic) {
             $lines.Add("\item[Diagnostic] $(Escape-Latex $result.Diagnostic)")
@@ -189,7 +270,8 @@ function Format-WpmEvidenceText {
         $remaining = $line
         while ($remaining.Length -gt $Width) {
             $splitAt = -1
-            for ($i = [Math]::Min($Width, $remaining.Length - 1); $i -gt 0; $i--) {
+            for ($i = [Math]::Min($Width, $remaining.Length - 1); $i -gt 0; `
+                    $i--) {
                 if ($breakChars -contains [string]$remaining[$i]) {
                     $splitAt = $i + 1
                     break
@@ -218,13 +300,17 @@ function Complete-WpmTestRun {
         [switch]$NoFailOnFailure
     )
 
-    $overallStatus = if ($Results.Count -eq 0 -or $Results.Status -contains 'Fail') { 'Fail' } else { 'Pass' }
+    $overallStatus = if ($Results.Count -eq 0 -or $Results.Status -contains `
+            'Fail') {
+        'Fail'
+    } else {
+        'Pass'
+    }
     foreach ($result in $Results) {
         $message = "$($result.Command) exited $($result.ExitCode)"
         if ($result.Status -eq 'Pass') {
             Write-WspPass $message
-        }
-        else {
+        } else {
             Write-WspError $message
         }
         if ($result.Diagnostic) {

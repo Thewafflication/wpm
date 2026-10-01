@@ -25,7 +25,10 @@ function New-Wpm20PlannedTestPlan {
         $profiles[$profileName] = [ordered]@{
             Required = $profileName -in $RequiredProfiles
             Rationale = $ProfileRationales[$profileName]
-            EvidencePath = "Testing/Evidence/2.0/<source-revision>/$TestCaseId/$profileName/<architecture>/"
+            EvidencePath = (
+                "Testing/Evidence/2.0/<source-revision>/" +
+                "$TestCaseId/$profileName/<architecture>/"
+            )
             Gate = $profileDefinitions[$profileName]
         }
     }
@@ -50,7 +53,8 @@ function Stop-Wpm20PlannedExecution {
     param(
         [Parameter(Mandatory = $true)]$Plan,
         [Parameter(Mandatory = $true)]
-        [ValidateSet('Fast', 'PlatformMatrix', 'Quality', 'ManualRealEnvironment', 'ReleaseGate')]
+        [ValidateSet('Fast', 'PlatformMatrix', 'Quality', `
+                'ManualRealEnvironment', 'ReleaseGate')]
         [string]$ExecutionProfile
     )
 
@@ -59,7 +63,12 @@ function Stop-Wpm20PlannedExecution {
         TestCaseId = $Plan.TestCaseId
         Profile = $ExecutionProfile
         Status = 'Blocked'
-        Rationale = 'The controlled test allocation exists, but its product implementation slice and executable assertions are not yet accepted. No verification evidence was produced.'
+        Rationale = (
+            'The controlled test allocation exists, but i' +
+            'ts product implementation slice and executab' +
+            'le assertions are not yet accepted. No verif' +
+            'ication evidence was produced.'
+        )
     } | ConvertTo-Json -Compress
     exit 2
 }

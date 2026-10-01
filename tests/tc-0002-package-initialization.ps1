@@ -28,7 +28,10 @@ function Assert-FileContent {
 
     $actual = (Get-Content -Raw -LiteralPath $Path).Trim()
     if ($actual -ne $Expected) {
-        throw "Unexpected content in $Path. Expected '$Expected', got '$actual'."
+        throw (
+            "Unexpected content in $Path. Expected '" +
+            "$Expected', got '$actual'."
+        )
     }
 }
 
@@ -44,53 +47,65 @@ try {
             -Name 'Reject invalid package name' `
             -Arguments @('init', 'bad name') `
             -Assert {
-                param($ExitCode, $Output)
-                if ($ExitCode -eq 0) {
-                    throw 'Expected invalid package name to fail.'
-                }
-                if (Test-Path -LiteralPath '.wpm') {
-                    throw 'Invalid init unexpectedly created .wpm.'
-                }
+            param($ExitCode, $Output)
+            if ($ExitCode -eq 0) {
+                throw 'Expected invalid package name to fail.'
             }
+            if (Test-Path -LiteralPath '.wpm') {
+                throw 'Invalid init unexpectedly created .wpm.'
+            }
+        }
 
         $results += Invoke-WpmTestStep `
             -WpmExe $WpmExe `
             -Name 'Initialize package using current directory name' `
             -Arguments @('init') `
             -Assert {
-                param($ExitCode, $Output)
-                if ($ExitCode -ne 0) {
-                    throw "Expected exit code 0, got $ExitCode."
-                }
-                if ($Output -match 'Updating') {
-                    throw 'init unexpectedly ran the update command.'
-                }
-
-                $expectedFiles = @(
-                    '.wpm\package.txt',
-                    '.wpm\index.csv',
-                    '.wpm\wpmignore.txt',
-                    '.wpm\install.cmd',
-                    '.wpm\remove.cmd'
-                )
-                foreach ($relativePath in $expectedFiles) {
-                    if (-not (Test-Path -LiteralPath $relativePath -PathType Leaf)) {
-                        throw "init did not create $relativePath"
-                    }
-                }
-
-                $packageMetadata = Get-Content -Raw -LiteralPath '.wpm\package.txt'
-                if ($packageMetadata -notmatch "(?m)^name=$([Regex]::Escape($packageName))`r?$") {
-                    throw 'init did not write the current directory package name.'
-                }
-                if ($packageMetadata -notmatch '(?m)^version=0\.1\.0\r?$' -or
-                    $packageMetadata -notmatch '(?m)^arch=any\r?$' -or
-                    $packageMetadata -notmatch '(?m)^debug=false\r?$') {
-                    throw 'init did not write default version, arch, and debug metadata.'
-                }
-
-                Assert-FileContent '.wpm\index.csv' 'filename,size,hash,algorithm'
+            param($ExitCode, $Output)
+            if ($ExitCode -ne 0) {
+                throw "Expected exit code 0, got $ExitCode."
             }
+            if ($Output -match 'Updating') {
+                throw 'init unexpectedly ran the update command.'
+            }
+
+            $expectedFiles = @(
+                '.wpm\package.txt',
+                '.wpm\index.csv',
+                '.wpm\wpmignore.txt',
+                '.wpm\install.cmd',
+                '.wpm\remove.cmd'
+            )
+            foreach ($relativePath in $expectedFiles) {
+                if (-not (Test-Path -LiteralPath $relativePath -PathType `
+                            Leaf)) {
+                    throw "init did not create $relativePath"
+                }
+            }
+
+            $packageMetadata = Get-Content -Raw -LiteralPath `
+                '.wpm\package.txt'
+            if ($packageMetadata -notmatch (
+                    "(?m)^name=$([Regex]::Escape($packageName))`r" +
+                    "?$"
+                )) {
+                throw (
+                    'init did not write the current directory pac' +
+                    'kage name.'
+                )
+            }
+            if ($packageMetadata -notmatch '(?m)^version=0\.1\.0\r?$' -or
+                $packageMetadata -notmatch '(?m)^arch=any\r?$' -or
+                $packageMetadata -notmatch '(?m)^debug=false\r?$') {
+                throw (
+                    'init did not write default version, arch, an' +
+                    'd debug metadata.'
+                )
+            }
+
+            Assert-FileContent '.wpm\index.csv' `
+                'filename,size,hash,algorithm'
+        }
 
         Set-Content -LiteralPath '.wpm\package.txt' -Value 'preserve=this'
 
@@ -99,21 +114,21 @@ try {
             -Name 'Preserve existing package metadata when init is rerun' `
             -Arguments @('init', $packageName) `
             -Assert {
-                param($ExitCode, $Output)
-                if ($ExitCode -ne 0) {
-                    throw "Expected exit code 0, got $ExitCode."
-                }
-                Assert-FileContent '.wpm\package.txt' 'preserve=this'
+            param($ExitCode, $Output)
+            if ($ExitCode -ne 0) {
+                throw "Expected exit code 0, got $ExitCode."
             }
-    }
-    finally {
+            Assert-FileContent '.wpm\package.txt' 'preserve=this'
+        }
+    } finally {
         Pop-Location
     }
-}
-finally {
+} finally {
     $finished = Get-Date
     if ($EvidenceTex) {
-        Write-WpmTestEvidence -TestCaseId 'TC-0002' -WpmExe $WpmExe -Started $started -Finished $finished -Results $results -EvidenceTex $EvidenceTex
+        Write-WpmTestEvidence -TestCaseId 'TC-0002' -WpmExe $WpmExe -Started `
+            $started -Finished $finished -Results $results -EvidenceTex `
+            $EvidenceTex
     }
     if (Test-Path -LiteralPath $testRoot) {
         Remove-Item -LiteralPath $testRoot -Recurse -Force

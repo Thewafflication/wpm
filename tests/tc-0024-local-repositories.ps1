@@ -28,8 +28,10 @@ $index = $null
 
 try {
     $env:WPM_DATA_DIR = $dataDir
-    New-Item -ItemType Directory -Force -Path $sourceDir, $repositoryDir | Out-Null
-    New-Item -ItemType Directory -Force -Path (Join-Path $sourceDir '.wpm') | Out-Null
+    New-Item -ItemType Directory -Force -Path $sourceDir, $repositoryDir | `
+            Out-Null
+    New-Item -ItemType Directory -Force -Path (Join-Path $sourceDir '.wpm') | `
+            Out-Null
     Set-Content -LiteralPath (Join-Path $sourceDir '.wpm\package.txt') -Value @(
         "name=$packageName"
         'version=1.0.0'
@@ -41,13 +43,23 @@ try {
         "echo installed-from-local-repository> `"$deployment`""
     )
 
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Build local repository package' -Arguments @('build', $sourceDir, $repositoryDir) -Assert {
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
+        'Build local repository package' -Arguments @('build', $sourceDir, `
+            $repositoryDir) -Assert {
         param($ExitCode, $Output)
-        if ($ExitCode -ne 0) { throw "Local repository build failed. $Output" }
+        if ($ExitCode -ne 0) {
+            throw "Local repository build failed. $Output"
+        }
     }
 
-    $archive = Get-ChildItem -LiteralPath $repositoryDir -Filter '*.zip' | Select-Object -First 1
-    if (-not $archive) { throw 'Local repository package archive was not created.' }
+    $archive = Get-ChildItem -LiteralPath $repositoryDir -Filter '*.zip' | `
+            Select-Object -First 1
+    if (-not $archive) {
+        throw (
+            'Local repository package archive was not cre' +
+            'ated.'
+        )
+    }
     $index = Join-Path $repositoryDir 'index.json'
     Set-Content -NoNewline -LiteralPath $index -Value (
         '{"version":1,"packages":[{"name":"' + $packageName +
@@ -56,124 +68,206 @@ try {
         '","version":"1.0.0","arch":"any","url":"../' + $archive.Name + '"}]}'
     )
     $indexHash = (Get-FileHash -LiteralPath $index -Algorithm SHA256).Hash
-    $archiveHash = (Get-FileHash -LiteralPath $archive.FullName -Algorithm SHA256).Hash
+    $archiveHash = (Get-FileHash -LiteralPath $archive.FullName -Algorithm `
+            SHA256).Hash
     (Get-Item -LiteralPath $index).Attributes =
-        (Get-Item -LiteralPath $index).Attributes -bor [IO.FileAttributes]::ReadOnly
+    (Get-Item -LiteralPath $index).Attributes -bor `
+        [IO.FileAttributes]::ReadOnly
     $archive.Attributes = $archive.Attributes -bor [IO.FileAttributes]::ReadOnly
 
     Push-Location $testRoot
     try {
-        $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Add relative local repository' -Arguments @('repo', 'add', $relativeRepository) -Assert {
+        $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
+            'Add relative local repository' -Arguments @('repo', 'add', `
+                $relativeRepository) -Assert {
             param($ExitCode, $Output)
-            if ($ExitCode -ne 0 -or $Output -notmatch [regex]::Escape($repositoryDir)) {
-                throw "Relative repository was not resolved to its stable absolute path. $Output"
+            if ($ExitCode -ne 0 -or $Output -notmatch [regex]::Escape( `
+                        $repositoryDir)) {
+                throw (
+                    "Relative repository was not resolved to its " +
+                    "stable absolute path. $Output"
+                )
             }
         }
-    }
-    finally {
+    } finally {
         Pop-Location
     }
 
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Reprioritize using absolute local path' -Arguments @('repo', 'add', $repositoryDir, '--priority', '7') -Assert {
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
+        'Reprioritize using absolute local path' -Arguments @('repo', 'add', `
+            $repositoryDir, '--priority', '7') -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -ne 0 -or $Output -notmatch 'Repository updated') {
-            throw "Absolute repository path did not identify the relative-path entry. $Output"
+            throw (
+                "Absolute repository path did not identify th" +
+                "e relative-path entry. $Output"
+            )
         }
     }
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'List canonical local repository' -Arguments @('repo', 'list') -Assert {
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
+        'List canonical local repository' -Arguments @('repo', 'list') -Assert {
         param($ExitCode, $Output)
-        if ($ExitCode -ne 0 -or $Output -notmatch "7\s+$([regex]::Escape($repositoryDir))") {
-            throw "Canonical local repository and priority were not listed. $Output"
+        if ($ExitCode -ne 0 -or $Output -notmatch `
+                "7\s+$([regex]::Escape($repositoryDir))") {
+            throw (
+                "Canonical local repository and priority were" +
+                " not listed. $Output"
+            )
         }
     }
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Refresh read-only local repository while offline' -Arguments @('repo', 'update', '--offline') -Assert {
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name (
+        'Refresh read-only local repository while off' +
+        'line'
+    ) -Arguments @('repo', 'update', '--offline') -Assert {
         param($ExitCode, $Output)
-        if ($ExitCode -ne 0 -or $Output -notmatch [regex]::Escape($repositoryDir)) {
+        if ($ExitCode -ne 0 -or $Output -notmatch [regex]::Escape( `
+                    $repositoryDir)) {
             throw "Read-only local repository refresh failed. $Output"
         }
     }
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Retain signature policy for local repository' -Arguments @('install', $packageName, '--offline') -Assert {
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
+        'Retain signature policy for local repository' -Arguments @( `
+            'install', $packageName, '--offline') -Assert {
         param($ExitCode, $Output)
-        if ($ExitCode -eq 0) { throw 'Unsigned local package was trusted implicitly.' }
+        if ($ExitCode -eq 0) {
+            throw (
+                'Unsigned local package was trusted implicitl' +
+                'y.'
+            )
+        }
     }
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Install named package from local repository' -Arguments @('install', $packageName, '--offline', '--allow-unsigned') -Assert {
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
+        'Install named package from local repository' -Arguments @('install', `
+            $packageName, '--offline', '--allow-unsigned') -Assert {
         param($ExitCode, $Output)
-        if ($ExitCode -ne 0) { throw "Local repository installation failed. $Output" }
-        if ((Get-Content -Raw -LiteralPath $deployment).Trim() -ne 'installed-from-local-repository') {
+        if ($ExitCode -ne 0) {
+            throw (
+                "Local repository installation failed. " +
+                "$Output"
+            )
+        }
+        if ((Get-Content -Raw -LiteralPath $deployment).Trim() -ne `
+                'installed-from-local-repository') {
             throw 'Local package install script did not run.'
         }
         if ($Output -notmatch [regex]::Escape($repositoryDir)) {
             throw 'Installation output did not identify the local source.'
         }
     }
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Reject package path escaping local repository' -Arguments @('install', $traversalName, '--offline', '--allow-unsigned') -Assert {
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name (
+        'Reject package path escaping local repositor' +
+        'y'
+    ) -Arguments @('install', $traversalName, '--offline', `
+            '--allow-unsigned') -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -eq 0 -or $Output -notmatch 'invalid package URL') {
             throw "Escaping local package path was not rejected. $Output"
         }
     }
 
-    $results += New-WpmManualStep -Name 'Verify read-only source was not modified' -Action {
-        if ((Get-FileHash -LiteralPath $index -Algorithm SHA256).Hash -ne $indexHash -or
-            (Get-FileHash -LiteralPath $archive.FullName -Algorithm SHA256).Hash -ne $archiveHash) {
-            throw 'Local repository source content changed during refresh or installation.'
+    $results += New-WpmManualStep -Name `
+        'Verify read-only source was not modified' -Action {
+        if ((Get-FileHash -LiteralPath $index -Algorithm SHA256).Hash -ne `
+                $indexHash -or
+            (Get-FileHash -LiteralPath $archive.FullName -Algorithm `
+                SHA256).Hash -ne $archiveHash) {
+            throw (
+                'Local repository source content changed duri' +
+                'ng refresh or installation.'
+            )
         }
         'Read-only repository hashes preserved.'
     }
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Reject unsupported file URL' -Arguments @('repo', 'add', "file:///$($repositoryDir.Replace('\', '/'))") -Assert {
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
+        'Reject unsupported file URL' -Arguments @('repo', 'add', `
+            "file:///$($repositoryDir.Replace('\', '/'))") -Assert {
         param($ExitCode, $Output)
-        if ($ExitCode -eq 0 -or $Output -notmatch 'must use https://, opted-in http://, or a filesystem path') {
+        if ($ExitCode -eq 0 -or $Output -notmatch (
+                'must use https://, opted-in http://, or a fi' +
+                'lesystem path'
+            )) {
             throw "Unsupported file URL was not rejected clearly. $Output"
         }
     }
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Reject device path' -Arguments @('repo', 'add', '\\.\C:\') -Assert {
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Reject device path' `
+        -Arguments @('repo', 'add', '\\.\C:\') -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -eq 0 -or $Output -notmatch 'device namespace') {
             throw "Device path was not rejected. $Output"
         }
     }
     $invalidDrivePath = 'C:\C:'
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Reject a colon after the drive prefix' -Arguments @('repo', 'add', $invalidDrivePath) -Assert {
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
+        'Reject a colon after the drive prefix' -Arguments @('repo', 'add', `
+            $invalidDrivePath) -Assert {
         param($ExitCode, $Output)
-        if ($ExitCode -eq 0 -or $Output -notmatch 'cannot contain a colon after the drive prefix') {
+        if ($ExitCode -eq 0 -or $Output -notmatch (
+                'cannot contain a colon after the drive prefi' +
+                'x'
+            )) {
             throw "Malformed drive path was accepted. $Output"
         }
     }
     $repositoryConfig = Join-Path $dataDir 'config\repositories.txt'
     Add-Content -LiteralPath $repositoryConfig -Value "4`t$invalidDrivePath"
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Ignore a malformed persisted repository' -Arguments @('repo', 'update', '--offline') -Assert {
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
+        'Ignore a malformed persisted repository' -Arguments @('repo', `
+            'update', '--offline') -Assert {
         param($ExitCode, $Output)
-        if ($ExitCode -ne 0 -or $Output -notmatch 'ignoring invalid configured filesystem repository locator' -or
-            $Output -match 'could not read filesystem repository index: C:\\C:') {
+        if ($ExitCode -ne 0 -or $Output -notmatch (
+                'ignoring invalid configured filesystem repos' +
+                'itory locator'
+            ) -or
+            $Output -match `
+                'could not read filesystem repository index: C:\\C:') {
             throw "Malformed persisted repository was not isolated. $Output"
         }
     }
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Remove a malformed persisted repository' -Arguments @('repo', 'remove', $invalidDrivePath) -Assert {
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
+        'Remove a malformed persisted repository' -Arguments @('repo', `
+            'remove', $invalidDrivePath) -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -ne 0 -or $Output -notmatch 'Repository removed') {
-            throw "Malformed persisted repository could not be removed safely. $Output"
+            throw (
+                "Malformed persisted repository could not be " +
+                "removed safely. $Output"
+            )
         }
     }
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Remove local repository by absolute path' -Arguments @('repo', 'remove', $repositoryDir) -Assert {
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
+        'Remove local repository by absolute path' -Arguments @('repo', `
+            'remove', $repositoryDir) -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -ne 0 -or $Output -notmatch 'Repository removed') {
             throw "Local repository removal failed. $Output"
         }
     }
-}
-finally {
+} finally {
     $finished = Get-Date
-    if ($archive) { $archive.Attributes = $archive.Attributes -band (-bnot [IO.FileAttributes]::ReadOnly) }
+    if ($archive) {
+        $archive.Attributes = $archive.Attributes -band (-bnot `
+                [IO.FileAttributes]::ReadOnly)
+    }
     if ($index -and (Test-Path -LiteralPath $index)) {
         $indexItem = Get-Item -LiteralPath $index
-        $indexItem.Attributes = $indexItem.Attributes -band (-bnot [IO.FileAttributes]::ReadOnly)
+        $indexItem.Attributes = $indexItem.Attributes -band (-bnot `
+                [IO.FileAttributes]::ReadOnly)
     }
     if ($EvidenceTex) {
-        Write-WpmTestEvidence -TestCaseId 'TC-0024' -WpmExe $WpmExe -Started $started -Finished $finished -Results $results -EvidenceTex $EvidenceTex
+        Write-WpmTestEvidence -TestCaseId 'TC-0024' -WpmExe $WpmExe -Started `
+            $started -Finished $finished -Results $results -EvidenceTex `
+            $EvidenceTex
     }
-    if (Test-Path -LiteralPath $testRoot) { Remove-Item -LiteralPath $testRoot -Recurse -Force }
-    if ($null -eq $previousDataDir) { Remove-Item Env:WPM_DATA_DIR -ErrorAction SilentlyContinue }
-    else { $env:WPM_DATA_DIR = $previousDataDir }
+    if (Test-Path -LiteralPath $testRoot) {
+        Remove-Item -LiteralPath `
+            $testRoot -Recurse -Force
+    }
+    if ($null -eq $previousDataDir) {
+        Remove-Item Env:WPM_DATA_DIR `
+            -ErrorAction SilentlyContinue
+    } else {
+        $env:WPM_DATA_DIR = $previousDataDir
+    }
 }
 
 Complete-WpmTestRun -Results $results -NoFailOnFailure:$NoFailOnFailure

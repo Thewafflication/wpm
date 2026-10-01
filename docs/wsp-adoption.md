@@ -4,12 +4,12 @@
 
 **Project:** Waughtal Package Manager (WPM)
 
-**WSP baseline:** Release `1.3.0` at immutable commit
-`8666277d0a30575515f5e46524e5b71be4be0c7d`
+**WSP baseline:** Release `1.4.0` at immutable commit
+`f009399dd1406219571ac978bfee85e85bbdfeac`
 
 **Submodule path:** `wsp/`
 
-**Pinned commit:** `8666277d0a30575515f5e46524e5b71be4be0c7d`
+**Pinned commit:** `f009399dd1406219571ac978bfee85e85bbdfeac`
 
 **Status:** Proposed
 
@@ -21,6 +21,8 @@
 | --- | --- | --- |
 | Common requirements management | Yes | `docs/req-*.md` and `docs/traceability-1.0.md` |
 | WSP software lifecycle | Yes | Repository change and release process |
+| Commit checks | Yes | `.pre-commit-config.yaml` and `docs/commit-checks.md`; migration remains Deferred |
+| Common source and language style | Yes | Owned source/configuration scope and migration gaps in `docs/commit-checks.md` |
 | Project process | Yes | Planning through support and improvement |
 | Documentation requirements | Yes | Controlled files under `docs/` |
 | Documentation style and identifiers | Yes | Project-authored artifacts |
@@ -131,7 +133,7 @@ baseline approval while any required disposition remains Deferred.
 | `WSP-CSTYLE-0001` | Applicable | Doxygen `@file` comments cover all 21 project-owned C/header files |
 | `WSP-CSTYLE-0002` | Deferred | Document every function contract or approved declaration reference |
 | `WSP-CSTYLE-0003` | Deferred | Document public and non-obvious internal entities |
-| `WSP-CSTYLE-0004` | Deferred | Eliminate or individually tailor 415 lines over 80 characters |
+| `WSP-CSTYLE-0004` | Applicable | Complete owned C physical scan in `tools/Test-Style.ps1` |
 | `WSP-CSTYLE-0005` | Deferred | Add complete line-length and Doxygen warnings-as-errors gates |
 | `WSP-WINRES-0001` | Applicable | CMake generates and links `VERSIONINFO` for `wpm.exe` |
 | `WSP-WINRES-0002` | Applicable | `cmake/GenerateVersion.cmake` owns generated resource source |
@@ -173,7 +175,43 @@ baseline approval while any required disposition remains Deferred.
 | `WSP-TOOL-0008` | Applicable | Documentation CI runs pinned WSP tool self-verification |
 | `WSP-TOOL-0009` | Applicable | Workflows use current Node 24-compatible action majors |
 
+| `WSP-CHECK-0001` | Deferred | See the 1.4.0 migration and commit-check inventory in `docs/commit-checks.md` |
+| `WSP-CHECK-0002` | Deferred | See the 1.4.0 migration and commit-check inventory in `docs/commit-checks.md` |
+| `WSP-CHECK-0003` | Deferred | See the 1.4.0 migration and commit-check inventory in `docs/commit-checks.md` |
+| `WSP-CHECK-0004` | Deferred | See the 1.4.0 migration and commit-check inventory in `docs/commit-checks.md` |
+| `WSP-CHECK-0005` | Deferred | See the 1.4.0 migration and commit-check inventory in `docs/commit-checks.md` |
+| `WSP-CHECK-0006` | Deferred | See the 1.4.0 migration and commit-check inventory in `docs/commit-checks.md` |
+| `WSP-CHECK-0007` | Deferred | See the 1.4.0 migration and commit-check inventory in `docs/commit-checks.md` |
+| `WSP-CHECK-0008` | Deferred | See the 1.4.0 migration and commit-check inventory in `docs/commit-checks.md` |
+| `WSP-STYLE-0001` | Applicable | `tools/Test-Style.ps1`, pinned formatter settings, complete owned scope, and CI style gates |
+| `WSP-STYLE-0002` | Applicable | `tools/Test-Style.ps1`, pinned formatter settings, complete owned scope, and CI style gates |
+| `WSP-STYLE-0003` | Applicable | `tools/Test-Style.ps1`, pinned formatter settings, complete owned scope, and CI style gates |
+| `WSP-STYLE-0004` | Applicable | `tools/Test-Style.ps1`, pinned formatter settings, complete owned scope, and CI style gates |
+| `WSP-STYLE-0005` | Applicable | `tools/Test-Style.ps1`, pinned formatter settings, complete owned scope, and CI style gates |
+| `WSP-STYLE-0006` | Deferred | See the 1.4.0 migration and commit-check inventory in `docs/commit-checks.md` |
+| `WSP-STYLE-0007` | Applicable | `tools/Test-Style.ps1`, pinned formatter settings, complete owned scope, and CI style gates |
+| `WSP-LANG-0001` | Deferred | See the 1.4.0 migration and commit-check inventory in `docs/commit-checks.md` |
+| `WSP-LANG-0002` | Deferred | See the 1.4.0 migration and commit-check inventory in `docs/commit-checks.md` |
+| `WSP-LANG-0003` | Deferred | See the 1.4.0 migration and commit-check inventory in `docs/commit-checks.md` |
+| `WSP-LANG-0004` | Deferred | See the 1.4.0 migration and commit-check inventory in `docs/commit-checks.md` |
+| `WSP-LANG-0005` | Deferred | See the 1.4.0 migration and commit-check inventory in `docs/commit-checks.md` |
+| `WSP-LANG-0006` | Deferred | See the 1.4.0 migration and commit-check inventory in `docs/commit-checks.md` |
+| `WSP-LANG-0007` | Deferred | See the 1.4.0 migration and commit-check inventory in `docs/commit-checks.md` |
+| `WSP-LANG-0008` | Deferred | See the 1.4.0 migration and commit-check inventory in `docs/commit-checks.md` |
+| `WSP-LANG-0009` | Deferred | See the 1.4.0 migration and commit-check inventory in `docs/commit-checks.md` |
+| `WSP-LANG-0010` | Deferred | See the 1.4.0 migration and commit-check inventory in `docs/commit-checks.md` |
+| `WSP-LANG-0011` | Deferred | See the 1.4.0 migration and commit-check inventory in `docs/commit-checks.md` |
+
 ## Tailoring Decisions
+
+- **`WSP-CHECK-0001`--`0008`, `WSP-STYLE-0006`, and
+  `WSP-LANG-0001`--`0011` — Deferred.** Ordered commit hooks reuse current
+  checks and run fresh registered x64 tests. Physical source style and
+  selected language checks are now enforced. Full documentation/profile
+  coverage, reproducible toolchain setup, controlled failure
+  acceptance tests, and CI execution evidence remain incomplete.
+  Existing CI and declared checks compensate; WPM maintainers own completion.
+  See `docs/commit-checks.md` and `docs/change-impact-wsp-1.4.0.md`.
 
 The following register controls every non-Applicable disposition. Requirement
 ranges refer to every identifier in the inclusive range; individual completion
@@ -200,10 +238,11 @@ is recorded by updating the corresponding matrix row.
   injectable input failure, or the separate genuine-console matrix entry.
   Complete those cases in the WPM 2.0 confirmation test increment; the owner
   is the WPM maintainers and this adoption change is the approval record.
-- **`WSP-CSTYLE-0002`--`0005` — Deferred.** Existing C predates WSP function
-  and entity documentation and line-length rules. C99 lint, compiler warnings,
-  tests, and review compensate until all in-scope files pass the 80-column and
-  Doxygen gates.
+- **`WSP-CSTYLE-0002`, `0003`, `0005` — Deferred.** Function/entity
+  documentation and strict Doxygen coverage remain incomplete. Physical line
+  length is enforced for all owned C alongside the other source languages.
+  C99 lint, compiler warnings, tests, and review compensate until the strict
+  documentation gate is operational.
 - **`WSP-WINRES-0005`, `0010`--`0012` — Deferred.** Generated resources are
   partial and final artifacts lack complete architecture checks. Generated
   version identity and PE compatibility checks compensate until all required
@@ -240,6 +279,7 @@ through `WSP-PSP-0009`.
 | 2026-08-04 | `2198ccab08f969a789448767fe7017b774369adc` | WPM 2.0 architecture and DFS baseline | Added ADR-0010 through ADR-0013, DFS threat/control updates, REQ/TC-0023 consistency checks, and scoped 2.0 supersession of HTTPS-only restrictions; no deferred WSP disposition was reported complete |
 | 2026-08-04 | `2198ccab08f969a789448767fe7017b774369adc` | WPM 2.0 test allocation baseline | Added controlled TC-0014 through TC-0022 specifications, non-claiming runner contracts, execution profiles, evidence paths, release gates, and REQ-0023.006 validator coverage; no runtime evidence exists and no deferred WSP disposition was reported complete |
 | 2026-09-01 | `1.3.0` / `8666277d0a30575515f5e46524e5b71be4be0c7d` | WSP 1.3.0 adoption impact | Reviewed cumulative 1.1.0--1.3.0 changes, added dispositions for new common obligations, retained new UX/UI, information-for-users, and static-analysis profiles as unselected pending dedicated baselines, and replaced the cross-CRT logging workaround with the ABI-safe WSP byte sink |
+| 2026-10-01 | `1.4.0` / `f009399dd1406219571ac978bfee85e85bbdfeac` | WSP 1.4.0 adoption | Added ordered local commit gates, enforced physical source style, and recorded remaining documentation, coverage, and setup gaps in `docs/change-impact-wsp-1.4.0.md` |
 
 The current baseline, pinned commit, and `wsp` gitlink shall agree. An upgrade
 entry shall reference the adopting-project change that reviewed the new WSP

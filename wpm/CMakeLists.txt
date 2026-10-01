@@ -1,4 +1,4 @@
-﻿# CMakeList.txt : CMake project for wpm, include source and define
+# CMakeList.txt : CMake project for wpm, include source and define
 # project specific logic here.
 #
 
@@ -8,9 +8,11 @@ set(WPM_VERSION_RESOURCE "${CMAKE_CURRENT_BINARY_DIR}/wpm-version.rc")
 set(WPM_ICON_FILE "${CMAKE_SOURCE_DIR}/wpm_xp_multires.ico")
 set(WPM_ICON_SOURCE "${CMAKE_SOURCE_DIR}/wpm_xp_master_v2.svg")
 
-add_custom_target(wpm_version_header ALL
-  COMMAND ${CMAKE_COMMAND}
-    -DWPM_SOURCE_DIR=${CMAKE_SOURCE_DIR}
+add_custom_target(
+  wpm_version_header
+  ALL
+  COMMAND
+    ${CMAKE_COMMAND} -DWPM_SOURCE_DIR=${CMAKE_SOURCE_DIR}
     -DWPM_VERSION_HEADER=${WPM_VERSION_HEADER}
     -DWPM_VERSION_RESOURCE=${WPM_VERSION_RESOURCE}
     -DWPM_ICON_FILE=${WPM_ICON_FILE}
@@ -19,14 +21,17 @@ add_custom_target(wpm_version_header ALL
     -DWPM_MINIZIP_NG_VERSION_OVERRIDE=${WPM_MINIZIP_NG_VERSION_OVERRIDE}
     -DWPM_MINIZIP_NG_COMMIT_OVERRIDE=${WPM_MINIZIP_NG_COMMIT_OVERRIDE}
     -DWPM_LIBSODIUM_VERSION_OVERRIDE=${WPM_LIBSODIUM_VERSION_OVERRIDE}
-    -DWPM_LIBSODIUM_COMMIT_OVERRIDE=${WPM_LIBSODIUM_COMMIT_OVERRIDE}
-    -P ${CMAKE_SOURCE_DIR}/cmake/GenerateVersion.cmake
-  BYPRODUCTS ${WPM_VERSION_HEADER} ${WPM_VERSION_RESOURCE}
+    -DWPM_LIBSODIUM_COMMIT_OVERRIDE=${WPM_LIBSODIUM_COMMIT_OVERRIDE} -P
+    ${CMAKE_SOURCE_DIR}/cmake/GenerateVersion.cmake
+  BYPRODUCTS
+    ${WPM_VERSION_HEADER}
+    ${WPM_VERSION_RESOURCE}
   COMMENT "Generating WPM version from Git"
   VERBATIM
 )
 
-set(wpm_sources
+set(
+  wpm_sources
   "https.c"
   "https.h"
   "wpm.c"
@@ -48,13 +53,26 @@ set(wpm_sources
   "${WPM_ICON_SOURCE}"
 )
 
-set_source_files_properties("https.c" "${CMAKE_SOURCE_DIR}/tests/https-probe.c"
-  PROPERTIES OBJECT_DEPENDS
-  "${CMAKE_SOURCE_DIR}/wpm/https.c;${CMAKE_SOURCE_DIR}/cmake/wpm_mbedtls_config.h;${CMAKE_BINARY_DIR}/third_party/wpm_ca_bundle.h")
+set(
+  wpm_https_dependencies
+  "${CMAKE_SOURCE_DIR}/wpm/https.c"
+  "${CMAKE_SOURCE_DIR}/cmake/wpm_mbedtls_config.h"
+  "${CMAKE_BINARY_DIR}/third_party/wpm_ca_bundle.h"
+)
+set_source_files_properties(
+  "https.c"
+  "${CMAKE_SOURCE_DIR}/tests/https-probe.c"
+  PROPERTIES
+    OBJECT_DEPENDS
+      "${wpm_https_dependencies}"
+)
 
 add_executable(wpm ${wpm_sources})
 
-add_subdirectory("${CMAKE_SOURCE_DIR}/wsp/tools/logging" "${CMAKE_BINARY_DIR}/wsp-logging")
+add_subdirectory(
+  "${CMAKE_SOURCE_DIR}/wsp/tools/logging"
+  "${CMAKE_BINARY_DIR}/wsp-logging"
+)
 target_link_libraries(wpm PRIVATE wsp::logging)
 if(WIN32)
   # WPM owns Windows console presentation; avoid a WCRT-incompatible _isatty
@@ -62,14 +80,37 @@ if(WIN32)
   target_compile_definitions(wsp_logging PRIVATE WSP_LOG_NO_TTY)
 endif()
 
-set_source_files_properties("${WPM_VERSION_RESOURCE}" PROPERTIES GENERATED TRUE)
-set_source_files_properties("${WPM_VERSION_HEADER}" PROPERTIES GENERATED TRUE)
-set_source_files_properties("${WPM_ICON_FILE}" "${WPM_ICON_SOURCE}" PROPERTIES HEADER_FILE_ONLY TRUE)
+set_source_files_properties(
+  "${WPM_VERSION_RESOURCE}"
+  PROPERTIES
+    GENERATED
+      TRUE
+)
+set_source_files_properties(
+  "${WPM_VERSION_HEADER}"
+  PROPERTIES
+    GENERATED
+      TRUE
+)
+set_source_files_properties(
+  "${WPM_ICON_FILE}"
+  "${WPM_ICON_SOURCE}"
+  PROPERTIES
+    HEADER_FILE_ONLY
+      TRUE
+)
 
 # TinyCC does not emit dependency files for included headers. Make the generated
 # metadata dependency explicit so a version change recompiles wpm.c in the same
 # build invocation that regenerates version.h.
-set_property(SOURCE "wpm.c" APPEND PROPERTY OBJECT_DEPENDS "${WPM_VERSION_HEADER}")
+set_property(
+  SOURCE
+    "wpm.c"
+  APPEND
+  PROPERTY
+    OBJECT_DEPENDS
+      "${WPM_VERSION_HEADER}"
+)
 
 add_dependencies(wpm wpm_version_header)
 
@@ -81,32 +122,58 @@ else()
   set(wpm_output_dir "${WPM_BIN_DIR}")
 endif()
 
-set_target_properties(wpm PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${wpm_output_dir}"
-  PDB_OUTPUT_DIRECTORY "${wpm_output_dir}"
+set_target_properties(
+  wpm
+  PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY
+      "${wpm_output_dir}"
+    PDB_OUTPUT_DIRECTORY
+      "${wpm_output_dir}"
 )
 
 foreach(config Debug Release RelWithDebInfo MinSizeRel)
   string(TOUPPER "${config}" config_upper)
-  set_target_properties(wpm PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY_${config_upper} "${WPM_BIN_DIR}/${config}"
-    PDB_OUTPUT_DIRECTORY_${config_upper} "${WPM_BIN_DIR}/${config}"
+  set_target_properties(
+    wpm
+    PROPERTIES
+      RUNTIME_OUTPUT_DIRECTORY_${config_upper}
+        "${WPM_BIN_DIR}/${config}"
+      PDB_OUTPUT_DIRECTORY_${config_upper}
+        "${WPM_BIN_DIR}/${config}"
   )
 endforeach()
 
-target_include_directories(wpm PRIVATE
-  ${CMAKE_CURRENT_BINARY_DIR}
+target_include_directories(wpm PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+
+set_property(
+  TARGET
+    wpm
+  PROPERTY
+    C_STANDARD
+      99
+)
+set_property(
+  TARGET
+    wpm
+  PROPERTY
+    C_STANDARD_REQUIRED
+      ON
+)
+set_property(
+  TARGET
+    wpm
+  PROPERTY
+    C_EXTENSIONS
+      OFF
 )
 
-set_property(TARGET wpm PROPERTY C_STANDARD 99)
-set_property(TARGET wpm PROPERTY C_STANDARD_REQUIRED ON)
-set_property(TARGET wpm PROPERTY C_EXTENSIONS OFF)
-
-target_compile_definitions(wpm PRIVATE
-  SODIUM_STATIC
-  WPM_TARGET_ARCH="${wpm_arch}"
-  WPM_ZLIB_NG_BUFFER_BYTES=${WPM_ZLIB_NG_BUFFER_BYTES}U
-  WPM_ZLIB_NG_COMPRESSION_LEVEL=${WPM_ZLIB_NG_COMPRESSION_LEVEL}
+target_compile_definitions(
+  wpm
+  PRIVATE
+    SODIUM_STATIC
+    WPM_TARGET_ARCH="${wpm_arch}"
+    WPM_ZLIB_NG_BUFFER_BYTES=${WPM_ZLIB_NG_BUFFER_BYTES}U
+    WPM_ZLIB_NG_COMPRESSION_LEVEL=${WPM_ZLIB_NG_COMPRESSION_LEVEL}
 )
 if(WPM_BLAKE2B_SIMD_ENABLED)
   target_compile_definitions(wpm PRIVATE WPM_BLAKE2B_SIMD=1)
@@ -116,154 +183,377 @@ if(WPM_ZLIB_SSE2_ENABLED)
 endif()
 if(WIN32)
   # Let WCRT establish its time_t and wint_t before TinyCC's WinAPI headers.
-  target_compile_options(wpm PRIVATE -include wchar.h)
-  target_compile_definitions(wpm PRIVATE
-    _WINT_T
-    WCRT_POSIX=1
-    WPM_HAS_WCRT=1
-    WPM_WCRT_VERSION="${WPM_WCRT_VERSION}"
+  target_compile_options(
+    wpm
+    PRIVATE
+      -include
+      wchar.h
+  )
+  target_compile_definitions(
+    wpm
+    PRIVATE
+      _WINT_T
+      WCRT_POSIX=1
+      WPM_HAS_WCRT=1
+      WPM_WCRT_VERSION="${WPM_WCRT_VERSION}"
   )
 endif()
-target_link_libraries(wpm PRIVATE minizip-ng zlib-ng libsodium)
+target_link_libraries(
+  wpm
+  PRIVATE
+    minizip-ng
+    zlib-ng
+    libsodium
+)
 target_link_libraries(wpm PRIVATE wpm-mbedtls)
 target_include_directories(wpm PRIVATE "${CMAKE_BINARY_DIR}/third_party")
 if(WIN32)
   # Use explicit import definitions so cross-architecture builds don't depend
   # on matching system DLLs being installed on the build host.
-  target_link_options(wpm PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/tcc_support/urlmon.def"
-    "${WPM_TCC_ROOT}/lib/ws2_32.def"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tcc_support/advapi32.def"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tcc_support/version.def"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tcc_support/kernel32-extra.def"
+  target_link_options(
+    wpm
+    PRIVATE
+      "${CMAKE_CURRENT_SOURCE_DIR}/tcc_support/urlmon.def"
+      "${WPM_TCC_ROOT}/lib/ws2_32.def"
+      "${CMAKE_CURRENT_SOURCE_DIR}/tcc_support/advapi32.def"
+      "${CMAKE_CURRENT_SOURCE_DIR}/tcc_support/version.def"
+      "${CMAKE_CURRENT_SOURCE_DIR}/tcc_support/kernel32-extra.def"
   )
   set(wcrt_console_startup "${WPM_WCRT_TARGET_ROOT}/lib/wcrt-startup-console.o")
-  set_source_files_properties("${wcrt_console_startup}" PROPERTIES
-    EXTERNAL_OBJECT TRUE
+  set_source_files_properties(
+    "${wcrt_console_startup}"
+    PROPERTIES
+      EXTERNAL_OBJECT
+        TRUE
   )
   target_sources(wpm PRIVATE "${wcrt_console_startup}")
-  target_link_options(wpm PRIVATE
-    -nostdlib
-    "${WPM_TCC_ROOT}/lib/kernel32.def"
+  target_link_options(
+    wpm
+    PRIVATE
+      -nostdlib
+      "${WPM_TCC_ROOT}/lib/kernel32.def"
   )
   target_link_libraries(wpm PRIVATE "${WPM_WCRT_TARGET_ROOT}/lib/libwcrt.a")
   get_filename_component(tcc_bin_dir "${CMAKE_C_COMPILER}" DIRECTORY)
   if(wpm_arch STREQUAL "x86")
     target_link_libraries(wpm PRIVATE "${tcc_bin_dir}/lib/i386-win32-libtcc1.a")
   elseif(wpm_arch STREQUAL "x64")
-    target_link_libraries(wpm PRIVATE "${tcc_bin_dir}/lib/x86_64-win32-libtcc1.a")
+    target_link_libraries(
+      wpm
+      PRIVATE
+        "${tcc_bin_dir}/lib/x86_64-win32-libtcc1.a"
+    )
   elseif(wpm_arch STREQUAL "arm64")
-    target_link_libraries(wpm PRIVATE "${tcc_bin_dir}/lib/arm64-win32-libtcc1.a")
+    target_link_libraries(
+      wpm
+      PRIVATE
+        "${tcc_bin_dir}/lib/arm64-win32-libtcc1.a"
+    )
   endif()
 endif()
 
-option(WPM_BUILD_VALIDATION_BENCHMARK "Build the standalone indexed-file validation benchmark" OFF)
+option(
+  WPM_BUILD_VALIDATION_BENCHMARK
+  "Build the standalone indexed-file validation benchmark"
+  OFF
+)
 if(WIN32 AND WPM_BUILD_VALIDATION_BENCHMARK)
-  # Exercise archive.c's private validation path without extraction or installation.
+  # Exercise private archive validation without extraction or installation.
   set(wpm_validation_sources ${wpm_sources})
-  list(REMOVE_ITEM wpm_validation_sources "wpm.c" "archive.c")
-  add_executable(wpm-validation-benchmark ${wpm_validation_sources}
-    "${CMAKE_SOURCE_DIR}/tests/validation-benchmark.c" "${wcrt_console_startup}")
-  foreach(property COMPILE_OPTIONS COMPILE_DEFINITIONS INCLUDE_DIRECTORIES LINK_OPTIONS LINK_LIBRARIES)
+  list(
+    REMOVE_ITEM
+    wpm_validation_sources
+    "wpm.c"
+    "archive.c"
+  )
+  add_executable(
+    wpm-validation-benchmark
+    ${wpm_validation_sources}
+    "${CMAKE_SOURCE_DIR}/tests/validation-benchmark.c"
+    "${wcrt_console_startup}"
+  )
+  foreach(
+    property
+    COMPILE_OPTIONS
+    COMPILE_DEFINITIONS
+    INCLUDE_DIRECTORIES
+    LINK_OPTIONS
+    LINK_LIBRARIES
+  )
     get_target_property(wpm_validation_property wpm ${property})
     if(wpm_validation_property)
-      set_property(TARGET wpm-validation-benchmark PROPERTY ${property} "${wpm_validation_property}")
+      set_property(
+        TARGET
+          wpm-validation-benchmark
+        PROPERTY
+          ${property}
+            "${wpm_validation_property}"
+      )
     endif()
   endforeach()
-  target_include_directories(wpm-validation-benchmark PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
-  set_property(SOURCE "${CMAKE_SOURCE_DIR}/tests/validation-benchmark.c" APPEND PROPERTY
-    OBJECT_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/archive.c")
-  add_custom_command(TARGET wpm-validation-benchmark POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${WPM_WCRT_TARGET_ROOT}/bin/wcrt.dll"
-      "$<TARGET_FILE_DIR:wpm-validation-benchmark>/wcrt.dll")
+  target_include_directories(
+    wpm-validation-benchmark
+    PRIVATE
+      "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  set_property(
+    SOURCE
+      "${CMAKE_SOURCE_DIR}/tests/validation-benchmark.c"
+    APPEND
+    PROPERTY
+      OBJECT_DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/archive.c"
+  )
+  add_custom_command(
+    TARGET wpm-validation-benchmark
+    POST_BUILD
+    COMMAND
+      ${CMAKE_COMMAND} -E copy_if_different
+      "${WPM_WCRT_TARGET_ROOT}/bin/wcrt.dll"
+      "$<TARGET_FILE_DIR:wpm-validation-benchmark>/wcrt.dll"
+  )
 endif()
 
 if(BUILD_TESTING)
   if(WIN32)
-    add_executable(wpm-https-test "${CMAKE_SOURCE_DIR}/tests/https-probe.c"
-      helpers.c progress.c "${wcrt_console_startup}")
-    target_compile_options(wpm-https-test PRIVATE -include wchar.h)
-    target_compile_definitions(wpm-https-test PRIVATE _WINT_T WCRT_POSIX=1)
-    target_include_directories(wpm-https-test PRIVATE "${CMAKE_BINARY_DIR}/third_party")
-    target_link_options(wpm-https-test PRIVATE -nostdlib
-      "${WPM_TCC_ROOT}/lib/kernel32.def" "${WPM_TCC_ROOT}/lib/ws2_32.def"
-      "${CMAKE_CURRENT_SOURCE_DIR}/tcc_support/advapi32.def")
-    target_link_libraries(wpm-https-test PRIVATE wpm-mbedtls
-      "${WPM_WCRT_TARGET_ROOT}/lib/libwcrt.a")
+    add_executable(
+      wpm-https-test
+      "${CMAKE_SOURCE_DIR}/tests/https-probe.c"
+      helpers.c
+      progress.c
+      "${wcrt_console_startup}"
+    )
+    target_compile_options(
+      wpm-https-test
+      PRIVATE
+        -include
+        wchar.h
+    )
+    target_compile_definitions(
+      wpm-https-test
+      PRIVATE
+        _WINT_T
+        WCRT_POSIX=1
+    )
+    string(
+      CONCAT
+      wpm_blake2b_test_include
+      "${CMAKE_SOURCE_DIR}/third_party/libsodium/"
+      "src/libsodium/crypto_generichash/blake2b/ref"
+    )
+    target_include_directories(
+      wpm-https-test
+      PRIVATE
+        "${CMAKE_BINARY_DIR}/third_party"
+    )
+    target_link_options(
+      wpm-https-test
+      PRIVATE
+        -nostdlib
+        "${WPM_TCC_ROOT}/lib/kernel32.def"
+        "${WPM_TCC_ROOT}/lib/ws2_32.def"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tcc_support/advapi32.def"
+    )
+    target_link_libraries(
+      wpm-https-test
+      PRIVATE
+        wpm-mbedtls
+        "${WPM_WCRT_TARGET_ROOT}/lib/libwcrt.a"
+    )
     if(wpm_arch STREQUAL "x86")
-      target_link_libraries(wpm-https-test PRIVATE "${tcc_bin_dir}/lib/i386-win32-libtcc1.a")
+      target_link_libraries(
+        wpm-https-test
+        PRIVATE
+          "${tcc_bin_dir}/lib/i386-win32-libtcc1.a"
+      )
     elseif(wpm_arch STREQUAL "x64")
-      target_link_libraries(wpm-https-test PRIVATE "${tcc_bin_dir}/lib/x86_64-win32-libtcc1.a")
+      target_link_libraries(
+        wpm-https-test
+        PRIVATE
+          "${tcc_bin_dir}/lib/x86_64-win32-libtcc1.a"
+      )
     else()
-      target_link_libraries(wpm-https-test PRIVATE "${tcc_bin_dir}/lib/arm64-win32-libtcc1.a")
+      target_link_libraries(
+        wpm-https-test
+        PRIVATE
+          "${tcc_bin_dir}/lib/arm64-win32-libtcc1.a"
+      )
     endif()
-    add_test(NAME https-parser COMMAND wpm-https-test --self-test)
-    add_executable(wpm-blake2b-test "${CMAKE_SOURCE_DIR}/tests/blake2b-simd.c"
-      "${wcrt_console_startup}")
-    target_include_directories(wpm-blake2b-test PRIVATE
-      "${CMAKE_SOURCE_DIR}/third_party/libsodium/src/libsodium/crypto_generichash/blake2b/ref")
-    target_compile_options(wpm-blake2b-test PRIVATE -include wchar.h)
-    target_compile_definitions(wpm-blake2b-test PRIVATE SODIUM_STATIC _WINT_T NATIVE_LITTLE_ENDIAN)
+    add_test(
+      NAME https-parser
+      COMMAND
+        wpm-https-test --self-test
+    )
+    add_executable(
+      wpm-blake2b-test
+      "${CMAKE_SOURCE_DIR}/tests/blake2b-simd.c"
+      "${wcrt_console_startup}"
+    )
+    target_include_directories(
+      wpm-blake2b-test
+      PRIVATE
+        "${wpm_blake2b_test_include}"
+    )
+    target_compile_options(
+      wpm-blake2b-test
+      PRIVATE
+        -include
+        wchar.h
+    )
+    target_compile_definitions(
+      wpm-blake2b-test
+      PRIVATE
+        SODIUM_STATIC
+        _WINT_T
+        NATIVE_LITTLE_ENDIAN
+    )
     if(WPM_BLAKE2B_SIMD_ENABLED)
-      target_compile_definitions(wpm-blake2b-test PRIVATE WPM_TEST_SIMD=1
-        HAVE_EMMINTRIN_H=1 HAVE_TMMINTRIN_H=1 HAVE_SMMINTRIN_H=1 HAVE_AVX2INTRIN_H=1)
+      target_compile_definitions(
+        wpm-blake2b-test
+        PRIVATE
+          WPM_TEST_SIMD=1
+          HAVE_EMMINTRIN_H=1
+          HAVE_TMMINTRIN_H=1
+          HAVE_SMMINTRIN_H=1
+          HAVE_AVX2INTRIN_H=1
+      )
     endif()
-    target_link_options(wpm-blake2b-test PRIVATE -nostdlib
-      "${WPM_TCC_ROOT}/lib/kernel32.def"
-      "${CMAKE_CURRENT_SOURCE_DIR}/tcc_support/advapi32.def")
-    target_link_libraries(wpm-blake2b-test PRIVATE libsodium
-      "${WPM_WCRT_TARGET_ROOT}/lib/libwcrt.a")
+    target_link_options(
+      wpm-blake2b-test
+      PRIVATE
+        -nostdlib
+        "${WPM_TCC_ROOT}/lib/kernel32.def"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tcc_support/advapi32.def"
+    )
+    target_link_libraries(
+      wpm-blake2b-test
+      PRIVATE
+        libsodium
+        "${WPM_WCRT_TARGET_ROOT}/lib/libwcrt.a"
+    )
     if(wpm_arch STREQUAL "x86")
-      target_link_libraries(wpm-blake2b-test PRIVATE "${tcc_bin_dir}/lib/i386-win32-libtcc1.a")
+      target_link_libraries(
+        wpm-blake2b-test
+        PRIVATE
+          "${tcc_bin_dir}/lib/i386-win32-libtcc1.a"
+      )
     elseif(wpm_arch STREQUAL "x64")
-      target_link_libraries(wpm-blake2b-test PRIVATE "${tcc_bin_dir}/lib/x86_64-win32-libtcc1.a")
+      target_link_libraries(
+        wpm-blake2b-test
+        PRIVATE
+          "${tcc_bin_dir}/lib/x86_64-win32-libtcc1.a"
+      )
     else()
-      target_link_libraries(wpm-blake2b-test PRIVATE "${tcc_bin_dir}/lib/arm64-win32-libtcc1.a")
+      target_link_libraries(
+        wpm-blake2b-test
+        PRIVATE
+          "${tcc_bin_dir}/lib/arm64-win32-libtcc1.a"
+      )
     endif()
     add_test(NAME blake2b-simd COMMAND wpm-blake2b-test)
     if(WPM_ZLIB_SSE2_ENABLED)
-      add_executable(wpm-zlib-test "${CMAKE_SOURCE_DIR}/tests/zlib-sse2.c"
-        "${wcrt_console_startup}")
-      target_compile_options(wpm-zlib-test PRIVATE -include wchar.h)
-      target_compile_definitions(wpm-zlib-test PRIVATE _WINT_T WCRT_POSIX=1 "__int64=long long")
-      target_link_options(wpm-zlib-test PRIVATE -nostdlib
-        "${WPM_TCC_ROOT}/lib/kernel32.def")
-      target_link_libraries(wpm-zlib-test PRIVATE zlib-ng
-        "${WPM_WCRT_TARGET_ROOT}/lib/libwcrt.a")
+      add_executable(
+        wpm-zlib-test
+        "${CMAKE_SOURCE_DIR}/tests/zlib-sse2.c"
+        "${wcrt_console_startup}"
+      )
+      target_compile_options(
+        wpm-zlib-test
+        PRIVATE
+          -include
+          wchar.h
+      )
+      target_compile_definitions(
+        wpm-zlib-test
+        PRIVATE
+          _WINT_T
+          WCRT_POSIX=1
+          "__int64=long long"
+      )
+      target_link_options(
+        wpm-zlib-test
+        PRIVATE
+          -nostdlib
+          "${WPM_TCC_ROOT}/lib/kernel32.def"
+      )
+      target_link_libraries(
+        wpm-zlib-test
+        PRIVATE
+          zlib-ng
+          "${WPM_WCRT_TARGET_ROOT}/lib/libwcrt.a"
+      )
       if(wpm_arch STREQUAL "x86")
-        target_link_libraries(wpm-zlib-test PRIVATE "${tcc_bin_dir}/lib/i386-win32-libtcc1.a")
+        target_link_libraries(
+          wpm-zlib-test
+          PRIVATE
+            "${tcc_bin_dir}/lib/i386-win32-libtcc1.a"
+        )
       else()
-        target_link_libraries(wpm-zlib-test PRIVATE "${tcc_bin_dir}/lib/x86_64-win32-libtcc1.a")
+        target_link_libraries(
+          wpm-zlib-test
+          PRIVATE
+            "${tcc_bin_dir}/lib/x86_64-win32-libtcc1.a"
+        )
       endif()
       add_test(NAME zlib-sse2 COMMAND wpm-zlib-test)
     endif()
   endif()
-  find_program(WPM_POWERSHELL_EXECUTABLE NAMES pwsh powershell)
+  find_program(
+    WPM_POWERSHELL_EXECUTABLE
+    NAMES
+      pwsh
+      powershell
+  )
   if(NOT WPM_POWERSHELL_EXECUTABLE)
     message(FATAL_ERROR "PowerShell is required to run the WPM tests")
   endif()
   find_package(Python3 COMPONENTS Interpreter REQUIRED)
   find_program(WPM_TLS_POWERSHELL_EXECUTABLE NAMES pwsh REQUIRED)
-  add_test(NAME https-integration COMMAND "${WPM_TLS_POWERSHELL_EXECUTABLE}" -NoProfile
-    -File "${CMAKE_SOURCE_DIR}/tests/test-https.ps1" -Probe $<TARGET_FILE:wpm-https-test>
-    -Python "${Python3_EXECUTABLE}" -WpmExe $<TARGET_FILE:wpm>)
-  set_tests_properties(https-integration PROPERTIES TIMEOUT 180)
+  add_test(
+    NAME https-integration
+    COMMAND
+      "${WPM_TLS_POWERSHELL_EXECUTABLE}" -NoProfile -File
+      "${CMAKE_SOURCE_DIR}/tests/test-https.ps1" -Probe
+      $<TARGET_FILE:wpm-https-test> -Python "${Python3_EXECUTABLE}" -WpmExe
+      $<TARGET_FILE:wpm>
+  )
+  set_tests_properties(
+    https-integration
+    PROPERTIES
+      TIMEOUT
+        180
+  )
   if(wpm_arch STREQUAL "x86")
-    add_test(NAME https-legacy-imports COMMAND "${WPM_POWERSHELL_EXECUTABLE}" -NoProfile
-      -File "${CMAKE_SOURCE_DIR}/tests/verify-legacy-tls-imports.ps1"
-      -Executable $<TARGET_FILE:wpm-https-test>)
+    add_test(
+      NAME https-legacy-imports
+      COMMAND
+        "${WPM_POWERSHELL_EXECUTABLE}" -NoProfile -File
+        "${CMAKE_SOURCE_DIR}/tests/verify-legacy-tls-imports.ps1" -Executable
+        $<TARGET_FILE:wpm-https-test>
+    )
   endif()
 
-  option(WPM_RUN_TESTS_AFTER_BUILD "Run WPM tests as part of the default build" OFF)
-  option(WPM_BUILD_TEST_REPORTS "Generate local LaTeX test reports from automated test execution" OFF)
+  option(
+    WPM_RUN_TESTS_AFTER_BUILD
+    "Run WPM tests as part of the default build"
+    OFF
+  )
+  option(
+    WPM_BUILD_TEST_REPORTS
+    "Generate local LaTeX test reports from automated test execution"
+    OFF
+  )
   if(WPM_BUILD_TEST_REPORTS)
     if(CMAKE_CONFIGURATION_TYPES)
       set(WPM_TEST_REPORT_DIR "${WPM_BIN_DIR}/${CMAKE_CFG_INTDIR}")
     else()
       set(WPM_TEST_REPORT_DIR "${wpm_output_dir}")
     endif()
-    find_program(WPM_PDFLATEX_EXECUTABLE
-      NAMES pdflatex pdflatex.exe
+    find_program(
+      WPM_PDFLATEX_EXECUTABLE
+      NAMES
+        pdflatex
+        pdflatex.exe
       HINTS
         "$ENV{LOCALAPPDATA}/Programs/MiKTeX/miktex/bin/x64"
         "$ENV{LOCALAPPDATA}/Programs/MiKTeX/miktex/bin"
@@ -271,7 +561,11 @@ if(BUILD_TESTING)
         "$ENV{APPDATA}/MiKTeX/miktex/bin"
     )
     if(NOT WPM_PDFLATEX_EXECUTABLE)
-      message(STATUS "pdflatex was not found; WPM_BUILD_TEST_REPORTS will generate LaTeX .tex reports only.")
+      message(
+        STATUS
+        "pdflatex was not found; WPM_BUILD_TEST_REPORTS will generate "
+        "LaTeX .tex reports only."
+      )
     endif()
   endif()
 
@@ -281,27 +575,29 @@ if(BUILD_TESTING)
     list(APPEND WPM_TEST_NAMES ${test_id})
     add_test(
       NAME ${test_id}
-      COMMAND ${WPM_POWERSHELL_EXECUTABLE}
-        -NoProfile
-        -ExecutionPolicy Bypass
-        -File ${CMAKE_SOURCE_DIR}/tests/${test_script}
-        -WpmExe $<TARGET_FILE:wpm>
+      COMMAND
+        ${WPM_POWERSHELL_EXECUTABLE} -NoProfile -ExecutionPolicy Bypass -File
+        ${CMAKE_SOURCE_DIR}/tests/${test_script} -WpmExe $<TARGET_FILE:wpm>
     )
 
     if(WPM_BUILD_TEST_REPORTS)
-      set(WPM_${test_slug}_EVIDENCE_TEX "${WPM_TEST_REPORT_DIR}/${test_slug}-execution-evidence.tex")
-      set(WPM_${test_slug}_REPORT_TEX "${WPM_TEST_REPORT_DIR}/${test_slug}-report.tex")
+      set(
+        WPM_${test_slug}_EVIDENCE_TEX
+        "${WPM_TEST_REPORT_DIR}/${test_slug}-execution-evidence.tex"
+      )
+      set(
+        WPM_${test_slug}_REPORT_TEX
+        "${WPM_TEST_REPORT_DIR}/${test_slug}-report.tex"
+      )
       list(APPEND WPM_TEST_REPORT_TEX_OUTPUTS "${WPM_${test_slug}_REPORT_TEX}")
 
       add_custom_command(
-        OUTPUT "${WPM_${test_slug}_EVIDENCE_TEX}"
-        COMMAND ${WPM_POWERSHELL_EXECUTABLE}
-          -NoProfile
-          -ExecutionPolicy Bypass
-          -File ${CMAKE_SOURCE_DIR}/tests/${test_script}
-          -WpmExe $<TARGET_FILE:wpm>
-          -EvidenceTex "${WPM_${test_slug}_EVIDENCE_TEX}"
-          -NoFailOnFailure
+        OUTPUT
+          "${WPM_${test_slug}_EVIDENCE_TEX}"
+        COMMAND
+          ${WPM_POWERSHELL_EXECUTABLE} -NoProfile -ExecutionPolicy Bypass -File
+          ${CMAKE_SOURCE_DIR}/tests/${test_script} -WpmExe $<TARGET_FILE:wpm>
+          -EvidenceTex "${WPM_${test_slug}_EVIDENCE_TEX}" -NoFailOnFailure
         DEPENDS
           wpm
           ${CMAKE_SOURCE_DIR}/tests/${test_script}
@@ -311,15 +607,15 @@ if(BUILD_TESTING)
       )
 
       add_custom_command(
-        OUTPUT "${WPM_${test_slug}_REPORT_TEX}"
-        COMMAND ${WPM_POWERSHELL_EXECUTABLE}
-          -NoProfile
-          -ExecutionPolicy Bypass
-          -File ${CMAKE_SOURCE_DIR}/wsp/tools/New-TestReport.ps1
-          -TestCaseTex ${CMAKE_SOURCE_DIR}/docs/${test_tex}
-          -EvidenceTex "${WPM_${test_slug}_EVIDENCE_TEX}"
-          -OutputTex "${WPM_${test_slug}_REPORT_TEX}"
-          -TestCaseLibrary ${CMAKE_SOURCE_DIR}/wsp/testing/test-case-library.tex
+        OUTPUT
+          "${WPM_${test_slug}_REPORT_TEX}"
+        COMMAND
+          ${WPM_POWERSHELL_EXECUTABLE} -NoProfile -ExecutionPolicy Bypass -File
+          ${CMAKE_SOURCE_DIR}/wsp/tools/New-TestReport.ps1 -TestCaseTex
+          ${CMAKE_SOURCE_DIR}/docs/${test_tex} -EvidenceTex
+          "${WPM_${test_slug}_EVIDENCE_TEX}" -OutputTex
+          "${WPM_${test_slug}_REPORT_TEX}" -TestCaseLibrary
+          ${CMAKE_SOURCE_DIR}/wsp/testing/test-case-library.tex
         DEPENDS
           "${WPM_${test_slug}_EVIDENCE_TEX}"
           ${CMAKE_SOURCE_DIR}/wsp/tools/New-TestReport.ps1
@@ -330,20 +626,27 @@ if(BUILD_TESTING)
       )
 
       if(WPM_PDFLATEX_EXECUTABLE)
-        set(WPM_${test_slug}_REPORT_PDF "${WPM_TEST_REPORT_DIR}/${test_slug}-report.pdf")
-        list(APPEND WPM_TEST_REPORT_PDF_OUTPUTS "${WPM_${test_slug}_REPORT_PDF}")
+        set(
+          WPM_${test_slug}_REPORT_PDF
+          "${WPM_TEST_REPORT_DIR}/${test_slug}-report.pdf"
+        )
+        list(
+          APPEND
+          WPM_TEST_REPORT_PDF_OUTPUTS
+          "${WPM_${test_slug}_REPORT_PDF}"
+        )
 
         add_custom_command(
-          OUTPUT "${WPM_${test_slug}_REPORT_PDF}"
-          COMMAND ${WPM_POWERSHELL_EXECUTABLE}
-            -NoProfile
-            -ExecutionPolicy Bypass
-            -File ${CMAKE_SOURCE_DIR}/wsp/tools/New-TestReport.ps1
-            -TestCaseTex ${CMAKE_SOURCE_DIR}/docs/${test_tex}
-            -EvidenceTex "${WPM_${test_slug}_EVIDENCE_TEX}"
-            -OutputTex "${WPM_${test_slug}_REPORT_TEX}"
-            -TestCaseLibrary ${CMAKE_SOURCE_DIR}/wsp/testing/test-case-library.tex
-            -PdfLatex "${WPM_PDFLATEX_EXECUTABLE}"
+          OUTPUT
+            "${WPM_${test_slug}_REPORT_PDF}"
+          COMMAND
+            ${WPM_POWERSHELL_EXECUTABLE} -NoProfile -ExecutionPolicy Bypass
+            -File ${CMAKE_SOURCE_DIR}/wsp/tools/New-TestReport.ps1 -TestCaseTex
+            ${CMAKE_SOURCE_DIR}/docs/${test_tex} -EvidenceTex
+            "${WPM_${test_slug}_EVIDENCE_TEX}" -OutputTex
+            "${WPM_${test_slug}_REPORT_TEX}" -TestCaseLibrary
+            ${CMAKE_SOURCE_DIR}/wsp/testing/test-case-library.tex -PdfLatex
+            "${WPM_PDFLATEX_EXECUTABLE}"
           DEPENDS
             "${WPM_${test_slug}_EVIDENCE_TEX}"
             ${CMAKE_SOURCE_DIR}/wsp/tools/New-TestReport.ps1
@@ -358,50 +661,189 @@ if(BUILD_TESTING)
 
   add_test(
     NAME traceability-validator
-    COMMAND ${WPM_POWERSHELL_EXECUTABLE}
-      -NoProfile
-      -ExecutionPolicy Bypass
-      -File ${CMAKE_SOURCE_DIR}/tests/verify-traceability-validator.ps1
+    COMMAND
+      ${WPM_POWERSHELL_EXECUTABLE} -NoProfile -ExecutionPolicy Bypass -File
+      ${CMAKE_SOURCE_DIR}/tests/verify-traceability-validator.ps1
       -RepositoryRoot ${CMAKE_SOURCE_DIR}
   )
 
-  wpm_add_test_case(TC-0001 tc-0001 tc-0001-usage-version-check.ps1 tc-0001-usage-version-check.tex)
-  wpm_add_test_case(TC-0002 tc-0002 tc-0002-package-initialization.ps1 tc-0002-package-initialization.tex)
-  wpm_add_test_case(TC-0003 tc-0003 tc-0003-package-archive-build.ps1 tc-0003-package-archive-build.tex)
-  wpm_add_test_case(TC-0004 tc-0004 tc-0004-package-archive-installation.ps1 tc-0004-package-archive-installation.tex)
-  wpm_add_test_case(TC-0005 tc-0005 tc-0005-package-index-signature-verification.ps1 tc-0005-package-index-signature-verification.tex)
-  wpm_add_test_case(TC-0006 tc-0006 tc-0006-package-metadata-archive-naming.ps1 tc-0006-package-metadata-archive-naming.tex)
-  wpm_add_test_case(TC-0007 tc-0007 tc-0007-wpm-self-installation.ps1 tc-0007-wpm-self-installation.tex)
-  wpm_add_test_case(TC-0008 tc-0008 tc-0008-package-removal.ps1 tc-0008-package-removal.tex)
-  wpm_add_test_case(TC-0009 tc-0009 tc-0009-github-release-artifacts.ps1 tc-0009-github-release-artifacts.tex)
-  wpm_add_test_case(TC-0010 tc-0010 tc-0010-runtime-mode-detection.ps1 tc-0010-runtime-mode-detection.tex)
-  wpm_add_test_case(TC-0011 tc-0011 tc-0011-https-repositories.ps1 tc-0011-https-repositories.tex)
-  wpm_add_test_case(TC-0012 tc-0012 tc-0012-package-signing-and-validation.ps1 tc-0012-package-signing-and-validation.tex)
-  wpm_add_test_case(TC-0013 tc-0013 tc-0013-version-aware-upgrades.ps1 tc-0013-version-aware-upgrades.tex)
-  wpm_add_test_case(TC-0023 tc-0023 tc-0023-architecture-security-consistency.ps1 tc-0023-architecture-security-consistency.tex)
-  wpm_add_test_case(TC-0024 tc-0024 tc-0024-local-repositories.ps1 tc-0024-local-repositories.tex)
-  wpm_add_test_case(TC-0025 tc-0025 tc-0025-network-repositories.ps1 tc-0025-network-repositories.tex)
-  wpm_add_test_case(TC-0026 tc-0026 tc-0026-color-policy.ps1 tc-0026-color-policy.tex)
+  wpm_add_test_case(
+    TC-0001
+    tc-0001
+    tc-0001-usage-version-check.ps1
+    tc-0001-usage-version-check.tex
+  )
+  wpm_add_test_case(
+    TC-0002
+    tc-0002
+    tc-0002-package-initialization.ps1
+    tc-0002-package-initialization.tex
+  )
+  wpm_add_test_case(
+    TC-0003
+    tc-0003
+    tc-0003-package-archive-build.ps1
+    tc-0003-package-archive-build.tex
+  )
+  wpm_add_test_case(
+    TC-0004
+    tc-0004
+    tc-0004-package-archive-installation.ps1
+    tc-0004-package-archive-installation.tex
+  )
+  wpm_add_test_case(
+    TC-0005
+    tc-0005
+    tc-0005-package-index-signature-verification.ps1
+    tc-0005-package-index-signature-verification.tex
+  )
+  wpm_add_test_case(
+    TC-0006
+    tc-0006
+    tc-0006-package-metadata-archive-naming.ps1
+    tc-0006-package-metadata-archive-naming.tex
+  )
+  wpm_add_test_case(
+    TC-0007
+    tc-0007
+    tc-0007-wpm-self-installation.ps1
+    tc-0007-wpm-self-installation.tex
+  )
+  wpm_add_test_case(
+    TC-0008
+    tc-0008
+    tc-0008-package-removal.ps1
+    tc-0008-package-removal.tex
+  )
+  wpm_add_test_case(
+    TC-0009
+    tc-0009
+    tc-0009-github-release-artifacts.ps1
+    tc-0009-github-release-artifacts.tex
+  )
+  wpm_add_test_case(
+    TC-0010
+    tc-0010
+    tc-0010-runtime-mode-detection.ps1
+    tc-0010-runtime-mode-detection.tex
+  )
+  wpm_add_test_case(
+    TC-0011
+    tc-0011
+    tc-0011-https-repositories.ps1
+    tc-0011-https-repositories.tex
+  )
+  wpm_add_test_case(
+    TC-0012
+    tc-0012
+    tc-0012-package-signing-and-validation.ps1
+    tc-0012-package-signing-and-validation.tex
+  )
+  wpm_add_test_case(
+    TC-0013
+    tc-0013
+    tc-0013-version-aware-upgrades.ps1
+    tc-0013-version-aware-upgrades.tex
+  )
+  wpm_add_test_case(
+    TC-0023
+    tc-0023
+    tc-0023-architecture-security-consistency.ps1
+    tc-0023-architecture-security-consistency.tex
+  )
+  wpm_add_test_case(
+    TC-0024
+    tc-0024
+    tc-0024-local-repositories.ps1
+    tc-0024-local-repositories.tex
+  )
+  wpm_add_test_case(
+    TC-0025
+    tc-0025
+    tc-0025-network-repositories.ps1
+    tc-0025-network-repositories.tex
+  )
+  wpm_add_test_case(
+    TC-0026
+    tc-0026
+    tc-0026-color-policy.ps1
+    tc-0026-color-policy.tex
+  )
   wpm_add_test_case(TC-0027 tc-0027 tc-0027-task-help.ps1 tc-0027-task-help.tex)
-  wpm_add_test_case(TC-0028 tc-0028 tc-0028-invalid-options.ps1 tc-0028-invalid-options.tex)
-  wpm_add_test_case(TC-0029 tc-0029 tc-0029-operand-shapes.ps1 tc-0029-operand-shapes.tex)
-  wpm_add_test_case(TC-0030 tc-0030 tc-0030-action-grammar.ps1 tc-0030-action-grammar.tex)
-  wpm_add_test_case(TC-0031 tc-0031 tc-0031-log-configuration.ps1 tc-0031-log-configuration.tex)
-  wpm_add_test_case(TC-0032 tc-0032 tc-0032-failure-log-guidance.ps1 tc-0032-failure-log-guidance.tex)
-  wpm_add_test_case(TC-0033 tc-0033 tc-0033-script-output-framing.ps1 tc-0033-script-output-framing.tex)
-  wpm_add_test_case(TC-0034 tc-0034 tc-0034-result-summary-consistency.ps1 tc-0034-result-summary-consistency.tex)
-  wpm_add_test_case(TC-0035 tc-0035 tc-0035-verbose-operation-details.ps1 tc-0035-verbose-operation-details.tex)
-  wpm_add_test_case(TC-0036 tc-0036 tc-0036-key-mutation-results.ps1 tc-0036-key-mutation-results.tex)
-  wpm_add_test_case(TC-0037 tc-0037 tc-0037-config-mutation-results.ps1 tc-0037-config-mutation-results.tex)
+  wpm_add_test_case(
+    TC-0028
+    tc-0028
+    tc-0028-invalid-options.ps1
+    tc-0028-invalid-options.tex
+  )
+  wpm_add_test_case(
+    TC-0029
+    tc-0029
+    tc-0029-operand-shapes.ps1
+    tc-0029-operand-shapes.tex
+  )
+  wpm_add_test_case(
+    TC-0030
+    tc-0030
+    tc-0030-action-grammar.ps1
+    tc-0030-action-grammar.tex
+  )
+  wpm_add_test_case(
+    TC-0031
+    tc-0031
+    tc-0031-log-configuration.ps1
+    tc-0031-log-configuration.tex
+  )
+  wpm_add_test_case(
+    TC-0032
+    tc-0032
+    tc-0032-failure-log-guidance.ps1
+    tc-0032-failure-log-guidance.tex
+  )
+  wpm_add_test_case(
+    TC-0033
+    tc-0033
+    tc-0033-script-output-framing.ps1
+    tc-0033-script-output-framing.tex
+  )
+  wpm_add_test_case(
+    TC-0034
+    tc-0034
+    tc-0034-result-summary-consistency.ps1
+    tc-0034-result-summary-consistency.tex
+  )
+  wpm_add_test_case(
+    TC-0035
+    tc-0035
+    tc-0035-verbose-operation-details.ps1
+    tc-0035-verbose-operation-details.tex
+  )
+  wpm_add_test_case(
+    TC-0036
+    tc-0036
+    tc-0036-key-mutation-results.ps1
+    tc-0036-key-mutation-results.tex
+  )
+  wpm_add_test_case(
+    TC-0037
+    tc-0037
+    tc-0037-config-mutation-results.ps1
+    tc-0037-config-mutation-results.tex
+  )
 
   if(WIN32)
-    set_tests_properties(${WPM_TEST_NAMES} PROPERTIES
-      ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:wpm>"
+    set_tests_properties(
+      ${WPM_TEST_NAMES}
+      PROPERTIES
+        ENVIRONMENT_MODIFICATION
+          "PATH=path_list_prepend:$<TARGET_FILE_DIR:wpm>"
     )
   endif()
 
-  add_custom_target(check
-    COMMAND ${CMAKE_CTEST_COMMAND} --build-config $<CONFIG> --output-on-failure
+  add_custom_target(
+    check
+    COMMAND
+      ${CMAKE_CTEST_COMMAND} --build-config $<CONFIG> --output-on-failure
     DEPENDS
       wpm
       wpm-third-party
@@ -409,7 +851,11 @@ if(BUILD_TESTING)
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     COMMENT "Running WPM tests"
   )
-  add_dependencies(check wpm-https-test wpm-blake2b-test)
+  add_dependencies(
+    check
+    wpm-https-test
+    wpm-blake2b-test
+  )
   if(TARGET wpm-zlib-test)
     add_dependencies(check wpm-zlib-test)
   endif()
@@ -419,29 +865,32 @@ if(BUILD_TESTING)
     if(WPM_PDFLATEX_EXECUTABLE)
       add_custom_target(test-report-pdfs DEPENDS ${WPM_TEST_REPORT_PDF_OUTPUTS})
     endif()
-
   endif()
 
   if(WPM_BUILD_TEST_REPORTS)
-    add_custom_target(verify
-      COMMAND ${WPM_POWERSHELL_EXECUTABLE}
-        -NoProfile
-        -ExecutionPolicy Bypass
-        -File ${CMAKE_SOURCE_DIR}/tests/verify-test-evidence.ps1
-        -EvidenceDirectory "${WPM_TEST_REPORT_DIR}"
-        -ExpectedCount ${WPM_TEST_CASE_COUNT}
+    add_custom_target(
+      verify
+      COMMAND
+        ${WPM_POWERSHELL_EXECUTABLE} -NoProfile -ExecutionPolicy Bypass -File
+        ${CMAKE_SOURCE_DIR}/tests/verify-test-evidence.ps1 -EvidenceDirectory
+        "${WPM_TEST_REPORT_DIR}" -ExpectedCount ${WPM_TEST_CASE_COUNT}
       DEPENDS
         ${CMAKE_SOURCE_DIR}/tests/verify-test-evidence.ps1
       COMMENT "Validating generated test evidence"
       VERBATIM
     )
     add_dependencies(verify test-reports)
-    add_custom_target(check-components
-      COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-        -R "^(https-.*|blake2b-simd|zlib-sse2)$"
-      DEPENDS wpm-https-test wpm-blake2b-test
+    add_custom_target(
+      check-components
+      COMMAND
+        ${CMAKE_CTEST_COMMAND} --output-on-failure -R
+        "^(https-.*|blake2b-simd|zlib-sse2)$"
+      DEPENDS
+        wpm-https-test
+        wpm-blake2b-test
       WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-      VERBATIM)
+      VERBATIM
+    )
     if(TARGET wpm-zlib-test)
       add_dependencies(check-components wpm-zlib-test)
     endif()
@@ -452,8 +901,6 @@ if(BUILD_TESTING)
   endif()
 
   if(WPM_RUN_TESTS_AFTER_BUILD)
-    add_custom_target(wpm-run-tests-after-build ALL
-      DEPENDS check
-    )
+    add_custom_target(wpm-run-tests-after-build ALL DEPENDS check)
   endif()
 endif()

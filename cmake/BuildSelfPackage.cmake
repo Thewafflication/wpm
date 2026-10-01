@@ -1,21 +1,25 @@
 cmake_minimum_required(VERSION 3.10)
 
-foreach(required_variable
-    WPM_EXECUTABLE
-    WPM_PACKAGE_EXECUTABLE
-    WPM_PACKAGE_STAGING_DIR
-    WPM_PACKAGE_OUTPUT_DIR
-    WPM_PACKAGE_ARCH
-    WPM_SETUP_SCRIPT
-    WPM_REMOVE_SCRIPT
-    WPM_REPORT_DIR
-    WPM_DOCS_DIR
-    WPM_README_FILE
-    WPM_LICENSE_FILE
-    WPM_THIRD_PARTY_NOTICES_FILE
+foreach(
+  required_variable
+  WPM_EXECUTABLE
+  WPM_PACKAGE_EXECUTABLE
+  WPM_PACKAGE_STAGING_DIR
+  WPM_PACKAGE_OUTPUT_DIR
+  WPM_PACKAGE_ARCH
+  WPM_SETUP_SCRIPT
+  WPM_REMOVE_SCRIPT
+  WPM_REPORT_DIR
+  WPM_DOCS_DIR
+  WPM_README_FILE
+  WPM_LICENSE_FILE
+  WPM_THIRD_PARTY_NOTICES_FILE
 )
   if(NOT DEFINED ${required_variable} OR "${${required_variable}}" STREQUAL "")
-    message(FATAL_ERROR "${required_variable} is required to build the WPM package.")
+    message(
+      FATAL_ERROR
+      "${required_variable} is required to build the WPM package."
+    )
   endif()
 endforeach()
 
@@ -24,56 +28,125 @@ if(NOT DEFINED WPM_PACKAGE_DEBUG)
 endif()
 
 execute_process(
-  COMMAND "${WPM_EXECUTABLE}" --version
+  COMMAND
+    "${WPM_EXECUTABLE}" --version
   RESULT_VARIABLE wpm_version_result
   OUTPUT_VARIABLE wpm_version_output
   ERROR_VARIABLE wpm_version_error
 )
 if(NOT wpm_version_result EQUAL 0)
-  message(FATAL_ERROR "Could not determine the WPM package version: ${wpm_version_error}")
+  message(
+    FATAL_ERROR
+    "Could not determine the WPM package version: ${wpm_version_error}"
+  )
 endif()
 
-string(REGEX MATCH "Version ([A-Za-z0-9._+-]+)" wpm_version_match "${wpm_version_output}")
+string(
+  REGEX MATCH
+  "Version ([A-Za-z0-9._+-]+)"
+  wpm_version_match
+  "${wpm_version_output}"
+)
 if(NOT wpm_version_match)
-  message(FATAL_ERROR "Could not parse a safe WPM package version from: ${wpm_version_output}")
+  message(
+    FATAL_ERROR
+    "Could not parse a safe WPM package version from: ${wpm_version_output}"
+  )
 endif()
 set(wpm_version "${CMAKE_MATCH_1}")
 
-file(GLOB wpm_report_files
+file(
+  GLOB wpm_report_files
   "${WPM_REPORT_DIR}/tc-*-report.tex"
   "${WPM_REPORT_DIR}/tc-*-execution-evidence.tex"
 )
 if(NOT wpm_report_files)
-  message(FATAL_ERROR "No generated WPM test reports were found in: ${WPM_REPORT_DIR}")
+  message(
+    FATAL_ERROR
+    "No generated WPM test reports were found in: ${WPM_REPORT_DIR}"
+  )
 endif()
 
 file(REMOVE_RECURSE "${WPM_PACKAGE_STAGING_DIR}")
-file(MAKE_DIRECTORY
-  "${WPM_PACKAGE_STAGING_DIR}"
-  "${WPM_PACKAGE_STAGING_DIR}/.wpm"
-  "${WPM_PACKAGE_STAGING_DIR}/docs"
-  "${WPM_PACKAGE_STAGING_DIR}/test-reports"
+file(
+  MAKE_DIRECTORY
+    "${WPM_PACKAGE_STAGING_DIR}"
+    "${WPM_PACKAGE_STAGING_DIR}/.wpm"
+    "${WPM_PACKAGE_STAGING_DIR}/docs"
+    "${WPM_PACKAGE_STAGING_DIR}/test-reports"
 )
 
-configure_file("${WPM_PACKAGE_EXECUTABLE}" "${WPM_PACKAGE_STAGING_DIR}/wpm.exe" COPYONLY)
-if(DEFINED WPM_PACKAGE_RUNTIME_DLL AND NOT "${WPM_PACKAGE_RUNTIME_DLL}" STREQUAL "")
+configure_file(
+  "${WPM_PACKAGE_EXECUTABLE}"
+  "${WPM_PACKAGE_STAGING_DIR}/wpm.exe"
+  COPYONLY
+)
+if(
+  DEFINED
+    WPM_PACKAGE_RUNTIME_DLL
+  AND
+    NOT
+      "${WPM_PACKAGE_RUNTIME_DLL}"
+        STREQUAL
+        ""
+)
   if(NOT EXISTS "${WPM_PACKAGE_RUNTIME_DLL}")
-    message(FATAL_ERROR "The optional compatibility runtime was not found: ${WPM_PACKAGE_RUNTIME_DLL}")
+    message(
+      FATAL_ERROR
+      "The optional compatibility runtime was not found: "
+      "${WPM_PACKAGE_RUNTIME_DLL}"
+    )
   endif()
-  configure_file("${WPM_PACKAGE_RUNTIME_DLL}" "${WPM_PACKAGE_STAGING_DIR}/wcrt.dll" COPYONLY)
+  configure_file(
+    "${WPM_PACKAGE_RUNTIME_DLL}"
+    "${WPM_PACKAGE_STAGING_DIR}/wcrt.dll"
+    COPYONLY
+  )
 endif()
-configure_file("${WPM_SETUP_SCRIPT}" "${WPM_PACKAGE_STAGING_DIR}/setup.cmd" COPYONLY)
-configure_file("${WPM_REMOVE_SCRIPT}" "${WPM_PACKAGE_STAGING_DIR}/remove.cmd" COPYONLY)
-configure_file("${WPM_README_FILE}" "${WPM_PACKAGE_STAGING_DIR}/README.md" COPYONLY)
-configure_file("${WPM_LICENSE_FILE}" "${WPM_PACKAGE_STAGING_DIR}/LICENSE.txt" COPYONLY)
-configure_file("${WPM_THIRD_PARTY_NOTICES_FILE}" "${WPM_PACKAGE_STAGING_DIR}/THIRD_PARTY_NOTICES.md" COPYONLY)
-file(COPY "${WPM_DOCS_DIR}/" DESTINATION "${WPM_PACKAGE_STAGING_DIR}/docs" FILES_MATCHING PATTERN "*.md")
+configure_file(
+  "${WPM_SETUP_SCRIPT}"
+  "${WPM_PACKAGE_STAGING_DIR}/setup.cmd"
+  COPYONLY
+)
+configure_file(
+  "${WPM_REMOVE_SCRIPT}"
+  "${WPM_PACKAGE_STAGING_DIR}/remove.cmd"
+  COPYONLY
+)
+configure_file(
+  "${WPM_README_FILE}"
+  "${WPM_PACKAGE_STAGING_DIR}/README.md"
+  COPYONLY
+)
+configure_file(
+  "${WPM_LICENSE_FILE}"
+  "${WPM_PACKAGE_STAGING_DIR}/LICENSE.txt"
+  COPYONLY
+)
+configure_file(
+  "${WPM_THIRD_PARTY_NOTICES_FILE}"
+  "${WPM_PACKAGE_STAGING_DIR}/THIRD_PARTY_NOTICES.md"
+  COPYONLY
+)
+file(
+  COPY
+    "${WPM_DOCS_DIR}/"
+  DESTINATION "${WPM_PACKAGE_STAGING_DIR}/docs"
+  FILES_MATCHING
+  PATTERN "*.md"
+)
 foreach(wpm_report_file IN LISTS wpm_report_files)
   get_filename_component(wpm_report_name "${wpm_report_file}" NAME)
-  configure_file("${wpm_report_file}" "${WPM_PACKAGE_STAGING_DIR}/test-reports/${wpm_report_name}" COPYONLY)
+  configure_file(
+    "${wpm_report_file}"
+    "${WPM_PACKAGE_STAGING_DIR}/test-reports/${wpm_report_name}"
+    COPYONLY
+  )
 endforeach()
 
-file(WRITE "${WPM_PACKAGE_STAGING_DIR}/.wpm/package.txt"
+file(
+  WRITE
+  "${WPM_PACKAGE_STAGING_DIR}/.wpm/package.txt"
   "name=wpm\n"
   "version=${wpm_version}\n"
   "arch=${WPM_PACKAGE_ARCH}\n"
@@ -83,38 +156,69 @@ file(WRITE "${WPM_PACKAGE_STAGING_DIR}/.wpm/package.txt"
   "license=GPL-3.0-or-later\n"
 )
 file(WRITE "${WPM_PACKAGE_STAGING_DIR}/.wpm/wpmignore.txt" ".wpm/\n")
-file(WRITE "${WPM_PACKAGE_STAGING_DIR}/.wpm/install.cmd"
+file(
+  WRITE
+  "${WPM_PACKAGE_STAGING_DIR}/.wpm/install.cmd"
   "@echo off\n"
   "call \"%~dp0..\\setup.cmd\" \"%~dp0..\\wpm.exe\"\n"
   "exit /b %errorlevel%\n"
 )
-file(WRITE "${WPM_PACKAGE_STAGING_DIR}/.wpm/remove.cmd"
+file(
+  WRITE
+  "${WPM_PACKAGE_STAGING_DIR}/.wpm/remove.cmd"
   "@echo off\n"
   "call \"%~dp0..\\remove.cmd\"\n"
   "exit /b %errorlevel%\n"
 )
 
 file(MAKE_DIRECTORY "${WPM_PACKAGE_OUTPUT_DIR}")
-set(wpm_build_command "${WPM_EXECUTABLE}" build "${WPM_PACKAGE_STAGING_DIR}" "${WPM_PACKAGE_OUTPUT_DIR}")
-if(DEFINED WPM_PACKAGE_SIGNING_KEY AND NOT "${WPM_PACKAGE_SIGNING_KEY}" STREQUAL "")
-  list(APPEND wpm_build_command --sign "${WPM_PACKAGE_SIGNING_KEY}")
+set(
+  wpm_build_command
+  "${WPM_EXECUTABLE}"
+  build
+  "${WPM_PACKAGE_STAGING_DIR}"
+  "${WPM_PACKAGE_OUTPUT_DIR}"
+)
+if(
+  DEFINED
+    WPM_PACKAGE_SIGNING_KEY
+  AND
+    NOT
+      "${WPM_PACKAGE_SIGNING_KEY}"
+        STREQUAL
+        ""
+)
+  list(
+    APPEND
+    wpm_build_command
+    --sign
+    "${WPM_PACKAGE_SIGNING_KEY}"
+  )
 endif()
 execute_process(
-  COMMAND ${wpm_build_command}
+  COMMAND
+    ${wpm_build_command}
   RESULT_VARIABLE wpm_build_result
   OUTPUT_VARIABLE wpm_build_output
   ERROR_VARIABLE wpm_build_error
 )
 if(NOT wpm_build_result EQUAL 0)
-  message(FATAL_ERROR "WPM self-package build failed:\n${wpm_build_output}${wpm_build_error}")
+  message(
+    FATAL_ERROR
+    "WPM self-package build failed:\n${wpm_build_output}${wpm_build_error}"
+  )
 endif()
 
 if(WPM_PACKAGE_DEBUG)
-  set(wpm_package_output_path
-    "${WPM_PACKAGE_OUTPUT_DIR}/wpm-${WPM_PACKAGE_ARCH}-debug-${wpm_version}.zip")
+  set(
+    wpm_package_output_path
+    "${WPM_PACKAGE_OUTPUT_DIR}/wpm-${WPM_PACKAGE_ARCH}-debug-${wpm_version}.zip"
+  )
 else()
-  set(wpm_package_output_path
-    "${WPM_PACKAGE_OUTPUT_DIR}/wpm-${WPM_PACKAGE_ARCH}-${wpm_version}.zip")
+  set(
+    wpm_package_output_path
+    "${WPM_PACKAGE_OUTPUT_DIR}/wpm-${WPM_PACKAGE_ARCH}-${wpm_version}.zip"
+  )
 endif()
 
 message(STATUS "Built WPM package: ${wpm_package_output_path}")

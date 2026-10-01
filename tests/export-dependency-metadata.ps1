@@ -16,7 +16,8 @@ function Get-DependencyMetadata {
     )
 
     $gitSafety = "safe.directory=$($Path.Replace('\', '/'))"
-    $version = & git -c $gitSafety -C $Path describe --tags --exact-match 2>$null
+    $version = & git -c $gitSafety -C $Path describe --tags --exact-match `
+        2>$null
     if ($LASTEXITCODE -ne 0 -or -not $version) {
         throw "$Name is not pinned to an exact Git tag."
     }
@@ -24,7 +25,8 @@ function Get-DependencyMetadata {
     if ($LASTEXITCODE -ne 0 -or -not $commit) {
         throw "Could not determine the pinned $Name commit."
     }
-    if ($version -notmatch '^[A-Za-z0-9._+-]+$' -or $commit -notmatch '^[0-9A-Fa-f]+$') {
+    if ($version -notmatch '^[A-Za-z0-9._+-]+$' -or $commit -notmatch `
+            '^[0-9A-Fa-f]+$') {
         throw "$Name produced unsafe version metadata."
     }
 
@@ -32,14 +34,22 @@ function Get-DependencyMetadata {
 }
 
 $dependencies = @(
-    Get-DependencyMetadata -Name 'minizip-ng' -Path (Join-Path $repositoryRoot 'third_party\minizip-ng')
-    Get-DependencyMetadata -Name 'zlib-ng' -Path (Join-Path $repositoryRoot 'third_party\zlib-ng')
-    Get-DependencyMetadata -Name 'libsodium' -Path (Join-Path $repositoryRoot 'third_party\libsodium')
+    Get-DependencyMetadata -Name 'minizip-ng' -Path (Join-Path `
+            $repositoryRoot 'third_party\minizip-ng')
+    Get-DependencyMetadata -Name 'zlib-ng' -Path (Join-Path $repositoryRoot `
+            'third_party\zlib-ng')
+    Get-DependencyMetadata -Name 'libsodium' -Path (Join-Path $repositoryRoot `
+            'third_party\libsodium')
 )
 
 foreach ($dependency in $dependencies) {
     $prefix = $dependency.Name.ToLowerInvariant().Replace('-', '_')
-    "$($prefix)_version=$($dependency.Version)" | Out-File -LiteralPath $GitHubOutput -Append -Encoding utf8
-    "$($prefix)_commit=$($dependency.Commit)" | Out-File -LiteralPath $GitHubOutput -Append -Encoding utf8
-    Write-Output "$($dependency.Name): $($dependency.Version) ($($dependency.Commit))"
+    "$($prefix)_version=$($dependency.Version)" | Out-File -LiteralPath `
+        $GitHubOutput -Append -Encoding utf8
+    "$($prefix)_commit=$($dependency.Commit)" | Out-File -LiteralPath `
+        $GitHubOutput -Append -Encoding utf8
+    Write-Output (
+        "$($dependency.Name): $($dependency.Version) " +
+        "($($dependency.Commit))"
+    )
 }

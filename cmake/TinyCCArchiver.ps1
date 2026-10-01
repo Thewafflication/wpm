@@ -20,8 +20,7 @@ $objects = foreach ($inputItem in $Inputs) {
     if ($inputItem.StartsWith('@')) {
         $responseFile = $inputItem.Substring(1)
         Get-Content -LiteralPath $responseFile | Where-Object { $_ -ne '' }
-    }
-    else {
+    } else {
         $inputItem
     }
 }

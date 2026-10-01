@@ -18,7 +18,10 @@ $requirementFiles = @(
     'wsp/style/c-style.md',
     'wsp/style/windows-version-resources.md',
     'wsp/security/windows-code-signing-and-defender.md',
-    'wsp/tools/requirements.md'
+    'wsp/tools/requirements.md',
+    'wsp/processes/commit-checks.md',
+    'wsp/style/source-style.md',
+    'wsp/style/language-style.md'
 )
 
 $expected = foreach ($relativePath in $requirementFiles) {

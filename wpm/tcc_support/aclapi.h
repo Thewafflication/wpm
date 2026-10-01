@@ -62,6 +62,8 @@ typedef enum _SE_OBJECT_TYPE {
 
 DWORD WINAPI SetEntriesInAclA(ULONG count, EXPLICIT_ACCESSA *entries,
                               PACL old_acl, PACL *new_acl);
-DWORD WINAPI SetNamedSecurityInfoA(LPSTR object_name, SE_OBJECT_TYPE object_type,
+DWORD WINAPI SetNamedSecurityInfoA(LPSTR object_name,
+                                   SE_OBJECT_TYPE object_type,
                                    SECURITY_INFORMATION security_info,
-                                   PSID owner, PSID group, PACL dacl, PACL sacl);
+                                   PSID owner, PSID group, PACL dacl,
+                                   PACL sacl);

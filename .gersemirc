@@ -1,0 +1,6 @@
+line_length: 80
+indent: 2
+list_expansion: favour-expansion
+definitions:
+  - wpm/CMakeLists.txt
+  - third_party/CMakeLists.txt

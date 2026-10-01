@@ -29,7 +29,9 @@ def verify_checksum(pdf_path: Path, checksum_path: Path) -> None:
     lines = [line for line in lines if line]
     if len(lines) != 1:
         fail("SHA256SUMS must contain exactly one non-empty entry")
-    expected = f"{hashlib.sha256(pdf_path.read_bytes()).hexdigest()}  {pdf_path.name}"
+    expected = (
+        f"{hashlib.sha256(pdf_path.read_bytes()).hexdigest()}  {pdf_path.name}"
+    )
     if lines[0] != expected:
         fail("SHA256SUMS does not identify the exact release PDF bytes")
 
@@ -120,7 +122,10 @@ def main() -> int:
         verify_pdf(args.pdf, args.version)
         verify_checksum(args.pdf, args.checksum)
     except Exception as error:
-        print(f"release-documentation verification failed: {error}", file=sys.stderr)
+        print(
+            f"release-documentation verification failed: {error}",
+            file=sys.stderr,
+        )
         return 1
     return 0
 

@@ -6,7 +6,9 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-if (-not $SummaryPath) { exit 0 }
+if (-not $SummaryPath) {
+    exit 0
+}
 
 $lines = [System.Collections.Generic.List[string]]::new()
 $lines.Add('## Build warnings')
@@ -15,10 +17,13 @@ $lines.Add('')
 if (-not (Test-Path -LiteralPath $LogPath)) {
     $lines.Add("Build log was not found: $LogPath")
 } else {
-    $warningPattern = '(?i)(?:\bwarning\s+(?:[A-Z]+\d+|CMake\b)|:\s*warning\b|^CMake Warning)'
+    $warningPattern = (
+        '(?i)(?:\bwarning\s+(?:[A-Z]+\d+|CMake\b)|:\s' +
+        '*warning\b|^CMake Warning)'
+    )
     $warnings = @(Get-Content -LiteralPath $LogPath |
-        Where-Object { $_ -match $warningPattern } |
-        ForEach-Object { $_.TrimEnd() })
+            Where-Object { $_ -match $warningPattern } |
+            ForEach-Object { $_.TrimEnd() })
 
     if ($warnings.Count -eq 0) {
         $lines.Add('No compiler, linker, or CMake warnings were reported.')
@@ -29,7 +34,10 @@ if (-not (Test-Path -LiteralPath $LogPath)) {
         $lines.Add('<summary>Show build warnings</summary>')
         $lines.Add('')
         $lines.Add('```text')
-        foreach ($warning in $warnings) { $lines.Add($warning.Replace('```', "`u{02CB}`u{02CB}`u{02CB}")) }
+        foreach ($warning in $warnings) {
+            $lines.Add($warning.Replace('```', `
+                        "`u{02CB}`u{02CB}`u{02CB}"))
+        }
         $lines.Add('```')
         $lines.Add('')
         $lines.Add('</details>')

@@ -1,5 +1,8 @@
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
+if defined WPM_ENVIRONMENT_REGISTRY_KEY (
+    set "WPM_REGKEY=%WPM_ENVIRONMENT_REGISTRY_KEY%"
+)
 
 set "WPM_INSTALL_SCOPE="
 if /I "%~1"=="--user" (
@@ -11,14 +14,16 @@ if /I "%~1"=="--machine" (
     shift
 )
 if not defined WPM_INSTALL_SCOPE (
-    rem Match setup.cmd: NT 5.x predates UAC and installs machine-wide by default.
+    rem Match setup.cmd: NT 5.x predates UAC and installs machine-wide by
+    rem default.
     set "WPM_LEGACY_WINDOWS="
     ver | findstr /R /C:" 5\.[0-2]\." >nul
     if not errorlevel 1 set "WPM_LEGACY_WINDOWS=1"
     if defined WPM_LEGACY_WINDOWS (
         set "WPM_INSTALL_SCOPE=machine"
     ) else (
-        whoami /groups /fo csv /nh 2>nul | findstr /C:"S-1-16-12288" /C:"S-1-16-16384" >nul
+        whoami /groups /fo csv /nh 2>nul | findstr /C:"S-1-16-12288" ^
+/C:"S-1-16-16384" >nul
         if errorlevel 1 (
             set "WPM_INSTALL_SCOPE=user"
         ) else (
@@ -30,7 +35,7 @@ if not defined WPM_INSTALL_SCOPE (
 if /I "%WPM_INSTALL_SCOPE%"=="user" (
     if not defined WPM_INSTALL_DIR set "WPM_INSTALL_DIR=%LocalAppData%\WPM"
     if not defined WPM_DATA_DIR set "WPM_DATA_DIR=%LocalAppData%\WPM\data"
-    if not defined WPM_ENVIRONMENT_REGISTRY_KEY set "WPM_ENVIRONMENT_REGISTRY_KEY=HKCU\Environment"
+    if not defined WPM_REGKEY set "WPM_REGKEY=HKCU\Environment"
 ) else if not defined WPM_INSTALL_DIR (
     if defined ProgramW6432 (
         set "WPM_INSTALL_DIR=%ProgramW6432%\WPM"
@@ -39,12 +44,16 @@ if /I "%WPM_INSTALL_SCOPE%"=="user" (
     )
 )
 if not defined WPM_DATA_DIR set "WPM_DATA_DIR=%ProgramData%\WPM"
-if not defined WPM_ENVIRONMENT_REGISTRY_KEY set "WPM_ENVIRONMENT_REGISTRY_KEY=HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment"
+if not defined WPM_REGKEY (
+    set "WPM_REGKEY=HKLM\SYSTEM\CurrentControlSet"
+    set "WPM_REGKEY=!WPM_REGKEY!\Control\Session Manager\Environment"
+)
 
 if exist "%WPM_INSTALL_DIR%" (
     rmdir /s /q "%WPM_INSTALL_DIR%"
     if errorlevel 1 (
-        echo Error: could not remove WPM installation directory: "%WPM_INSTALL_DIR%"
+        echo Error: could not remove WPM installation directory: ^
+"%WPM_INSTALL_DIR%"
         exit /b 1
     )
 )
@@ -58,15 +67,19 @@ if exist "%WPM_DATA_DIR%" (
 )
 
 set "WPM_PATH="
-for /f "tokens=1,2,*" %%A in ('reg query "%WPM_ENVIRONMENT_REGISTRY_KEY%" /v Path 2^>nul ^| find /I "Path"') do set "WPM_PATH=%%C"
+set "WPM_QUERY=reg query "%WPM_REGKEY%" /v Path"
+for /f "tokens=1,2,*" %%A in ('!WPM_QUERY! 2^>nul') do (
+    if /I "%%A"=="Path" set "WPM_PATH=%%C"
+)
 if defined WPM_PATH (
     set "WPM_PATH=!WPM_PATH:;%%WPM%%=!"
     set "WPM_PATH=!WPM_PATH:%%WPM%%;=!"
     set "WPM_PATH=!WPM_PATH:%%WPM%%=!"
-    reg add "%WPM_ENVIRONMENT_REGISTRY_KEY%" /v Path /t REG_EXPAND_SZ /d "!WPM_PATH!" /f >nul
+    reg add "%WPM_REGKEY%" /v Path /t REG_EXPAND_SZ /d "!WPM_PATH!" /f >nul
 )
-reg delete "%WPM_ENVIRONMENT_REGISTRY_KEY%" /v WPM /f >nul 2>nul
-if /I "%WPM_INSTALL_SCOPE%"=="user" reg delete "%WPM_ENVIRONMENT_REGISTRY_KEY%" /v WPM_DATA_DIR /f >nul 2>nul
+reg delete "%WPM_REGKEY%" /v WPM /f >nul 2>nul
+if /I "%WPM_INSTALL_SCOPE%"=="user" reg delete "%WPM_REGKEY%" /v WPM_DATA_DIR ^
+/f >nul 2>nul
 
 echo WPM removed from "%WPM_INSTALL_DIR%"
 echo WPM data removed from "%WPM_DATA_DIR%"

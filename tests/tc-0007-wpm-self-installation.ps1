@@ -1,3 +1,5 @@
+using namespace Microsoft.Win32
+
 param(
     [Parameter(Mandatory = $true)]
     [string]$WpmExe,
@@ -41,7 +43,8 @@ function Test-WpmProcessIsElevated {
 }
 
 function Get-WpmTestEnvironment {
-    $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey("Software\WPM\Tests\$testId")
+    $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey( `
+            "Software\WPM\Tests\$testId")
     try {
         return [pscustomobject]@{
             WPM = $key.GetValue('WPM', $null)
@@ -49,17 +52,24 @@ function Get-WpmTestEnvironment {
             Path = $key.GetValue(
                 'Path',
                 $null,
-                [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames
+                [RegistryValueOptions]::DoNotExpandEnvironmentNames
             )
         }
     } finally {
-        if ($null -ne $key) { $key.Dispose() }
+        if ($null -ne $key) {
+            $key.Dispose()
+        }
     }
 }
 
 $started = Get-Date
 $results = @()
-$expectedDefaultScope = if (Test-WpmProcessIsElevated) { 'machine' } else { 'user' }
+$expectedDefaultScope = if (Test-WpmProcessIsElevated) {
+    'machine'
+} else {
+ `
+        'user'
+}
 $previousInstallDir = $env:WPM_INSTALL_DIR
 $previousDataDir = $env:WPM_DATA_DIR
 $previousEnvironmentRegistryKey = $env:WPM_ENVIRONMENT_REGISTRY_KEY
@@ -69,120 +79,170 @@ try {
     $env:WPM_DATA_DIR = $dataDir
     $env:WPM_ENVIRONMENT_REGISTRY_KEY = $environmentRegistryKey
     New-Item -Path $environmentRegistryPath -Force | Out-Null
-    New-ItemProperty -Path $environmentRegistryPath -Name Path -PropertyType ExpandString -Value 'C:\Windows' -Force | Out-Null
+    New-ItemProperty -Path $environmentRegistryPath -Name Path -PropertyType `
+        ExpandString -Value 'C:\Windows' -Force | Out-Null
 
-    $results += New-WpmManualStep -Name 'Verify native Program Files selection' -Action {
-        $setup = Get-Content -Raw -LiteralPath $setupCmd
-        $remove = Get-Content -Raw -LiteralPath $removeCmd
+    $results += New-WpmManualStep -Name `
+        'Verify native Program Files selection' -Action {
+        $setup = Get-WpmSourceText -Path $setupCmd
+        $remove = Get-WpmSourceText -Path $removeCmd
         if ($setup -notmatch 'ProgramW6432') {
-            throw 'setup.cmd does not prefer the native Program Files directory.'
+            throw (
+                'setup.cmd does not prefer the native Program' +
+                ' Files directory.'
+            )
         }
-        if ($setup -notmatch 'HKCU\\Environment' -or $setup -notmatch 'LocalAppData') {
+        if ($setup -notmatch 'HKCU\\Environment' -or $setup -notmatch `
+                'LocalAppData') {
             throw 'setup.cmd does not provide a user-scoped installation mode.'
         }
         foreach ($script in @($setup, $remove)) {
             if ($script -notmatch 'WPM_LEGACY_WINDOWS' -or
                 $script -notmatch 'ver \| findstr /R /C:" 5\\\.\[0-2\]\\\."' -or
-                $script -notmatch 'if defined WPM_LEGACY_WINDOWS \(\s*set "WPM_INSTALL_SCOPE=machine"') {
-                throw 'Windows NT 5.x must select machine scope without using integrity-level SID detection.'
+                $script -notmatch (
+                    'if defined WPM_LEGACY_WINDOWS \(\s*set "WPM_' +
+                    'INSTALL_SCOPE=machine"'
+                )) {
+                throw (
+                    'Windows NT 5.x must select machine scope wit' +
+                    'hout using integrity-level SID detection.'
+                )
             }
         }
         foreach ($diagnostic in @(
-            'WPM_VERBOSE',
-            'Registry operation:.*value=WPM',
-            'Registry operation:.*value=WPM_DATA_DIR',
-            'Registry operation:.*value=Path',
-            'Path decision:',
-            'Registry result:.*exit code'
-        )) {
-            if ($setup -notmatch $diagnostic) { throw "setup.cmd is missing verbose registry diagnostic: $diagnostic" }
+                'WPM_VERBOSE',
+                'Registry operation:.*value=WPM',
+                'Registry operation:.*value=WPM_DATA_DIR',
+                'Registry operation:.*value=Path',
+                'Path decision:',
+                'Registry result:.*exit code'
+            )) {
+            if ($setup -notmatch $diagnostic) {
+                throw (
+                    "setup.cmd is missing verbose registry diagno" +
+                    "stic: $diagnostic"
+                )
+            }
         }
     }
 
-    $results += New-WpmManualStep -Name 'Validate latest-release bootstrap installer contract' -Action {
+    $results += New-WpmManualStep -Name (
+        'Validate latest-release bootstrap installer ' +
+        'contract'
+    ) -Action {
         $help = & $installCmd --help 2>&1 | Out-String
         if ($LASTEXITCODE -ne 0 -or $help -notmatch '(?i)latest WPM release') {
             throw 'install.cmd --help did not complete successfully.'
         }
-        $bootstrap = Get-Content -Raw -LiteralPath $installCmd
+        $bootstrap = Get-WpmSourceText -Path $installCmd
         foreach ($pattern in @(
-            'releases/latest/download',
-            'index\.json',
-            'PROCESSOR_ARCHITEW6432',
-            'wpm-release\.public',
-            'WPM_DATA_DIR',
-            'trust add',
-            'verify \$archive',
-            '& \$setup \$wpm',
-            'Preparing temporary installation workspace',
-            'Detected Windows architecture: \$arch',
-            'Checking the latest WPM release',
-            'Downloading WPM release index',
-            'Reading WPM release index',
-            'Selected WPM \$packageVersion for \$arch',
-            'Downloading WPM \$packageVersion for \$arch',
-            'Downloading WPM release signing key',
-            'Extracting WPM package',
-            'Checking extracted WPM package contents',
-            'Validating WPM package',
-            'Establishing temporary trust in the release signing key',
-            'Verifying WPM package signature and contents',
-            'Installing WPM',
-            'Starting packaged WPM setup',
-            'Cleaning up temporary installation files',
-            'Remove-Item -LiteralPath \$work -Recurse -Force'
-        )) {
-            if ($bootstrap -notmatch $pattern) { throw "install.cmd is missing bootstrap behavior: $pattern" }
+                'releases/latest/download',
+                'index\.json',
+                'PROCESSOR_ARCHITEW6432',
+                'wpm-release\.public',
+                'WPM_DATA_DIR',
+                'trust add',
+                'verify \$archive',
+                '& \$setup \$wpm',
+                'Preparing temporary installation workspace',
+                'Detected Windows architecture: \$arch',
+                'Checking the latest WPM release',
+                'Downloading WPM release index',
+                'Reading WPM release index',
+                'Selected WPM \$packageVersion for \$arch',
+                'Downloading WPM \$packageVersion for \$arch',
+                'Downloading WPM release signing key',
+                'Extracting WPM package',
+                'Checking extracted WPM package contents',
+                'Validating WPM package',
+                'Establishing temporary trust in the release signing key',
+                'Verifying WPM package signature and contents',
+                'Installing WPM',
+                'Starting packaged WPM setup',
+                'Cleaning up temporary installation files',
+                'Remove-Item -LiteralPath \$work -Recurse -Force'
+            )) {
+            if ($bootstrap -notmatch $pattern) {
+                throw (
+                    "install.cmd is missing bootstrap behavior: " +
+                    "$pattern"
+                )
+            }
         }
-        'Latest-release bootstrap selection, validation, setup, and cleanup are configured.'
+        (
+            'Latest-release bootstrap selection, validati' +
+            'on, setup, and cleanup are configured.'
+        )
     }
 
-    $results += New-WpmManualStep -Name 'Automatically select the installation scope from elevation' -Action {
+    $results += New-WpmManualStep -Name (
+        'Automatically select the installation scope ' +
+        'from elevation'
+    ) -Action {
         Invoke-CmdScript -Script $setupCmd -Arguments @($WpmExe)
-        if (-not (Test-Path -LiteralPath (Join-Path $installDir 'wpm.exe') -PathType Leaf)) {
+        if (-not (Test-Path -LiteralPath (Join-Path $installDir 'wpm.exe') `
+                    -PathType Leaf)) {
             throw "setup.cmd did not install wpm.exe to $installDir"
         }
         $sourceRuntime = Join-Path (Split-Path -Parent $WpmExe) 'wcrt.dll'
-        if ((Test-Path -LiteralPath $sourceRuntime) -and -not (Test-Path -LiteralPath (Join-Path $installDir 'wcrt.dll') -PathType Leaf)) {
+        if ((Test-Path -LiteralPath $sourceRuntime) -and -not (Test-Path `
+                    -LiteralPath (Join-Path $installDir 'wcrt.dll') -PathType `
+                        Leaf)) {
             throw "setup.cmd did not install wcrt.dll to $installDir"
         }
         $environment = Get-WpmTestEnvironment
-        if ($environment.WPM -ne $installDir -or $environment.Path -notmatch [regex]::Escape('%WPM%')) {
-            throw 'Default setup.cmd did not configure the persistent environment entries.'
+        if ($environment.WPM -ne $installDir -or $environment.Path -notmatch `
+                [regex]::Escape('%WPM%')) {
+            throw (
+                'Default setup.cmd did not configure the pers' +
+                'istent environment entries.'
+            )
         }
-        if ($expectedDefaultScope -eq 'user' -and $environment.WPM_DATA_DIR -ne $dataDir) {
+        if ($expectedDefaultScope -eq 'user' -and $environment.WPM_DATA_DIR `
+                -ne $dataDir) {
             throw 'Non-elevated setup.cmd did not select user scope.'
         }
-        if ($expectedDefaultScope -eq 'machine' -and $null -ne $environment.WPM_DATA_DIR) {
+        if ($expectedDefaultScope -eq 'machine' -and $null -ne `
+                $environment.WPM_DATA_DIR) {
             throw 'Elevated setup.cmd did not select machine scope.'
         }
         Invoke-CmdScript -Script $removeCmd
         if (Test-Path -LiteralPath $installDir) {
-            throw 'Default remove.cmd did not remove the installation directory.'
+            throw (
+                'Default remove.cmd did not remove the instal' +
+                'lation directory.'
+            )
         }
     }
 
-    $results += New-WpmManualStep -Name 'Install WPM with setup.cmd --user' -Action {
+    $results += New-WpmManualStep -Name 'Install WPM with setup.cmd --user' `
+        -Action {
         Invoke-CmdScript -Script $setupCmd -Arguments @('--user', $WpmExe)
-        if (-not (Test-Path -LiteralPath (Join-Path $installDir 'wpm.exe') -PathType Leaf)) {
+        if (-not (Test-Path -LiteralPath (Join-Path $installDir 'wpm.exe') `
+                    -PathType Leaf)) {
             throw "setup.cmd did not install wpm.exe to $installDir"
         }
         foreach ($relativePath in @(
-            'README.md',
-            'LICENSE.txt',
-            'THIRD_PARTY_NOTICES.md',
-            'docs\usage.md'
-        )) {
+                'README.md',
+                'LICENSE.txt',
+                'THIRD_PARTY_NOTICES.md',
+                'docs\usage.md'
+            )) {
             $installedFile = Join-Path $installDir $relativePath
             if (-not (Test-Path -LiteralPath $installedFile -PathType Leaf)) {
                 throw "setup.cmd did not install $relativePath to $installDir"
             }
         }
-        $sourceDocumentation = Get-ChildItem -LiteralPath (Join-Path $repositoryRoot 'docs') -Filter '*.md' -File
+        $sourceDocumentation = Get-ChildItem -LiteralPath (Join-Path `
+                $repositoryRoot 'docs') -Filter '*.md' -File
         foreach ($sourceFile in $sourceDocumentation) {
-            $installedFile = Join-Path (Join-Path $installDir 'docs') $sourceFile.Name
+            $installedFile = Join-Path (Join-Path $installDir 'docs') `
+                $sourceFile.Name
             if (-not (Test-Path -LiteralPath $installedFile -PathType Leaf)) {
-                throw "setup.cmd did not install documentation file $($sourceFile.Name)"
+                throw (
+                    "setup.cmd did not install documentation file" +
+                    " $($sourceFile.Name)"
+                )
             }
         }
         if (Test-Path -LiteralPath $dataDir) {
@@ -190,38 +250,58 @@ try {
         }
         $environment = Get-WpmTestEnvironment
         if ($environment.WPM -ne $installDir) {
-            throw 'setup.cmd did not create the persistent WPM environment variable.'
+            throw (
+                'setup.cmd did not create the persistent WPM ' +
+                'environment variable.'
+            )
         }
         if ($environment.WPM_DATA_DIR -ne $dataDir) {
-            throw 'setup.cmd --user did not create the persistent WPM_DATA_DIR environment variable.'
+            throw (
+                'setup.cmd --user did not create the persiste' +
+                'nt WPM_DATA_DIR environment variable.'
+            )
         }
         if ($environment.Path -notmatch [regex]::Escape('%WPM%')) {
             throw 'setup.cmd did not add %WPM% to the persistent Path.'
         }
     }
 
-    $results += New-WpmManualStep -Name 'Repeat user-scoped WPM installation' -Action {
+    $results += New-WpmManualStep -Name 'Repeat user-scoped WPM installation' `
+        -Action {
         $previousVerbose = $env:WPM_VERBOSE
         try {
             $env:WPM_VERBOSE = '1'
-            $repeatOutput = Invoke-CmdScript -Script $setupCmd -Arguments @('--user', $WpmExe)
+            $repeatOutput = Invoke-CmdScript -Script $setupCmd -Arguments @( `
+                    '--user', $WpmExe)
         } finally {
-            if ($null -eq $previousVerbose) { Remove-Item Env:WPM_VERBOSE -ErrorAction SilentlyContinue }
-            else { $env:WPM_VERBOSE = $previousVerbose }
+            if ($null -eq $previousVerbose) {
+                Remove-Item Env:WPM_VERBOSE `
+                    -ErrorAction SilentlyContinue
+            } else {
+                $env:WPM_VERBOSE = $previousVerbose
+            }
         }
         $environment = Get-WpmTestEnvironment
-        $pathEntries = [regex]::Matches([string]$environment.Path, [regex]::Escape('%WPM%')).Count
+        $pathEntries = [regex]::Matches([string]$environment.Path, `
+                [regex]::Escape('%WPM%')).Count
         if ($pathEntries -ne 1) {
             throw "Repeated setup created $pathEntries %WPM% Path entries."
         }
-        if ($repeatOutput -notmatch 'Path decision: retain existing WPM entry' -or
+        if ($repeatOutput -notmatch `
+                'Path decision: retain existing WPM entry' -or
             $repeatOutput -notmatch 'no registry write is needed' -or
             $repeatOutput -match 'action=append-%WPM%') {
-            throw "Repeated setup did not skip the unnecessary Path registry write. $repeatOutput"
+            throw (
+                "Repeated setup did not skip the unnecessary " +
+                "Path registry write. $repeatOutput"
+            )
         }
     }
 
-    $results += New-WpmManualStep -Name 'Discover self-installed WPM by name in a new command process' -Action {
+    $results += New-WpmManualStep -Name (
+        'Discover self-installed WPM by name in a new' +
+        ' command process'
+    ) -Action {
         $environment = Get-WpmTestEnvironment
         $previousProcessWpm = $env:WPM
         $previousProcessDataDir = $env:WPM_DATA_DIR
@@ -229,16 +309,19 @@ try {
         try {
             $env:WPM = $environment.WPM
             $env:WPM_DATA_DIR = $environment.WPM_DATA_DIR
-            $env:Path = ([string]$environment.Path).Replace('%WPM%', $environment.WPM) + ';' + $previousProcessPath
+            $env:Path = ([string]$environment.Path).Replace('%WPM%', `
+                    $environment.WPM) + ';' + $previousProcessPath
             $output = & $env:ComSpec /d /c 'wpm --version' 2>&1 | Out-String
             if ($LASTEXITCODE -ne 0) {
-                throw "wpm --version in a new command process exited $LASTEXITCODE. Output: $output"
+                throw (
+                    "wpm --version in a new command process exite" +
+                    "d $LASTEXITCODE. Output: $output"
+                )
             }
             if ($output -notmatch 'Waughtal Package Manager .* Version ') {
                 throw 'The new command process did not resolve wpm by name.'
             }
-        }
-        finally {
+        } finally {
             $env:WPM = $previousProcessWpm
             $env:WPM_DATA_DIR = $previousProcessDataDir
             $env:Path = $previousProcessPath
@@ -248,21 +331,27 @@ try {
     $installedExe = Join-Path $installDir 'wpm.exe'
     $results += Invoke-WpmTestStep `
         -WpmExe $installedExe `
-        -Name 'Initialize WPM data directories with a local repository command' `
+        -Name `
+        'Initialize WPM data directories with a local repository command' `
         -Arguments @('repo', 'list') `
         -Assert {
-            param($ExitCode, $Output)
-            if ($ExitCode -ne 0) {
-                throw "Expected exit code 0, got $ExitCode."
-            }
-            foreach ($directory in @($dataDir, (Join-Path $dataDir 'packages'), (Join-Path $dataDir 'temp'), (Join-Path $dataDir 'cache'), (Join-Path $dataDir 'config'))) {
-                if (-not (Test-Path -LiteralPath $directory -PathType Container)) {
-                    throw "The executable did not initialize $directory"
-                }
+        param($ExitCode, $Output)
+        if ($ExitCode -ne 0) {
+            throw "Expected exit code 0, got $ExitCode."
+        }
+        foreach ($directory in @($dataDir, (Join-Path $dataDir `
+                        'packages'), (Join-Path $dataDir 'temp'), (Join-Path `
+                            $dataDir `
+                        'cache'), (Join-Path $dataDir 'config'))) {
+            if (-not (Test-Path -LiteralPath $directory -PathType `
+                        Container)) {
+                throw "The executable did not initialize $directory"
             }
         }
+    }
 
-    $results += New-WpmManualStep -Name 'Remove WPM with remove.cmd --user' -Action {
+    $results += New-WpmManualStep -Name 'Remove WPM with remove.cmd --user' `
+        -Action {
         Invoke-CmdScript -Script $removeCmd -Arguments @('--user')
         if (Test-Path -LiteralPath $installDir) {
             throw "remove.cmd did not remove $installDir"
@@ -271,19 +360,24 @@ try {
             throw "remove.cmd did not remove $dataDir"
         }
         $environment = Get-WpmTestEnvironment
-        if ($null -ne $environment.WPM -or $null -ne $environment.WPM_DATA_DIR -or
+        if ($null -ne $environment.WPM -or $null -ne `
+                $environment.WPM_DATA_DIR -or
             $environment.Path -match [regex]::Escape('%WPM%')) {
-            throw 'remove.cmd did not remove the persistent WPM environment entries.'
+            throw (
+                'remove.cmd did not remove the persistent WPM' +
+                ' environment entries.'
+            )
         }
     }
-}
-finally {
+} finally {
     $env:WPM_INSTALL_DIR = $previousInstallDir
     $env:WPM_DATA_DIR = $previousDataDir
     $env:WPM_ENVIRONMENT_REGISTRY_KEY = $previousEnvironmentRegistryKey
     $finished = Get-Date
     if ($EvidenceTex) {
-        Write-WpmTestEvidence -TestCaseId 'TC-0007' -WpmExe $WpmExe -Started $started -Finished $finished -Results $results -EvidenceTex $EvidenceTex
+        Write-WpmTestEvidence -TestCaseId 'TC-0007' -WpmExe $WpmExe -Started `
+            $started -Finished $finished -Results $results -EvidenceTex `
+            $EvidenceTex
     }
     if (Test-Path -LiteralPath $installDir) {
         Remove-Item -LiteralPath $installDir -Recurse -Force

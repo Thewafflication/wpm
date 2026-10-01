@@ -6,9 +6,9 @@
 
 /** Metadata read from a WPM package archive. */
 typedef struct wpm_package_info {
-    char name[128];         /**< Package identity. */
-    char version[64];       /**< Semantic package version. */
-    char arch[16];          /**< Target architecture. */
+    char name[128];          /**< Package identity. */
+    char version[64];        /**< Semantic package version. */
+    char arch[16];           /**< Target architecture. */
     char archive_name[4096]; /**< Original archive filename. */
 } wpm_package_info;
 
@@ -18,7 +18,7 @@ typedef struct wpm_package_info {
  * @param[in] result_size Capacity of @p result in bytes.
  * @return Nonzero on success; zero if the path cannot be resolved or stored.
  */
-int wpm_get_data_root(char* result, size_t result_size);
+int wpm_get_data_root(char *result, size_t result_size);
 
 /**
  * Create the data, temporary, package, cache, and configuration directories.
@@ -44,7 +44,7 @@ void wpm_archive_set_progress(int current, int total);
  * The value is inherited by a self-upgrade handoff and may be NULL to clear it.
  * @param[in] url Normalized repository URL, or NULL.
  */
-void wpm_archive_set_repository_url(const char* url);
+void wpm_archive_set_repository_url(const char *url);
 
 /**
  * Build a package archive from a source directory.
@@ -54,7 +54,8 @@ void wpm_archive_set_repository_url(const char* url);
  * @param[in] private_key Optional signing-key path; may be NULL.
  * @return Nonzero on success; zero after reporting a validation or I/O error.
  */
-int wpm_archive_build(const char* source_dir, const char* output_dir, int update_index, const char* private_key);
+int wpm_archive_build(const char *source_dir, const char *output_dir,
+                      int update_index, const char *private_key);
 
 /**
  * Extract a package archive into a destination directory.
@@ -62,14 +63,14 @@ int wpm_archive_build(const char* source_dir, const char* output_dir, int update
  * @param[in] destination_dir Destination directory.
  * @return Nonzero on success; zero for an unsafe archive or filesystem error.
  */
-int wpm_archive_extract(const char* archive_path, const char* destination_dir);
+int wpm_archive_extract(const char *archive_path, const char *destination_dir);
 
 /**
  * Validate an archive without installing it.
  * @param[in] archive_path Archive to validate.
  * @return Nonzero when valid; zero after reporting the validation failure.
  */
-int wpm_archive_verify(const char* archive_path);
+int wpm_archive_verify(const char *archive_path);
 
 /**
  * Validate and install an archive.
@@ -77,7 +78,7 @@ int wpm_archive_verify(const char* archive_path);
  * @param[in] allow_unsigned Nonzero to permit the unsigned-package flow.
  * @return Nonzero on success; zero after reporting the failure.
  */
-int wpm_archive_install(const char* archive_path, int allow_unsigned);
+int wpm_archive_install(const char *archive_path, int allow_unsigned);
 
 /**
  * Read package identity metadata without installing the archive.
@@ -85,7 +86,7 @@ int wpm_archive_install(const char* archive_path, int allow_unsigned);
  * @param[out] info Populated package information.
  * @return Nonzero on success; zero if metadata is missing or invalid.
  */
-int wpm_archive_inspect(const char* archive_path, wpm_package_info* info);
+int wpm_archive_inspect(const char *archive_path, wpm_package_info *info);
 
 /**
  * Upgrade an installed package from a validated candidate archive.
@@ -97,9 +98,9 @@ int wpm_archive_inspect(const char* archive_path, wpm_package_info* info);
  * @param[in] old_version Currently installed version.
  * @return Nonzero on success; zero after reporting or auditing the failure.
  */
-int wpm_archive_upgrade(const char* archive_path, int allow_unsigned,
-    const char* expected_name, const char* expected_version,
-    const char* expected_arch, const char* old_version);
+int wpm_archive_upgrade(const char *archive_path, int allow_unsigned,
+                        const char *expected_name, const char *expected_version,
+                        const char *expected_arch, const char *old_version);
 
 /**
  * Cache and launch the handoff used to upgrade WPM itself.
@@ -110,15 +111,17 @@ int wpm_archive_upgrade(const char* archive_path, int allow_unsigned,
  * @param[in] old_version Currently installed WPM version.
  * @return Nonzero when scheduled; zero after reporting the failure.
  */
-int wpm_archive_schedule_self_upgrade(const char* archive_path, int allow_unsigned,
-    const char* expected_version, const char* expected_arch,
-    const char* old_version);
+int wpm_archive_schedule_self_upgrade(const char *archive_path,
+                                      int allow_unsigned,
+                                      const char *expected_version,
+                                      const char *expected_arch,
+                                      const char *old_version);
 
 /**
  * Remove an installed package using its retained archive metadata.
  * @param[in] package_name Stored archive name.
  * @return Nonzero on success; zero after reporting the failure.
  */
-int wpm_archive_remove(const char* package_name);
+int wpm_archive_remove(const char *package_name);
 
 #endif

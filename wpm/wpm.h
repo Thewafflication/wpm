@@ -1,4 +1,4 @@
-﻿// wpm.h : Include file for standard system include files,
+// wpm.h : Include file for standard system include files,
 // or project specific include files.
 
 /** @file wpm.h @brief Command-line types and presentation functions. */
@@ -31,7 +31,7 @@ typedef enum {
  * @param[in] cmd Command text.
  * @return The matching command, or CMD_UNKNOWN.
  */
-Command parse_command(const char* cmd);
+Command parse_command(const char *cmd);
 
 /** Print WPM and dependency version information to standard output. */
 void print_version();

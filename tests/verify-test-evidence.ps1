@@ -7,10 +7,15 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$evidenceFiles = @(Get-ChildItem -LiteralPath $EvidenceDirectory -Filter 'tc-*-execution-evidence.tex' -File)
+$evidenceFiles = @(Get-ChildItem -LiteralPath $EvidenceDirectory -Filter `
+        'tc-*-execution-evidence.tex' -File)
 
 if ($evidenceFiles.Count -ne $ExpectedCount) {
-    throw "Expected $ExpectedCount test evidence files in $EvidenceDirectory, found $($evidenceFiles.Count)."
+    throw (
+        "Expected $ExpectedCount test evidence files " +
+        "in $EvidenceDirectory, found " +
+        "$($evidenceFiles.Count)."
+    )
 }
 
 $failed = @()
@@ -32,7 +37,10 @@ foreach ($evidenceFile in $evidenceFiles) {
 }
 
 if ($failed.Count -gt 0) {
-    throw "Test evidence reported failure or an invalid status: $($failed -join ', ')"
+    throw (
+        "Test evidence reported failure or an invalid" +
+        " status: $($failed -join ', ')"
+    )
 }
 
 Write-Output "Validated $($evidenceFiles.Count) passing test evidence files."

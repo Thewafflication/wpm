@@ -34,28 +34,43 @@ $results = @()
 try {
     $env:WPM_DATA_DIR = $wpmDataDir
     New-Item -ItemType Directory -Force -Path $sourceDir, $outputDir | Out-Null
-    New-Item -ItemType Directory -Force -Path (Join-Path $sourceDir '.wpm') | Out-Null
-    New-Item -ItemType Directory -Force -Path (Join-Path $sourceDir 'nested') | Out-Null
-    Set-Content -LiteralPath (Join-Path $sourceDir 'hello.txt') -Value 'hello from wpm'
-    Set-Content -LiteralPath (Join-Path $sourceDir 'nested\data.txt') -Value 'nested package data'
+    New-Item -ItemType Directory -Force -Path (Join-Path $sourceDir '.wpm') | `
+            Out-Null
+    New-Item -ItemType Directory -Force -Path (Join-Path $sourceDir 'nested') `
+    | Out-Null
+    Set-Content -LiteralPath (Join-Path $sourceDir 'hello.txt') -Value `
+        'hello from wpm'
+    Set-Content -LiteralPath (Join-Path $sourceDir 'nested\data.txt') -Value `
+        'nested package data'
     # More files than WCRT stream slots and several verification batches, with
-    # distinct contents, an empty file, and files spanning multiple read buffers.
+    # distinct contents, an empty file, and files spanning multiple read
+    # buffers.
     for ($i = 0; $i -lt 49; $i++) {
-        $payload = [byte[]]::new($(if ($i -eq 0) { 0 } else { 131073 + $i }))
+        $payload = [byte[]]::new($(if ($i -eq 0) {
+                    0
+                } else {
+                    131073 + $i
+                }))
         [Random]::new($i).NextBytes($payload)
-        [IO.File]::WriteAllBytes((Join-Path $sourceDir ('nested\worker-{0:d2}.bin' -f $i)), $payload)
+        [IO.File]::WriteAllBytes((Join-Path $sourceDir ( `
+                        'nested\worker-{0:d2}.bin' -f $i)), $payload)
     }
-    Set-Content -LiteralPath (Join-Path $sourceDir 'ignored.txt') -Value 'ignored package data'
-    Set-Content -LiteralPath (Join-Path $sourceDir 'trace.log') -Value 'ignored log data'
+    Set-Content -LiteralPath (Join-Path $sourceDir 'ignored.txt') -Value `
+        'ignored package data'
+    Set-Content -LiteralPath (Join-Path $sourceDir 'trace.log') -Value `
+        'ignored log data'
     Set-Content -LiteralPath (Join-Path $sourceDir '.wpm\package.txt') -Value @(
         "name=$packageName"
         'version=1.2.3'
         'arch=any'
         'debug=false'
     )
-    Set-Content -LiteralPath (Join-Path $sourceDir '.wpm\install.cmd') -Value '@echo off'
-    Set-Content -LiteralPath (Join-Path $sourceDir '.wpm\remove.cmd') -Value '@echo off'
-    Set-Content -LiteralPath (Join-Path $sourceDir '.wpm\wpmignore.txt') -Value @(
+    Set-Content -LiteralPath (Join-Path $sourceDir '.wpm\install.cmd') -Value `
+        '@echo off'
+    Set-Content -LiteralPath (Join-Path $sourceDir '.wpm\remove.cmd') -Value `
+        '@echo off'
+    Set-Content -LiteralPath (Join-Path $sourceDir '.wpm\wpmignore.txt') `
+        -Value @(
         '.wpm/'
         'ignored.txt'
         '*.log'
@@ -66,113 +81,138 @@ try {
         -Name 'Build archive and populate BLAKE2b index' `
         -Arguments @('build', $sourceDir, $outputDir) `
         -Assert {
-            param($ExitCode, $Output)
-            if ($ExitCode -ne 0) {
-                throw "Expected exit code 0, got $ExitCode."
-            }
-            if (-not (Test-Path -LiteralPath $archivePath -PathType Leaf)) {
-                throw "build did not create $archivePath"
-            }
+        param($ExitCode, $Output)
+        if ($ExitCode -ne 0) {
+            throw "Expected exit code 0, got $ExitCode."
+        }
+        if (-not (Test-Path -LiteralPath $archivePath -PathType Leaf)) {
+            throw "build did not create $archivePath"
+        }
 
-            $indexPath = Join-Path $sourceDir '.wpm\index.csv'
-            if (-not (Test-Path -LiteralPath $indexPath -PathType Leaf)) {
-                throw 'build did not populate .wpm\index.csv'
-            }
+        $indexPath = Join-Path $sourceDir '.wpm\index.csv'
+        if (-not (Test-Path -LiteralPath $indexPath -PathType Leaf)) {
+            throw 'build did not populate .wpm\index.csv'
+        }
 
-            $index = Get-Content -LiteralPath $indexPath
-            if ($index[0] -ne 'filename,size,hash,algorithm') {
-                throw "Unexpected index header: $($index[0])"
-            }
-            if (($index -join "`n") -notmatch '(?m)^hello\.txt,\d+,[0-9a-f]{64},blake2b$') {
-                throw 'index does not contain a BLAKE2b signature for hello.txt'
-            }
-            if (($index -join "`n") -notmatch '(?m)^nested/data\.txt,\d+,[0-9a-f]{64},blake2b$') {
-                throw 'index does not contain a BLAKE2b signature for nested/data.txt'
-            }
-            foreach ($supportFile in @(
+        $index = Get-Content -LiteralPath $indexPath
+        if ($index[0] -ne 'filename,size,hash,algorithm') {
+            throw "Unexpected index header: $($index[0])"
+        }
+        if (($index -join "`n") -notmatch `
+                '(?m)^hello\.txt,\d+,[0-9a-f]{64},blake2b$') {
+            throw 'index does not contain a BLAKE2b signature for hello.txt'
+        }
+        if (($index -join "`n") -notmatch (
+                '(?m)^nested/data\.txt,\d+,[0-9a-f]{64},blake' +
+                '2b$'
+            )) {
+            throw (
+                'index does not contain a BLAKE2b signature f' +
+                'or nested/data.txt'
+            )
+        }
+        foreach ($supportFile in @(
                 '\.wpm/package\.txt',
                 '\.wpm/install\.cmd',
                 '\.wpm/remove\.cmd',
                 '\.wpm/wpmignore\.txt'
             )) {
-                if (($index -join "`n") -notmatch "(?m)^$supportFile,\d+,[0-9a-f]{64},blake2b$") {
-                    throw "index does not contain a relative-path signature for $supportFile"
-                }
-            }
-            if (($index -join "`n") -match '(?m)^\.wpm/index\.csv,') {
-                throw 'index.csv should not index itself'
-            }
-            if (($index -join "`n") -match '(?m)^(ignored\.txt|trace\.log),') {
-                throw '.wpmignore entries were unexpectedly indexed'
+            if (($index -join "`n") -notmatch `
+                    "(?m)^$supportFile,\d+,[0-9a-f]{64},blake2b$") {
+                throw (
+                    "index does not contain a relative-path signa" +
+                    "ture for $supportFile"
+                )
             }
         }
+        if (($index -join "`n") -match '(?m)^\.wpm/index\.csv,') {
+            throw 'index.csv should not index itself'
+        }
+        if (($index -join "`n") -match '(?m)^(ignored\.txt|trace\.log),') {
+            throw '.wpmignore entries were unexpectedly indexed'
+        }
+    }
 
     $results += New-WpmManualStep `
         -Name 'Inspect archive index contents' `
         -Action {
-            Expand-Archive -LiteralPath $archivePath -DestinationPath $inspectDir -Force
-            $archiveIndexPath = Join-Path $inspectDir '.wpm\index.csv'
-            if (-not (Test-Path -LiteralPath $archiveIndexPath -PathType Leaf)) {
-                throw 'archive does not contain .wpm\index.csv'
-            }
-            $archiveIndex = Get-Content -Raw -LiteralPath $archiveIndexPath
-            if ($archiveIndex -notmatch '(?m)^hello\.txt,\d+,[0-9a-f]{64},blake2b\r?$') {
-                throw 'archive index does not contain hello.txt signature'
-            }
-            'Archive index contains BLAKE2b signatures.'
+        Expand-Archive -LiteralPath $archivePath -DestinationPath `
+            $inspectDir -Force
+        $archiveIndexPath = Join-Path $inspectDir '.wpm\index.csv'
+        if (-not (Test-Path -LiteralPath $archiveIndexPath -PathType `
+                    Leaf)) {
+            throw 'archive does not contain .wpm\index.csv'
         }
+        $archiveIndex = Get-Content -Raw -LiteralPath $archiveIndexPath
+        if ($archiveIndex -notmatch `
+                '(?m)^hello\.txt,\d+,[0-9a-f]{64},blake2b\r?$') {
+            throw 'archive index does not contain hello.txt signature'
+        }
+        'Archive index contains BLAKE2b signatures.'
+    }
 
     $results += Invoke-WpmTestStep `
         -WpmExe $WpmExe `
         -Name 'Install archive with valid signatures' `
         -Arguments @('install', $archivePath, '--allow-unsigned') `
         -Assert {
-            param($ExitCode, $Output)
-            if ($ExitCode -ne 0) {
-                throw "Expected exit code 0, got $ExitCode."
-            }
-            if (-not (Test-Path -LiteralPath $storedArchivePath -PathType Leaf)) {
-                throw 'valid install did not retain the archive'
-            }
-            if (Test-Path -LiteralPath $stagingDir) {
-                throw 'valid install did not remove its staging directory'
-            }
+        param($ExitCode, $Output)
+        if ($ExitCode -ne 0) {
+            throw "Expected exit code 0, got $ExitCode."
         }
+        if (-not (Test-Path -LiteralPath $storedArchivePath -PathType `
+                    Leaf)) {
+            throw 'valid install did not retain the archive'
+        }
+        if (Test-Path -LiteralPath $stagingDir) {
+            throw 'valid install did not remove its staging directory'
+        }
+    }
 
     $results += New-WpmManualStep `
         -Name 'Create tampered archive' `
         -Action {
-            Expand-Archive -LiteralPath $archivePath -DestinationPath $tamperDir -Force
-            Set-Content -LiteralPath (Join-Path $tamperDir 'hello.txt') -Value 'tampered content'
-            Compress-Archive -Path (Join-Path $tamperDir '*') -DestinationPath $tamperedArchivePath -Force
-            if (-not (Test-Path -LiteralPath $tamperedArchivePath -PathType Leaf)) {
-                throw 'tampered archive was not created'
-            }
-            "Tampered archive created: $tamperedArchivePath"
+        Expand-Archive -LiteralPath $archivePath -DestinationPath `
+            $tamperDir -Force
+        Set-Content -LiteralPath (Join-Path $tamperDir 'hello.txt') `
+            -Value 'tampered content'
+        Compress-Archive -Path (Join-Path $tamperDir '*') `
+            -DestinationPath $tamperedArchivePath -Force
+        if (-not (Test-Path -LiteralPath $tamperedArchivePath -PathType `
+                    Leaf)) {
+            throw 'tampered archive was not created'
         }
+        "Tampered archive created: $tamperedArchivePath"
+    }
 
     $results += Invoke-WpmTestStep `
         -WpmExe $WpmExe `
         -Name 'Reject archive with tampered indexed file' `
         -Arguments @('install', $tamperedArchivePath, '--allow-unsigned') `
         -Assert {
-            param($ExitCode, $Output)
-            if ($ExitCode -eq 0) {
-                throw 'Expected tampered install to fail.'
-            }
-            if ($Output -notmatch 'signature verification failed') {
-                throw 'Tampered install did not report signature verification failure.'
-            }
-            if (Test-Path -LiteralPath $tamperedStagingDir) {
-                throw 'tampered install did not remove its staging directory'
-            }
+        param($ExitCode, $Output)
+        if ($ExitCode -eq 0) {
+            throw 'Expected tampered install to fail.'
         }
+        if ($Output -notmatch 'signature verification failed') {
+            throw (
+                'Tampered install did not report signature ve' +
+                'rification failure.'
+            )
+        }
+        if (Test-Path -LiteralPath $tamperedStagingDir) {
+            throw 'tampered install did not remove its staging directory'
+        }
+    }
 
-    foreach ($fault in @('same-size', 'missing', 'truncated', 'malformed-index')) {
+    foreach ($fault in @('same-size', 'missing', 'truncated', `
+                'malformed-index')) {
         $variantDir = Join-Path $testRoot $fault
         $variantPath = Join-Path $outputDir "$fault.zip"
-        $results += New-WpmManualStep -Name "Create $fault verification fixture" -Action {
-            Expand-Archive -LiteralPath $archivePath -DestinationPath $variantDir
+        $results += New-WpmManualStep -Name `
+            "Create $fault verification fixture" -Action {
+            Expand-Archive -LiteralPath $archivePath -DestinationPath `
+                $variantDir
             $target = Join-Path $variantDir 'nested\worker-48.bin'
             switch ($fault) {
                 'same-size' {
@@ -180,40 +220,62 @@ try {
                     $bytes[65536] = $bytes[65536] -bxor 255
                     [IO.File]::WriteAllBytes($target, $bytes)
                 }
-                'missing' { Remove-Item -LiteralPath $target }
-                'truncated' { [IO.File]::WriteAllBytes($target, [byte[]]::new(0)) }
+                'missing' {
+                    Remove-Item -LiteralPath $target
+                }
+                'truncated' {
+                    [IO.File]::WriteAllBytes($target, `
+                            [byte[]]::new(0))
+                }
                 'malformed-index' {
-                    Add-Content -LiteralPath (Join-Path $variantDir '.wpm\index.csv') -Value 'invalid-entry'
+                    Add-Content -LiteralPath (Join-Path $variantDir `
+                            '.wpm\index.csv') -Value 'invalid-entry'
                 }
             }
-            Compress-Archive -Path (Join-Path $variantDir '*') -DestinationPath $variantPath
+            Compress-Archive -Path (Join-Path $variantDir '*') `
+                -DestinationPath $variantPath
         }
-        $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name "Reject $fault after earlier verification batches" `
+        $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name (
+            "Reject $fault after earlier verification bat" +
+            "ches"
+        ) `
             -Arguments @('install', $variantPath, '--allow-unsigned') -Assert {
-                param($ExitCode, $Output)
-                if ($ExitCode -eq 0) { throw "Accepted $fault package." }
-                $expected = if ($fault -eq 'malformed-index') { 'invalid package index entry' } else {
-                    'signature verification failed for nested/worker-48.bin'
-                }
-                if (-not $Output.Contains($expected)) { throw "Missing failure detail: $expected" }
-                if (Test-Path -LiteralPath (Join-Path $wpmDataDir "temp\$fault")) {
-                    throw 'Failed verification left its staging directory behind.'
-                }
+            param($ExitCode, $Output)
+            if ($ExitCode -eq 0) {
+                throw "Accepted $fault package."
             }
+            $expected = if ($fault -eq 'malformed-index') {
+ `
+                    'invalid package index entry'
+            } else {
+                'signature verification failed for nested/worker-48.bin'
+            }
+            if (-not $Output.Contains($expected)) {
+                throw `
+                    "Missing failure detail: $expected"
+            }
+            if (Test-Path -LiteralPath (Join-Path $wpmDataDir `
+                        "temp\$fault")) {
+                throw (
+                    'Failed verification left its staging directo' +
+                    'ry behind.'
+                )
+            }
+        }
     }
-}
-finally {
+} finally {
     $finished = Get-Date
     if ($EvidenceTex) {
-        Write-WpmTestEvidence -TestCaseId 'TC-0005' -WpmExe $WpmExe -Started $started -Finished $finished -Results $results -EvidenceTex $EvidenceTex
+        Write-WpmTestEvidence -TestCaseId 'TC-0005' -WpmExe $WpmExe -Started `
+            $started -Finished $finished -Results $results -EvidenceTex `
+            $EvidenceTex
     }
     if (Test-Path -LiteralPath $testRoot) {
         Remove-Item -LiteralPath $testRoot -Recurse -Force
     }
     if ($null -eq $previousWpmDataDir) {
         Remove-Item Env:WPM_DATA_DIR -ErrorAction SilentlyContinue
-    }
-    else {
+    } else {
         $env:WPM_DATA_DIR = $previousWpmDataDir
     }
 }

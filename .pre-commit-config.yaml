@@ -1,0 +1,28 @@
+minimum_pre_commit_version: '3.2.0'
+default_install_hook_types: [pre-commit]
+default_stages: [pre-commit]
+fail_fast: true
+repos:
+  - repo: local
+    hooks:
+      - id: wpm-lint
+        name: WPM lint and traceability
+        entry: pwsh -NoProfile -File tools/Invoke-CommitCheck.ps1 -Stage Lint
+        language: system
+        always_run: true
+        pass_filenames: false
+        require_serial: true
+      - id: wpm-build
+        name: WPM x64 Debug build
+        entry: pwsh -NoProfile -File tools/Invoke-CommitCheck.ps1 -Stage Build
+        language: system
+        always_run: true
+        pass_filenames: false
+        require_serial: true
+      - id: wpm-tests
+        name: WPM full x64 Debug test suite
+        entry: pwsh -NoProfile -File tools/Invoke-CommitCheck.ps1 -Stage Test
+        language: system
+        always_run: true
+        pass_filenames: false
+        require_serial: true

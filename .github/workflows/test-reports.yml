@@ -6,7 +6,6 @@ on:
       - "**"
   pull_request:
   workflow_dispatch:
-
 permissions:
   contents: read
 
@@ -42,10 +41,23 @@ jobs:
         shell: pwsh
         run: tests/lint-c99.ps1
 
+      - name: Set up Python for style checks
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Check owned source style
+        shell: pwsh
+        run: |
+          python -m pip install -r tools/requirements-style.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          tools/Test-Style.ps1
+
       - name: Export dependency metadata
         id: metadata
         shell: pwsh
-        run: tests/export-dependency-metadata.ps1 -GitHubOutput $env:GITHUB_OUTPUT
+        run: tests/export-dependency-metadata.ps1 -GitHubOutput
+          $env:GITHUB_OUTPUT
 
   windows-debug:
     name: Windows ${{ matrix.arch }} Debug
@@ -85,13 +97,26 @@ jobs:
         run: |
           cmake --preset ${{ matrix.configure_preset }} `
             "-DCMAKE_MAKE_PROGRAM=$env:WPM_NINJA" `
-            "-DWPM_MINIZIP_NG_VERSION_OVERRIDE=${{ needs.dependency-metadata.outputs.minizip_ng_version }}" `
-            "-DWPM_MINIZIP_NG_COMMIT_OVERRIDE=${{ needs.dependency-metadata.outputs.minizip_ng_commit }}" `
-            "-DWPM_ZLIB_NG_VERSION_OVERRIDE=${{ needs.dependency-metadata.outputs.zlib_ng_version }}" `
-            "-DWPM_ZLIB_NG_COMMIT_OVERRIDE=${{ needs.dependency-metadata.outputs.zlib_ng_commit }}" `
-            "-DWPM_LIBSODIUM_VERSION_OVERRIDE=${{ needs.dependency-metadata.outputs.libsodium_version }}" `
-            "-DWPM_LIBSODIUM_COMMIT_OVERRIDE=${{ needs.dependency-metadata.outputs.libsodium_commit }}"
+            "-DWPM_MINIZIP_NG_VERSION_OVERRIDE=$env:MINIZIP_NG_VERSION" `
+            "-DWPM_MINIZIP_NG_COMMIT_OVERRIDE=$env:MINIZIP_NG_COMMIT" `
+            "-DWPM_ZLIB_NG_VERSION_OVERRIDE=$env:ZLIB_NG_VERSION" `
+            "-DWPM_ZLIB_NG_COMMIT_OVERRIDE=$env:ZLIB_NG_COMMIT" `
+            "-DWPM_LIBSODIUM_VERSION_OVERRIDE=$env:LIBSODIUM_VERSION" `
+            "-DWPM_LIBSODIUM_COMMIT_OVERRIDE=$env:LIBSODIUM_COMMIT"
 
+        env:
+          MINIZIP_NG_VERSION: >-
+            ${{ needs.dependency-metadata.outputs.minizip_ng_version }}
+          LIBSODIUM_COMMIT: >-
+            ${{ needs.dependency-metadata.outputs.libsodium_commit }}
+          ZLIB_NG_COMMIT: >-
+            ${{ needs.dependency-metadata.outputs.zlib_ng_commit }}
+          LIBSODIUM_VERSION: >-
+            ${{ needs.dependency-metadata.outputs.libsodium_version }}
+          MINIZIP_NG_COMMIT: >-
+            ${{ needs.dependency-metadata.outputs.minizip_ng_commit }}
+          ZLIB_NG_VERSION: >-
+            ${{ needs.dependency-metadata.outputs.zlib_ng_version }}
       - name: Verify requirements traceability
         shell: pwsh
         run: tests/verify-traceability.ps1
@@ -109,31 +134,62 @@ jobs:
         shell: pwsh
         continue-on-error: true
         run: |
-          New-Item -ItemType Directory -Force -Path bin/${{ matrix.arch }}/Debug | Out-Null
-          cmake --build --preset ${{ matrix.verify_preset }} --parallel 2>&1 |
-            Tee-Object -FilePath bin/${{ matrix.arch }}/Debug/verification-build.log
+          New-Item -ItemType Directory -Force -Path `
+              bin/${{ matrix.arch }}/Debug | Out-Null
+          cmake --build --preset ${{ matrix.verify_preset }} --parallel `
+              2>&1 |
+            Tee-Object -FilePath `
+                bin/${{ matrix.arch }}/Debug/verification-build.log
           $buildExitCode = $LASTEXITCODE
-          "exit_code=$buildExitCode" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "exit_code=$buildExitCode" | Out-File -FilePath `
+              $env:GITHUB_OUTPUT -Append
           if ($buildExitCode -ne 0) {
-            "The ${{ matrix.arch }} Debug build failed before all expected artifacts were generated. See the workflow log for compiler or test output." |
-              Set-Content -Path bin/${{ matrix.arch }}/Debug/build-failed.txt
+            (
+                "The ${{ matrix.arch }} Debug bui" +
+                "ld failed before all expected ar" +
+                "tifacts were generated. See the " +
+                "workflow log for compiler or tes" +
+                "t output."
+            ) |
+              Set-Content -Path `
+                  bin/${{ matrix.arch }}/Debug/build-failed.txt
           }
           exit 0
+
+      - name: Run fresh full Debug test suite
+        if: steps.verify.outputs.exit_code == '0'
+        shell: pwsh
+        run: |
+          ctest --test-dir out/build/${{ matrix.configure_preset }} `
+            -C Debug --output-on-failure --no-tests=error
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Collect build warnings in summary
         if: always()
         shell: pwsh
-        run: tests/summarize-build-warnings.ps1 -LogPath bin/${{ matrix.arch }}/Debug/verification-build.log
+        run: tests/summarize-build-warnings.ps1 -LogPath bin/${{ matrix.arch
+          }}/Debug/verification-build.log
 
       - name: Build unsigned Debug WPM package
         if: steps.verify.outputs.exit_code == '0'
         shell: pwsh
         run: |
-          $env:WPM_DATA_DIR = Join-Path $env:RUNNER_TEMP 'wpm-debug-package-${{ matrix.arch }}'
+          $env:WPM_DATA_DIR = Join-Path $env:RUNNER_TEMP (
+              'wpm-debug-package-' +
+              '${{ matrix.arch }}'
+          )
           cmake `
             "-DWPM_EXECUTABLE=$PWD/bin/${{ matrix.arch }}/Debug/wpm.exe" `
-            "-DWPM_PACKAGE_EXECUTABLE=$PWD/bin/${{ matrix.arch }}/Debug/wpm.exe" `
-            "-DWPM_PACKAGE_STAGING_DIR=$PWD/out/debug-package/${{ matrix.arch }}" `
+            (
+                "-DWPM_PACKAGE_EXECUTABLE=$PWD/bi" +
+                "n/${{ matrix.arch }}/Debug/wpm.e" +
+                "xe"
+            ) `
+            (
+                "-DWPM_PACKAGE_STAGING_DIR=$PWD/o" +
+                "ut/debug-package/" +
+                "${{ matrix.arch }}"
+            ) `
             "-DWPM_PACKAGE_OUTPUT_DIR=$PWD/debug-packages" `
             "-DWPM_PACKAGE_ARCH=${{ matrix.arch }}" `
             -DWPM_PACKAGE_DEBUG=true `
@@ -168,7 +224,8 @@ jobs:
       - name: Publish GitHub summary
         shell: pwsh
         run: |
-          $overallStatus = if ('${{ steps.verify.outputs.exit_code }}' -eq '0') { 'PASS' } else { 'FAIL' }
+          $overallStatus = if ('${{ steps.verify.outputs.exit_code }}' `
+              -eq '0') { 'PASS' } else { 'FAIL' }
           $rows = @(
             @('TC-0001 Usage/version check', 'tc-0001'),
             @('TC-0002 Package initialization', 'tc-0002'),
@@ -194,9 +251,11 @@ jobs:
           '```text' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
           $wpmExecutable = 'bin/${{ matrix.arch }}/Debug/wpm.exe'
           if (Test-Path -LiteralPath $wpmExecutable) {
-            & $wpmExecutable --version --verbose | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+            & $wpmExecutable --version --verbose | Out-File -FilePath `
+                $env:GITHUB_STEP_SUMMARY -Append
           } else {
-            'Version unavailable: the build did not produce wpm.exe.' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+            'Version unavailable: the build did not produce wpm.exe.' | `
+                Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
           }
           '```' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
 
@@ -209,11 +268,18 @@ jobs:
           foreach ($row in $rows) {
             $status = 'NOT RUN'
             $report = "bin/${{ matrix.arch }}/Debug/$($row[1])-report.tex"
-            $evidence = "bin/${{ matrix.arch }}/Debug/$($row[1])-execution-evidence.tex"
+            $evidence = (
+                "bin/${{ matrix.arch }}/Debug/" +
+                "$($row[1])-execution-evidence.te" +
+                "x"
+            )
             if (Test-Path -LiteralPath $evidence) {
-              $statusLine = Select-String -LiteralPath $evidence -Pattern '\\item\[Overall Status\]\s+(\w+)' | Select-Object -First 1
+              $statusLine = Select-String -LiteralPath $evidence `
+                  -Pattern '\\item\[Overall Status\]\s+(\w+)' | `
+                  Select-Object -First 1
               if ($statusLine) {
-                $status = $statusLine.Matches[0].Groups[1].Value.ToUpperInvariant()
+                $status = `
+                    $statusLine.Matches[0].Groups[1].Value.ToUpperInvariant()
               }
             }
 
@@ -223,7 +289,8 @@ jobs:
               default { '⚪' }
             }
 
-            $reportLink = if (Test-Path -LiteralPath $report) { $report } else { 'Not generated' }
+            $reportLink = if (Test-Path -LiteralPath $report) { $report `
+                } else { 'Not generated' }
 
             "| $($row[0]) | $indicator **$status** | $reportLink |" |
               Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
@@ -231,9 +298,24 @@ jobs:
 
           @"
           $(if ($overallStatus -eq 'PASS') {
-            'The tests passed. An unsigned, architecture-specific Debug WPM package containing the executable, runtime, documentation, and TeX reports is attached to this workflow run.'
+            (
+              'The tests passed. An unsigned, ' +
+              'architecture-specific Debug WPM package ' +
+              'containing the executable, runtime, ' +
+              'documentation, and TeX reports is attached' +
+              ' to this workflow run.'
+            )
           } else {
-            'Verification failed. FAIL rows contain completed failing tests; NOT RUN rows have no execution evidence because the build stopped before those tests completed. The generated executable, debug symbols, build log, and available TeX reports are attached to the architecture-specific diagnostics artifact.'
+            (
+              'Verification failed. FAIL rows contain ' +
+              'completed failing tests; NOT RUN rows have' +
+              ' no execution evidence because the build ' +
+              'stopped before those tests completed. The ' +
+              'generated executable, debug symbols, build' +
+              ' log, and available TeX reports are ' +
+              'attached to the architecture-specific ' +
+              'diagnostics artifact.'
+            )
           })
           "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
 

@@ -13,33 +13,94 @@ $plannedTestLibrary = Join-Path $PSScriptRoot 'wpm-2.0-planned-test-lib.ps1'
 if ($Describe) {
     . $plannedTestLibrary
     $cases = @(
-        @{ Requirement='REQ-0023.001'; Technique='requirements-based static'; Profile='Fast'; Expected='Every accepted predecessor ADR has an explicit disposition.' },
-        @{ Requirement='REQ-0023.002'; Technique='structure-based static'; Profile='Fast'; Expected='Every new ADR contains required relationships and non-goals.' },
-        @{ Requirement='REQ-0023.003'; Technique='classification-tree static'; Profile='Fast'; Expected='DFS assets, boundaries, threats, controls, verification, and risks are complete.' },
-        @{ Requirement='REQ-0023.004'; Technique='bidirectional trace inspection'; Profile='Fast'; Expected='Requirements reference governing ADRs and scoped 1.x supersession.' },
-        @{ Requirement='REQ-0023.005'; Technique='line-ending equivalence and negative mutation fixture'; Profile='Fast'; Expected='LF and CRLF controlled text validate identically, while every architecture/security omission and changed WSP pin is rejected.' },
-        @{ Requirement='REQ-0023.006'; Technique='negative mutation and process-status fixture'; Profile='Fast'; Expected='Every missing or incomplete planned artifact is rejected, while a fully successful top-level validator returns zero after expected negative children and cleanup.' }
+        @{ Requirement = 'REQ-0023.001'; Technique = `
+            'requirements-based static'; `
+                Profile = 'Fast'; Expected = (
+                'Every accepted predecessor ADR has an explic' +
+                'it disposition.'
+            )
+        },
+        @{ Requirement = 'REQ-0023.002'; Technique = 'structure-based static'; `
+                Profile = 'Fast'; Expected = (
+                'Every new ADR contains required relationship' +
+                's and non-goals.'
+            )
+        },
+        @{ Requirement = 'REQ-0023.003'; `
+                Technique = 'classification-tree static'; Profile = 'Fast'; `
+                    Expected = (
+                'DFS assets, boundaries, threats, controls, v' +
+                'erification, and risks are complete.'
+            )
+        },
+        @{ Requirement = 'REQ-0023.004'; `
+                Technique = 'bidirectional trace inspection'; Profile = `
+                    'Fast'; `
+                Expected = (
+                'Requirements reference governing ADRs and sc' +
+                'oped 1.x supersession.'
+            )
+        },
+        @{ Requirement = 'REQ-0023.005'; Technique = (
+                'line-ending equivalence and negative mutatio' +
+                'n fixture'
+            ); Profile = 'Fast'; Expected = (
+                'LF and CRLF controlled text validate identic' +
+                'ally, while every architecture/security omis' +
+                'sion and changed WSP pin is rejected.'
+            )
+        },
+        @{ Requirement = 'REQ-0023.006'; `
+                Technique = 'negative mutation and process-status fixture'; `
+                Profile = 'Fast'; Expected = (
+                'Every missing or incomplete planned artifact' +
+                ' is rejected, while a fully successful top-l' +
+                'evel validator returns zero after expected n' +
+                'egative children and cleanup.'
+            )
+        }
     )
     $rationales = @{
-        Fast='Deterministic static and negative-fixture validation is architecture-independent.'
-        PlatformMatrix='Supporting execution on each architecture confirms the PowerShell/static gate remains portable.'
-        Quality='Not required: bounded negative fixtures exhaust the identified baseline omissions in Fast.'
-        ManualRealEnvironment='Not required: no product, physical media, network, secret, or operator observation is involved.'
-        ReleaseGate='The exact merge/release baseline reruns TC-0023 and traceability validation in CI.'
+        Fast = (
+            'Deterministic static and negative-fixture va' +
+            'lidation is architecture-independent.'
+        )
+        PlatformMatrix = (
+            'Supporting execution on each architecture co' +
+            'nfirms the PowerShell/static gate remains po' +
+            'rtable.'
+        )
+        Quality = (
+            'Not required: bounded negative fixtures exha' +
+            'ust the identified baseline omissions in Fas' +
+            't.'
+        )
+        ManualRealEnvironment = (
+            'Not required: no product, physical media, ne' +
+            'twork, secret, or operator observation is in' +
+            'volved.'
+        )
+        ReleaseGate = (
+            'The exact merge/release baseline reruns TC-0' +
+            '023 and traceability validation in CI.'
+        )
     }
     $plan = New-Wpm20PlannedTestPlan 'TC-0023' 'REQ-0023' `
-        'Architecture, security, and planned-test consistency' $cases $rationales `
-        @('Fast', 'ReleaseGate')
+        'Architecture, security, and planned-test consistency' $cases `
+        $rationales `
+    @('Fast', 'ReleaseGate')
     $plan.ExecutionState = 'Implemented'
     Write-Wpm20PlannedTestPlan $plan
     exit 0
 }
-if (-not $WpmExe) { throw 'WpmExe is required unless -Describe is used.' }
+if (-not $WpmExe) {
+    throw 'WpmExe is required unless -Describe is used.'
+}
 $WpmExe = (Resolve-Path -LiteralPath $WpmExe).Path
 . (Join-Path $PSScriptRoot 'wpm-test-lib.ps1')
 
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
-$expectedWspCommit = '8666277d0a30575515f5e46524e5b71be4be0c7d'
+$expectedWspCommit = 'f009399dd1406219571ac978bfee85e85bbdfeac'
 $started = Get-Date
 $results = @()
 
@@ -104,7 +165,8 @@ function Assert-ArchitectureBaseline {
 
     $adrExpectations = @{
         'docs/adr-0010-command-events-and-machine-readable-output.md' = @(
-            'Supplements ADR-0007', '## Explicit Non-Goals', 'REQ-0014', 'REQ-0018'
+            'Supplements ADR-0007', '## Explicit Non-Goals', 'REQ-0014', `
+                'REQ-0018'
         )
         'docs/adr-0011-transport-neutral-repository-access.md' = @(
             'Supersedes ADR-0005', '## Explicit Non-Goals', 'REQ-0016'
@@ -113,7 +175,8 @@ function Assert-ArchitectureBaseline {
             'Supplements ADR-0002', '## Explicit Non-Goals', 'REQ-0017'
         )
         'docs/adr-0013-operation-plans-dry-run-and-recovery.md' = @(
-            'Supplements ADR-0003', '## Explicit Non-Goals', 'REQ-0015', 'REQ-0019'
+            'Supplements ADR-0003', '## Explicit Non-Goals', 'REQ-0015', `
+                'REQ-0019'
         )
     }
     foreach ($entry in $adrExpectations.GetEnumerator()) {
@@ -151,42 +214,43 @@ function Assert-ArchitectureBaseline {
             -Description ("WPM-THR-{0:D3}" -f $id)
     }
     foreach ($term in @(
-        'Repository index-signing keys and authorization',
-        'Command and machine output',
-        'Cleanup classifications and allowed roots',
-        'Locator to repository reader',
-        'Private authoring key to index signature',
-        'Resolved plan to mutation',
-        'Recovery record to retry',
-        'Cleanup inventory to deletion',
-        'wpm.recovery.v1',
-        'TC-0023 statically verifies',
-        'Opted-in HTTP has no confidentiality'
-    )) {
-        Assert-Contains -Text $Text -Path $dfs -Pattern ([regex]::Escape($term)) `
+            'Repository index-signing keys and authorization',
+            'Command and machine output',
+            'Cleanup classifications and allowed roots',
+            'Locator to repository reader',
+            'Private authoring key to index signature',
+            'Resolved plan to mutation',
+            'Recovery record to retry',
+            'Cleanup inventory to deletion',
+            'wpm.recovery.v1',
+            'TC-0023 statically verifies',
+            'Opted-in HTTP has no confidentiality'
+        )) {
+        Assert-Contains -Text $Text -Path $dfs -Pattern ([regex]::Escape( `
+                    $term)) `
             -Description $term
     }
 
     $manifest = 'documentation/documentation-manifest.json'
     foreach ($relativePath in @(
-        'docs/change-impact-2.0-architecture-and-security.md',
-        'docs/adr-0010-command-events-and-machine-readable-output.md',
-        'docs/adr-0011-transport-neutral-repository-access.md',
-        'docs/adr-0012-repository-authoring-and-index-signing.md',
-        'docs/adr-0013-operation-plans-dry-run-and-recovery.md',
-        'docs/req-0023-architecture-and-security-consistency.md',
-        'docs/change-impact-2.0-test-allocation-baseline.md',
-        'docs/tc-0014-command-output-and-help.tex',
-        'docs/tc-0015-safer-package-changes.tex',
-        'docs/tc-0016-repository-transports.tex',
-        'docs/tc-0017-repository-authoring.tex',
-        'docs/tc-0018-discoverability-and-diagnostics.tex',
-        'docs/tc-0019-recovery-and-lifecycle.tex',
-        'docs/tc-0020-quality-testing-and-resilience.tex',
-        'docs/tc-0021-c99-portability-and-reference-documentation.tex',
-        'docs/tc-0022-release-experience-and-readiness.tex',
-        'docs/tc-0023-architecture-security-consistency.tex'
-    )) {
+            'docs/change-impact-2.0-architecture-and-security.md',
+            'docs/adr-0010-command-events-and-machine-readable-output.md',
+            'docs/adr-0011-transport-neutral-repository-access.md',
+            'docs/adr-0012-repository-authoring-and-index-signing.md',
+            'docs/adr-0013-operation-plans-dry-run-and-recovery.md',
+            'docs/req-0023-architecture-and-security-consistency.md',
+            'docs/change-impact-2.0-test-allocation-baseline.md',
+            'docs/tc-0014-command-output-and-help.tex',
+            'docs/tc-0015-safer-package-changes.tex',
+            'docs/tc-0016-repository-transports.tex',
+            'docs/tc-0017-repository-authoring.tex',
+            'docs/tc-0018-discoverability-and-diagnostics.tex',
+            'docs/tc-0019-recovery-and-lifecycle.tex',
+            'docs/tc-0020-quality-testing-and-resilience.tex',
+            'docs/tc-0021-c99-portability-and-reference-documentation.tex',
+            'docs/tc-0022-release-experience-and-readiness.tex',
+            'docs/tc-0023-architecture-security-consistency.tex'
+        )) {
         Assert-Contains -Text $Text -Path $manifest `
             -Pattern ([regex]::Escape('"' + $relativePath + '"')) `
             -Description ("the $relativePath manifest entry")
@@ -200,14 +264,15 @@ function Assert-ArchitectureBaseline {
         -Pattern '(?m)^\*\*REQ-0023\.006\*\*\r?$' `
         -Description 'the planned-test baseline requirement'
     foreach ($term in @(
-        'wpm.test-plan.v1',
-        'Fast',
-        'PlatformMatrix',
-        'Quality',
-        'ManualRealEnvironment',
-        'ReleaseGate',
-        'Testing/Evidence/2.0/<source-revision>/<TC>/<profile>/<architecture>/'
-    )) {
+            'wpm.test-plan.v1',
+            'Fast',
+            'PlatformMatrix',
+            'Quality',
+            'ManualRealEnvironment',
+            'ReleaseGate',
+            ('Testing/Evidence/2.0/<source-revision>/<TC>/' +
+                '<profile>/<architecture>/')
+        )) {
         Assert-Contains -Text $Text -Path 'docs/ts-0001-test-strategy.md' `
             -Pattern ([regex]::Escape($term)) -Description $term
     }
@@ -230,15 +295,22 @@ function Invoke-NegativeFixture {
     )
 
     $fixture = @{}
-    foreach ($key in $ControlledText.Keys) { $fixture[$key] = $ControlledText[$key] }
-    if ($Path) { $fixture[$Path] = $fixture[$Path] -replace $Pattern, '' }
+    foreach ($key in $ControlledText.Keys) {
+        $fixture[$key] = `
+            $ControlledText[$key]
+    }
+    if ($Path) {
+        $fixture[$Path] = $fixture[$Path] -replace $Pattern, ''
+    }
 
     try {
         Assert-ArchitectureBaseline -Text $fixture -WspCommit $WspCommit
-    }
-    catch {
+    } catch {
         if ($_.Exception.Message -notmatch $ExpectedFailure) {
-            throw "Fixture failed for an unexpected reason: $($_.Exception.Message)"
+            throw (
+                "Fixture failed for an unexpected reason: " +
+                "$($_.Exception.Message)"
+            )
         }
         return "Rejected as expected: $($_.Exception.Message)"
     }
@@ -246,20 +318,37 @@ function Invoke-NegativeFixture {
 }
 
 $controlledText = Get-ControlledText
-$gitLinkLine = (& git -C $repositoryRoot ls-files -s wsp 2>&1 | Out-String).Trim()
-if ($LASTEXITCODE -ne 0 -or $gitLinkLine -notmatch '^160000 ([0-9a-f]{40}) 0\s+wsp$') {
-    throw "Unable to read the wsp gitlink without submodule execution: $gitLinkLine"
+$gitLinkLine = (& git -C $repositoryRoot ls-files -s wsp 2>&1 | `
+            Out-String).Trim()
+if ($LASTEXITCODE -ne 0 -or $gitLinkLine -notmatch `
+        '^160000 ([0-9a-f]{40}) 0\s+wsp$') {
+    throw (
+        "Unable to read the wsp gitlink without submo" +
+        "dule execution: $gitLinkLine"
+    )
 }
 $actualWspCommit = $Matches[1]
-$wspStatus = (& git -C $repositoryRoot status --short -- wsp 2>&1 | Out-String).Trim()
-if ($LASTEXITCODE -ne 0) { throw "Unable to inspect wsp status: $wspStatus" }
-if ($wspStatus) { throw 'The pinned wsp gitlink or worktree is modified.' }
-
-$results += New-WpmManualStep -Name 'Validate the controlled architecture and DFS baseline' -Action {
-    Assert-ArchitectureBaseline -Text $controlledText -WspCommit $actualWspCommit
-    'Accepted ADR dispositions, relationships, DFS coverage, manifest, traceability, and WSP pin are consistent.'
+# Compare the worktree to the index so a reviewed, staged upgrade can pass
+# its pre-commit gate. Assert-ArchitectureBaseline checks the exact index pin.
+& git -C $repositoryRoot diff --quiet --ignore-submodules=none -- wsp
+if ($LASTEXITCODE -ne 0) {
+    throw 'The pinned wsp worktree differs from the staged gitlink.'
 }
-$results += New-WpmManualStep -Name 'Validate equivalent CRLF controlled text' -Action {
+
+$results += New-WpmManualStep -Name (
+    'Validate the controlled architecture and DFS' +
+    ' baseline'
+) -Action {
+    Assert-ArchitectureBaseline -Text $controlledText -WspCommit `
+        $actualWspCommit
+    (
+        'Accepted ADR dispositions, relationships, DF' +
+        'S coverage, manifest, traceability, and WSP ' +
+        'pin are consistent.'
+    )
+}
+$results += New-WpmManualStep -Name `
+    'Validate equivalent CRLF controlled text' -Action {
     $crlfText = @{}
     foreach ($key in $controlledText.Keys) {
         $crlfText[$key] = $controlledText[$key] -replace '(?<!\r)\n', "`r`n"
@@ -267,51 +356,76 @@ $results += New-WpmManualStep -Name 'Validate equivalent CRLF controlled text' -
     Assert-ArchitectureBaseline -Text $crlfText -WspCommit $actualWspCommit
     'The complete controlled baseline is equivalent with CRLF line endings.'
 }
-$results += New-WpmManualStep -Name 'Reject a missing accepted-ADR disposition' -Action {
+$results += New-WpmManualStep -Name `
+    'Reject a missing accepted-ADR disposition' -Action {
     Invoke-NegativeFixture -ControlledText $controlledText `
         -Path 'docs/change-impact-2.0-architecture-and-security.md' `
         -Pattern '(?ms)^- \*\*ADR-0009 .*?(?=\r?\n\r?\n|\z)' `
         -ExpectedFailure 'ADR-0009 review disposition'
 }
-$results += New-WpmManualStep -Name 'Reject a missing explicit non-goal section' -Action {
+$results += New-WpmManualStep -Name `
+    'Reject a missing explicit non-goal section' -Action {
     Invoke-NegativeFixture -ControlledText $controlledText `
         -Path 'docs/adr-0010-command-events-and-machine-readable-output.md' `
         -Pattern '## Explicit Non-Goals' -ExpectedFailure 'Explicit Non-Goals'
 }
-$results += New-WpmManualStep -Name 'Reject a missing requirement-to-ADR reference' -Action {
+$results += New-WpmManualStep -Name (
+    'Reject a missing requirement-to-ADR referenc' +
+    'e'
+) -Action {
     Invoke-NegativeFixture -ControlledText $controlledText `
         -Path 'docs/req-0014-command-output-and-help.md' `
         -Pattern 'ADR-0010' -ExpectedFailure 'governing ADR-0010 reference'
 }
-$results += New-WpmManualStep -Name 'Reject missing DFS cleanup-threat coverage' -Action {
+$results += New-WpmManualStep -Name `
+    'Reject missing DFS cleanup-threat coverage' -Action {
     Invoke-NegativeFixture -ControlledText $controlledText -Path 'docs/dfs.md' `
         -Pattern 'WPM-THR-020' -ExpectedFailure 'WPM-THR-020'
 }
-$results += New-WpmManualStep -Name 'Reject a missing documentation-manifest entry' -Action {
+$results += New-WpmManualStep -Name (
+    'Reject a missing documentation-manifest entr' +
+    'y'
+) -Action {
     Invoke-NegativeFixture -ControlledText $controlledText `
         -Path 'documentation/documentation-manifest.json' `
-        -Pattern '"docs/adr-0013-operation-plans-dry-run-and-recovery\.md",?\r?\n' `
+        -Pattern (
+        '"docs/adr-0013-operation-plans-dry-run-and-r' +
+        'ecovery\.md",?\r?\n'
+    ) `
         -ExpectedFailure 'adr-0013-operation-plans-dry-run-and-recovery'
 }
-$results += New-WpmManualStep -Name 'Reject a changed WSP baseline identity' -Action {
-    Invoke-NegativeFixture -ControlledText $controlledText -Path '' -Pattern '' `
+$results += New-WpmManualStep -Name 'Reject a changed WSP baseline identity' `
+    -Action {
+    Invoke-NegativeFixture -ControlledText $controlledText -Path '' -Pattern `
+        '' `
         -ExpectedFailure 'wsp gitlink' -WspCommit ('0' * 40)
 }
-$results += New-WpmManualStep -Name 'Return zero after expected negative validator children' -Action {
+$results += New-WpmManualStep -Name (
+    'Return zero after expected negative validato' +
+    'r children'
+) -Action {
     $powerShell = (Get-Process -Id $PID).Path
     $validator = Join-Path $PSScriptRoot 'verify-traceability-validator.ps1'
     $validatorOutput = & $powerShell -NoProfile -ExecutionPolicy Bypass `
         -File $validator -RepositoryRoot $repositoryRoot 2>&1 | Out-String
     $validatorExitCode = $LASTEXITCODE
     if ($validatorExitCode -ne 0) {
-        throw "The top-level validator returned $validatorExitCode. $($validatorOutput.Trim())"
+        throw (
+            "The top-level validator returned " +
+            "$validatorExitCode. " +
+            "$($validatorOutput.Trim())"
+        )
     }
-    'The top-level validator returned zero after all expected negative children and cleanup.'
+    (
+        'The top-level validator returned zero after ' +
+        'all expected negative children and cleanup.'
+    )
 }
 
 $finished = Get-Date
 if ($EvidenceTex) {
-    Write-WpmTestEvidence -TestCaseId 'TC-0023' -WpmExe $WpmExe -Started $started `
+    Write-WpmTestEvidence -TestCaseId 'TC-0023' -WpmExe $WpmExe -Started `
+        $started `
         -Finished $finished -Results $results -EvidenceTex $EvidenceTex
 }
 Complete-WpmTestRun -Results $results -NoFailOnFailure:$NoFailOnFailure

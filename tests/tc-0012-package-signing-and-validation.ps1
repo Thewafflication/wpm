@@ -28,7 +28,8 @@ $packageName = "signing-test-$testId"
 $untrustedPackageName = "untrusted-test-$testId"
 $unsignedPackageName = "unsigned-test-$testId"
 $archivePath = Join-Path $outputDir "$packageName-any-1.0.0.zip"
-$untrustedArchivePath = Join-Path $outputDir "$untrustedPackageName-any-1.0.0.zip"
+$untrustedArchivePath = Join-Path $outputDir `
+    "$untrustedPackageName-any-1.0.0.zip"
 $unsignedArchivePath = Join-Path $outputDir "$unsignedPackageName-any-1.0.0.zip"
 $previousDataDir = $env:WPM_DATA_DIR
 $started = Get-Date
@@ -44,7 +45,8 @@ $defaultKeyConfig = $null
 function New-TestPackage {
     param([string]$Path, [string]$Name, [string]$Marker)
 
-    New-Item -ItemType Directory -Force -Path (Join-Path $Path '.wpm') | Out-Null
+    New-Item -ItemType Directory -Force -Path (Join-Path $Path '.wpm') | `
+            Out-Null
     Set-Content -LiteralPath (Join-Path $Path '.wpm\package.txt') -Value @(
         "name=$Name"
         'version=1.0.0'
@@ -65,147 +67,348 @@ function New-ArchiveVariant {
     $variantPath = Join-Path $outputDir "$VariantName.zip"
     Expand-Archive -LiteralPath $Archive -DestinationPath $variantDir -Force
     & $Mutate $variantDir
-    Compress-Archive -Path (Join-Path $variantDir '*') -DestinationPath $variantPath -Force
+    Compress-Archive -Path (Join-Path $variantDir '*') -DestinationPath `
+        $variantPath -Force
     return $variantPath
 }
 
 try {
     $env:WPM_DATA_DIR = $dataDir
-    New-Item -ItemType Directory -Force -Path $outputDir, $keyDir, $sourceDir, $untrustedSourceDir, $unsignedSourceDir | Out-Null
+    New-Item -ItemType Directory -Force -Path $outputDir, $keyDir, `
+        $sourceDir, $untrustedSourceDir, $unsignedSourceDir | Out-Null
     New-TestPackage -Path $sourceDir -Name $packageName -Marker 'signed'
-    New-TestPackage -Path $untrustedSourceDir -Name $untrustedPackageName -Marker 'untrusted'
-    New-TestPackage -Path $unsignedSourceDir -Name $unsignedPackageName -Marker 'unsigned'
+    New-TestPackage -Path $untrustedSourceDir -Name $untrustedPackageName `
+        -Marker 'untrusted'
+    New-TestPackage -Path $unsignedSourceDir -Name $unsignedPackageName `
+        -Marker 'unsigned'
 
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Generate and designate default signing key' -Arguments @('keygen', $privateKey, $publicKey, '--default') -Assert {
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
+        'Generate and designate default signing key' -Arguments @('keygen', `
+            $privateKey, $publicKey, '--default') -Assert {
         param($ExitCode, $Output)
-        if ($ExitCode -ne 0) { throw "Expected key generation to succeed. $Output" }
-        if (-not (Test-Path -LiteralPath $privateKey) -or -not (Test-Path -LiteralPath $publicKey)) { throw 'keygen did not create both key files.' }
-        if ($Output -match 'secret-key=') { throw 'keygen displayed private-key material.' }
-        if (-not (Test-Path -LiteralPath (Join-Path $dataDir 'config\signing-key.txt'))) { throw 'keygen did not configure the default signing key.' }
+        if ($ExitCode -ne 0) {
+            throw `
+                "Expected key generation to succeed. $Output"
+        }
+        if (-not (Test-Path -LiteralPath $privateKey) -or -not (Test-Path `
+                    -LiteralPath $publicKey)) {
+            throw `
+                'keygen did not create both key files.'
+        }
+        if ($Output -match 'secret-key=') {
+            throw `
+                'keygen displayed private-key material.'
+        }
+        if (-not (Test-Path -LiteralPath (Join-Path $dataDir `
+                        'config\signing-key.txt'))) {
+            throw (
+                'keygen did not configure the default signing' +
+                ' key.'
+            )
+        }
         $acl = Get-Acl -LiteralPath $privateKey
-        if (-not $acl.AreAccessRulesProtected) { throw 'Private-key ACL still permits inherited access.' }
-        $currentSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+        if (-not $acl.AreAccessRulesProtected) {
+            throw (
+                'Private-key ACL still permits inherited acce' +
+                'ss.'
+            )
+        }
+        $currentSid = [Security.Principal.WindowsIdentity]::GetCurrent( `
+        ).User.Value
         $rules = @($acl.Access | Where-Object AccessControlType -eq 'Allow')
-        if ($rules.Count -ne 1 -or $rules[0].IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value -ne $currentSid) {
+        if ($rules.Count -ne 1 -or $rules[0].IdentityReference.Translate( `
+                    [Security.Principal.SecurityIdentifier]).Value -ne `
+                        $currentSid) {
             throw 'Private key is not restricted to the invoking user.'
         }
     }
 
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Build signed package with default key' -Arguments @('build', $sourceDir, $outputDir) -Assert {
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
+        'Build signed package with default key' -Arguments @('build', `
+            $sourceDir, $outputDir) -Assert {
         param($ExitCode, $Output)
-        if ($ExitCode -ne 0 -or -not (Test-Path -LiteralPath $archivePath)) { throw "Default-key build failed. $Output" }
+        if ($ExitCode -ne 0 -or -not (Test-Path -LiteralPath $archivePath)) {
+ `
+                throw "Default-key build failed. $Output"
+        }
     }
 
-    $results += New-WpmManualStep -Name 'Corrupt configured default signing-key identifier' -Action {
+    $results += New-WpmManualStep -Name (
+        'Corrupt configured default signing-key ident' +
+        'ifier'
+    ) -Action {
         $configPath = Join-Path $dataDir 'config\signing-key.txt'
         $script:defaultKeyConfig = Get-Content -Raw -LiteralPath $configPath
-        $corrupt = $defaultKeyConfig -replace '(?m)^key-id=.*$', ('key-id=' + ('0' * 64))
+        $corrupt = $defaultKeyConfig -replace '(?m)^key-id=.*$', ('key-id=' + `
+            ('0' * 64))
         Set-Content -LiteralPath $configPath -Value $corrupt -NoNewline
         'Configured key identifier replaced for negative testing.'
     }
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Reject mismatched configured default signing key' -Arguments @('build', $sourceDir, $outputDir) -Assert {
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name (
+        'Reject mismatched configured default signing' +
+        ' key'
+    ) -Arguments @('build', $sourceDir, $outputDir) -Assert {
         param($ExitCode, $Output)
-        if ($ExitCode -eq 0 -or $Output -notmatch '(?i)default signing key') { throw 'Mismatched default signing-key configuration was accepted.' }
+        if ($ExitCode -eq 0 -or $Output -notmatch '(?i)default signing key') `
+        {
+            throw (
+                'Mismatched default signing-key configuration' +
+                ' was accepted.'
+            )
+        }
     }
-    $results += New-WpmManualStep -Name 'Restore configured default signing key' -Action {
-        Set-Content -LiteralPath (Join-Path $dataDir 'config\signing-key.txt') -Value $defaultKeyConfig -NoNewline
+    $results += New-WpmManualStep -Name `
+        'Restore configured default signing key' -Action {
+        Set-Content -LiteralPath (Join-Path $dataDir `
+                'config\signing-key.txt') -Value $defaultKeyConfig -NoNewline
         'Default signing-key configuration restored.'
     }
 
-    $results += New-WpmManualStep -Name 'Inspect signed package format' -Action {
+    $results += New-WpmManualStep -Name 'Inspect signed package format' `
+        -Action {
         $inspectDir = Join-Path $testRoot 'inspect'
-        Expand-Archive -LiteralPath $archivePath -DestinationPath $inspectDir -Force
-        $signature = Get-Content -Raw -LiteralPath (Join-Path $inspectDir '.wpm\signature.json') | ConvertFrom-Json
-        if ($signature.version -ne 1 -or $signature.algorithm -ne 'ed25519' -or $signature.key_id -notmatch '^[0-9a-f]{64}$' -or -not $signature.signature) { throw 'Unexpected signature metadata.' }
-        $index = Get-Content -Raw -LiteralPath (Join-Path $inspectDir '.wpm\index.csv')
-        if ($index -match '(?m)^\.wpm/(index\.csv|signature\.json),') { throw 'Index includes a signature control file.' }
+        Expand-Archive -LiteralPath $archivePath -DestinationPath $inspectDir `
+            -Force
+        $signature = Get-Content -Raw -LiteralPath (Join-Path $inspectDir `
+                '.wpm\signature.json') | ConvertFrom-Json
+        if ($signature.version -ne 1 -or $signature.algorithm -ne 'ed25519' `
+                -or $signature.key_id -notmatch '^[0-9a-f]{64}$' -or -not `
+                $signature.signature) {
+            throw 'Unexpected signature metadata.'
+        }
+        $index = Get-Content -Raw -LiteralPath (Join-Path $inspectDir `
+                '.wpm\index.csv')
+        if ($index -match '(?m)^\.wpm/(index\.csv|signature\.json),') {
+            throw `
+                'Index includes a signature control file.'
+        }
         'Signed package has one valid signature metadata file.'
     }
 
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Reject package signed by unknown key' -Arguments @('install', $archivePath) -Assert {
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
+        'Reject package signed by unknown key' -Arguments @('install', `
+            $archivePath) -Assert {
         param($ExitCode, $Output)
-        if ($ExitCode -eq 0) { throw 'Unknown-key package was installed.' }
-        if (Test-Path -LiteralPath $deployment) { throw 'Unknown-key package ran its install script.' }
-    }
-
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Trust signing public key' -Arguments @('trust', 'add', $publicKey) -Assert {
-        param($ExitCode, $Output)
-        if ($ExitCode -ne 0) { throw "Could not add trusted key. $Output" }
-    }
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Accept already trusted signing key' -Arguments @('trust', 'add', $publicKey) -Assert {
-        param($ExitCode, $Output)
-        if ($ExitCode -ne 0 -or $Output -notmatch '(?i)already trusted') { throw "Adding an already trusted key was not idempotent. $Output" }
-    }
-
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Verify trusted package without installing it' -Arguments @('verify', $archivePath) -Assert {
-        param($ExitCode, $Output)
-        if ($ExitCode -ne 0 -or $Output -notmatch '(?i)verified package') { throw "Package verification failed. $Output" }
-        $archiveLabel = [regex]::Escape((Split-Path -Leaf $archivePath))
-        if ($Output -notmatch "Extraction progress: $archiveLabel`: 0% \(0/\d+ bytes\)" -or
-            $Output -notmatch "Extracted $archiveLabel`: \d+ bytes" -or
-            $Output -notmatch "Validation progress: $archiveLabel`: 0% \(0/\d+ bytes\)" -or
-            $Output -notmatch "Validated $archiveLabel`: \d+ bytes") {
-            throw "Read-only verification did not report extraction and validation byte progress. $Output"
+        if ($ExitCode -eq 0) {
+            throw 'Unknown-key package was installed.'
         }
-        if (Test-Path -LiteralPath $deployment) { throw 'Verification executed the package install script.' }
-        if (Get-ChildItem -LiteralPath (Join-Path $dataDir 'packages') -Force -ErrorAction SilentlyContinue) { throw 'Verification retained the package archive.' }
-        if (Get-ChildItem -LiteralPath (Join-Path $dataDir 'audit') -Filter '*.install.txt' -Force -ErrorAction SilentlyContinue) { throw 'Verification wrote an installation audit record.' }
-        if (Get-ChildItem -LiteralPath (Join-Path $dataDir 'temp') -Force -ErrorAction SilentlyContinue) { throw 'Verification did not clean its staging directory.' }
+        if (Test-Path -LiteralPath $deployment) {
+            throw `
+                'Unknown-key package ran its install script.'
+        }
     }
 
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Install package with trusted valid signature' -Arguments @('install', $archivePath) -Assert {
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
+        'Trust signing public key' -Arguments @('trust', 'add', $publicKey) `
+        -Assert {
         param($ExitCode, $Output)
-        if ($ExitCode -ne 0 -or (Get-Content -Raw -LiteralPath $deployment).Trim() -ne 'signed') { throw "Trusted package did not install. $Output" }
-        $audit = Get-ChildItem -LiteralPath (Join-Path $dataDir 'audit') -Filter '*.install.txt'
-        if ($audit.Count -ne 1) { throw 'Expected one installation audit record.' }
+        if ($ExitCode -ne 0) {
+            throw "Could not add trusted key. $Output"
+        }
+    }
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
+        'Accept already trusted signing key' -Arguments @('trust', 'add', `
+            $publicKey) -Assert {
+        param($ExitCode, $Output)
+        if ($ExitCode -ne 0 -or $Output -notmatch '(?i)already trusted') {
+ `
+                throw (
+                "Adding an already trusted key was not idempo" +
+                "tent. $Output"
+            )
+        }
+    }
+
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
+        'Verify trusted package without installing it' -Arguments @('verify', `
+            $archivePath) -Assert {
+        param($ExitCode, $Output)
+        if ($ExitCode -ne 0 -or $Output -notmatch '(?i)verified package') {
+ `
+                throw "Package verification failed. $Output"
+        }
+        $archiveLabel = [regex]::Escape((Split-Path -Leaf $archivePath))
+        if ($Output -notmatch (
+                "Extraction progress: $archiveLabel`: 0% \(0/" +
+                "\d+ bytes\)"
+            ) -or
+            $Output -notmatch "Extracted $archiveLabel`: \d+ bytes" -or
+            $Output -notmatch (
+                "Validation progress: $archiveLabel`: 0% \(0/" +
+                "\d+ bytes\)"
+            ) -or
+            $Output -notmatch "Validated $archiveLabel`: \d+ bytes") {
+            throw (
+                "Read-only verification did not report extrac" +
+                "tion and validation byte progress. $Output"
+            )
+        }
+        if (Test-Path -LiteralPath $deployment) {
+            throw (
+                'Verification executed the package install sc' +
+                'ript.'
+            )
+        }
+        if (Get-ChildItem -LiteralPath (Join-Path $dataDir 'packages') -Force `
+                -ErrorAction SilentlyContinue) {
+            throw `
+                'Verification retained the package archive.'
+        }
+        if (Get-ChildItem -LiteralPath (Join-Path $dataDir 'audit') -Filter `
+                '*.install.txt' -Force -ErrorAction SilentlyContinue) {
+            throw (
+                'Verification wrote an installation audit rec' +
+                'ord.'
+            )
+        }
+        if (Get-ChildItem -LiteralPath (Join-Path $dataDir 'temp') -Force `
+                -ErrorAction SilentlyContinue) {
+            throw (
+                'Verification did not clean its staging direc' +
+                'tory.'
+            )
+        }
+    }
+
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
+        'Install package with trusted valid signature' -Arguments @( `
+            'install', $archivePath) -Assert {
+        param($ExitCode, $Output)
+        if ($ExitCode -ne 0 -or (Get-Content -Raw -LiteralPath `
+                    $deployment).Trim() -ne 'signed') {
+            throw `
+                "Trusted package did not install. $Output"
+        }
+        $audit = Get-ChildItem -LiteralPath (Join-Path $dataDir 'audit') `
+            -Filter '*.install.txt'
+        if ($audit.Count -ne 1) {
+            throw `
+                'Expected one installation audit record.'
+        }
         $auditText = Get-Content -Raw -LiteralPath $audit[0].FullName
-        if ($auditText -notmatch "(?m)^name=$([regex]::Escape($packageName))$" -or
+        if ($auditText -notmatch `
+                "(?m)^name=$([regex]::Escape($packageName))$" -or
             $auditText -notmatch '(?m)^version=1\.0\.0$' -or
             $auditText -notmatch '(?m)^signing-key=[0-9a-f]{64}$' -or
-            $auditText -notmatch '(?m)^verification=verified$') { throw 'Installation audit record is incomplete.' }
+            $auditText -notmatch '(?m)^verification=verified$') {
+            throw `
+                'Installation audit record is incomplete.'
+        }
     }
 
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Generate untrusted signing key' -Arguments @('keygen', $untrustedPrivateKey, $untrustedPublicKey) -Assert {
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
+        'Generate untrusted signing key' -Arguments @('keygen', `
+            $untrustedPrivateKey, $untrustedPublicKey) -Assert {
         param($ExitCode, $Output)
-        if ($ExitCode -ne 0) { throw "Could not generate untrusted key. $Output" }
+        if ($ExitCode -ne 0) {
+            throw `
+                "Could not generate untrusted key. $Output"
+        }
         $match = [regex]::Match($Output, '\b[0-9a-f]{64}\b')
-        if (-not $match.Success) { throw 'keygen did not report the generated key identifier.' }
+        if (-not $match.Success) {
+            throw (
+                'keygen did not report the generated key iden' +
+                'tifier.'
+            )
+        }
         $script:untrustedKeyId = $match.Value
     }
 
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Build package with untrusted signing key' -Arguments @('build', $untrustedSourceDir, $outputDir, '--sign', $untrustedPrivateKey) -Assert {
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
+        'Build package with untrusted signing key' -Arguments @('build', `
+            $untrustedSourceDir, $outputDir, '--sign', $untrustedPrivateKey) `
+        -Assert {
         param($ExitCode, $Output)
-        if ($ExitCode -ne 0 -or -not (Test-Path -LiteralPath $untrustedArchivePath)) { throw "Could not build untrusted-key package. $Output" }
+        if ($ExitCode -ne 0 -or -not (Test-Path -LiteralPath `
+                    $untrustedArchivePath)) {
+            throw (
+                "Could not build untrusted-key package. " +
+                "$Output"
+            )
+        }
     }
 
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Reject package signed by a second unknown key' -Arguments @('install', $untrustedArchivePath) -Assert {
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name (
+        'Reject package signed by a second unknown ke' +
+        'y'
+    ) -Arguments @('install', $untrustedArchivePath) -Assert {
         param($ExitCode, $Output)
-        if ($ExitCode -eq 0) { throw 'Untrusted-key package was installed.' }
+        if ($ExitCode -eq 0) {
+            throw 'Untrusted-key package was installed.'
+        }
     }
 
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Trust and revoke second signing key' -Arguments @('trust', 'add', $untrustedPublicKey) -Assert {
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
+        'Trust and revoke second signing key' -Arguments @('trust', 'add', `
+            $untrustedPublicKey) -Assert {
         param($ExitCode, $Output)
-        if ($ExitCode -ne 0) { throw "Could not trust the second key. $Output" }
+        if ($ExitCode -ne 0) {
+            throw "Could not trust the second key. $Output"
+        }
     }
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Revoke trusted signing key' -Arguments @('trust', 'revoke', $untrustedKeyId) -Assert {
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
+        'Revoke trusted signing key' -Arguments @('trust', 'revoke', `
+            $untrustedKeyId) -Assert {
         param($ExitCode, $Output)
-        if ($ExitCode -ne 0) { throw "Could not revoke the second key. $Output" }
+        if ($ExitCode -ne 0) {
+            throw `
+                "Could not revoke the second key. $Output"
+        }
     }
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Reject re-adding revoked signing key' -Arguments @('trust', 'add', $untrustedPublicKey) -Assert {
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
+        'Reject re-adding revoked signing key' -Arguments @('trust', 'add', `
+            $untrustedPublicKey) -Assert {
         param($ExitCode, $Output)
-        if ($ExitCode -eq 0 -or $Output -notmatch '(?i)revoked') { throw "Revoked key was reactivated or reported unclearly. $Output" }
+        if ($ExitCode -eq 0 -or $Output -notmatch '(?i)revoked') {
+            throw (
+                "Revoked key was reactivated or reported uncl" +
+                "early. $Output"
+            )
+        }
     }
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Reject package signed by revoked key' -Arguments @('install', $untrustedArchivePath) -Assert {
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
+        'Reject package signed by revoked key' -Arguments @('install', `
+            $untrustedArchivePath) -Assert {
         param($ExitCode, $Output)
-        if ($ExitCode -eq 0) { throw 'Revoked-key package was installed.' }
+        if ($ExitCode -eq 0) {
+            throw 'Revoked-key package was installed.'
+        }
     }
 
-    $results += New-WpmManualStep -Name 'Create malformed, invalid, and unindexed signed package variants' -Action {
-        $malformed = New-ArchiveVariant -Archive $archivePath -VariantName 'malformed-signature' -Mutate { param($dir) Set-Content -LiteralPath (Join-Path $dir '.wpm\signature.json') -Value '{not json}' }
-        $invalid = New-ArchiveVariant -Archive $archivePath -VariantName 'invalid-signature' -Mutate { param($dir) (Get-Content -Raw -LiteralPath (Join-Path $dir '.wpm\signature.json')).Replace('"signature":', '"signature":"AAAA", "original_signature":') | Set-Content -LiteralPath (Join-Path $dir '.wpm\signature.json') }
-        $unindexed = New-ArchiveVariant -Archive $archivePath -VariantName 'unindexed-entry' -Mutate { param($dir) Set-Content -LiteralPath (Join-Path $dir 'unexpected.txt') -Value 'unindexed' }
-        $unsupportedVersion = New-ArchiveVariant -Archive $archivePath -VariantName 'unsupported-version' -Mutate { param($dir) (Get-Content -Raw -LiteralPath (Join-Path $dir '.wpm\signature.json')).Replace('"version": 1', '"version": 2') | Set-Content -LiteralPath (Join-Path $dir '.wpm\signature.json') }
-        $unsupportedAlgorithm = New-ArchiveVariant -Archive $archivePath -VariantName 'unsupported-algorithm' -Mutate { param($dir) (Get-Content -Raw -LiteralPath (Join-Path $dir '.wpm\signature.json')).Replace('"algorithm": "ed25519"', '"algorithm": "rsa"') | Set-Content -LiteralPath (Join-Path $dir '.wpm\signature.json') }
+    $results += New-WpmManualStep -Name (
+        'Create malformed, invalid, and unindexed sig' +
+        'ned package variants'
+    ) -Action {
+        $malformed = New-ArchiveVariant -Archive $archivePath -VariantName `
+            'malformed-signature' -Mutate { param($dir) Set-Content `
+                -LiteralPath (Join-Path $dir '.wpm\signature.json') -Value `
+                '{not json}' }
+        $invalid = New-ArchiveVariant -Archive $archivePath -VariantName `
+            'invalid-signature' -Mutate { param($dir) (Get-Content -Raw `
+                    -LiteralPath (Join-Path $dir `
+                        '.wpm\signature.json')).Replace( `
+                    '"signature":', `
+                        '"signature":"AAAA", "original_signature":') | `
+                    Set-Content -LiteralPath (Join-Path $dir `
+                        '.wpm\signature.json') }
+        $unindexed = New-ArchiveVariant -Archive $archivePath -VariantName `
+            'unindexed-entry' -Mutate { param($dir) Set-Content -LiteralPath `
+            (Join-Path $dir 'unexpected.txt') -Value 'unindexed' }
+        $unsupportedVersion = New-ArchiveVariant -Archive $archivePath `
+            -VariantName 'unsupported-version' -Mutate { param($dir) ( `
+                    Get-Content -Raw -LiteralPath (Join-Path $dir `
+                        '.wpm\signature.json')).Replace('"version": 1', `
+                            '"version": 2') | `
+                    Set-Content -LiteralPath (Join-Path $dir `
+                        '.wpm\signature.json') }
+        $unsupportedAlgorithm = New-ArchiveVariant -Archive $archivePath `
+            -VariantName 'unsupported-algorithm' -Mutate { param($dir) ( `
+                    Get-Content -Raw -LiteralPath (Join-Path $dir `
+                        '.wpm\signature.json')).Replace( `
+                            '"algorithm": "ed25519"', `
+                    '"algorithm": "rsa"') | Set-Content -LiteralPath ( `
+                        Join-Path $dir `
+                    '.wpm\signature.json') }
         $script:malformedArchive = $malformed
         $script:invalidArchive = $invalid
         $script:unindexedArchive = $unindexed
@@ -214,55 +417,132 @@ try {
     }
 
     foreach ($variant in @(
-        @{ Name = 'malformed signature metadata'; Archive = $malformedArchive },
-        @{ Name = 'invalid signature'; Archive = $invalidArchive },
-        @{ Name = 'unindexed archive entry'; Archive = $unindexedArchive },
-        @{ Name = 'unsupported signature schema version'; Archive = $unsupportedVersionArchive },
-        @{ Name = 'unsupported signature algorithm'; Archive = $unsupportedAlgorithmArchive }
-    )) {
-        $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name "Reject $($variant.Name)" -Arguments @('install', $variant.Archive) -Assert {
+            @{ Name = 'malformed signature metadata'; Archive = `
+                $malformedArchive },
+            @{ Name = 'invalid signature'; Archive = $invalidArchive },
+            @{ Name = 'unindexed archive entry'; Archive = $unindexedArchive },
+            @{ Name = 'unsupported signature schema version'; Archive = `
+                    $unsupportedVersionArchive
+            },
+            @{ Name = 'unsupported signature algorithm'; Archive = `
+                    $unsupportedAlgorithmArchive
+            }
+        )) {
+        $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
+            "Reject $($variant.Name)" -Arguments @('install', `
+                $variant.Archive) -Assert {
             param($ExitCode, $Output)
-            if ($ExitCode -eq 0) { throw "Package with $($variant.Name) was installed." }
+            if ($ExitCode -eq 0) {
+                throw `
+                    "Package with $($variant.Name) was installed."
+            }
         }
     }
 
-    $results += New-WpmManualStep -Name 'Clear deployment marker before failed read-only verification' -Action {
-        Remove-Item -LiteralPath $deployment -Force -ErrorAction SilentlyContinue
+    $results += New-WpmManualStep -Name (
+        'Clear deployment marker before failed read-o' +
+        'nly verification'
+    ) -Action {
+        Remove-Item -LiteralPath $deployment -Force -ErrorAction `
+            SilentlyContinue
         'Deployment marker cleared.'
     }
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Reject invalid signature during read-only verification' -Arguments @('verify', $invalidArchive) -Assert {
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name (
+        'Reject invalid signature during read-only ve' +
+        'rification'
+    ) -Arguments @('verify', $invalidArchive) -Assert {
         param($ExitCode, $Output)
-        if ($ExitCode -eq 0) { throw 'Read-only verification accepted an invalid signature.' }
-        if (Test-Path -LiteralPath $deployment) { throw 'Failed verification executed the package install script.' }
-        if (Get-ChildItem -LiteralPath (Join-Path $dataDir 'temp') -Force -ErrorAction SilentlyContinue) { throw 'Failed verification did not clean its staging directory.' }
+        if ($ExitCode -eq 0) {
+            throw (
+                'Read-only verification accepted an invalid s' +
+                'ignature.'
+            )
+        }
+        if (Test-Path -LiteralPath $deployment) {
+            throw (
+                'Failed verification executed the package ins' +
+                'tall script.'
+            )
+        }
+        if (Get-ChildItem -LiteralPath (Join-Path $dataDir 'temp') -Force `
+                -ErrorAction SilentlyContinue) {
+            throw (
+                'Failed verification did not clean its stagin' +
+                'g directory.'
+            )
+        }
     }
 
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Clear default signing key' -Arguments @('key', 'default', '--clear') -Assert {
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
+        'Clear default signing key' -Arguments @('key', 'default', '--clear') `
+        -Assert {
         param($ExitCode, $Output)
-        if ($ExitCode -ne 0) { throw "Could not clear default signing key. $Output" }
+        if ($ExitCode -ne 0) {
+            throw `
+                "Could not clear default signing key. $Output"
+        }
     }
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Build unsigned package' -Arguments @('build', $unsignedSourceDir, $outputDir) -Assert {
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
+        'Build unsigned package' -Arguments @('build', $unsignedSourceDir, `
+            $outputDir) -Assert {
         param($ExitCode, $Output)
-        if ($ExitCode -ne 0 -or -not (Test-Path -LiteralPath $unsignedArchivePath)) { throw "Unsigned build failed. $Output" }
+        if ($ExitCode -ne 0 -or -not (Test-Path -LiteralPath `
+                    $unsignedArchivePath)) {
+            throw "Unsigned build failed. $Output"
+        }
     }
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Reject unsigned package by default' -Arguments @('install', $unsignedArchivePath) -Assert {
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
+        'Reject unsigned package by default' -Arguments @('install', `
+            $unsignedArchivePath) -Assert {
         param($ExitCode, $Output)
-        if ($ExitCode -eq 0) { throw 'Unsigned package was installed without an override.' }
+        if ($ExitCode -eq 0) {
+            throw (
+                'Unsigned package was installed without an ov' +
+                'erride.'
+            )
+        }
     }
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Reject unsigned package during read-only verification' -Arguments @('verify', $unsignedArchivePath) -Assert {
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name (
+        'Reject unsigned package during read-only ver' +
+        'ification'
+    ) -Arguments @('verify', $unsignedArchivePath) -Assert {
         param($ExitCode, $Output)
-        if ($ExitCode -eq 0) { throw 'Read-only verification accepted an unsigned package.' }
+        if ($ExitCode -eq 0) {
+            throw (
+                'Read-only verification accepted an unsigned ' +
+                'package.'
+            )
+        }
     }
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Allow explicitly overridden unsigned package' -Arguments @('install', $unsignedArchivePath, '--allow-unsigned') -Assert {
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
+        'Allow explicitly overridden unsigned package' -Arguments @( `
+            'install', $unsignedArchivePath, '--allow-unsigned') -Assert {
         param($ExitCode, $Output)
-        if ($ExitCode -ne 0 -or $Output -notmatch '(?i)warning') { throw "Unsigned override did not succeed with a warning. $Output" }
+        if ($ExitCode -ne 0 -or $Output -notmatch '(?i)warning') {
+            throw (
+                "Unsigned override did not succeed with a war" +
+                "ning. $Output"
+            )
+        }
     }
-}
-finally {
+} finally {
     $finished = Get-Date
-    if ($EvidenceTex) { Write-WpmTestEvidence -TestCaseId 'TC-0012' -WpmExe $WpmExe -Started $started -Finished $finished -Results $results -EvidenceTex $EvidenceTex }
-    if (Test-Path -LiteralPath $testRoot) { Remove-Item -LiteralPath $testRoot -Recurse -Force }
-    if ($null -eq $previousDataDir) { Remove-Item Env:WPM_DATA_DIR -ErrorAction SilentlyContinue } else { $env:WPM_DATA_DIR = $previousDataDir }
+    if ($EvidenceTex) {
+        Write-WpmTestEvidence -TestCaseId 'TC-0012' -WpmExe `
+            $WpmExe -Started $started -Finished $finished -Results $results `
+            -EvidenceTex $EvidenceTex
+    }
+    if (Test-Path -LiteralPath $testRoot) {
+        Remove-Item -LiteralPath `
+            $testRoot -Recurse -Force
+    }
+    if ($null -eq $previousDataDir) {
+        Remove-Item Env:WPM_DATA_DIR `
+            -ErrorAction SilentlyContinue
+    } else {
+        $env:WPM_DATA_DIR = `
+            $previousDataDir
+    }
 }
 
 Complete-WpmTestRun -Results $results -NoFailOnFailure:$NoFailOnFailure

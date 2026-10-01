@@ -95,6 +95,9 @@ WPM uses third-party open-source software. See
 
 ## Building
 
+See [commit checks](docs/commit-checks.md) to install the WSP 1.4.0
+pre-commit lint, build, and full-test hooks and run them manually.
+
 All supported Windows builds use TinyCC and link their C library calls to WCRT.
 The standard x86, x64, and ARM64 presets find the newest package beneath
 `%ProgramFiles%\WCRT`, or use

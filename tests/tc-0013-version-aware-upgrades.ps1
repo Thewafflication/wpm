@@ -16,7 +16,8 @@ function Get-RepositoryCachePath {
     [uint32]$hash = 2166136261
     foreach ($byte in [Text.Encoding]::UTF8.GetBytes($Url)) {
         $hash = $hash -bxor $byte
-        $hash = [uint32](([uint64]$hash * [uint64]16777619) % [uint64]4294967296)
+        $hash = [uint32](([uint64]$hash * [uint64]16777619) % `
+                [uint64]4294967296)
     }
     Join-Path $DataDir ("cache\repositories\{0:x8}.json" -f $hash)
 }
@@ -28,7 +29,9 @@ function Remove-TestRoot {
         try {
             Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction Stop
         } catch {
-            if ([DateTime]::UtcNow -ge $deadline) { throw }
+            if ([DateTime]::UtcNow -ge $deadline) {
+                throw
+            }
             Start-Sleep -Milliseconds 100
         }
     }
@@ -42,10 +45,18 @@ function Get-WpmArchitecture {
         $stream.Position = 0x3c
         $stream.Position = $reader.ReadInt32() + 4
         switch ($reader.ReadUInt16()) {
-            0x014c { 'x86' }
-            0x8664 { 'x64' }
-            0xaa64 { 'arm64' }
-            default { throw 'Unsupported WPM executable architecture.' }
+            0x014c {
+                'x86'
+            }
+            0x8664 {
+                'x64'
+            }
+            0xaa64 {
+                'arm64'
+            }
+            default {
+                throw 'Unsupported WPM executable architecture.'
+            }
         }
     } finally {
         $reader.Dispose()
@@ -92,7 +103,8 @@ function New-PackageArchive {
     )
     $safe = "$Name-$Arch-$($Version.Replace('+','_'))"
     $source = Join-Path $sourceRoot $safe
-    New-Item -ItemType Directory -Force -Path (Join-Path $source '.wpm') | Out-Null
+    New-Item -ItemType Directory -Force -Path (Join-Path $source '.wpm') | `
+            Out-Null
     Set-Content -LiteralPath (Join-Path $source '.wpm\package.txt') -Value @(
         "name=$Name", "version=$Version", "arch=$Arch", 'debug=false'
     )
@@ -104,27 +116,46 @@ function New-PackageArchive {
         "exit /b $ExitCode"
     )
     if ($IncludeWpmExe) {
-        Copy-Item -LiteralPath $WpmExe -Destination (Join-Path $source 'wpm.exe')
+        Copy-Item -LiteralPath $WpmExe -Destination (Join-Path $source `
+                'wpm.exe')
     }
     $build = & $WpmExe build $source $outputDir 2>&1
-    if ($LASTEXITCODE -ne 0) { throw "Could not build $Name $Arch $Version. $($build -join "`n")" }
+    if ($LASTEXITCODE -ne 0) {
+        throw (
+            "Could not build $Name $Arch $Version. " +
+            "$($build -join "`n")"
+        )
+    }
     $archive = Join-Path $outputDir "$Name-$Arch-$Version.zip"
-    if (-not (Test-Path -LiteralPath $archive)) { throw "Expected archive was not created: $archive" }
+    if (-not (Test-Path -LiteralPath $archive)) {
+        throw `
+            "Expected archive was not created: $archive"
+    }
     if ($RepositoryEntry) {
         $cacheName = "$Name-$Arch-$Version.zip"
         $cacheDir = Join-Path $dataDir 'cache\packages'
         New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null
-        Copy-Item -LiteralPath $archive -Destination (Join-Path $cacheDir $cacheName) -Force
-        $entries.Add([ordered]@{ name=$Name; version=$Version; arch=$Arch; url="packages/$cacheName" })
+        Copy-Item -LiteralPath $archive -Destination (Join-Path $cacheDir `
+                $cacheName) -Force
+        $entries.Add([ordered]@{ name = $Name; version = $Version; arch = `
+            $Arch; `
+                    url = "packages/$cacheName"
+            })
     }
     $archive
 }
 
 function Install-Baseline {
     param([string]$Name, [string]$Version, [string]$Arch)
-    $archive = New-PackageArchive -Name $Name -Version $Version -Arch $Arch -Marker "baseline-$Version"
+    $archive = New-PackageArchive -Name $Name -Version $Version -Arch $Arch `
+        -Marker "baseline-$Version"
     $output = & $WpmExe install $archive --allow-unsigned 2>&1
-    if ($LASTEXITCODE -ne 0) { throw "Could not install baseline $Name $Arch $Version. $($output -join "`n")" }
+    if ($LASTEXITCODE -ne 0) {
+        throw (
+            "Could not install baseline $Name $Arch " +
+            "$Version. $($output -join "`n")"
+        )
+    }
 }
 
 function Invoke-WpmWithStandardInput {
@@ -142,12 +173,20 @@ function Invoke-WpmWithStandardInput {
     $start.RedirectStandardInput = $true
     $start.RedirectStandardOutput = $true
     $start.RedirectStandardError = $true
-    foreach ($argument in $Arguments) { $null = $start.ArgumentList.Add($argument) }
+    foreach ($argument in $Arguments) {
+        $null = $start.ArgumentList.Add( `
+                $argument)
+    }
     $start.Environment['WPM_DATA_DIR'] = $dataDir
     $process = [Diagnostics.Process]::new()
     $process.StartInfo = $start
     try {
-        if (-not $process.Start()) { throw 'Could not start WPM with redirected standard input.' }
+        if (-not $process.Start()) {
+            throw (
+                'Could not start WPM with redirected standard' +
+                ' input.'
+            )
+        }
         $stdout = $process.StandardOutput.ReadToEndAsync()
         $stderr = $process.StandardError.ReadToEndAsync()
         $process.StandardInput.Write($InputText)
@@ -155,7 +194,8 @@ function Invoke-WpmWithStandardInput {
         $process.WaitForExit()
         [pscustomobject]@{
             ExitCode = $process.ExitCode
-            Output = (($stdout.GetAwaiter().GetResult(), $stderr.GetAwaiter().GetResult()) -join "`n").Trim()
+            Output = (($stdout.GetAwaiter().GetResult(), $stderr.GetAwaiter( `
+                    ).GetResult()) -join "`n").Trim()
         }
     } finally {
         $process.Dispose()
@@ -164,9 +204,13 @@ function Invoke-WpmWithStandardInput {
 
 try {
     $env:WPM_DATA_DIR = $dataDir
-    New-Item -ItemType Directory -Force -Path $sourceRoot, $outputDir, $markerDir | Out-Null
+    New-Item -ItemType Directory -Force -Path $sourceRoot, $outputDir, `
+        $markerDir | Out-Null
 
-    $results += New-WpmManualStep -Name 'Create installed baselines and repository candidates' -Action {
+    $results += New-WpmManualStep -Name (
+        'Create installed baselines and repository ca' +
+        'ndidates'
+    ) -Action {
         Install-Baseline $packages.Architecture '1.0.0' 'x86'
         Install-Baseline $packages.Architecture '1.0.0' 'x64'
         Install-Baseline $packages.Prerelease '1.0.0' 'any'
@@ -178,286 +222,708 @@ try {
         Install-Baseline $packages.Confirm '1.0.0' 'arm64'
         Install-Baseline $packages.Legacy 'ef32a57' 'any'
 
-        New-PackageArchive $packages.Architecture '2.0.0' 'x86' 'x86-2.0.0' -RepositoryEntry | Out-Null
-        New-PackageArchive $packages.Architecture '2.0.0' 'x64' 'x64-2.0.0' -RepositoryEntry | Out-Null
-        New-PackageArchive $packages.Architecture '3.0.0' 'any' 'wrong-any' -RepositoryEntry | Out-Null
-        New-PackageArchive $packages.Prerelease '1.1.0' 'any' 'stable-1.1.0' -RepositoryEntry | Out-Null
-        New-PackageArchive $packages.Prerelease '1.2.0-beta.2' 'any' 'beta-2' -RepositoryEntry | Out-Null
-        New-PackageArchive $packages.Prerelease '1.2.0-beta.10' 'any' 'beta-10' -RepositoryEntry | Out-Null
-        New-PackageArchive $packages.PrereleaseOnly '1.0.0-rc.1' 'any' 'prerelease-only' -RepositoryEntry | Out-Null
-        New-PackageArchive $packages.Selector '1.1.0' 'x86' 'selected-x86' -RepositoryEntry | Out-Null
-        New-PackageArchive $packages.Selector '1.2.0' 'x86' 'unselected-x86' -RepositoryEntry | Out-Null
-        New-PackageArchive $packages.Selector '1.2.0' 'x64' 'x64-untouched' -RepositoryEntry | Out-Null
-        New-PackageArchive $packages.Conflict '2.0.0' 'any' 'conflict-any' -RepositoryEntry | Out-Null
-        New-PackageArchive $packages.Failure '2.0.0' 'any' 'failed-2.0.0' -ExitCode 23 -RepositoryEntry | Out-Null
-        New-PackageArchive $packages.Continue '2.0.0' 'any' 'continued-2.0.0' -RepositoryEntry | Out-Null
-        New-PackageArchive $packages.Named '1.0.0' 'x86' 'named-x86-1.0.0' -RepositoryEntry | Out-Null
-        New-PackageArchive $packages.Named '2.0.0' 'x86' 'named-x86-2.0.0' -RepositoryEntry | Out-Null
-        New-PackageArchive $packages.Named '2.0.0' 'any' 'named-any-2.0.0' -RepositoryEntry | Out-Null
-        New-PackageArchive $packages.Self '2.0.0' $wpmArchitecture 'self-2.0.0' -IncludeWpmExe -RepositoryEntry | Out-Null
-        New-PackageArchive $packages.Confirm '2.0.0' 'arm64' 'confirmed-2.0.0' -RepositoryEntry | Out-Null
-        $entries.Add([ordered]@{ name=$packages.Prerelease; version='not-semver'; arch='any'; url='packages/invalid.zip' })
+        New-PackageArchive $packages.Architecture '2.0.0' 'x86' 'x86-2.0.0' `
+            -RepositoryEntry | Out-Null
+        New-PackageArchive $packages.Architecture '2.0.0' 'x64' 'x64-2.0.0' `
+            -RepositoryEntry | Out-Null
+        New-PackageArchive $packages.Architecture '3.0.0' 'any' 'wrong-any' `
+            -RepositoryEntry | Out-Null
+        New-PackageArchive $packages.Prerelease '1.1.0' 'any' 'stable-1.1.0' `
+            -RepositoryEntry | Out-Null
+        New-PackageArchive $packages.Prerelease '1.2.0-beta.2' 'any' 'beta-2' `
+            -RepositoryEntry | Out-Null
+        New-PackageArchive $packages.Prerelease '1.2.0-beta.10' 'any' `
+            'beta-10' -RepositoryEntry | Out-Null
+        New-PackageArchive $packages.PrereleaseOnly '1.0.0-rc.1' 'any' `
+            'prerelease-only' -RepositoryEntry | Out-Null
+        New-PackageArchive $packages.Selector '1.1.0' 'x86' 'selected-x86' `
+            -RepositoryEntry | Out-Null
+        New-PackageArchive $packages.Selector '1.2.0' 'x86' 'unselected-x86' `
+            -RepositoryEntry | Out-Null
+        New-PackageArchive $packages.Selector '1.2.0' 'x64' 'x64-untouched' `
+            -RepositoryEntry | Out-Null
+        New-PackageArchive $packages.Conflict '2.0.0' 'any' 'conflict-any' `
+            -RepositoryEntry | Out-Null
+        New-PackageArchive $packages.Failure '2.0.0' 'any' 'failed-2.0.0' `
+            -ExitCode 23 -RepositoryEntry | Out-Null
+        New-PackageArchive $packages.Continue '2.0.0' 'any' 'continued-2.0.0' `
+            -RepositoryEntry | Out-Null
+        New-PackageArchive $packages.Named '1.0.0' 'x86' 'named-x86-1.0.0' `
+            -RepositoryEntry | Out-Null
+        New-PackageArchive $packages.Named '2.0.0' 'x86' 'named-x86-2.0.0' `
+            -RepositoryEntry | Out-Null
+        New-PackageArchive $packages.Named '2.0.0' 'any' 'named-any-2.0.0' `
+            -RepositoryEntry | Out-Null
+        New-PackageArchive $packages.Self '2.0.0' $wpmArchitecture `
+            'self-2.0.0' -IncludeWpmExe -RepositoryEntry | Out-Null
+        New-PackageArchive $packages.Confirm '2.0.0' 'arm64' `
+            'confirmed-2.0.0' -RepositoryEntry | Out-Null
+        $entries.Add([ordered]@{ name = $packages.Prerelease; `
+                    version = 'not-semver'; arch = 'any'; url = `
+                        'packages/invalid.zip'
+            })
         'Baseline and candidate archives created.'
     }
 
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Configure controlled upgrade repository' -Arguments @('repo','add',$repository,'--priority','100') -Assert {
-        param($ExitCode,$Output)
-        if ($ExitCode -ne 0) { throw "Repository configuration failed. $Output" }
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
+        'Configure controlled upgrade repository' -Arguments @('repo', 'add', `
+            $repository, '--priority', '100') -Assert {
+        param($ExitCode, $Output)
+        if ($ExitCode -ne 0) {
+            throw `
+                "Repository configuration failed. $Output"
+        }
     }
-    $results += New-WpmManualStep -Name 'Seed controlled offline repository index' -Action {
+    $results += New-WpmManualStep -Name `
+        'Seed controlled offline repository index' -Action {
         $path = Get-RepositoryCachePath $dataDir $repository
-        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $path) | Out-Null
-        @{ version=1; packages=@($entries) } | ConvertTo-Json -Depth 5 -Compress | Set-Content -LiteralPath $path -NoNewline
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $path) `
+        | Out-Null
+        @{ version = 1; packages = @($entries) } | ConvertTo-Json -Depth 5 `
+            -Compress | Set-Content -LiteralPath $path -NoNewline
         "Seeded $($entries.Count) repository entries."
     }
 
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Update repositories and report available package upgrades without extracting installed payloads' -Arguments @('update','--offline','--verbose') -Assert {
-        param($ExitCode,$Output)
-        if ($ExitCode -ne 0 -or $Output -notmatch '(?i)planned upgrades|can be upgraded' -or $Output -notmatch [regex]::Escape($packages.Confirm)) { throw "Update availability report was incomplete. $Output" }
-        if ($Output -notmatch "(?i)non-SemVer version 'ef32a57'" -or $Output -notmatch [regex]::Escape((Join-Path $dataDir "packages\$($packages.Legacy)-any-ef32a57.zip"))) { throw 'Legacy installed-record diagnostic was not actionable.' }
-        if ($Output -match '(?i)Extracting archive:|Creating directory:.*inspect-') { throw 'Update extracted an installed package payload while reading metadata.' }
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name (
+        'Update repositories and report available pac' +
+        'kage upgrades without extracting installed p' +
+        'ayloads'
+    ) -Arguments @('update', '--offline', '--verbose') -Assert {
+        param($ExitCode, $Output)
+        if ($ExitCode -ne 0 -or $Output -notmatch `
+                '(?i)planned upgrades|can be upgraded' -or $Output -notmatch `
+                [regex]::Escape($packages.Confirm)) {
+            throw (
+                "Update availability report was incomplete. " +
+                "$Output"
+            )
+        }
+        if ($Output -notmatch "(?i)non-SemVer version 'ef32a57'" -or $Output `
+                -notmatch [regex]::Escape((Join-Path $dataDir `
+                        "packages\$($packages.Legacy)-any-ef32a57.zip"))) {
+            throw (
+                'Legacy installed-record diagnostic was not a' +
+                'ctionable.'
+            )
+        }
+        if ($Output -match (
+                '(?i)Extracting archive:|Creating directory:.' +
+                '*inspect-'
+            )) {
+            throw (
+                'Update extracted an installed package payloa' +
+                'd while reading metadata.'
+            )
+        }
     }
-    $results += New-WpmManualStep -Name 'Decline prompted upgrade-all plan' -Action {
-        $result = Invoke-WpmWithStandardInput -InputText "n`r`n" -Arguments @('upgrade','--all','--arch','arm64','--offline','--allow-unsigned')
-        if ($result.ExitCode -ne 0 -or $result.Output -notmatch '(?i)planned upgrades|proceed' -or $result.Output -notmatch '(?i)cancelled') { throw "Prompted cancellation failed. $($result.Output)" }
-        if ((Get-Content -Raw -LiteralPath (Join-Path $markerDir "$($packages.Confirm)-arm64.txt")) -match 'confirmed-2\.0\.0') { throw 'Declined upgrade executed its install script.' }
+    $results += New-WpmManualStep -Name 'Decline prompted upgrade-all plan' `
+        -Action {
+        $result = Invoke-WpmWithStandardInput -InputText "n`r`n" -Arguments `
+        @('upgrade', '--all', '--arch', 'arm64', '--offline', `
+            '--allow-unsigned')
+        if ($result.ExitCode -ne 0 -or $result.Output -notmatch `
+                '(?i)planned upgrades|proceed' -or $result.Output -notmatch `
+                '(?i)cancelled') {
+            throw (
+                "Prompted cancellation failed. " +
+                "$($result.Output)"
+            )
+        }
+        if ((Get-Content -Raw -LiteralPath (Join-Path $markerDir `
+                        "$($packages.Confirm)-arm64.txt")) -match `
+                            'confirmed-2\.0\.0') {
+ `
+                throw (
+                'Declined upgrade executed its install script' +
+                '.'
+            )
+        }
         'Upgrade plan was declined without changes.'
     }
-    $results += New-WpmManualStep -Name 'Accept prompted upgrade-all plan with y on standard input' -Action {
-        $result = Invoke-WpmWithStandardInput -InputText "y`r`n" -Arguments @('upgrade','--all','--arch','arm64','--offline','--allow-unsigned')
+    $results += New-WpmManualStep -Name (
+        'Accept prompted upgrade-all plan with y on s' +
+        'tandard input'
+    ) -Action {
+        $result = Invoke-WpmWithStandardInput -InputText "y`r`n" -Arguments `
+        @('upgrade', '--all', '--arch', 'arm64', '--offline', `
+            '--allow-unsigned')
         $text = $result.Output
-        if ($result.ExitCode -ne 0 -or $text -notmatch '(?i)planned upgrades|proceed' -or
-            $text -match '(?i)cancelled' -or $text -notmatch 'install-script:confirmed-2\.0\.0' -or
+        if ($result.ExitCode -ne 0 -or $text -notmatch `
+                '(?i)planned upgrades|proceed' -or
+            $text -match '(?i)cancelled' -or $text -notmatch `
+                'install-script:confirmed-2\.0\.0' -or
             $text -notmatch '(?i)upgraded') {
             throw "Prompted acceptance with y on standard input failed. $text"
         }
-        if ((Get-Content -Raw -LiteralPath (Join-Path $markerDir "$($packages.Confirm)-arm64.txt")) -notmatch 'confirmed-2\.0\.0') {
-            throw 'Accepted prompted upgrade did not execute its install script.'
+        if ((Get-Content -Raw -LiteralPath (Join-Path $markerDir `
+                        "$($packages.Confirm)-arm64.txt")) -notmatch `
+                            'confirmed-2\.0\.0') {
+            throw (
+                'Accepted prompted upgrade did not execute it' +
+                's install script.'
+            )
         }
         'Upgrade plan was accepted with y on standard input.'
     }
-    $results += New-WpmManualStep -Name 'Seed another upgrade candidate for unattended confirmation' -Action {
-        New-PackageArchive $packages.Confirm '3.0.0' 'arm64' 'confirmed-3.0.0' -RepositoryEntry | Out-Null
+    $results += New-WpmManualStep -Name (
+        'Seed another upgrade candidate for unattende' +
+        'd confirmation'
+    ) -Action {
+        New-PackageArchive $packages.Confirm '3.0.0' 'arm64' `
+            'confirmed-3.0.0' -RepositoryEntry | Out-Null
         $path = Get-RepositoryCachePath $dataDir $repository
-        @{ version=1; packages=@($entries) } | ConvertTo-Json -Depth 5 -Compress | Set-Content -LiteralPath $path -NoNewline
+        @{ version = 1; packages = @($entries) } | ConvertTo-Json -Depth 5 `
+            -Compress | Set-Content -LiteralPath $path -NoNewline
         'Seeded the unattended-confirmation candidate.'
     }
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Bypass upgrade-all prompt with -y and show install-script output' -Arguments @('upgrade','--all','--arch','arm64','-y','--offline','--allow-unsigned') -Assert {
-        param($ExitCode,$Output)
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name (
+        'Bypass upgrade-all prompt with -y and show i' +
+        'nstall-script output'
+    ) -Arguments @('upgrade', '--all', '--arch', 'arm64', '-y', '--offline', `
+            '--allow-unsigned') -Assert {
+        param($ExitCode, $Output)
         if ($ExitCode -ne 0 -or $Output -notmatch '(?i)planned upgrades' -or
-            $Output -notmatch [regex]::Escape("$($packages.Confirm): Extracting package...") -or
-            $Output -notmatch [regex]::Escape("$($packages.Confirm): Validating package...") -or
-            $Output -notmatch [regex]::Escape("$($packages.Confirm): Installing package...") -or
-            $Output -notmatch 'install-script:confirmed-3\.0\.0' -or $Output -notmatch '(?i)upgraded') { throw "Confirmed upgrade-all failed or hid script output. $Output" }
-    }
-
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Reject unsigned upgrade before script execution' -Arguments @('upgrade',$packages.Architecture,'--offline') -Assert {
-        param($ExitCode,$Output)
-        if ($ExitCode -eq 0 -or $Output -notmatch '(?i)unsigned|signature') { throw 'Unsigned upgrade was not rejected.' }
-        if ((Get-Content -Raw -LiteralPath (Join-Path $markerDir "$($packages.Architecture)-x86.txt")) -match '2\.0\.0') { throw 'Rejected candidate executed its script.' }
-    }
-
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Upgrade all installed specific architectures and ignore any candidate' -Arguments @('upgrade',$packages.Architecture,'--offline','--allow-unsigned') -Assert {
-        param($ExitCode,$Output)
-        if ($ExitCode -ne 0) { throw "Architecture upgrade failed. $Output" }
-        foreach ($arch in 'x86','x64') {
-            $marker = Get-Content -Raw -LiteralPath (Join-Path $markerDir "$($packages.Architecture)-$arch.txt")
-            if ($marker -notmatch "$arch-2\.0\.0") { throw "$arch identity was not upgraded." }
+            $Output -notmatch [regex]::Escape( `
+                    "$($packages.Confirm): Extracting package...") -or
+            $Output -notmatch [regex]::Escape( `
+                    "$($packages.Confirm): Validating package...") -or
+            $Output -notmatch [regex]::Escape( `
+                    "$($packages.Confirm): Installing package...") -or
+            $Output -notmatch 'install-script:confirmed-3\.0\.0' -or $Output `
+                -notmatch '(?i)upgraded') {
+            throw (
+                "Confirmed upgrade-all failed or hid script o" +
+                "utput. $Output"
+            )
         }
-        if ($Output -match '3\.0\.0') { throw 'The any candidate participated in a specific-architecture upgrade.' }
     }
 
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Reject conflicting any installation' -Arguments @('install',$packages.Conflict,'--arch','any','--version','2.0.0','--offline','--allow-unsigned') -Assert {
-        param($ExitCode,$Output)
-        if ($ExitCode -eq 0 -or $Output -notmatch '(?i)conflict|architecture') { throw 'Conflicting any installation was not rejected.' }
-    }
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Do not upgrade specific identity from any candidate' -Arguments @('upgrade',$packages.Conflict,'--offline','--allow-unsigned') -Assert {
-        param($ExitCode,$Output)
-        if ($ExitCode -ne 0 -or $Output -notmatch '(?i)current') { throw "Expected a successful current result. $Output" }
-    }
-
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Install exact named architecture and version' -Arguments @('install',$packages.Named,'--arch','x86','--version','1.0.0','--offline','--allow-unsigned') -Assert {
-        param($ExitCode,$Output)
-        if ($ExitCode -ne 0) { throw "Exact named installation failed. $Output" }
-        $marker = Get-Content -Raw -LiteralPath (Join-Path $markerDir "$($packages.Named)-x86.txt")
-        if ($marker -notmatch 'named-x86-1\.0\.0' -or $marker -match '2\.0\.0') { throw 'Named selectors chose the wrong artifact.' }
-    }
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Upgrade one exact architecture to one exact version' -Arguments @('upgrade',$packages.Selector,'--arch','x86','--version','1.1.0','--offline','--allow-unsigned') -Assert {
-        param($ExitCode,$Output)
-        if ($ExitCode -ne 0) { throw "Exact upgrade failed. $Output" }
-        $x86 = Get-Content -Raw -LiteralPath (Join-Path $markerDir "$($packages.Selector)-x86.txt")
-        $x64 = Get-Content -Raw -LiteralPath (Join-Path $markerDir "$($packages.Selector)-x64.txt")
-        if ($x86 -notmatch 'selected-x86' -or $x86 -match 'unselected' -or $x64 -match 'untouched') { throw 'Upgrade selectors did not remain exact.' }
-    }
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Reject equal-version upgrade request' -Arguments @('upgrade',$packages.Selector,'--arch','x86','--version','1.1.0','--offline','--allow-unsigned') -Assert {
-        param($ExitCode,$Output)
-        if ($ExitCode -eq 0 -or $Output -notmatch '(?i)newer|current|equal') { throw 'Equal-precedence upgrade was accepted.' }
-    }
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Reject selectors for ZIP path installation' -Arguments @('install',(Join-Path $outputDir "$($packages.Selector)-x86-1.1.0.zip"),'--arch','x86','--allow-unsigned') -Assert {
-        param($ExitCode,$Output)
-        if ($ExitCode -eq 0) { throw 'A selector was accepted for ZIP-path installation.' }
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name (
+        'Reject unsigned upgrade before script execut' +
+        'ion'
+    ) -Arguments @('upgrade', $packages.Architecture, '--offline') -Assert {
+        param($ExitCode, $Output)
+        if ($ExitCode -eq 0 -or $Output -notmatch '(?i)unsigned|signature') {
+ `
+                throw 'Unsigned upgrade was not rejected.'
+        }
+        if ((Get-Content -Raw -LiteralPath (Join-Path $markerDir `
+                        "$($packages.Architecture)-x86.txt")) -match `
+                            '2\.0\.0') {
+            throw `
+                'Rejected candidate executed its script.'
+        }
     }
 
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Read default prerelease configuration' -Arguments @('config','get','prerelease') -Assert {
-        param($ExitCode,$Output)
-        if ($ExitCode -ne 0 -or $Output -notmatch '(?i)false') { throw 'Prereleases were not disabled by default.' }
-    }
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Suggest enabling prereleases when all matching candidates are excluded' -Arguments @('install',$packages.PrereleaseOnly,'--offline','--allow-unsigned') -Assert {
-        param($ExitCode,$Output)
-        if ($ExitCode -eq 0 -or $Output -notmatch '(?i)prerelease.+excluded') { throw "Excluded prereleases did not produce an actionable warning. $Output" }
-        if ($Output -notmatch [regex]::Escape("wpm config set prerelease true --package $($packages.PrereleaseOnly)")) { throw 'Prerelease warning did not include the package-scoped enable command.' }
-    }
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Select stable candidate while prereleases are disabled' -Arguments @('upgrade',$packages.Prerelease,'--offline','--allow-unsigned') -Assert {
-        param($ExitCode,$Output)
-        if ($ExitCode -ne 0) { throw "Stable upgrade failed. $Output" }
-        $marker = Get-Content -Raw -LiteralPath (Join-Path $markerDir "$($packages.Prerelease)-any.txt")
-        if ($marker -notmatch 'stable-1\.1\.0' -or $marker -match 'beta') { throw 'Disabled prerelease filtering chose the wrong candidate.' }
-    }
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Enable package prereleases' -Arguments @('config','set','prerelease','true','--package',$packages.Prerelease) -Assert {
-        param($ExitCode,$Output)
-        if ($ExitCode -ne 0) { throw "Could not set package prerelease override. $Output" }
-    }
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Report effective package prerelease override' -Arguments @('config','get','prerelease','--package',$packages.Prerelease) -Assert {
-        param($ExitCode,$Output)
-        if ($ExitCode -ne 0 -or $Output -notmatch '(?i)true' -or $Output -notmatch '(?i)package|override') { throw 'Effective override and source were not reported.' }
-    }
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Use SemVer numeric prerelease ordering' -Arguments @('upgrade',$packages.Prerelease,'--offline','--allow-unsigned') -Assert {
-        param($ExitCode,$Output)
-        if ($ExitCode -ne 0) { throw "Prerelease upgrade failed. $Output" }
-        $marker = Get-Content -Raw -LiteralPath (Join-Path $markerDir "$($packages.Prerelease)-any.txt")
-        if ($marker -notmatch 'beta-10') { throw 'SemVer did not order beta.10 after beta.2.' }
-    }
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Remove package prerelease override' -Arguments @('config','unset','prerelease','--package',$packages.Prerelease) -Assert {
-        param($ExitCode,$Output)
-        if ($ExitCode -ne 0) { throw "Could not remove package override. $Output" }
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name (
+        'Upgrade all installed specific architectures' +
+        ' and ignore any candidate'
+    ) -Arguments @('upgrade', $packages.Architecture, '--offline', `
+            '--allow-unsigned') -Assert {
+        param($ExitCode, $Output)
+        if ($ExitCode -ne 0) {
+            throw "Architecture upgrade failed. $Output"
+        }
+        foreach ($arch in 'x86', 'x64') {
+            $marker = Get-Content -Raw -LiteralPath (Join-Path $markerDir `
+                    "$($packages.Architecture)-$arch.txt")
+            if ($marker -notmatch "$arch-2\.0\.0") {
+                throw `
+                    "$arch identity was not upgraded."
+            }
+        }
+        if ($Output -match '3\.0\.0') {
+            throw (
+                'The any candidate participated in a specific' +
+                '-architecture upgrade.'
+            )
+        }
     }
 
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Continue multi-package upgrade after script failure' -Arguments @('upgrade',$packages.Failure,$packages.Continue,'--offline','--allow-unsigned') -Assert {
-        param($ExitCode,$Output)
-        if ($ExitCode -eq 0) { throw 'Partial multi-package failure returned success.' }
-        $continued = Get-Content -Raw -LiteralPath (Join-Path $markerDir "$($packages.Continue)-any.txt")
-        if ($continued -notmatch 'continued-2\.0\.0') { throw 'Processing stopped after the first package failure.' }
-        if ($Output -notmatch '(?i)failed' -or $Output -notmatch '(?i)upgraded') { throw 'Per-package result summary was incomplete.' }
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
+        'Reject conflicting any installation' -Arguments @('install', `
+            $packages.Conflict, '--arch', 'any', '--version', '2.0.0', `
+                '--offline', `
+            '--allow-unsigned') -Assert {
+        param($ExitCode, $Output)
+        if ($ExitCode -eq 0 -or $Output -notmatch `
+                '(?i)conflict|architecture') {
+            throw (
+                'Conflicting any installation was not rejecte' +
+                'd.'
+            )
+        }
+    }
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name (
+        'Do not upgrade specific identity from any ca' +
+        'ndidate'
+    ) -Arguments @('upgrade', $packages.Conflict, '--offline', `
+            '--allow-unsigned') -Assert {
+        param($ExitCode, $Output)
+        if ($ExitCode -ne 0 -or $Output -notmatch '(?i)current') {
+            throw (
+                "Expected a successful current result. " +
+                "$Output"
+            )
+        }
+    }
+
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
+        'Install exact named architecture and version' -Arguments @( `
+            'install', $packages.Named, '--arch', 'x86', '--version', '1.0.0', `
+            '--offline', '--allow-unsigned') -Assert {
+        param($ExitCode, $Output)
+        if ($ExitCode -ne 0) {
+            throw `
+                "Exact named installation failed. $Output"
+        }
+        $marker = Get-Content -Raw -LiteralPath (Join-Path $markerDir `
+                "$($packages.Named)-x86.txt")
+        if ($marker -notmatch 'named-x86-1\.0\.0' -or $marker -match `
+                '2\.0\.0') {
+            throw 'Named selectors chose the wrong artifact.'
+        }
+    }
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name (
+        'Upgrade one exact architecture to one exact ' +
+        'version'
+    ) -Arguments @('upgrade', $packages.Selector, '--arch', 'x86', `
+        '--version', `
+            '1.1.0', '--offline', '--allow-unsigned') -Assert {
+        param($ExitCode, $Output)
+        if ($ExitCode -ne 0) {
+            throw "Exact upgrade failed. $Output"
+        }
+        $x86 = Get-Content -Raw -LiteralPath (Join-Path $markerDir `
+                "$($packages.Selector)-x86.txt")
+        $x64 = Get-Content -Raw -LiteralPath (Join-Path $markerDir `
+                "$($packages.Selector)-x64.txt")
+        if ($x86 -notmatch 'selected-x86' -or $x86 -match 'unselected' -or `
+                $x64 -match 'untouched') {
+            throw `
+                'Upgrade selectors did not remain exact.'
+        }
+    }
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
+        'Reject equal-version upgrade request' -Arguments @('upgrade', `
+            $packages.Selector, '--arch', 'x86', '--version', '1.1.0', `
+                '--offline', `
+            '--allow-unsigned') -Assert {
+        param($ExitCode, $Output)
+        if ($ExitCode -eq 0 -or $Output -notmatch '(?i)newer|current|equal') `
+        {
+            throw 'Equal-precedence upgrade was accepted.'
+        }
+    }
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
+        'Reject selectors for ZIP path installation' -Arguments @('install', ( `
+                Join-Path $outputDir "$($packages.Selector)-x86-1.1.0.zip"), `
+                    '--arch', `
+            'x86', '--allow-unsigned') -Assert {
+        param($ExitCode, $Output)
+        if ($ExitCode -eq 0) {
+            throw (
+                'A selector was accepted for ZIP-path install' +
+                'ation.'
+            )
+        }
+    }
+
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
+        'Read default prerelease configuration' -Arguments @('config', 'get', `
+            'prerelease') -Assert {
+        param($ExitCode, $Output)
+        if ($ExitCode -ne 0 -or $Output -notmatch '(?i)false') {
+            throw `
+                'Prereleases were not disabled by default.'
+        }
+    }
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name (
+        'Suggest enabling prereleases when all matchi' +
+        'ng candidates are excluded'
+    ) -Arguments @('install', $packages.PrereleaseOnly, '--offline', `
+            '--allow-unsigned') -Assert {
+        param($ExitCode, $Output)
+        if ($ExitCode -eq 0 -or $Output -notmatch '(?i)prerelease.+excluded') `
+        {
+            throw (
+                "Excluded prereleases did not produce an acti" +
+                "onable warning. $Output"
+            )
+        }
+        if ($Output -notmatch [regex]::Escape((
+                    "wpm config set prerelease true --package " +
+                    "$($packages.PrereleaseOnly)"
+                ))) {
+            throw (
+                'Prerelease warning did not include the packa' +
+                'ge-scoped enable command.'
+            )
+        }
+    }
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name (
+        'Select stable candidate while prereleases ar' +
+        'e disabled'
+    ) -Arguments @('upgrade', $packages.Prerelease, '--offline', `
+            '--allow-unsigned') -Assert {
+        param($ExitCode, $Output)
+        if ($ExitCode -ne 0) {
+            throw "Stable upgrade failed. $Output"
+        }
+        $marker = Get-Content -Raw -LiteralPath (Join-Path $markerDir `
+                "$($packages.Prerelease)-any.txt")
+        if ($marker -notmatch 'stable-1\.1\.0' -or $marker -match 'beta') {
+ `
+                throw (
+                'Disabled prerelease filtering chose the wron' +
+                'g candidate.'
+            )
+        }
+    }
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
+        'Enable package prereleases' -Arguments @('config', 'set', `
+            'prerelease', 'true', '--package', $packages.Prerelease) -Assert {
+        param($ExitCode, $Output)
+        if ($ExitCode -ne 0) {
+            throw (
+                "Could not set package prerelease override. " +
+                "$Output"
+            )
+        }
+    }
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
+        'Report effective package prerelease override' -Arguments @('config', `
+            'get', 'prerelease', '--package', $packages.Prerelease) -Assert {
+        param($ExitCode, $Output)
+        if ($ExitCode -ne 0 -or $Output -notmatch '(?i)true' -or $Output `
+                -notmatch '(?i)package|override') {
+            throw (
+                'Effective override and source were not repor' +
+                'ted.'
+            )
+        }
+    }
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
+        'Use SemVer numeric prerelease ordering' -Arguments @('upgrade', `
+            $packages.Prerelease, '--offline', '--allow-unsigned') -Assert {
+        param($ExitCode, $Output)
+        if ($ExitCode -ne 0) {
+            throw "Prerelease upgrade failed. $Output"
+        }
+        $marker = Get-Content -Raw -LiteralPath (Join-Path $markerDir `
+                "$($packages.Prerelease)-any.txt")
+        if ($marker -notmatch 'beta-10') {
+            throw `
+                'SemVer did not order beta.10 after beta.2.'
+        }
+    }
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
+        'Remove package prerelease override' -Arguments @('config', 'unset', `
+            'prerelease', '--package', $packages.Prerelease) -Assert {
+        param($ExitCode, $Output)
+        if ($ExitCode -ne 0) {
+            throw `
+                "Could not remove package override. $Output"
+        }
+    }
+
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name (
+        'Continue multi-package upgrade after script ' +
+        'failure'
+    ) -Arguments @('upgrade', $packages.Failure, $packages.Continue, `
+            '--offline', '--allow-unsigned') -Assert {
+        param($ExitCode, $Output)
+        if ($ExitCode -eq 0) {
+            throw (
+                'Partial multi-package failure returned succe' +
+                'ss.'
+            )
+        }
+        $continued = Get-Content -Raw -LiteralPath (Join-Path $markerDir `
+                "$($packages.Continue)-any.txt")
+        if ($continued -notmatch 'continued-2\.0\.0') {
+            throw (
+                'Processing stopped after the first package f' +
+                'ailure.'
+            )
+        }
+        if ($Output -notmatch '(?i)failed' -or $Output -notmatch `
+                '(?i)upgraded') {
+            throw `
+                'Per-package result summary was incomplete.'
+        }
         $expectedIssueUrl = 'https://github.com/example/upgrade/issues/new'
         $logMatch = [regex]::Match($Output, '(?m)^Script log: (.+\.log)\s*$')
         if ($Output -notmatch [regex]::Escape("Repository URL: $repository") -or
-            $Output -notmatch [regex]::Escape($expectedIssueUrl) -or -not $logMatch.Success) {
-            throw 'Failed upgrade did not report its repository, GitHub issue prompt, and script log path.'
+            $Output -notmatch [regex]::Escape($expectedIssueUrl) -or -not `
+                $logMatch.Success) {
+            throw (
+                'Failed upgrade did not report its repository' +
+                ', GitHub issue prompt, and script log path.'
+            )
         }
         $failedScriptLog = $logMatch.Groups[1].Value.Trim()
         if (-not (Test-Path -LiteralPath $failedScriptLog -PathType Leaf) -or
-            (Get-Content -Raw -LiteralPath $failedScriptLog) -notmatch 'install-script:failed-2\.0\.0' -or
-            (Get-Content -Raw -LiteralPath $failedScriptLog) -notmatch '(?m)^--- exit-code=23 ---$') {
-            throw 'Failed upgrade script log did not retain the streamed output and exit code.'
+            (Get-Content -Raw -LiteralPath $failedScriptLog) -notmatch `
+                'install-script:failed-2\.0\.0' -or
+            (Get-Content -Raw -LiteralPath $failedScriptLog) -notmatch `
+                '(?m)^--- exit-code=23 ---$') {
+            throw (
+                'Failed upgrade script log did not retain the' +
+                ' streamed output and exit code.'
+            )
         }
-        $storedFailure = Join-Path $dataDir "packages\$($packages.Failure)-any-2.0.0.zip"
-        if (Test-Path -LiteralPath $storedFailure) { throw 'Failed candidate was retained as successfully installed.' }
-        $failureAudit = Get-ChildItem -LiteralPath (Join-Path $dataDir 'audit') -Filter '*.upgrade-failed.txt' -ErrorAction SilentlyContinue
-        if (-not $failureAudit) { throw 'Failed upgrade audit was not created.' }
-        if ((Get-Content -Raw -LiteralPath $failureAudit[-1].FullName) -notmatch '(?m)^exit-code=23$') { throw 'Failed audit did not record the script exit code.' }
+        $storedFailure = Join-Path $dataDir `
+            "packages\$($packages.Failure)-any-2.0.0.zip"
+        if (Test-Path -LiteralPath $storedFailure) {
+            throw (
+                'Failed candidate was retained as successfull' +
+                'y installed.'
+            )
+        }
+        $failureAudit = Get-ChildItem -LiteralPath (Join-Path $dataDir `
+                'audit') -Filter '*.upgrade-failed.txt' -ErrorAction `
+            SilentlyContinue
+        if (-not $failureAudit) {
+            throw `
+                'Failed upgrade audit was not created.'
+        }
+        if ((Get-Content -Raw -LiteralPath $failureAudit[-1].FullName) `
+                -notmatch '(?m)^exit-code=23$') {
+            throw (
+                'Failed audit did not record the script exit ' +
+                'code.'
+            )
+        }
     }
 
-    $results += New-WpmManualStep -Name 'Install WPM baseline for isolated self-upgrade validation' -Action {
+    $results += New-WpmManualStep -Name (
+        'Install WPM baseline for isolated self-upgra' +
+        'de validation'
+    ) -Action {
         Install-Baseline $packages.Self '1.0.0' $wpmArchitecture
-        $legacyCache = Join-Path $dataDir "cache\self-upgrade\wpm-$wpmArchitecture-2.0.0.exe"
-        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $legacyCache) | Out-Null
+        $legacyCache = Join-Path $dataDir (
+            "cache\self-upgrade\wpm-$wpmArchitecture-2.0." +
+            "0.exe"
+        )
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent `
+                $legacyCache) | Out-Null
         Copy-Item -LiteralPath $WpmExe -Destination $legacyCache
         (Get-Item -LiteralPath $legacyCache).IsReadOnly = $true
-        'WPM baseline installed with a stale, non-overwritable legacy cache entry.'
+        (
+            'WPM baseline installed with a stale, non-ove' +
+            'rwritable legacy cache entry.'
+        )
     }
 
-    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name 'Complete WPM self-upgrade through cached executable handoff' -Arguments @('upgrade','wpm','--offline','--allow-unsigned','--verbose') -Assert {
-        param($ExitCode,$Output)
-        if ($ExitCode -ne 0 -or $Output -notmatch '(?i)scheduled|continue') { throw "WPM self-upgrade was not scheduled. $Output" }
+    $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name (
+        'Complete WPM self-upgrade through cached exe' +
+        'cutable handoff'
+    ) -Arguments @('upgrade', 'wpm', '--offline', '--allow-unsigned', `
+            '--verbose') -Assert {
+        param($ExitCode, $Output)
+        if ($ExitCode -ne 0 -or $Output -notmatch '(?i)scheduled|continue') {
+ `
+                throw "WPM self-upgrade was not scheduled. $Output"
+        }
         if ($Output -notmatch 'Self-upgrade invoking process PID: \d+' -or
             $Output -notmatch 'Self-upgrade completion process PID: \d+' -or
-            $Output -notmatch 'Completion process will wait for PID \d+ to exit') {
-            throw "Verbose self-upgrade output did not identify the handoff processes. $Output"
+            $Output -notmatch `
+                'Completion process will wait for PID \d+ to exit') {
+            throw (
+                "Verbose self-upgrade output did not identify" +
+                " the handoff processes. $Output"
+            )
         }
         if ($Output -notmatch 'WPM self-upgrade handoff started \(PID \d+\)' -or
             $Output -notmatch 'completing the self-upgrade now' -or
             $Output -notmatch "Result: wpm $wpmArchitecture upgraded") {
-            throw "The self-upgrade completion process did not report its progress. $Output"
+            throw (
+                "The self-upgrade completion process did not " +
+                "report its progress. $Output"
+            )
         }
         if ($Output -notmatch 'Self-upgrade stage 1 of 2' -or
             $Output -notmatch 'Self-upgrade stage 2 of 2') {
-            throw "The self-upgrade did not explain its two-stage verification. $Output"
+            throw (
+                "The self-upgrade did not explain its two-sta" +
+                "ge verification. $Output"
+            )
         }
         if ($Output -notmatch 'upgrade install script process PID: \d+' -or
-            $Output -notmatch 'WPM PID \d+ is waiting for upgrade install script PID \d+') {
-            throw "Verbose mode was not propagated to the self-upgrade completion process. $Output"
+            $Output -notmatch (
+                'WPM PID \d+ is waiting for upgrade install s' +
+                'cript PID \d+'
+            )) {
+            throw (
+                "Verbose mode was not propagated to the self-" +
+                "upgrade completion process. $Output"
+            )
         }
         $markerPath = Join-Path $markerDir "wpm-$wpmArchitecture.txt"
-        $logPath = Join-Path $dataDir "audit\self-upgrade-$wpmArchitecture-2.0.0.log"
+        $logPath = Join-Path $dataDir (
+            "audit\self-upgrade-$wpmArchitecture-2.0.0.lo" +
+            "g"
+        )
         $deadline = [DateTime]::UtcNow.AddSeconds(60)
         while ([DateTime]::UtcNow -lt $deadline) {
-            if ((Test-Path -LiteralPath $markerPath) -and (Get-Content -Raw -LiteralPath $markerPath) -match 'self-2\.0\.0') { break }
+            if ((Test-Path -LiteralPath $markerPath) -and (Get-Content -Raw `
+                        -LiteralPath $markerPath) -match 'self-2\.0\.0') {
+                break
+            }
             Start-Sleep -Milliseconds 100
         }
-        if (-not (Test-Path -LiteralPath $markerPath) -or (Get-Content -Raw -LiteralPath $markerPath) -notmatch 'self-2\.0\.0') { $log = if (Test-Path -LiteralPath $logPath) { Get-Content -Raw -LiteralPath $logPath } else { '<missing>' }; throw "Cached WPM handoff did not complete the installation. Log: $log" }
-        $cachedCandidates = @(Get-ChildItem -LiteralPath (Join-Path $dataDir 'cache\self-upgrade') -Filter wpm.exe -File -Recurse)
-        if (-not $cachedCandidates) { throw 'Candidate WPM executable was not retained in a unique self-upgrade cache directory.' }
-        $legacyCache = Join-Path $dataDir "cache\self-upgrade\wpm-$wpmArchitecture-2.0.0.exe"
-        if (-not (Get-Item -LiteralPath $legacyCache).IsReadOnly) { throw 'Self-upgrade unexpectedly replaced the stale legacy cache entry.' }
+        if (-not (Test-Path -LiteralPath $markerPath) -or (Get-Content -Raw `
+                    -LiteralPath $markerPath) -notmatch 'self-2\.0\.0') {
+            $log = if ( `
+                    Test-Path -LiteralPath $logPath) {
+                Get-Content -Raw -LiteralPath `
+                    $logPath
+            } else {
+                '<missing>'
+            }; throw (
+                "Cached WPM handoff did not complete the inst" +
+                "allation. Log: $log"
+            )
+        }
+        $cachedCandidates = @(Get-ChildItem -LiteralPath (Join-Path $dataDir `
+                    'cache\self-upgrade') -Filter wpm.exe -File -Recurse)
+        if (-not $cachedCandidates) {
+            throw (
+                'Candidate WPM executable was not retained in' +
+                ' a unique self-upgrade cache directory.'
+            )
+        }
+        $legacyCache = Join-Path $dataDir (
+            "cache\self-upgrade\wpm-$wpmArchitecture-2.0." +
+            "0.exe"
+        )
+        if (-not (Get-Item -LiteralPath $legacyCache).IsReadOnly) {
+            throw (
+                'Self-upgrade unexpectedly replaced the stale' +
+                ' legacy cache entry.'
+            )
+        }
         (Get-Item -LiteralPath $legacyCache).IsReadOnly = $false
         $deadline = [DateTime]::UtcNow.AddSeconds(60)
         while ([DateTime]::UtcNow -lt $deadline) {
-            if ((Test-Path -LiteralPath $logPath) -and (Get-Content -Raw -LiteralPath $logPath) -match "Result: wpm $wpmArchitecture upgraded") { break }
+            if ((Test-Path -LiteralPath $logPath) -and (Get-Content -Raw `
+                        -LiteralPath $logPath) -match `
+                    "Result: wpm $wpmArchitecture upgraded") {
+                break
+            }
             Start-Sleep -Milliseconds 100
         }
-        if (-not (Test-Path -LiteralPath $logPath)) { throw 'Self-upgrade output log was not created.' }
+        if (-not (Test-Path -LiteralPath $logPath)) {
+            throw `
+                'Self-upgrade output log was not created.'
+        }
         $log = Get-Content -Raw -LiteralPath $logPath
         if ($log -notmatch 'install-script:self-2\.0\.0' -or
             $log -notmatch 'wpm-verbose:1' -or
-            $log -notmatch "Result: wpm $wpmArchitecture upgraded") { throw "Self-upgrade log did not include verbose script context, script output, and final result. Log: $log" }
-        if ($Output -notmatch "(?i)Result: wpm $wpmArchitecture scheduled" -or $Output -notmatch '(?i)Self-upgrade output:') { throw 'Parent process claimed completion or omitted the output-log path.' }
+            $log -notmatch "Result: wpm $wpmArchitecture upgraded") {
+            throw (
+                "Self-upgrade log did not include verbose scr" +
+                "ipt context, script output, and final result" +
+                ". Log: $log"
+            )
+        }
+        if ($Output -notmatch "(?i)Result: wpm $wpmArchitecture scheduled" `
+                -or $Output -notmatch '(?i)Self-upgrade output:') {
+            throw (
+                'Parent process claimed completion or omitted' +
+                ' the output-log path.'
+            )
+        }
     }
 
-    $results += New-WpmManualStep -Name 'Accept the legacy self-upgrade handoff protocol' -Action {
-        $archive = Join-Path $dataDir "cache\packages\wpm-$wpmArchitecture-2.0.0.zip"
+    $results += New-WpmManualStep -Name (
+        'Accept the legacy self-upgrade handoff proto' +
+        'col'
+    ) -Action {
+        $archive = Join-Path $dataDir (
+            "cache\packages\wpm-$wpmArchitecture-2.0.0.zi" +
+            "p"
+        )
         try {
             $env:WPM_DATA_DIR = $legacyDataDir
-            $output = & $WpmExe --complete-self-upgrade $archive 0 2.0.0 $wpmArchitecture 1.0.0 1 2>&1 | Out-String
+            $output = & $WpmExe --complete-self-upgrade $archive 0 2.0.0 `
+                $wpmArchitecture 1.0.0 1 2>&1 | Out-String
             $legacyExitCode = $LASTEXITCODE
-        }
-        finally {
+        } finally {
             $env:WPM_DATA_DIR = $dataDir
         }
         if ($legacyExitCode -ne 0) {
-            throw "Legacy eight-argument self-upgrade handoff failed with exit code $legacyExitCode. $output"
+            throw (
+                "Legacy eight-argument self-upgrade handoff f" +
+                "ailed with exit code $legacyExitCode. " +
+                "$output"
+            )
         }
         if ($output -notmatch 'install-script:self-2\.0\.0') {
-            throw "Legacy handoff did not run the package install script. $output"
+            throw (
+                "Legacy handoff did not run the package insta" +
+                "ll script. $output"
+            )
         }
-        $legacyStagingItems = @(Get-ChildItem -LiteralPath (Join-Path $legacyDataDir 'temp') -Force -ErrorAction SilentlyContinue)
+        $legacyStagingItems = @(Get-ChildItem -LiteralPath (Join-Path `
+                    $legacyDataDir 'temp') -Force -ErrorAction SilentlyContinue)
         if ($legacyStagingItems.Count -ne 0) {
             throw 'Legacy self-upgrade staging content was not cleaned.'
         }
         'Legacy eight-argument self-upgrade handoff completed.'
     }
 
-    $results += New-WpmManualStep -Name 'Verify retained versions, upgrade audits, and staging cleanup' -Action {
-        foreach ($arch in 'x86','x64') {
-            foreach ($version in '1.0.0','2.0.0') {
-                if (-not (Test-Path -LiteralPath (Join-Path $dataDir "packages\$($packages.Architecture)-$arch-$version.zip"))) {
+    $results += New-WpmManualStep -Name (
+        'Verify retained versions, upgrade audits, an' +
+        'd staging cleanup'
+    ) -Action {
+        foreach ($arch in 'x86', 'x64') {
+            foreach ($version in '1.0.0', '2.0.0') {
+                if (-not (Test-Path -LiteralPath (Join-Path $dataDir (
+                                "packages\$($packages.Architecture)-$arch-" +
+                                "$version.zip"
+                            )))) {
                     throw "Missing retained $arch $version archive."
                 }
             }
         }
-        $auditText = (Get-ChildItem -LiteralPath (Join-Path $dataDir 'audit') -Filter '*.upgrade.txt' | Get-Content -Raw) -join "`n"
-        if ($auditText -notmatch '(?m)^old-version=1\.0\.0$' -or $auditText -notmatch '(?m)^new-version=2\.0\.0$') { throw 'Successful upgrade audit did not link versions.' }
-        $stagingItems = @(Get-ChildItem -LiteralPath (Join-Path $dataDir 'temp') -Force -ErrorAction SilentlyContinue)
+        $auditText = (Get-ChildItem -LiteralPath (Join-Path $dataDir 'audit') `
+                -Filter '*.upgrade.txt' | Get-Content -Raw) -join "`n"
+        if ($auditText -notmatch '(?m)^old-version=1\.0\.0$' -or $auditText `
+                -notmatch '(?m)^new-version=2\.0\.0$') {
+            throw (
+                'Successful upgrade audit did not link versio' +
+                'ns.'
+            )
+        }
+        $stagingItems = @(Get-ChildItem -LiteralPath (Join-Path $dataDir `
+                    'temp') -Force -ErrorAction SilentlyContinue)
         if ($stagingItems.Count -ne 0) {
-            throw "Upgrade staging content was not cleaned: $($stagingItems.Name -join ', ')"
+            throw (
+                "Upgrade staging content was not cleaned: " +
+                "$($stagingItems.Name -join ', ')"
+            )
         }
         'Retained archives, audit linkage, and staging cleanup verified.'
     }
-}
-finally {
+} finally {
     $finished = Get-Date
-    if ($EvidenceTex) { Write-WpmTestEvidence -TestCaseId 'TC-0013' -WpmExe $WpmExe -Started $started -Finished $finished -Results $results -EvidenceTex $EvidenceTex }
-    if (Test-Path -LiteralPath $testRoot) { Remove-TestRoot $testRoot }
-    if ($null -eq $previousDataDir) { Remove-Item Env:WPM_DATA_DIR -ErrorAction SilentlyContinue } else { $env:WPM_DATA_DIR = $previousDataDir }
+    if ($EvidenceTex) {
+        Write-WpmTestEvidence -TestCaseId 'TC-0013' -WpmExe `
+            $WpmExe -Started $started -Finished $finished -Results $results `
+            -EvidenceTex $EvidenceTex
+    }
+    if (Test-Path -LiteralPath $testRoot) {
+        Remove-TestRoot $testRoot
+    }
+    if ($null -eq $previousDataDir) {
+        Remove-Item Env:WPM_DATA_DIR `
+            -ErrorAction SilentlyContinue
+    } else {
+        $env:WPM_DATA_DIR = `
+            $previousDataDir
+    }
 }
 
 Complete-WpmTestRun -Results $results -NoFailOnFailure:$NoFailOnFailure

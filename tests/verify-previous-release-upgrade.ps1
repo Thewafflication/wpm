@@ -28,7 +28,10 @@ $previousRoot = Join-Path $testRoot 'previous'
 $dataRoot = Join-Path $testRoot 'data'
 $installRoot = Join-Path $testRoot 'install'
 $registryKey = "HKCU\Software\WPM\ReleaseUpgradeTests\$testId"
-$repositoryUrl = 'https://github.com/Thewafflication/wpm/releases/latest/download'
+$repositoryUrl = (
+    'https://github.com/Thewafflication/wpm/relea' +
+    'ses/latest/download'
+)
 $previousDataRoot = $env:WPM_DATA_DIR
 $previousInstallRoot = $env:WPM_INSTALL_DIR
 $previousRegistryKey = $env:WPM_ENVIRONMENT_REGISTRY_KEY
@@ -38,59 +41,90 @@ function Get-RepositoryCachePath {
     [uint32]$hash = 2166136261
     foreach ($byte in [Text.Encoding]::UTF8.GetBytes($Url)) {
         $hash = $hash -bxor $byte
-        $hash = [uint32](([uint64]$hash * [uint64]16777619) % [uint64]4294967296)
+        $hash = [uint32](([uint64]$hash * [uint64]16777619) % `
+                [uint64]4294967296)
     }
     Join-Path $DataDir ("cache\repositories\{0:x8}.json" -f $hash)
 }
 
 try {
     New-Item -ItemType Directory -Force -Path $testRoot, $previousRoot,
-        (Join-Path $dataRoot 'packages'), (Join-Path $dataRoot 'cache\packages') | Out-Null
+    (Join-Path $dataRoot 'packages'), (Join-Path $dataRoot `
+            'cache\packages') | Out-Null
     Invoke-WebRequest `
-        -Uri "https://github.com/Thewafflication/wpm/releases/download/$PreviousVersion/$previousPackageName" `
+        -Uri (
+        "https://github.com/Thewafflication/wpm/relea" +
+        "ses/download/$PreviousVersion/" +
+        "$previousPackageName"
+    ) `
         -OutFile $previousPackage
     Expand-Archive -LiteralPath $previousPackage -DestinationPath $previousRoot
 
     $previousExecutable = Join-Path $previousRoot 'wpm.exe'
     if (-not (Test-Path -LiteralPath $previousExecutable -PathType Leaf)) {
-        throw "Previous release package does not contain wpm.exe: $previousPackageName"
+        throw (
+            "Previous release package does not contain wp" +
+            "m.exe: $previousPackageName"
+        )
     }
 
-    Copy-Item -LiteralPath $previousPackage -Destination (Join-Path $dataRoot "packages\$previousPackageName")
-    Copy-Item -LiteralPath $CandidatePackage -Destination (Join-Path $dataRoot "cache\packages\$candidatePackageName")
+    Copy-Item -LiteralPath $previousPackage -Destination (Join-Path $dataRoot `
+            "packages\$previousPackageName")
+    Copy-Item -LiteralPath $CandidatePackage -Destination (Join-Path `
+            $dataRoot "cache\packages\$candidatePackageName")
     $indexPath = Get-RepositoryCachePath -DataDir $dataRoot -Url $repositoryUrl
-    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $indexPath) | Out-Null
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $indexPath) `
+    | Out-Null
     [ordered]@{
         version = 1
         packages = @([ordered]@{
-            name = 'wpm'
-            version = $CandidateVersion
-            arch = $Architecture
-            url = $candidatePackageName
-        })
-    } | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath $indexPath -Encoding utf8
+                name = 'wpm'
+                version = $CandidateVersion
+                arch = $Architecture
+                url = $candidatePackageName
+            })
+    } | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath $indexPath `
+        -Encoding utf8
 
     $env:WPM_DATA_DIR = $dataRoot
     $env:WPM_INSTALL_DIR = $installRoot
     $env:WPM_ENVIRONMENT_REGISTRY_KEY = $registryKey
     & $previousExecutable trust add $PublicKey
-    if ($LASTEXITCODE -ne 0) { throw 'The previous release could not trust the candidate release key.' }
-
-    $output = & $previousExecutable upgrade wpm --arch $Architecture --version $CandidateVersion --offline 2>&1 | Out-String
-    if ($LASTEXITCODE -ne 0 -or $output -notmatch '(?i)scheduled') {
-        throw "The previous release could not schedule the candidate upgrade. $output"
+    if ($LASTEXITCODE -ne 0) {
+        throw (
+            'The previous release could not trust the can' +
+            'didate release key.'
+        )
     }
 
-    $logPath = Join-Path $dataRoot "audit\self-upgrade-$Architecture-$CandidateVersion.log"
+    $output = & $previousExecutable upgrade wpm --arch $Architecture `
+        --version $CandidateVersion --offline 2>&1 | Out-String
+    if ($LASTEXITCODE -ne 0 -or $output -notmatch '(?i)scheduled') {
+        throw (
+            "The previous release could not schedule the " +
+            "candidate upgrade. $output"
+        )
+    }
+
+    $logPath = Join-Path $dataRoot (
+        "audit\self-upgrade-$Architecture-" +
+        "$CandidateVersion.log"
+    )
     $installedExecutable = Join-Path $installRoot 'wpm.exe'
     $deadline = [DateTime]::UtcNow.AddSeconds(90)
     while ([DateTime]::UtcNow -lt $deadline) {
         if ((Test-Path -LiteralPath $logPath) -and
-            (Get-Content -Raw -LiteralPath $logPath) -match "Result: wpm $Architecture upgraded") { break }
+            (Get-Content -Raw -LiteralPath $logPath) -match `
+                "Result: wpm $Architecture upgraded") {
+            break
+        }
         Start-Sleep -Milliseconds 200
     }
     if (-not (Test-Path -LiteralPath $logPath)) {
-        throw 'The previous release scheduled the handoff, but the candidate never started.'
+        throw (
+            'The previous release scheduled the handoff, ' +
+            'but the candidate never started.'
+        )
     }
     $log = Get-Content -Raw -LiteralPath $logPath
     if ($log -notmatch "Result: wpm $Architecture upgraded") {
@@ -100,12 +134,20 @@ try {
         throw 'The upgrade did not install the candidate executable.'
     }
     $versionOutput = & $installedExecutable --version 2>&1 | Out-String
-    if ($LASTEXITCODE -ne 0 -or $versionOutput -notmatch "Version\s+$([regex]::Escape($CandidateVersion))") {
-        throw "The installed candidate is not usable or has the wrong version. $versionOutput"
+    if ($LASTEXITCODE -ne 0 -or $versionOutput -notmatch (
+            "Version\s+" +
+            "$([regex]::Escape($CandidateVersion))"
+        )) {
+        throw (
+            "The installed candidate is not usable or has" +
+            " the wrong version. $versionOutput"
+        )
     }
-    Write-Host "Verified WPM upgrade: $PreviousVersion -> $CandidateVersion ($Architecture)."
-}
-finally {
+    Write-Host (
+        "Verified WPM upgrade: $PreviousVersion -> " +
+        "$CandidateVersion ($Architecture)."
+    )
+} finally {
     $env:WPM_DATA_DIR = $previousDataRoot
     $env:WPM_INSTALL_DIR = $previousInstallRoot
     $env:WPM_ENVIRONMENT_REGISTRY_KEY = $previousRegistryKey

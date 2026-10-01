@@ -32,76 +32,111 @@ static wpm_color_policy wpm_color = WPM_COLOR_AUTO;
 static char wpm_active_log_path[4096];
 static int wpm_failure_log_reported;
 
-int wpm_set_color_policy(const char* value)
-{
-    if (!value) return 0;
-    if (strcmp(value, "auto") == 0) wpm_color = WPM_COLOR_AUTO;
-    else if (strcmp(value, "always") == 0) wpm_color = WPM_COLOR_ALWAYS;
-    else if (strcmp(value, "never") == 0) wpm_color = WPM_COLOR_NEVER;
-    else return 0;
+int wpm_set_color_policy(const char *value) {
+    if (!value) {
+        return 0;
+    }
+    if (strcmp(value, "auto") == 0) {
+        wpm_color = WPM_COLOR_AUTO;
+    } else if (strcmp(value, "always") == 0) {
+        wpm_color = WPM_COLOR_ALWAYS;
+    } else if (strcmp(value, "never") == 0) {
+        wpm_color = WPM_COLOR_NEVER;
+    } else {
+        return 0;
+    }
     return 1;
 }
 
-static int wpm_starts_with(const char* message, const char* prefix)
-{
+static int wpm_starts_with(const char *message, const char *prefix) {
     return strncmp(message, prefix, strlen(prefix)) == 0;
 }
 
-static wpm_message_style wpm_message_style_for(const char* message)
-{
-    if (wpm_starts_with(message, "Error:")) return WPM_STYLE_ERROR;
-    if (wpm_starts_with(message, "Warning:")) return WPM_STYLE_WARNING;
-    if (wpm_starts_with(message, "Result:")) return WPM_STYLE_RESULT;
-    if (wpm_starts_with(message, "Prompt:")) return WPM_STYLE_PROMPT;
-    if (wpm_starts_with(message, "--- ")) return WPM_STYLE_SCRIPT;
+static wpm_message_style wpm_message_style_for(const char *message) {
+    if (wpm_starts_with(message, "Error:")) {
+        return WPM_STYLE_ERROR;
+    }
+    if (wpm_starts_with(message, "Warning:")) {
+        return WPM_STYLE_WARNING;
+    }
+    if (wpm_starts_with(message, "Result:")) {
+        return WPM_STYLE_RESULT;
+    }
+    if (wpm_starts_with(message, "Prompt:")) {
+        return WPM_STYLE_PROMPT;
+    }
+    if (wpm_starts_with(message, "--- ")) {
+        return WPM_STYLE_SCRIPT;
+    }
     if (wpm_starts_with(message, "Installed ") ||
         wpm_starts_with(message, "Built package:") ||
         wpm_starts_with(message, "Verified package:") ||
         wpm_starts_with(message, "Removed package:") ||
-        wpm_starts_with(message, "Upgraded ")) return WPM_STYLE_SUCCESS;
-    if (strstr(message, " progress:") || wpm_starts_with(message, "Downloading ") ||
+        wpm_starts_with(message, "Upgraded ")) {
+        return WPM_STYLE_SUCCESS;
+    }
+    if (strstr(message, " progress:") ||
+        wpm_starts_with(message, "Downloading ") ||
         wpm_starts_with(message, "Extracting ") ||
-        wpm_starts_with(message, "Validating ")) return WPM_STYLE_PROGRESS;
+        wpm_starts_with(message, "Validating ")) {
+        return WPM_STYLE_PROGRESS;
+    }
     return WPM_STYLE_NONE;
 }
 
-static WORD wpm_console_attributes_for(wpm_message_style style)
-{
+static WORD wpm_console_attributes_for(wpm_message_style style) {
     switch (style) {
-        case WPM_STYLE_PROGRESS: return FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_INTENSITY;
-        case WPM_STYLE_SUCCESS: return FOREGROUND_GREEN | FOREGROUND_INTENSITY;
-        case WPM_STYLE_WARNING: return FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_INTENSITY;
-        case WPM_STYLE_ERROR: return FOREGROUND_RED | FOREGROUND_INTENSITY;
-        case WPM_STYLE_PROMPT: return FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_INTENSITY;
-        case WPM_STYLE_SCRIPT: return FOREGROUND_BLUE | FOREGROUND_GREEN;
-        case WPM_STYLE_RESULT: return FOREGROUND_BLUE | FOREGROUND_GREEN | FOREGROUND_INTENSITY;
-        default: return 0;
+    case WPM_STYLE_PROGRESS:
+        return FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_INTENSITY;
+    case WPM_STYLE_SUCCESS:
+        return FOREGROUND_GREEN | FOREGROUND_INTENSITY;
+    case WPM_STYLE_WARNING:
+        return FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_INTENSITY;
+    case WPM_STYLE_ERROR:
+        return FOREGROUND_RED | FOREGROUND_INTENSITY;
+    case WPM_STYLE_PROMPT:
+        return FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_INTENSITY;
+    case WPM_STYLE_SCRIPT:
+        return FOREGROUND_BLUE | FOREGROUND_GREEN;
+    case WPM_STYLE_RESULT:
+        return FOREGROUND_BLUE | FOREGROUND_GREEN | FOREGROUND_INTENSITY;
+    default:
+        return 0;
     }
 }
 
-static const char* wpm_ansi_for(wpm_message_style style)
-{
+static const char *wpm_ansi_for(wpm_message_style style) {
     switch (style) {
-        case WPM_STYLE_PROGRESS: return "\x1b[96m";
-        case WPM_STYLE_SUCCESS: return "\x1b[92m";
-        case WPM_STYLE_WARNING: return "\x1b[93m";
-        case WPM_STYLE_ERROR: return "\x1b[91m";
-        case WPM_STYLE_PROMPT: return "\x1b[95m";
-        case WPM_STYLE_SCRIPT: return "\x1b[36m";
-        case WPM_STYLE_RESULT: return "\x1b[96m";
-        default: return "";
+    case WPM_STYLE_PROGRESS:
+        return "\x1b[96m";
+    case WPM_STYLE_SUCCESS:
+        return "\x1b[92m";
+    case WPM_STYLE_WARNING:
+        return "\x1b[93m";
+    case WPM_STYLE_ERROR:
+        return "\x1b[91m";
+    case WPM_STYLE_PROMPT:
+        return "\x1b[95m";
+    case WPM_STYLE_SCRIPT:
+        return "\x1b[36m";
+    case WPM_STYLE_RESULT:
+        return "\x1b[96m";
+    default:
+        return "";
     }
 }
 
-static int wpm_write_console_message(const char* message, wpm_message_style style)
-{
+static int wpm_write_console_message(const char *message,
+                                     wpm_message_style style) {
     HANDLE output = GetStdHandle(STD_OUTPUT_HANDLE);
     CONSOLE_SCREEN_BUFFER_INFO information;
     int interactive = output != NULL && output != INVALID_HANDLE_VALUE &&
-        GetConsoleScreenBufferInfo(output, &information);
+                      GetConsoleScreenBufferInfo(output, &information);
 
     if (style == WPM_STYLE_NONE || wpm_color == WPM_COLOR_NEVER ||
-        (wpm_color == WPM_COLOR_AUTO && !interactive)) return fputs(message, stdout);
+        (wpm_color == WPM_COLOR_AUTO && !interactive)) {
+        return fputs(message, stdout);
+    }
     if (interactive) {
         WORD attributes = wpm_console_attributes_for(style);
         SetConsoleTextAttribute(output, attributes);
@@ -118,28 +153,36 @@ static int wpm_write_console_message(const char* message, wpm_message_style styl
 static wsp_logger wpm_logger;
 static int wpm_logger_initialized;
 
-static wsp_log_level wpm_log_level_for_message(const char* message)
-{
-    if (strncmp(message, "Error:", 6) == 0) return WSP_LOG_ERROR;
-    if (strncmp(message, "Warning:", 8) == 0) return WSP_LOG_WARN;
-    if (strncmp(message, "Verbose:", 8) == 0) return WSP_LOG_DEBUG;
+static wsp_log_level wpm_log_level_for_message(const char *message) {
+    if (strncmp(message, "Error:", 6) == 0) {
+        return WSP_LOG_ERROR;
+    }
+    if (strncmp(message, "Warning:", 8) == 0) {
+        return WSP_LOG_WARN;
+    }
+    if (strncmp(message, "Verbose:", 8) == 0) {
+        return WSP_LOG_DEBUG;
+    }
     if (strncmp(message, "Result:", 7) == 0 ||
         strncmp(message, "Installed ", 10) == 0 ||
         strncmp(message, "Built package:", 14) == 0 ||
         strncmp(message, "Verified package:", 17) == 0 ||
         strncmp(message, "Removed package:", 16) == 0 ||
-        strncmp(message, "Upgraded ", 9) == 0) return WSP_LOG_PASS;
+        strncmp(message, "Upgraded ", 9) == 0) {
+        return WSP_LOG_PASS;
+    }
     return WSP_LOG_INFO;
 }
 
 #ifdef _WIN32
-static int wpm_write_log_record(void* context, const char* bytes, size_t length)
-{
+static int wpm_write_log_record(void *context, const char *bytes,
+                                size_t length) {
     HANDLE handle = (HANDLE)context;
     while (length > 0) {
         DWORD requested = length > 0xffffffffU ? 0xffffffffU : (DWORD)length;
         DWORD written = 0;
-        if (!WriteFile(handle, bytes, requested, &written, NULL) || written == 0) {
+        if (!WriteFile(handle, bytes, requested, &written, NULL) ||
+            written == 0) {
             DWORD error = GetLastError();
             return error != ERROR_SUCCESS ? (int)error : (int)ERROR_WRITE_FAULT;
         }
@@ -149,60 +192,74 @@ static int wpm_write_log_record(void* context, const char* bytes, size_t length)
     return 0;
 }
 
-static void wpm_close_log_handle(void* context)
-{
+static void wpm_close_log_handle(void *context) {
     HANDLE handle = (HANDLE)context;
-    if (handle != NULL && handle != INVALID_HANDLE_VALUE) CloseHandle(handle);
+    if (handle != NULL && handle != INVALID_HANDLE_VALUE) {
+        CloseHandle(handle);
+    }
 }
 #endif
 
-int wpm_log_initialize(void)
-{
+int wpm_log_initialize(void) {
     char data_root[4096];
     char log_directory[4096];
     char log_path[4096];
     char configured_path[4096];
     char configured_level[32];
-    const char* selected_path;
+    const char *selected_path;
     wsp_log_level file_level = WSP_LOG_DEBUG;
 
-    if (wpm_logger_initialized) return 1;
+    if (wpm_logger_initialized) {
+        return 1;
+    }
     if (wpm_get_environment_variable("WPM_LOG_LEVEL", configured_level,
-            sizeof(configured_level))) {
-        if (_stricmp(configured_level, "normal") == 0) file_level = WSP_LOG_INFO;
-        else if (_stricmp(configured_level, "verbose") != 0) return 0;
+                                     sizeof(configured_level))) {
+        if (_stricmp(configured_level, "normal") == 0) {
+            file_level = WSP_LOG_INFO;
+        } else if (_stricmp(configured_level, "verbose") != 0) {
+            return 0;
+        }
     }
     wsp_log_init(&wpm_logger);
     wsp_log_set_console_level(&wpm_logger, WSP_LOG_OFF);
     wsp_log_set_file_level(&wpm_logger, file_level);
     if (wpm_get_environment_variable("WPM_LOG_FILE", configured_path,
-            sizeof(configured_path))) {
+                                     sizeof(configured_path))) {
         selected_path = configured_path;
-    }
-    else {
+    } else {
         if (!wpm_get_data_root(data_root, sizeof(data_root)) ||
-            snprintf(log_directory, sizeof(log_directory), "%s\\audit", data_root) <= 0 ||
-            (!CreateDirectoryA(log_directory, NULL) && GetLastError() != ERROR_ALREADY_EXISTS) ||
-            snprintf(log_path, sizeof(log_path), "%s\\audit\\wpm.log", data_root) <= 0) return 0;
+            snprintf(log_directory, sizeof(log_directory), "%s\\audit",
+                     data_root) <= 0 ||
+            (!CreateDirectoryA(log_directory, NULL) &&
+             GetLastError() != ERROR_ALREADY_EXISTS) ||
+            snprintf(log_path, sizeof(log_path), "%s\\audit\\wpm.log",
+                     data_root) <= 0) {
+            return 0;
+        }
         selected_path = log_path;
     }
-    if (snprintf(wpm_active_log_path, sizeof(wpm_active_log_path), "%s", selected_path) < 0) {
+    if (snprintf(wpm_active_log_path, sizeof(wpm_active_log_path), "%s",
+                 selected_path) < 0) {
         return 0;
     }
 #ifdef _WIN32
     {
         HANDLE handle = CreateFileA(selected_path, FILE_APPEND_DATA,
-            FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_ALWAYS,
-            FILE_ATTRIBUTE_NORMAL, NULL);
-        if (handle == INVALID_HANDLE_VALUE) return 0;
+                                    FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
+                                    OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+        if (handle == INVALID_HANDLE_VALUE) {
+            return 0;
+        }
         if (wsp_log_set_sink(&wpm_logger, wpm_write_log_record,
-                wpm_close_log_handle, handle) != 0) {
+                             wpm_close_log_handle, handle) != 0) {
             CloseHandle(handle);
             return 0;
         }
     }
 #else
-    if (wsp_log_open_file(&wpm_logger, selected_path, 1) != 0) return 0;
+    if (wsp_log_open_file(&wpm_logger, selected_path, 1) != 0) {
+        return 0;
+    }
 #endif
     wpm_failure_log_reported = 0;
     wpm_logger_initialized = 1;
@@ -210,48 +267,58 @@ int wpm_log_initialize(void)
     return 1;
 }
 
-void wpm_log_close(void)
-{
-    if (wpm_logger_initialized) wsp_log_close(&wpm_logger);
+void wpm_log_close(void) {
+    if (wpm_logger_initialized) {
+        wsp_log_close(&wpm_logger);
+    }
     wpm_logger_initialized = 0;
     wpm_active_log_path[0] = '\0';
     wpm_failure_log_reported = 0;
 }
 
-static void wpm_report_failure_log(void)
-{
+static void wpm_report_failure_log(void) {
     char notice[4224];
-    if (!wpm_logger_initialized || wpm_failure_log_reported || !wpm_active_log_path[0]) return;
-    if (snprintf(notice, sizeof(notice), "Operational log: %s\n", wpm_active_log_path) < 0) return;
+    if (!wpm_logger_initialized || wpm_failure_log_reported ||
+        !wpm_active_log_path[0]) {
+        return;
+    }
+    if (snprintf(notice, sizeof(notice), "Operational log: %s\n",
+                 wpm_active_log_path) < 0) {
+        return;
+    }
     notice[sizeof(notice) - 1] = '\0';
     wpm_failure_log_reported = 1;
     wpm_write_console_message(notice, WPM_STYLE_NONE);
     wsp_log_write(&wpm_logger, WSP_LOG_INFO, "%s", notice);
 }
 
-int wpm_vprintf(const char* format, va_list arguments)
-{
+int wpm_vprintf(const char *format, va_list arguments) {
     char message[8192];
     size_t length;
     int result;
-    if (vsnprintf(message, sizeof(message), format, arguments) < 0) return -1;
+    if (vsnprintf(message, sizeof(message), format, arguments) < 0) {
+        return -1;
+    }
     message[sizeof(message) - 1] = '\0';
     result = wpm_write_console_message(message, wpm_message_style_for(message));
     if (wpm_logger_initialized) {
         length = strlen(message);
-        while (length > 0 && (message[length - 1] == '\n' || message[length - 1] == '\r')) {
+        while (length > 0 &&
+               (message[length - 1] == '\n' || message[length - 1] == '\r')) {
             message[--length] = '\0';
         }
         if (length > 0) {
-            wsp_log_write(&wpm_logger, wpm_log_level_for_message(message), "%s", message);
+            wsp_log_write(&wpm_logger, wpm_log_level_for_message(message), "%s",
+                          message);
         }
     }
-    if (strncmp(message, "Error:", 6) == 0) wpm_report_failure_log();
+    if (strncmp(message, "Error:", 6) == 0) {
+        wpm_report_failure_log();
+    }
     return result;
 }
 
-int wpm_printf(const char* format, ...)
-{
+int wpm_printf(const char *format, ...) {
     int result;
     va_list arguments;
 

@@ -11,7 +11,7 @@
 int wpm_log_initialize(void);
 
 /** Configure human-output styling. Accepted values are auto, always, never. */
-int wpm_set_color_policy(const char* value);
+int wpm_set_color_policy(const char *value);
 
 /** Close the operational log if it is open. */
 void wpm_log_close(void);
@@ -21,7 +21,7 @@ void wpm_log_close(void);
  * @param[in] format printf-compatible format string.
  * @return The console character count, or a negative output error.
  */
-int wpm_printf(const char* format, ...);
+int wpm_printf(const char *format, ...);
 
 /**
  * Write variable-argument output to the console and active WSP log.
@@ -29,7 +29,7 @@ int wpm_printf(const char* format, ...);
  * @param[in] arguments Arguments consumed according to @p format.
  * @return The console character count, or a negative output error.
  */
-int wpm_vprintf(const char* format, va_list arguments);
+int wpm_vprintf(const char *format, va_list arguments);
 
 #ifndef WPM_LOGGING_IMPLEMENTATION
 /** Route project-owned printf calls through the WSP logging adapter. */

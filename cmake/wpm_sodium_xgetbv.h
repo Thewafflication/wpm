@@ -6,7 +6,8 @@
 static unsigned long long wpm_sodium_xgetbv(unsigned int index) {
     unsigned int low, high;
     __asm__ __volatile__(".byte 0x0f, 0x01, 0xd0"
-        : "=a"(low), "=d"(high) : "c"(index));
+                         : "=a"(low), "=d"(high)
+                         : "c"(index));
     return ((unsigned long long)high << 32) | low;
 }
 #define _xgetbv wpm_sodium_xgetbv

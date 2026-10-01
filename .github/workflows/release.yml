@@ -4,7 +4,6 @@ on:
   push:
     tags:
       - '*'
-
 permissions:
   contents: write
 
@@ -49,10 +48,23 @@ jobs:
         shell: pwsh
         run: tests/lint-c99.ps1
 
+      - name: Set up Python for style checks
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Check owned source style
+        shell: pwsh
+        run: |
+          python -m pip install -r tools/requirements-style.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          tools/Test-Style.ps1
+
       - name: Export dependency metadata
         id: metadata
         shell: pwsh
-        run: tests/export-dependency-metadata.ps1 -GitHubOutput $env:GITHUB_OUTPUT
+        run: tests/export-dependency-metadata.ps1 -GitHubOutput
+          $env:GITHUB_OUTPUT
 
   verify:
     name: Verify ${{ matrix.arch }} Debug
@@ -92,13 +104,26 @@ jobs:
         run: |
           cmake --preset ${{ matrix.configure_preset }} `
             "-DCMAKE_MAKE_PROGRAM=$env:WPM_NINJA" `
-            "-DWPM_MINIZIP_NG_VERSION_OVERRIDE=${{ needs.dependency-metadata.outputs.minizip_ng_version }}" `
-            "-DWPM_MINIZIP_NG_COMMIT_OVERRIDE=${{ needs.dependency-metadata.outputs.minizip_ng_commit }}" `
-            "-DWPM_ZLIB_NG_VERSION_OVERRIDE=${{ needs.dependency-metadata.outputs.zlib_ng_version }}" `
-            "-DWPM_ZLIB_NG_COMMIT_OVERRIDE=${{ needs.dependency-metadata.outputs.zlib_ng_commit }}" `
-            "-DWPM_LIBSODIUM_VERSION_OVERRIDE=${{ needs.dependency-metadata.outputs.libsodium_version }}" `
-            "-DWPM_LIBSODIUM_COMMIT_OVERRIDE=${{ needs.dependency-metadata.outputs.libsodium_commit }}"
+            "-DWPM_MINIZIP_NG_VERSION_OVERRIDE=$env:MINIZIP_NG_VERSION" `
+            "-DWPM_MINIZIP_NG_COMMIT_OVERRIDE=$env:MINIZIP_NG_COMMIT" `
+            "-DWPM_ZLIB_NG_VERSION_OVERRIDE=$env:ZLIB_NG_VERSION" `
+            "-DWPM_ZLIB_NG_COMMIT_OVERRIDE=$env:ZLIB_NG_COMMIT" `
+            "-DWPM_LIBSODIUM_VERSION_OVERRIDE=$env:LIBSODIUM_VERSION" `
+            "-DWPM_LIBSODIUM_COMMIT_OVERRIDE=$env:LIBSODIUM_COMMIT"
 
+        env:
+          MINIZIP_NG_VERSION: >-
+            ${{ needs.dependency-metadata.outputs.minizip_ng_version }}
+          LIBSODIUM_COMMIT: >-
+            ${{ needs.dependency-metadata.outputs.libsodium_commit }}
+          ZLIB_NG_COMMIT: >-
+            ${{ needs.dependency-metadata.outputs.zlib_ng_commit }}
+          LIBSODIUM_VERSION: >-
+            ${{ needs.dependency-metadata.outputs.libsodium_version }}
+          MINIZIP_NG_COMMIT: >-
+            ${{ needs.dependency-metadata.outputs.minizip_ng_commit }}
+          ZLIB_NG_VERSION: >-
+            ${{ needs.dependency-metadata.outputs.zlib_ng_version }}
       - name: Verify requirements traceability
         shell: pwsh
         run: tests/verify-traceability.ps1
@@ -114,15 +139,25 @@ jobs:
       - name: Run verification suite
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path bin/${{ matrix.arch }}/Debug | Out-Null
+          New-Item -ItemType Directory -Force -Path `
+              bin/${{ matrix.arch }}/Debug | Out-Null
           cmake --build --preset ${{ matrix.verify_preset }} 2>&1 |
-            Tee-Object -FilePath bin/${{ matrix.arch }}/Debug/verification-build.log
+            Tee-Object -FilePath `
+                bin/${{ matrix.arch }}/Debug/verification-build.log
           exit $LASTEXITCODE
+
+      - name: Run fresh full Debug test suite
+        shell: pwsh
+        run: |
+          ctest --test-dir out/build/${{ matrix.configure_preset }} `
+            -C Debug --output-on-failure --no-tests=error
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Collect build warnings in summary
         if: always()
         shell: pwsh
-        run: tests/summarize-build-warnings.ps1 -LogPath bin/${{ matrix.arch }}/Debug/verification-build.log
+        run: tests/summarize-build-warnings.ps1 -LogPath bin/${{ matrix.arch
+          }}/Debug/verification-build.log
 
       - name: Upload verification evidence
         uses: actions/upload-artifact@v7
@@ -170,13 +205,26 @@ jobs:
         run: |
           cmake --preset ${{ matrix.configure_preset }} `
             "-DCMAKE_MAKE_PROGRAM=$env:WPM_NINJA" `
-            "-DWPM_MINIZIP_NG_VERSION_OVERRIDE=${{ needs.dependency-metadata.outputs.minizip_ng_version }}" `
-            "-DWPM_MINIZIP_NG_COMMIT_OVERRIDE=${{ needs.dependency-metadata.outputs.minizip_ng_commit }}" `
-            "-DWPM_ZLIB_NG_VERSION_OVERRIDE=${{ needs.dependency-metadata.outputs.zlib_ng_version }}" `
-            "-DWPM_ZLIB_NG_COMMIT_OVERRIDE=${{ needs.dependency-metadata.outputs.zlib_ng_commit }}" `
-            "-DWPM_LIBSODIUM_VERSION_OVERRIDE=${{ needs.dependency-metadata.outputs.libsodium_version }}" `
-            "-DWPM_LIBSODIUM_COMMIT_OVERRIDE=${{ needs.dependency-metadata.outputs.libsodium_commit }}"
+            "-DWPM_MINIZIP_NG_VERSION_OVERRIDE=$env:MINIZIP_NG_VERSION" `
+            "-DWPM_MINIZIP_NG_COMMIT_OVERRIDE=$env:MINIZIP_NG_COMMIT" `
+            "-DWPM_ZLIB_NG_VERSION_OVERRIDE=$env:ZLIB_NG_VERSION" `
+            "-DWPM_ZLIB_NG_COMMIT_OVERRIDE=$env:ZLIB_NG_COMMIT" `
+            "-DWPM_LIBSODIUM_VERSION_OVERRIDE=$env:LIBSODIUM_VERSION" `
+            "-DWPM_LIBSODIUM_COMMIT_OVERRIDE=$env:LIBSODIUM_COMMIT"
 
+        env:
+          MINIZIP_NG_VERSION: >-
+            ${{ needs.dependency-metadata.outputs.minizip_ng_version }}
+          LIBSODIUM_COMMIT: >-
+            ${{ needs.dependency-metadata.outputs.libsodium_commit }}
+          ZLIB_NG_COMMIT: >-
+            ${{ needs.dependency-metadata.outputs.zlib_ng_commit }}
+          LIBSODIUM_VERSION: >-
+            ${{ needs.dependency-metadata.outputs.libsodium_version }}
+          MINIZIP_NG_COMMIT: >-
+            ${{ needs.dependency-metadata.outputs.minizip_ng_commit }}
+          ZLIB_NG_VERSION: >-
+            ${{ needs.dependency-metadata.outputs.zlib_ng_version }}
       - name: Build
         shell: pwsh
         run: cmake --build --preset ${{ matrix.build_preset }}
@@ -186,16 +234,31 @@ jobs:
         run: |
           $probe = Join-Path $env:RUNNER_TEMP 'wpm-self-contained'
           New-Item -ItemType Directory -Force -Path $probe | Out-Null
-          Copy-Item -LiteralPath "bin/${{ matrix.arch }}/Release/wpm.exe" -Destination "$probe/wpm.exe"
+          Copy-Item -LiteralPath `
+              "bin/${{ matrix.arch }}/Release/wpm.exe" -Destination `
+              "$probe/wpm.exe"
           & "$probe/wpm.exe" --version
-          if ($LASTEXITCODE -ne 0) { throw 'The Release executable requires an unavailable sidecar runtime.' }
+          if ($LASTEXITCODE -ne 0) { throw (
+              'The Release executable requires ' +
+              'an unavailable sidecar runtime.'
+          ) }
 
       - name: Prepare Release executable
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path release | Out-Null
-          Copy-Item -LiteralPath "bin/${{ matrix.arch }}/Release/wpm.exe" -Destination "release/wpm-${{ matrix.arch }}.exe"
-          Copy-Item -LiteralPath "$env:WPM_WCRT_ROOT/${{ matrix.arch }}/bin/wcrt.dll" -Destination "release/wcrt-${{ matrix.arch }}.dll"
+          Copy-Item -LiteralPath `
+              "bin/${{ matrix.arch }}/Release/wpm.exe" -Destination (
+              "release/wpm-${{ matrix.arch }}.e" +
+              "xe"
+          )
+          Copy-Item -LiteralPath (
+              "$env:WPM_WCRT_ROOT/" +
+              "${{ matrix.arch }}/bin/wcrt.dll"
+          ) -Destination (
+              "release/wcrt-${{ matrix.arch }}." +
+              "dll"
+          )
 
       - name: Upload Release executable
         uses: actions/upload-artifact@v7
@@ -238,10 +301,16 @@ jobs:
         env:
           WPM_RELEASE_PRIVATE_KEY: ${{ secrets.WPM_RELEASE_PRIVATE_KEY }}
         run: |
-          if (-not $env:WPM_RELEASE_PRIVATE_KEY) { throw 'WPM_RELEASE_PRIVATE_KEY is not configured.' }
+          if (-not $env:WPM_RELEASE_PRIVATE_KEY) { throw (
+              'WPM_RELEASE_PRIVATE_KEY is not c' +
+              'onfigured.'
+          ) }
           $keyPath = Join-Path $env:RUNNER_TEMP 'wpm-release.private'
-          [IO.File]::WriteAllText($keyPath, $env:WPM_RELEASE_PRIVATE_KEY, [Text.UTF8Encoding]::new($false))
-          "WPM_RELEASE_KEY_PATH=$keyPath" | Out-File -FilePath $env:GITHUB_ENV -Append
+          [IO.File]::WriteAllText($keyPath, `
+              $env:WPM_RELEASE_PRIVATE_KEY, [Text.UTF8Encoding]::new( `
+              $false))
+          "WPM_RELEASE_KEY_PATH=$keyPath" | Out-File -FilePath `
+              $env:GITHUB_ENV -Append
 
       - name: Build Release WPM packages with x86 Debug WPM
         shell: pwsh
@@ -250,9 +319,20 @@ jobs:
           foreach ($architecture in $architectures) {
             cmake `
               "-DWPM_EXECUTABLE=$PWD/bin/x86/Debug/wpm.exe" `
-              "-DWPM_PACKAGE_EXECUTABLE=$PWD/release-binaries/wpm-$architecture.exe" `
-              "-DWPM_PACKAGE_RUNTIME_DLL=$PWD/release-binaries/wcrt-$architecture.dll" `
-              "-DWPM_PACKAGE_STAGING_DIR=$PWD/out/release-package/$architecture" `
+              (
+                  "-DWPM_PACKAGE_EXECUTABLE=$PWD/re" +
+                  "lease-binaries/wpm-$architecture" +
+                  ".exe"
+              ) `
+              (
+                  "-DWPM_PACKAGE_RUNTIME_DLL=$PWD/r" +
+                  "elease-binaries/wcrt-" +
+                  "$architecture.dll"
+              ) `
+              (
+                  "-DWPM_PACKAGE_STAGING_DIR=$PWD/o" +
+                  "ut/release-package/$architecture"
+              ) `
               "-DWPM_PACKAGE_OUTPUT_DIR=$PWD/release/packages" `
               "-DWPM_PACKAGE_ARCH=$architecture" `
               -DWPM_PACKAGE_DEBUG=false `
@@ -271,31 +351,44 @@ jobs:
       - name: Validate signed Release WPM packages
         shell: pwsh
         run: |
-          $env:WPM_DATA_DIR = Join-Path $env:RUNNER_TEMP 'wpm-release-validation'
+          $env:WPM_DATA_DIR = Join-Path $env:RUNNER_TEMP `
+              'wpm-release-validation'
           bin/x86/Debug/wpm.exe trust add release_keys/wpm-release.public
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $packages = @(Get-ChildItem -LiteralPath release/packages -Filter 'wpm-*.zip')
-          if ($packages.Count -ne 3) { throw "Expected three release packages, found $($packages.Count)." }
+          $packages = @(Get-ChildItem -LiteralPath release/packages `
+              -Filter 'wpm-*.zip')
+          if ($packages.Count -ne 3) { throw (
+              "Expected three release packages," +
+              " found $($packages.Count)."
+          ) }
           foreach ($package in $packages) {
             bin/x86/Debug/wpm.exe verify $package.FullName
-            if ($LASTEXITCODE -ne 0) { throw "Release package validation failed: $($package.Name)" }
+            if ($LASTEXITCODE -ne 0) { throw (
+                "Release package validation faile" +
+                "d: $($package.Name)"
+            ) }
           }
 
       - name: Remove materialized release signing key
         if: always()
         shell: pwsh
         run: |
-          if ($env:WPM_RELEASE_KEY_PATH -and (Test-Path -LiteralPath $env:WPM_RELEASE_KEY_PATH)) {
+          if ($env:WPM_RELEASE_KEY_PATH -and (Test-Path -LiteralPath `
+              $env:WPM_RELEASE_KEY_PATH)) {
             Remove-Item -LiteralPath $env:WPM_RELEASE_KEY_PATH -Force
           }
 
       - name: Prepare public release key
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path release/keys | Out-Null
-          Copy-Item -LiteralPath release_keys/wpm-release.public -Destination release/keys/wpm-release.public
-          Copy-Item -LiteralPath install.cmd -Destination release/install.cmd
-          Copy-Item -LiteralPath install.ps1 -Destination release/install.ps1
+          New-Item -ItemType Directory -Force -Path release/keys | `
+              Out-Null
+          Copy-Item -LiteralPath release_keys/wpm-release.public `
+              -Destination release/keys/wpm-release.public
+          Copy-Item -LiteralPath install.cmd -Destination `
+              release/install.cmd
+          Copy-Item -LiteralPath install.ps1 -Destination `
+              release/install.ps1
 
       - name: Upload Release WPM packages
         uses: actions/upload-artifact@v7
@@ -342,14 +435,22 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $assetName = "wpm-${{ matrix.arch }}-<version>.zip"
-          $releases = gh api "repos/${{ github.repository }}/releases?per_page=100" |
+          $releases = gh api (
+              "repos/${{ github.repository }}/r" +
+              "eleases?per_page=100"
+          ) |
             ConvertFrom-Json
-          if ($LASTEXITCODE -ne 0) { throw 'Could not enumerate published GitHub releases.' }
+          if ($LASTEXITCODE -ne 0) { throw (
+              'Could not enumerate published Gi' +
+              'tHub releases.'
+          ) }
 
           $releaseCandidates = @($releases |
-            Where-Object { -not $_.draft -and -not $_.prerelease -and $_.tag_name -match '^\d+\.\d+\.\d+$' } |
+            Where-Object { -not $_.draft -and -not $_.prerelease -and `
+                $_.tag_name -match '^\d+\.\d+\.\d+$' } |
             ForEach-Object {
-              $expectedAsset = $assetName.Replace('<version>', $_.tag_name)
+              $expectedAsset = $assetName.Replace('<version>', `
+                  $_.tag_name)
               if ($_.tag_name -ne '${{ github.ref_name }}' -and
                   @($_.assets.name) -contains $expectedAsset) {
                 [pscustomobject]@{
@@ -369,14 +470,25 @@ jobs:
             }
           }
           if (-not $previousVersion) {
-            throw "No previous published release contains ${{ matrix.arch }} package assets."
+            throw (
+                "No previous published release co" +
+                "ntains ${{ matrix.arch }} packag" +
+                "e assets."
+            )
           }
-          Write-Host "Testing upgrade from published release $previousVersion."
+          Write-Host (
+              "Testing upgrade from published r" +
+              "elease $previousVersion."
+          )
           tests/verify-previous-release-upgrade.ps1 `
             -PreviousVersion $previousVersion `
             -CandidateVersion '${{ github.ref_name }}' `
             -Architecture '${{ matrix.arch }}' `
-            -CandidatePackage "release/packages/wpm-${{ matrix.arch }}-${{ github.ref_name }}.zip" `
+            -CandidatePackage (
+                "release/packages/wpm-" +
+                "${{ matrix.arch }}-" +
+                "${{ github.ref_name }}.zip"
+            ) `
             -PublicKey release/keys/wpm-release.public
 
   publish:
@@ -400,7 +512,8 @@ jobs:
       - name: Create release package index
         shell: pwsh
         run: |
-          $packages = Get-ChildItem -LiteralPath release/packages -Filter 'wpm-*.zip' | ForEach-Object {
+          $packages = Get-ChildItem -LiteralPath release/packages `
+              -Filter 'wpm-*.zip' | ForEach-Object {
             if ($_.Name -notmatch '^wpm-(x86|x64|arm64)-(.+)\.zip$') {
               throw "Unexpected release package name: $($_.Name)"
             }
@@ -411,7 +524,10 @@ jobs:
               url = $_.Name
             }
           }
-          if ($packages.Count -ne 3) { throw "Expected three release packages, found $($packages.Count)." }
+          if ($packages.Count -ne 3) { throw (
+              "Expected three release packages," +
+              " found $($packages.Count)."
+          ) }
           [ordered]@{ version = 1; packages = @($packages) } |
             ConvertTo-Json -Depth 3 |
             Set-Content -LiteralPath release/index.json -Encoding utf8

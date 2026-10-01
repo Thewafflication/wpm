@@ -8,7 +8,8 @@ Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
 $releaseBase = 'https://github.com/Thewafflication/wpm/releases/latest/download'
-$work = Join-Path ([IO.Path]::GetTempPath()) ('wpm-install-' + [Guid]::NewGuid().ToString('N'))
+$work = Join-Path ([IO.Path]::GetTempPath()) ('wpm-install-' + `
+        [Guid]::NewGuid().ToString('N'))
 
 function Invoke-WpmDownload {
     param(
@@ -16,9 +17,11 @@ function Invoke-WpmDownload {
         [string]$Destination
     )
 
-    $curl = Get-Command curl.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+    $curl = Get-Command curl.exe -ErrorAction SilentlyContinue | `
+            Select-Object -First 1
     if ($curl -ne $null) {
-        & $curl.Path --fail --location --show-error --silent --tlsv1.2 --output $Destination $Url
+        & $curl.Path --fail --location --show-error --silent --tlsv1.2 `
+            --output $Destination $Url
         if ($LASTEXITCODE -ne 0) {
             throw "curl.exe could not download $Url (exit code $LASTEXITCODE)."
         }
@@ -27,18 +30,25 @@ function Invoke-WpmDownload {
 
     # 3072 is TLS 1.2. The numeric value works on PowerShell 2.0, whose enum
     # does not name TLS 1.2. The OS/.NET HTTPS provider must still support it.
-    try { [Net.ServicePointManager]::SecurityProtocol = 3072 } catch { }
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = 3072
+    } catch {
+    }
     $client = New-Object Net.WebClient
     try {
         $client.Headers.Add('User-Agent', 'WPM-PowerShell-2-Bootstrap')
         $client.DownloadFile($Url, $Destination)
-    }
-    catch {
-        throw ('Could not download {0}. On Windows XP, install a TLS 1.2-capable ' +
-            'curl.exe or download install.ps1 and the release assets using another machine. {1}' -f
+    } catch {
+        throw ((
+                'Could not download {0}. On Windows XP, insta' +
+                'll a TLS 1.2-capable '
+            ) +
+            (
+                'curl.exe or download install.ps1 and the rel' +
+                'ease assets using another machine. {1}'
+            ) -f
             $Url, $_.Exception.Message)
-    }
-    finally {
+    } finally {
         $client.Dispose()
     }
 }
@@ -79,13 +89,21 @@ function Expand-WpmZip {
             }
         }
 
-        $files = @(Get-ChildItem $Destination -Recurse -Force | Where-Object { -not $_.PSIsContainer })
+        $files = @(Get-ChildItem $Destination -Recurse -Force | Where-Object `
+            { -not $_.PSIsContainer })
         [Int64]$totalLength = 0
-        foreach ($file in $files) { $totalLength += $file.Length }
+        foreach ($file in $files) {
+            $totalLength += $file.Length
+        }
         $state = [string]$files.Count + ':' + [string]$totalLength
-        if ($complete -and $state -eq $previousState) { $stableChecks++ }
-        else { $stableChecks = 0 }
-        if ($stableChecks -ge 5) { return }
+        if ($complete -and $state -eq $previousState) {
+            $stableChecks++
+        } else {
+            $stableChecks = 0
+        }
+        if ($stableChecks -ge 5) {
+            return
+        }
         $previousState = $state
         Start-Sleep -Milliseconds 200
     }
@@ -99,12 +117,22 @@ try {
     New-Item -ItemType Directory -Path $work | Out-Null
 
     $native = $env:PROCESSOR_ARCHITECTURE
-    if ($env:PROCESSOR_ARCHITEW6432) { $native = $env:PROCESSOR_ARCHITEW6432 }
+    if ($env:PROCESSOR_ARCHITEW6432) {
+        $native = $env:PROCESSOR_ARCHITEW6432
+    }
     switch ($native.ToUpperInvariant()) {
-        'AMD64' { $architecture = 'x64' }
-        'X86' { $architecture = 'x86' }
-        'ARM64' { $architecture = 'arm64' }
-        default { throw "Unsupported Windows architecture: $native" }
+        'AMD64' {
+            $architecture = 'x64'
+        }
+        'X86' {
+            $architecture = 'x86'
+        }
+        'ARM64' {
+            $architecture = 'arm64'
+        }
+        default {
+            throw "Unsupported Windows architecture: $native"
+        }
     }
     Write-Host "Detected Windows architecture: $architecture."
 
@@ -117,11 +145,17 @@ try {
     }
 
     $architecturePattern = [Regex]::Escape($architecture)
-    $packagePattern = '(?s)\{[^{}]*"name"\s*:\s*"wpm"[^{}]*"version"\s*:\s*"([^"]+)"[^{}]*"arch"\s*:\s*"' +
-        $architecturePattern + '"[^{}]*"url"\s*:\s*"([^"]+)"[^{}]*\}'
+    $packagePattern = (
+        '(?s)\{[^{}]*"name"\s*:\s*"wpm"[^{}]*"version' +
+        '"\s*:\s*"([^"]+)"[^{}]*"arch"\s*:\s*"'
+    ) +
+    $architecturePattern + '"[^{}]*"url"\s*:\s*"([^"]+)"[^{}]*\}'
     $packageMatches = [Regex]::Matches($indexText, $packagePattern)
     if ($packageMatches.Count -ne 1) {
-        throw "Expected one WPM package for $architecture; found $($packageMatches.Count)."
+        throw (
+            "Expected one WPM package for $architecture; " +
+            "found $($packageMatches.Count)."
+        )
     }
 
     $packageVersion = $packageMatches[0].Groups[1].Value
@@ -148,23 +182,48 @@ try {
     $env:WPM_DATA_DIR = Join-Path $work 'validation'
     Write-Host 'Establishing temporary trust in the release signing key...'
     & $wpm trust add $publicKey
-    if ($LASTEXITCODE -ne 0) { throw 'Could not establish temporary release-key trust.' }
+    if ($LASTEXITCODE -ne 0) {
+        throw (
+            'Could not establish temporary release-key tr' +
+            'ust.'
+        )
+    }
     Write-Host 'Verifying the WPM package signature and contents...'
     & $wpm verify $archive
-    if ($LASTEXITCODE -ne 0) { throw 'Downloaded WPM package validation failed.' }
+    if ($LASTEXITCODE -ne 0) {
+        throw `
+            'Downloaded WPM package validation failed.'
+    }
 
-    if ($hadDataDirectory) { $env:WPM_DATA_DIR = $previousDataDirectory }
-    else { Remove-Item Env:WPM_DATA_DIR -ErrorAction SilentlyContinue }
+    if ($hadDataDirectory) {
+        $env:WPM_DATA_DIR = $previousDataDirectory
+    } else {
+        Remove-Item Env:WPM_DATA_DIR -ErrorAction SilentlyContinue
+    }
 
     $scope = '--machine'
-    if ($User) { $scope = '--user' }
+    if ($User) {
+        $scope = '--user'
+    }
     Write-Host "Starting packaged WPM setup ($scope)..."
     & $setup $scope $wpm
-    if ($LASTEXITCODE -ne 0) { throw "WPM setup failed with exit code $LASTEXITCODE." }
-    Write-Host 'WPM installation completed. Open a new command window and run wpm --version.'
-}
-finally {
-    if ($hadDataDirectory) { $env:WPM_DATA_DIR = $previousDataDirectory }
-    else { Remove-Item Env:WPM_DATA_DIR -ErrorAction SilentlyContinue }
-    if (Test-Path $work) { Remove-Item $work -Recurse -Force }
+    if ($LASTEXITCODE -ne 0) {
+        throw (
+            "WPM setup failed with exit code " +
+            "$LASTEXITCODE."
+        )
+    }
+    Write-Host (
+        'WPM installation completed. Open a new comma' +
+        'nd window and run wpm --version.'
+    )
+} finally {
+    if ($hadDataDirectory) {
+        $env:WPM_DATA_DIR = $previousDataDirectory
+    } else {
+        Remove-Item Env:WPM_DATA_DIR -ErrorAction SilentlyContinue
+    }
+    if (Test-Path $work) {
+        Remove-Item $work -Recurse -Force
+    }
 }

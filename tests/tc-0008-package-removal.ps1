@@ -30,15 +30,18 @@ $results = @()
 
 try {
     $env:WPM_DATA_DIR = $wpmDataDir
-    New-Item -ItemType Directory -Force -Path $sourceDir, $outputDir, $deploymentDir | Out-Null
-    New-Item -ItemType Directory -Force -Path (Join-Path $sourceDir '.wpm') | Out-Null
+    New-Item -ItemType Directory -Force -Path $sourceDir, $outputDir, `
+        $deploymentDir | Out-Null
+    New-Item -ItemType Directory -Force -Path (Join-Path $sourceDir '.wpm') | `
+            Out-Null
     Set-Content -LiteralPath (Join-Path $sourceDir '.wpm\package.txt') -Value @(
         "name=$packageName"
         'version=1.2.3'
         'arch=any'
         'debug=false'
     )
-    Set-Content -LiteralPath (Join-Path $sourceDir 'hello.txt') -Value 'hello from wpm'
+    Set-Content -LiteralPath (Join-Path $sourceDir 'hello.txt') -Value `
+        'hello from wpm'
     Set-Content -LiteralPath (Join-Path $sourceDir '.wpm\install.cmd') -Value @(
         '@echo off'
         "copy /y `"hello.txt`" `"$deploymentFile`" >nul"
@@ -54,63 +57,77 @@ try {
         -Name 'Build package for removal' `
         -Arguments @('build', $sourceDir, $outputDir, '--no-index') `
         -Assert {
-            param($ExitCode, $Output)
-            if ($ExitCode -ne 0 -or -not (Test-Path -LiteralPath $archivePath -PathType Leaf)) {
-                throw 'Failed to build the package used for removal.'
-            }
+        param($ExitCode, $Output)
+        if ($ExitCode -ne 0 -or -not (Test-Path -LiteralPath $archivePath `
+                    -PathType Leaf)) {
+            throw 'Failed to build the package used for removal.'
         }
+    }
 
     $results += Invoke-WpmTestStep `
         -WpmExe $WpmExe `
         -Name 'Install package before removal' `
         -Arguments @('install', $archivePath, '--allow-unsigned') `
         -Assert {
-            param($ExitCode, $Output)
-            if ($ExitCode -ne 0) { throw "Expected install exit code 0, got $ExitCode." }
-            if (-not (Test-Path -LiteralPath $deploymentFile -PathType Leaf)) {
-                throw 'Install script did not create the deployment file.'
-            }
-            if (-not (Test-Path -LiteralPath $storedArchivePath -PathType Leaf)) {
-                throw 'Install did not retain the package archive.'
-            }
+        param($ExitCode, $Output)
+        if ($ExitCode -ne 0) {
+            throw `
+                "Expected install exit code 0, got $ExitCode."
         }
+        if (-not (Test-Path -LiteralPath $deploymentFile -PathType Leaf)) {
+            throw 'Install script did not create the deployment file.'
+        }
+        if (-not (Test-Path -LiteralPath $storedArchivePath -PathType `
+                    Leaf)) {
+            throw 'Install did not retain the package archive.'
+        }
+    }
 
     $results += Invoke-WpmTestStep `
         -WpmExe $WpmExe `
         -Name 'Remove retained package by archive name' `
         -Arguments @('remove', "$archivePackageName.zip") `
         -Assert {
-            param($ExitCode, $Output)
-            if ($ExitCode -ne 0) { throw "Expected removal exit code 0, got $ExitCode." }
-            if (Test-Path -LiteralPath $deploymentFile) {
-                throw 'Remove script did not remove the deployment file.'
-            }
-            if (Test-Path -LiteralPath $storedArchivePath) {
-                throw 'Removal did not delete the retained archive.'
-            }
-            if (Test-Path -LiteralPath $stagingDir) {
-                throw 'Removal did not clean its staging directory.'
-            }
-            $removalLogs = @(Get-ChildItem -LiteralPath (Join-Path $wpmDataDir 'logs\scripts') -Filter '*-removal.log' -File)
-            if ($removalLogs.Count -ne 1 -or $Output -notmatch 'remove-script-output' -or
-                $Output -notmatch [regex]::Escape($removalLogs[0].FullName) -or
-                (Get-Content -Raw -LiteralPath $removalLogs[0].FullName) -notmatch 'remove-script-output') {
-                throw 'Removal script output was not streamed and retained in the reported log.'
-            }
+        param($ExitCode, $Output)
+        if ($ExitCode -ne 0) {
+            throw `
+                "Expected removal exit code 0, got $ExitCode."
         }
-}
-finally {
+        if (Test-Path -LiteralPath $deploymentFile) {
+            throw 'Remove script did not remove the deployment file.'
+        }
+        if (Test-Path -LiteralPath $storedArchivePath) {
+            throw 'Removal did not delete the retained archive.'
+        }
+        if (Test-Path -LiteralPath $stagingDir) {
+            throw 'Removal did not clean its staging directory.'
+        }
+        $removalLogs = @(Get-ChildItem -LiteralPath (Join-Path `
+                    $wpmDataDir 'logs\scripts') -Filter '*-removal.log' -File)
+        if ($removalLogs.Count -ne 1 -or $Output -notmatch `
+                'remove-script-output' -or
+            $Output -notmatch [regex]::Escape($removalLogs[0].FullName) -or
+            (Get-Content -Raw -LiteralPath $removalLogs[0].FullName) `
+                -notmatch 'remove-script-output') {
+            throw (
+                'Removal script output was not streamed and r' +
+                'etained in the reported log.'
+            )
+        }
+    }
+} finally {
     $finished = Get-Date
     if ($EvidenceTex) {
-        Write-WpmTestEvidence -TestCaseId 'TC-0008' -WpmExe $WpmExe -Started $started -Finished $finished -Results $results -EvidenceTex $EvidenceTex
+        Write-WpmTestEvidence -TestCaseId 'TC-0008' -WpmExe $WpmExe -Started `
+            $started -Finished $finished -Results $results -EvidenceTex `
+            $EvidenceTex
     }
     if (Test-Path -LiteralPath $testRoot) {
         Remove-Item -LiteralPath $testRoot -Recurse -Force
     }
     if ($null -eq $previousWpmDataDir) {
         Remove-Item Env:WPM_DATA_DIR -ErrorAction SilentlyContinue
-    }
-    else {
+    } else {
         $env:WPM_DATA_DIR = $previousWpmDataDir
     }
 }
