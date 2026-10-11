@@ -9,6 +9,7 @@
 #include "init.h"
 #include "logging.h"
 #include "operation.h"
+#include "capability.h"
 #include "repository.h"
 #include "signing.h"
 #include <stdlib.h>
@@ -172,11 +173,13 @@ static void print_usage_line(Command command) {
         wpm_event_printf(
             WPM_EVENT_INFO, "wpm.info", "wpm", "command",
             "Usage: wpm install <package...> [--arch <arch>] [--version "
-            "<semver>] [--offline] [--allow-unsigned] [-y|--yes]\n");
+            "<semver>] [--offline] [--allow-unsigned] [-y|--yes] "
+            "[--dry-run]\n");
         break;
     case CMD_REMOVE:
-        wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
-                         "Usage: wpm remove <package...> [-y|--yes]\n");
+        wpm_event_printf(
+            WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+            "Usage: wpm remove <package...> [-y|--yes] [--dry-run]\n");
         break;
     case CMD_REPO:
         wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
@@ -208,7 +211,7 @@ static void print_usage_line(Command command) {
         wpm_event_printf(
             WPM_EVENT_INFO, "wpm.info", "wpm", "command",
             "Usage: wpm upgrade <package...> [--arch <arch>] [--version "
-            "<semver>] | --all [--arch <arch>] [-y|--yes]\n");
+            "<semver>] | --all [--arch <arch>] [-y|--yes] [--dry-run]\n");
         break;
     default:
         wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
@@ -229,7 +232,8 @@ static int command_option_takes_value(Command command, const char *option) {
 static int command_option_is_known(Command command, const char *option) {
     if ((command == CMD_INSTALL || command == CMD_REMOVE ||
          command == CMD_UPGRADE) &&
-        (!strcmp(option, "--yes") || !strcmp(option, "-y"))) {
+        (!strcmp(option, "--yes") || !strcmp(option, "-y") ||
+         !strcmp(option, "--dry-run"))) {
         return 1;
     }
     if (strcmp(option, "--verbose") == 0) {
@@ -615,11 +619,26 @@ static void print_windows_dependency_version(const char *display_name,
 int main(int argc, char *argv[]) {
     int verbose = 0;
     int plan_yes = 0;
+    int dry_run = 0;
     int offline = 0;
     int command_index = -1;
     int show_version = 0;
     int show_diagnostics = 0;
     int command_help = 0;
+
+    for (int i = 1; i < argc; i++) {
+        if (!strcmp(argv[i], "--dry-run")) {
+            dry_run = 1;
+        }
+    }
+    wpm_set_readonly(dry_run);
+    if (dry_run && argc >= 2 && !strcmp(argv[1], "--complete-self-upgrade")) {
+        wpm_event_printf(WPM_EVENT_ERROR, "plan.internal.flags", "plan",
+                         "parse",
+                         "Error: dry-run is unsupported for an internal "
+                         "completion handoff.\n");
+        return 1;
+    }
 
     /* Resolve and remove the global color option before command parsing so it
 
@@ -851,6 +870,22 @@ int main(int argc, char *argv[]) {
                 i--;
             }
         }
+        if (dry_run && plan_yes) {
+            wpm_event_printf(
+                WPM_EVENT_ERROR, "plan.flags", "plan", "parse",
+                "Error: --dry-run cannot be combined with --yes/-y.\n");
+            print_usage_line(cmd);
+            return 1;
+        }
+        for (int i = command_index + 1; i < argc; i++) {
+            if (!strcmp(argv[i], "--dry-run")) {
+                for (int j = i; j + 1 < argc; j++) {
+                    argv[j] = argv[j + 1];
+                }
+                argc--;
+                i--;
+            }
+        }
         wpm_operation_begin(plan_yes);
     }
     wpm_set_verbose(verbose);
@@ -859,12 +894,14 @@ int main(int argc, char *argv[]) {
     if (verbose) {
         print_runtime_mode();
     }
-    if (!wpm_initialize_data_directories()) {
-        return 1;
-    }
-    if (!wpm_log_initialize()) {
-        fprintf(stderr,
-                "Warning: WPM could not initialize its operational log.\n");
+    if (!dry_run && !wpm_operation_active()) {
+        if (!wpm_initialize_data_directories()) {
+            return 1;
+        }
+        if (!wpm_log_initialize()) {
+            fprintf(stderr,
+                    "Warning: WPM could not initialize its operational log.\n");
+        }
     }
 
     if (verbose) {
@@ -1293,6 +1330,13 @@ operation_dispatch:
         if (confirmation <= 0) {
             return confirmation < 0 ? 1 : 0;
         }
+        if (!wpm_initialize_data_directories()) {
+            return 1;
+        }
+        if (!wpm_log_initialize()) {
+            fprintf(stderr,
+                    "Warning: WPM could not initialize its operational log.\n");
+        }
         goto operation_dispatch;
     }
     return 0;
@@ -1552,10 +1596,12 @@ void print_usage(Command c) {
                      "      Allow installation of an unsigned package\n\n");
     wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
                      "  -y, --yes\n");
-    wpm_event_printf(
-        WPM_EVENT_INFO, "wpm.info", "wpm", "command",
-        "      Confirm a planned --all upgrade without prompting\n\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "      Approve lifecycle plans without prompting\n\n");
 
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  --dry-run\n      Validate lifecycle plans without "
+                     "writes or scripts\n\n");
     wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
                      "Examples:\n");
     wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",

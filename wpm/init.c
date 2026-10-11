@@ -6,6 +6,7 @@
 
 #include "init.h"
 #include "logging.h"
+#include "capability.h"
 #include "helpers.h"
 #include "helpers.h"
 
@@ -204,6 +205,9 @@ int wpm_package_name_is_valid(const char *name) {
 }
 
 int wpm_init_run(const char *name) {
+    if (!wpm_require_capability(WPM_CAP_WRITE, "wpm_init_run")) {
+        return 0;
+    }
     if (!create_wpm_directory()) {
         return 0;
     }

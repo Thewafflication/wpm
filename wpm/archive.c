@@ -10,6 +10,7 @@
 
 #include "archive.h"
 #include "logging.h"
+#include "capability.h"
 #include "progress.h"
 #include "operation.h"
 #include "helpers.h"
@@ -757,6 +758,9 @@ static int ensure_directory(const char *path) {
 }
 
 static int create_directories(const char *path) {
+    if (!wpm_require_capability(WPM_CAP_WRITE, "create_directories")) {
+        return 0;
+    }
     char partial[WPM_PATH_SIZE];
     size_t length = strlen(path);
 
@@ -811,6 +815,9 @@ int wpm_initialize_data_directories(void) {
 }
 
 static int remove_directory_tree(const char *path) {
+    if (!wpm_require_capability(WPM_CAP_WRITE, "remove_directory_tree")) {
+        return 0;
+    }
     char search_path[WPM_PATH_SIZE];
     WIN32_FIND_DATAA entry;
     HANDLE search;
@@ -1230,6 +1237,9 @@ static int write_installation_audit(const char *data_root,
                                     const char *archive_name,
                                     const wpm_package_metadata *metadata,
                                     const char *signing_key_id) {
+    if (!wpm_require_capability(WPM_CAP_WRITE, "write_installation_audit")) {
+        return 0;
+    }
     char audit_dir[WPM_PATH_SIZE];
     char audit_path[WPM_PATH_SIZE];
     SYSTEMTIME now;
@@ -1267,6 +1277,9 @@ static int repository_record_path(const char *archive_path, char *path,
 }
 
 static int record_archive_repository(const char *archive_path) {
+    if (!wpm_require_capability(WPM_CAP_WRITE, "record_archive_repository")) {
+        return 0;
+    }
     char path[WPM_PATH_SIZE], inherited[WPM_PATH_SIZE];
     const char *repository_url =
         active_repository_url(inherited, sizeof(inherited));
@@ -1683,6 +1696,9 @@ static int add_directory_to_zip(void *writer, const char *source_dir,
 
 int wpm_archive_build(const char *source_dir, const char *output_dir,
                       int update_index, const char *private_key) {
+    if (!wpm_require_capability(WPM_CAP_WRITE, "wpm_archive_build")) {
+        return 0;
+    }
     char source_full_path[WPM_PATH_SIZE];
     char output_full_path[WPM_PATH_SIZE];
     char output_path[WPM_PATH_SIZE];
@@ -1856,6 +1872,10 @@ static int measure_archive_uncompressed_bytes(void *reader, uint64_t *total) {
 static int wpm_archive_extract_with_label(const char *archive_path,
                                           const char *destination_dir,
                                           const char *progress_label) {
+    if (!wpm_require_capability(WPM_CAP_WRITE,
+                                "wpm_archive_extract_with_label")) {
+        return 0;
+    }
     void *reader = NULL;
     char previous_parent[WPM_PATH_SIZE] = "";
     int32_t entry_status;
@@ -2764,6 +2784,9 @@ static void safe_log_component(char *result, size_t result_size,
 
 static int create_script_log(const char *package_name, const char *action_name,
                              char *log_path, size_t log_path_size, FILE **log) {
+    if (!wpm_require_capability(WPM_CAP_WRITE, "create_script_log")) {
+        return 0;
+    }
     char data_root[WPM_PATH_SIZE], logs[WPM_PATH_SIZE], scripts[WPM_PATH_SIZE];
     char safe_package[128], safe_action[64];
     SYSTEMTIME now;
@@ -3536,6 +3559,9 @@ static int write_upgrade_audit(const char *data_root,
                                const char *archive_name,
                                const char *signing_key, int failed,
                                const char *phase, DWORD exit_code) {
+    if (!wpm_require_capability(WPM_CAP_WRITE, "write_upgrade_audit")) {
+        return 0;
+    }
     char directory[WPM_PATH_SIZE], path[WPM_PATH_SIZE];
     SYSTEMTIME now;
     FILE *file;
@@ -3595,6 +3621,9 @@ int wpm_archive_schedule_self_upgrade(const char *archive_path,
     }
     if (wpm_operation_collecting()) {
         return 1;
+    }
+    if (!wpm_require_capability(WPM_CAP_HANDOFF, "self-upgrade handoff")) {
+        return 0;
     }
     if (!normalized_full_path(archive_path, archive_full,
                               sizeof(archive_full)) ||

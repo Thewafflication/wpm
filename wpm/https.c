@@ -14,6 +14,7 @@
 #include "progress.h"
 #include "wpm_ca_bundle.h"
 #include "logging.h"
+#include "capability.h"
 
 static wpm_https_backend https_select_backend(const char *backend,
                                               const char *ca_file, DWORD major,
@@ -624,6 +625,10 @@ static int https_body(https_connection *connection,
 
 int wpm_https_download(const char *initial, const char *destination,
                        const char *label) {
+    if (!wpm_require_capability(WPM_CAP_WRITE | WPM_CAP_NETWORK,
+                                "wpm_https_download")) {
+        return 0;
+    }
     WSADATA data;
     mbedtls_x509_crt roots;
     https_connection *connection = NULL;

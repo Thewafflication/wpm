@@ -519,7 +519,26 @@ content and package/trust/configuration state. Changes require a new plan.
 Use `--yes` or `-y` on each lifecycle command for unattended operation. Empty
 input, EOF, and anything except `y`/`yes` cancel safely. Cancellation exits zero;
 invalidated plans exit nonzero. Unknown signing keys require independent
-verification and `wpm trust add` before planning. Preparing repository indexes,
-package caches, and operational logs is separate from deployment approval in
-I-02; I-03 adds a read-only planning capability. These changes ship as 2.0 alpha
-increments while 1.2.10 remains the stable release.
+verification and `wpm trust add` before planning. Uncached web inputs require a
+separate cache preparation plan/approval before retrieval; full deployment
+approval follows package validation. Operational logging begins only after
+deployment approval. `--yes` approves both preparation and deployment.
+
+Add `--dry-run` to install, remove, selected upgrade, or upgrade-all to validate
+and print the same plan without approval, writes, scripts, or self-upgrade
+handoff. Local sources are read directly. Web indexes and packages must already
+be cached; a missing input produces an actionable error instead of fetching it.
+Dry-run ignores configured log file/directory destinations and creates no data
+root. Unsupported commands and `--dry-run --yes` combinations fail before any
+initialization. Repository/trust/configuration mutations do not support dry-run.
+
+Examples:
+
+```text
+wpm install .\package-any-1.0.0.zip --dry-run --allow-unsigned
+wpm install package --dry-run --offline
+wpm remove package-any-1.0.0 --dry-run
+wpm upgrade --all --dry-run --offline
+```
+
+These changes ship as 2.0 alpha increments while 1.2.10 remains stable.

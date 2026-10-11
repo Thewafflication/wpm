@@ -1,6 +1,7 @@
 /** @file logging.c @brief WSP-backed operational logging integration. */
 #define WPM_LOGGING_IMPLEMENTATION
 #include "logging.h"
+#include "capability.h"
 
 #include "archive.h"
 #include "helpers.h"
@@ -178,6 +179,9 @@ static wsp_log_level wpm_log_level_for_message(const char *message) {
 static int wpm_write_log_record(void *context, const char *bytes,
                                 size_t length) {
     HANDLE handle = (HANDLE)context;
+    if (wpm_is_readonly()) {
+        return 0;
+    }
     while (length > 0) {
         DWORD requested = length > 0xffffffffU ? 0xffffffffU : (DWORD)length;
         DWORD written = 0;
@@ -201,6 +205,9 @@ static void wpm_close_log_handle(void *context) {
 #endif
 
 int wpm_log_initialize(void) {
+    if (wpm_is_readonly()) {
+        return 1;
+    }
     char data_root[4096];
     char log_directory[4096];
     char log_path[4096];
@@ -278,8 +285,8 @@ void wpm_log_close(void) {
 
 static void wpm_report_failure_log(void) {
     char notice[4224];
-    if (!wpm_logger_initialized || wpm_failure_log_reported ||
-        !wpm_active_log_path[0]) {
+    if (wpm_is_readonly() || !wpm_logger_initialized ||
+        wpm_failure_log_reported || !wpm_active_log_path[0]) {
         return;
     }
     if (snprintf(notice, sizeof(notice), "Operational log: %s\n",
@@ -382,7 +389,7 @@ int wpm_event_printf(wpm_event_class kind, const char *code,
     }
     wpm_safe_event_text(message);
     result = wpm_write_console_message(message, styles[kind]);
-    if (wpm_logger_initialized && message[0]) {
+    if (wpm_logger_initialized && !wpm_is_readonly() && message[0]) {
         size_t length = strlen(message);
         while (length &&
                (message[length - 1] == '\r' || message[length - 1] == '\n')) {
@@ -423,7 +430,7 @@ int wpm_vprintf(const char *format, va_list arguments) {
     message[sizeof(message) - 1] = '\0';
     wpm_safe_event_text(message);
     result = wpm_write_console_message(message, wpm_message_style_for(message));
-    if (wpm_logger_initialized) {
+    if (wpm_logger_initialized && !wpm_is_readonly()) {
         length = strlen(message);
         while (length > 0 &&
                (message[length - 1] == '\n' || message[length - 1] == '\r')) {

@@ -13,6 +13,7 @@
 #include "archive.h"
 #include "signing.h"
 #include "logging.h"
+#include "capability.h"
 #include "helpers.h"
 
 #define fopen(path, mode) wpm_fopen((path), (mode))
@@ -26,6 +27,9 @@ static int join(char *out, size_t size, const char *a, const char *b) {
     return n >= 0 && (size_t)n < size;
 }
 static int dir(const char *path) {
+    if (!wpm_require_capability(WPM_CAP_WRITE, "dir")) {
+        return 0;
+    }
     DWORD a = GetFileAttributesA(path);
     return (a != INVALID_FILE_ATTRIBUTES && (a & FILE_ATTRIBUTE_DIRECTORY)) ||
            CreateDirectoryA(path, NULL) ||
@@ -131,6 +135,9 @@ static int may_change_machine_trust(void) {
     return 0;
 }
 static int protect_private_key(const char *path) {
+    if (!wpm_require_capability(WPM_CAP_WRITE, "protect_private_key")) {
+        return 0;
+    }
     HANDLE token = NULL;
     DWORD size = 0;
     PTOKEN_USER user = NULL;
@@ -253,6 +260,9 @@ static int write_public(const char *path, const unsigned char *key) {
 }
 
 int wpm_set_default_key(const char *private_path) {
+    if (!wpm_require_capability(WPM_CAP_WRITE, "wpm_set_default_key")) {
+        return 0;
+    }
     char full[PATH_SIZE], secret[crypto_sign_SECRETKEYBYTES],
         pub[crypto_sign_PUBLICKEYBYTES], id[KEY_ID_SIZE], path[PATH_SIZE];
     FILE *f;
@@ -278,6 +288,9 @@ int wpm_set_default_key(const char *private_path) {
     return 1;
 }
 int wpm_clear_default_key(void) {
+    if (!wpm_require_capability(WPM_CAP_WRITE, "wpm_clear_default_key")) {
+        return 0;
+    }
     char path[PATH_SIZE];
     return config(path, sizeof(path), "signing-key.txt") &&
            (DeleteFileA(path) || GetLastError() == ERROR_FILE_NOT_FOUND);
@@ -318,6 +331,9 @@ int wpm_get_default_key(char *result, size_t size) {
 }
 int wpm_keygen(const char *private_path, const char *public_path,
                int make_default) {
+    if (!wpm_require_capability(WPM_CAP_WRITE, "wpm_keygen")) {
+        return 0;
+    }
     unsigned char pub[crypto_sign_PUBLICKEYBYTES],
         sec[crypto_sign_SECRETKEYBYTES];
     char id[KEY_ID_SIZE];
@@ -353,6 +369,9 @@ int wpm_keygen(const char *private_path, const char *public_path,
     return 1;
 }
 int wpm_trust_add(const char *public_path) {
+    if (!wpm_require_capability(WPM_CAP_WRITE, "wpm_trust_add")) {
+        return 0;
+    }
     unsigned char pub[crypto_sign_PUBLICKEYBYTES];
     char id[KEY_ID_SIZE], d[PATH_SIZE], p[PATH_SIZE], r[PATH_SIZE];
     if (!may_change_machine_trust() || !load_public(public_path, pub) ||
@@ -418,6 +437,9 @@ int wpm_trust_list(void) {
     return 1;
 }
 int wpm_trust_revoke(const char *id) {
+    if (!wpm_require_capability(WPM_CAP_WRITE, "wpm_trust_revoke")) {
+        return 0;
+    }
     char d[PATH_SIZE], p[PATH_SIZE], r[PATH_SIZE];
     if (!may_change_machine_trust() || strlen(id) != 64 ||
         !trustdir(d, sizeof(d)) ||
@@ -438,6 +460,9 @@ int wpm_trust_revoke(const char *id) {
     return 1;
 }
 int wpm_sign_package_index(const char *source, const char *private_path) {
+    if (!wpm_require_capability(WPM_CAP_WRITE, "wpm_sign_package_index")) {
+        return 0;
+    }
     char index[PATH_SIZE], sigpath[PATH_SIZE], id[KEY_ID_SIZE],
         b64[sodium_base64_ENCODED_LEN(crypto_sign_BYTES,
                                       sodium_base64_VARIANT_ORIGINAL)],

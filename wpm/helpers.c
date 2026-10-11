@@ -6,8 +6,13 @@
 #include <windows.h>
 #endif
 #include "helpers.h"
+#include "capability.h"
 
 FILE *wpm_fopen(const char *path, const char *mode) {
+    if ((strchr(mode, 'w') || strchr(mode, 'a') || strchr(mode, '+')) &&
+        !wpm_require_capability(WPM_CAP_WRITE, "open a writable file")) {
+        return NULL;
+    }
     return fopen(path, mode);
 }
 

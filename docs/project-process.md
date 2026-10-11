@@ -220,3 +220,11 @@ be waived by an undocumented emergency.
 - `SECURITY.md`
 - `wsp/processes/software-lifecycle.md`
 - `wsp/processes/project-process.md`
+
+## Increment delivery instruction
+
+The maintainer's standing instruction of 2026-10-11 is to commit and push
+completed work. Each completed roadmap increment is committed, pushed, tagged,
+and released after required verification. Changes to the unattended command
+contract ship as 2.0 prereleases until final 2.0 readiness is complete. This
+instruction does not bypass commit hooks or required release verification.

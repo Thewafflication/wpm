@@ -8,6 +8,12 @@ void wpm_operation_begin(int assume_yes);
 /** Whether the dispatcher is currently collecting plans instead of executing.
  */
 int wpm_operation_collecting(void);
+/** Whether any package plan authorization is active. */
+int wpm_operation_active(void);
+/** Bind repository selection to its exact source locator. */
+void wpm_operation_set_source(const char *source);
+/** Approve separately bounded cache preparation before its first write. */
+int wpm_operation_prepare(const char *source, const char *destination);
 /** Register or revalidate an exact archive/identity/source authorization. */
 int wpm_operation_archive(const char *action, const char *archive,
                           const char *old_version, const char *source,

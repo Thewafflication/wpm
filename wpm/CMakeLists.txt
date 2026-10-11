@@ -37,6 +37,8 @@ set(
   "wpm.c"
   "logging.c"
   "logging.h"
+  "capability.c"
+  "capability.h"
   "operation.c"
   "operation.h"
   "progress.c"
@@ -322,6 +324,7 @@ if(BUILD_TESTING)
       wpm-https-test
       "${CMAKE_SOURCE_DIR}/tests/https-probe.c"
       helpers.c
+      capability.c
       progress.c
       "${wcrt_console_startup}"
     )
@@ -510,6 +513,55 @@ if(BUILD_TESTING)
     message(FATAL_ERROR "PowerShell is required to run the WPM tests")
   endif()
   find_package(Python3 COMPONENTS Interpreter REQUIRED)
+  add_test(
+    NAME dry-run-integration
+    COMMAND
+      "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/dry-run-integration.py"
+      --wpm $<TARGET_FILE:wpm>
+  )
+  set_tests_properties(
+    dry-run-integration
+    PROPERTIES
+      TIMEOUT
+        120
+  )
+  add_executable(
+    wpm-capability-test
+    "${CMAKE_SOURCE_DIR}/tests/capability-probe.c"
+    capability.c
+    helpers.c
+    "${wcrt_console_startup}"
+  )
+  target_include_directories(
+    wpm-capability-test
+    PRIVATE
+      "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  target_compile_options(
+    wpm-capability-test
+    PRIVATE
+      $<TARGET_PROPERTY:wpm-blake2b-test,COMPILE_OPTIONS>
+  )
+  target_compile_definitions(
+    wpm-capability-test
+    PRIVATE
+      $<TARGET_PROPERTY:wpm-blake2b-test,COMPILE_DEFINITIONS>
+  )
+  target_link_options(
+    wpm-capability-test
+    PRIVATE
+      $<TARGET_PROPERTY:wpm-blake2b-test,LINK_OPTIONS>
+  )
+  target_link_libraries(
+    wpm-capability-test
+    PRIVATE
+      $<TARGET_PROPERTY:wpm-blake2b-test,LINK_LIBRARIES>
+  )
+  add_test(
+    NAME readonly-capabilities
+    COMMAND
+      wpm-capability-test "${CMAKE_CURRENT_BINARY_DIR}/capability-test.tmp"
+  )
   add_test(
     NAME operation-integration
     COMMAND

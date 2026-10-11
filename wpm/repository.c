@@ -16,6 +16,7 @@
 #include "https.h"
 #include "repository.h"
 #include "logging.h"
+#include "capability.h"
 #include "operation.h"
 #include "progress.h"
 
@@ -104,6 +105,9 @@ static int join_path(char *result, size_t size, const char *left,
     return n >= 0 && (size_t)n < size;
 }
 static int ensure_directory(const char *path) {
+    if (!wpm_require_capability(WPM_CAP_WRITE, "ensure_directory")) {
+        return 0;
+    }
     DWORD attributes = GetFileAttributesA(path);
     return (attributes != INVALID_FILE_ATTRIBUTES &&
             (attributes & FILE_ATTRIBUTE_DIRECTORY)) ||
@@ -396,6 +400,9 @@ static int write_entry(FILE *output, int priority, const char *url,
 }
 static int rewrite(const char *wanted, int priority, int allow_http,
                    int remove) {
+    if (!wpm_require_capability(WPM_CAP_WRITE, "rewrite")) {
+        return 0;
+    }
     char path[PATH_SIZE], temporary[PATH_SIZE], line[PATH_SIZE + 32];
     FILE *input, *output;
     int found = 0;
@@ -710,6 +717,10 @@ static const download_callback_vtable download_progress_vtable = {
 
 static int urlmon_download(const char *url, const char *destination,
                            const char *label) {
+    if (!wpm_require_capability(WPM_CAP_WRITE | WPM_CAP_NETWORK,
+                                "urlmon_download")) {
+        return 0;
+    }
     HRESULT result;
     DWORD move_error = ERROR_SUCCESS;
     char temporary[PATH_SIZE];
@@ -802,6 +813,10 @@ static int http_redirect_url(const char *initial, const char *location,
 
 static int http_download(const char *url, const char *destination,
                          const char *label) {
+    if (!wpm_require_capability(WPM_CAP_WRITE | WPM_CAP_NETWORK,
+                                "http_download")) {
+        return 0;
+    }
     HMODULE library = LoadLibraryA("wininet.dll");
     internet_open_a_fn open_session = NULL;
     internet_open_url_a_fn open_url = NULL;
@@ -1017,6 +1032,9 @@ static int copy_local(const char *source, const char *destination,
 }
 static int retrieve(const char *source, const char *destination,
                     const char *label, int allow_insecure_http) {
+    if (!wpm_require_capability(WPM_CAP_WRITE, "retrieve")) {
+        return 0;
+    }
     if (is_https_repository(source)) {
         wpm_https_backend backend = wpm_https_get_backend();
         if (backend == WPM_HTTPS_BUNDLED) {
@@ -1087,8 +1105,10 @@ static int refresh(repository *repo, int offline, int required) {
         REPO_VERBOSE("using fresh cached index");
         return 1;
     }
-    if (ensure_cache_directory("repositories") &&
-        index_source(repo->url, url, sizeof(url)) &&
+    if (index_source(repo->url, url, sizeof(url)) &&
+        wpm_operation_prepare(url, cached) &&
+        wpm_initialize_data_directories() &&
+        ensure_cache_directory("repositories") &&
         retrieve(url, cached, "repository index", repo->allow_insecure_http)) {
         wpm_event_printf(WPM_EVENT_INFO, "repository.info", "repository",
                          "command", "Updated repository index: %s\n",
@@ -1603,6 +1623,9 @@ static int prerelease_effective(const char *package, int *overridden) {
     return global;
 }
 static int rewrite_prerelease(const char *package, int enabled, int remove) {
+    if (!wpm_require_capability(WPM_CAP_WRITE, "rewrite_prerelease")) {
+        return 0;
+    }
     char path[PATH_SIZE], tmp[PATH_SIZE], line[512];
     FILE *in, *out;
     int found = 0;
@@ -1706,6 +1729,28 @@ static int load_entries(repository *repositories, int *repository_count,
         return 0;
     }
     for (int i = 0; i < *repository_count; i++) {
+        if (wpm_is_readonly() || (wpm_operation_active() &&
+                                  (!is_web_repository(repositories[i].url) ||
+                                   !wpm_operation_collecting()))) {
+            int available =
+                is_web_repository(repositories[i].url)
+                    ? cache_path(repositories[i].url, cached, sizeof(cached))
+                    : index_source(repositories[i].url, cached, sizeof(cached));
+            if (available &&
+                GetFileAttributesA(cached) != INVALID_FILE_ATTRIBUTES &&
+                parse_index(cached, &repositories[i], entries, entry_count)) {
+                usable = 1;
+            } else {
+                wpm_event_printf(
+                    WPM_EVENT_WARNING, "plan.source.unavailable", "plan",
+                    "resolve",
+                    "Warning: planning needs an existing readable index for "
+                    "%s; "
+                    "use 'wpm update' before planning a web repository.\n",
+                    repositories[i].url);
+            }
+            continue;
+        }
         if (refresh(&repositories[i], offline, 0) &&
             cache_path(repositories[i].url, cached, sizeof(cached))) {
             if (parse_index(cached, &repositories[i], entries, entry_count)) {
@@ -1891,6 +1936,19 @@ static int obtain(repository *repositories, package_entry *selected,
         GetFileAttributesA(legacy) != INVALID_FILE_ATTRIBUTES) {
         strcpy_s(path, size, legacy);
     }
+    if (wpm_operation_active() && !is_web_repository(repo->url)) {
+        return strcpy_s(path, size, source) == 0 &&
+               GetFileAttributesA(path) != INVALID_FILE_ATTRIBUTES;
+    }
+    if (wpm_is_readonly() &&
+        GetFileAttributesA(path) == INVALID_FILE_ATTRIBUTES) {
+        wpm_event_printf(
+            WPM_EVENT_ERROR, "plan.package.unavailable", "plan", "resolve",
+            "Error: dry-run requires an already cached web package: %s; "
+            "prepare the cache with an approved install before planning.\n",
+            selected->name);
+        return 0;
+    }
     if (GetFileAttributesA(path) == INVALID_FILE_ATTRIBUTES) {
         if (offline && is_web_repository(repo->url)) {
             wpm_event_printf(WPM_EVENT_ERROR, "repository.error", "repository",
@@ -1899,7 +1957,9 @@ static int obtain(repository *repositories, package_entry *selected,
                              selected->name);
             return 0;
         }
-        if (!ensure_cache_directory("packages") ||
+        if (!wpm_operation_prepare(source, path) ||
+            !wpm_initialize_data_directories() ||
+            !ensure_cache_directory("packages") ||
             !retrieve(source, path, label, repo->allow_insecure_http)) {
             wpm_event_printf(WPM_EVENT_ERROR, "repository.error", "repository",
                              "command",
@@ -1910,12 +1970,15 @@ static int obtain(repository *repositories, package_entry *selected,
     return 1;
 }
 
+static int candidate_matches(const char *archive,
+                             const package_entry *selected);
+
 int wpm_repo_install(const char *package_name, const char *arch,
                      const char *version, int offline, int allow_unsigned) {
     repository repositories[MAX_REPOSITORIES];
     package_entry entries[MAX_PACKAGES], *selected;
     int rc, ec, result;
-    char package[PATH_SIZE];
+    char package[PATH_SIZE], selected_source_path[PATH_SIZE];
     semver parsed;
     if (version && !semver_parse(version, &parsed)) {
         wpm_event_printf(WPM_EVENT_ERROR, "repository.error", "repository",
@@ -1947,14 +2010,39 @@ int wpm_repo_install(const char *package_name, const char *arch,
                          "Error: invalid package URL in repository index.\n");
         return 0;
     }
+    if (!candidate_matches(package, selected)) {
+        return 0;
+    }
     wpm_event_printf(WPM_EVENT_INFO, "repository.info", "repository", "command",
                      "Installing %s %s %s from %s\n", selected->name,
                      selected->arch, selected->version,
                      repositories[selected->order].url);
+    if (!package_source(repositories[selected->order].url, selected->url,
+                        selected_source_path, sizeof(selected_source_path))) {
+        return 0;
+    }
+    wpm_operation_set_source(selected_source_path);
     wpm_archive_set_repository_url(repositories[selected->order].url);
     result = wpm_archive_install(package, allow_unsigned);
+    wpm_operation_set_source(NULL);
     wpm_archive_set_repository_url(NULL);
     return result;
+}
+
+static int candidate_matches(const char *archive,
+                             const package_entry *selected) {
+    wpm_package_info identity;
+    if (!wpm_archive_inspect(archive, &identity) ||
+        _stricmp(identity.name, selected->name) ||
+        _stricmp(identity.arch, selected->arch) ||
+        strcmp(identity.version, selected->version)) {
+        wpm_event_printf(WPM_EVENT_ERROR, "plan.identity.changed", "plan",
+                         "resolve",
+                         "Error: downloaded package metadata does not match "
+                         "the selected repository entry.\n");
+        return 0;
+    }
+    return 1;
 }
 
 static int requested(const char *name, const char **names, int count) {
@@ -2148,7 +2236,7 @@ int wpm_repo_upgrade(const char **package_names, int package_count, int all,
     for (int i = 0; i < ic; i++) {
         package_entry *selected;
         int valid, comparison, operation_ok;
-        char cached[PATH_SIZE];
+        char cached[PATH_SIZE], selected_source_path[PATH_SIZE];
         int current = 1, conflict = 0, is_self;
         if (!all &&
             !requested(installed[i].name, package_names, package_count)) {
@@ -2222,6 +2310,17 @@ int wpm_repo_upgrade(const char **package_names, int package_count, int all,
             failures++;
             continue;
         }
+        if (!candidate_matches(cached, selected)) {
+            failures++;
+            continue;
+        }
+        if (!package_source(repositories[selected->order].url, selected->url,
+                            selected_source_path,
+                            sizeof(selected_source_path))) {
+            failures++;
+            continue;
+        }
+        wpm_operation_set_source(selected_source_path);
         wpm_archive_set_repository_url(repositories[selected->order].url);
         operation_ok =
             is_self ? wpm_archive_schedule_self_upgrade(
@@ -2231,6 +2330,7 @@ int wpm_repo_upgrade(const char **package_names, int package_count, int all,
                                           selected->name, selected->version,
                                           selected->arch, installed[i].version);
         wpm_archive_set_repository_url(NULL);
+        wpm_operation_set_source(NULL);
         if (!operation_ok) {
             wpm_event_printf(WPM_EVENT_RESULT, "repository.result",
                              "repository", "command", "Result: %s %s failed\n",

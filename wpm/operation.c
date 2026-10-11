@@ -9,6 +9,7 @@
 #include "archive.h"
 #include "logging.h"
 #include "operation.h"
+#include "capability.h"
 
 #define PLAN_LIMIT 256
 #define PLAN_PATH 4096
@@ -27,6 +28,7 @@ static size_t item_count;
 static int collecting, active, assume_yes;
 static plan_item *executing;
 static unsigned char approved_state[32];
+static char selected_source[PLAN_PATH];
 
 static int hash_file(const char *path, unsigned char digest[32]) {
     HANDLE file =
@@ -193,11 +195,67 @@ void wpm_operation_begin(int yes) {
 
 int wpm_operation_collecting(void) { return active && collecting; }
 
+int wpm_operation_active(void) { return active; }
+void wpm_operation_set_source(const char *source) {
+    selected_source[0] = 0;
+    if (source) {
+        strcpy_s(selected_source, sizeof(selected_source), source);
+    }
+}
+
 static int changed(void) {
     wpm_event_printf(WPM_EVENT_ERROR, "plan.changed", "plan", "authorize",
                      "Error: operation plan inputs or controlled state "
                      "changed; recompute and approve a new plan.\n");
     return 0;
+}
+
+int wpm_operation_prepare(const char *source, const char *destination) {
+    unsigned char initial[32], current[32], digest[32];
+    crypto_generichash_state hash;
+    char answer[32], hex[65];
+    if (!wpm_require_capability(WPM_CAP_WRITE, "cache preparation")) {
+        return 0;
+    }
+    if (!active) {
+        return 1;
+    }
+    if (!collecting || !state_digest(initial) ||
+        crypto_generichash_init(&hash, NULL, 0, sizeof(digest))) {
+        return changed();
+    }
+    crypto_generichash_update(&hash, (unsigned char *)source,
+                              strlen(source) + 1);
+    crypto_generichash_update(&hash, (unsigned char *)destination,
+                              strlen(destination) + 1);
+    crypto_generichash_update(&hash, initial, sizeof(initial));
+    crypto_generichash_final(&hash, digest, sizeof(digest));
+    sodium_bin2hex(hex, sizeof(hex), digest, sizeof(digest));
+    wpm_event_printf(
+        WPM_EVENT_INFO, "plan.prepare", "plan", "preview",
+        "Cache preparation plan:\n  Source: %s\n  Destination: %s\n"
+        "  Effects: create WPM data directories and retrieve this cache "
+        "input.\n"
+        "  Scripts/handoff: none; full deployment approval follows "
+        "validation.\n"
+        "Preparation digest: %s\n",
+        source, destination, hex);
+    if (!assume_yes) {
+        wpm_event_printf(WPM_EVENT_PROMPT, "plan.prepare.confirm", "plan",
+                         "confirm", "Prepare this cache input? [y/N]: ");
+        fflush(stdout);
+        if (!fgets(answer, sizeof(answer), stdin)) {
+            return 0;
+        }
+        answer[strcspn(answer, "\r\n")] = 0;
+        if (_stricmp(answer, "y") && _stricmp(answer, "yes")) {
+            return 0;
+        }
+    }
+    if (!state_digest(current) || memcmp(initial, current, sizeof(initial))) {
+        return changed();
+    }
+    return 1;
 }
 
 int wpm_operation_archive(const char *action, const char *archive,
@@ -208,6 +266,9 @@ int wpm_operation_archive(const char *action, const char *archive,
     DWORD length;
     if (!active) {
         return 1; /* Legacy internal handoff validates independently. */
+    }
+    if (selected_source[0]) {
+        source = selected_source;
     }
     length = GetFullPathNameA(archive, sizeof(full), full, NULL);
     if (!length || length >= sizeof(full) || !hash_file(full, fingerprint)) {
@@ -326,6 +387,12 @@ int wpm_operation_confirm(void) {
     sodium_bin2hex(hex, sizeof(hex), digest, sizeof(digest));
     wpm_event_printf(WPM_EVENT_INFO, "plan.digest", "plan", "preview",
                      "Plan digest: %s\n", hex);
+    if (wpm_is_readonly()) {
+        wpm_event_printf(WPM_EVENT_RESULT, "plan.dry-run", "plan", "preview",
+                         "Result: dry-run planned; no writes, scripts, or "
+                         "handoff authorized.\n");
+        return 0;
+    }
     if (item_count && !assume_yes) {
         wpm_event_printf(WPM_EVENT_PROMPT, "plan.confirm", "plan", "confirm",
                          "Proceed with these changes? [y/N]: ");
@@ -343,6 +410,14 @@ int wpm_operation_confirm(void) {
         changed();
         return -1;
     }
+    for (size_t i = 0; i < item_count; i++) {
+        unsigned char fingerprint[32];
+        if (!hash_file(items[i].archive, fingerprint) ||
+            memcmp(fingerprint, items[i].fingerprint, sizeof(fingerprint))) {
+            changed();
+            return -1;
+        }
+    }
     collecting = 0;
     return 1;
 cancelled:
@@ -353,6 +428,9 @@ cancelled:
 }
 
 int wpm_operation_before_script(void) {
+    if (!wpm_require_capability(WPM_CAP_SCRIPT, "package script execution")) {
+        return 0;
+    }
     unsigned char digest[32], state[32];
     if (!active) {
         return 1;
