@@ -6,9 +6,15 @@
 
 **Owner:** WPM maintainers
 
-**Planning baseline:** WPM `1.0.16` at `cd0f8ac`
+**Planning baseline:** WPM `1.2.8` at `485501cd940c186aa21498f182dbd499073c360f`
 
-**WSP baseline:** `1.3.0` at `8666277d0a30575515f5e46524e5b71be4be0c7d`
+**WSP baseline:** `1.4.0` at `f009399dd1406219571ac978bfee85e85bbdfeac`
+
+**Increment planning revision:** 2026-10-11; proposed sequence, without calendar commitments.
+
+**Delivery record:** I-00 is complete for planning in
+[the baseline inventory](increment-00-baseline.md). Product requirement states
+remain separate from increment delivery; I-01 through I-03 are next.
 
 ## 1. Objective
 
@@ -522,6 +528,76 @@ CP-07 harness scaffolding may begin after CP-00, but feature-specific fuzz, faul
 recovery targets should land with or after their stable interfaces. CP-08 inventory may
 begin early; broad refactoring should wait until CP-01 through CP-06 stop moving shared
 interfaces.
+
+### 6.1 Increment delivery plan
+
+The increments below split the existing change packages into demonstrable outcomes.
+They retain the requirements, ADRs, test profiles, and gates above; they are not a
+second requirements baseline. All increments are Planned until their own evidence
+passes. Existing 1.x implementations are starting points, not proof of 2.0 completion.
+Numbers express the recommended delivery order. Dependencies are completion gates;
+inventory, test fixtures, and documentation drafts may begin earlier.
+
+| Increment | Deliverable and demonstration | Depends on | Allocation | Exit evidence |
+| --- | --- | --- | --- | --- |
+| I-00 | Reconcile the 1.2.8 implementation with every 2.0 obligation; produce a verified gap inventory. | None | CP-00; REQ-0014 through REQ-0023 | Each obligation has an implementation disposition, test profile, evidence location, and owner; existing passing work is distinguished from missing product assertions. |
+| I-01 | Finish consistent help, progress, verbose detail, logs, and result wording across existing commands. | I-00 | CP-01; REQ-0014 | Demonstrate success, failure, redirected output, and interactive self-upgrade; color, help, and logging tests pass. |
+| I-02 | Show complete install, remove, and upgrade plans with consistent safe confirmation. | I-01 | CP-02A; REQ-0015 | Demonstrate exact identity/source/path/script effects, rejection on empty input or EOF, and explicit scheduled self-upgrade state. |
+| I-03 | Add dry-run enforcement beneath command dispatch. | I-02 | CP-02B; REQ-0015 | Before/after snapshots prove no package, cache, trust, audit, staging, configuration, or deployment writes; no script or handoff starts. |
+| I-04 | Complete local, relative-path, removable, and read-only repository consumption. | I-03 | CP-03A; REQ-0016 | Add/update/install journeys pass with read-only sources; missing or changed media produces actionable errors without bypassing trust. |
+| I-05 | Complete UNC/SMB and explicitly opted-in HTTP repository behavior. | I-04 | CP-03B; REQ-0016 | Native share tests and HTTP opt-in, redirect, interruption, signature, and warning tests pass; required real-environment evidence is retained. |
+| I-06 | Expand diagnose into an actionable health report. | I-05 | CP-05A; REQ-0018 | Healthy, corrupt, offline, conflicting-architecture, and pending-self-upgrade fixtures return the specified status and next action. |
+| I-07 | Implement shared read-only installed/available listing and package show queries. | I-06 | CP-05B; REQ-0018 | Demonstrate filters, retained versions, trust, prerelease policy, and ambiguous selection without extracting archives or mutating state. |
+| I-08 | Publish a versioned machine-readable diagnose/list/show contract. | I-07 | CP-05C; REQ-0018 | Parser/schema fixtures verify ordering, encoding, absence rules, exit codes, and clean stdout under warnings and failures. |
+| I-09 | Create and populate writable repositories with repo init and add-package. | I-05 | CP-04A; REQ-0017 | Demonstrate signed package validation and atomic copying; duplicates, containment failures, read-only targets, and dry runs behave as specified. |
+| I-10 | Generate/sign indexes, verify repositories, and complete the portable-media authoring journey. | I-09 | CP-04B/CP-04C; REQ-0017 | Deterministic index and interrupted-write tests pass; create/sign/verify/copy/read-only/install round trip works; optical-media evidence is recorded. |
+| I-11 | Inspect failed operations and propose/revalidate safe retries. | I-03, I-08 | CP-06A; REQ-0019 | Fault injection covers lifecycle boundaries; tampered inputs, changed trust, repeated retry, and failed handoff cannot cause blind replay. |
+| I-12 | Add conservative cleanup, clear uninstall behavior, and tested backup/restore guidance. | I-11 | CP-06B/CP-06C; REQ-0019 | Dry-run/confirmation, active-state protection, races, reparse points, locked files, idempotence, and restore fixtures pass across the architecture matrix. |
+| I-13 | Complete the quality harness, corpus, scheduled runs, and blocking candidate verdict. | I-10, I-12 | CP-07; REQ-0020 | Bounded endurance/fuzz/fault/recovery runs retain reproducible findings; required non-Pass outcomes block candidate readiness. |
+| I-14 | Finish portable-core boundaries, strict C99 CI, and public reference documentation. | I-13 | CP-08; REQ-0021 | Strict compilation and native regression checks pass; required API documentation generates without warnings and missing coverage fails its gate. |
+| I-15 | Assemble a 2.0 release candidate with migration guidance and full install/upgrade journeys. | I-01 through I-14 | CP-09A/CP-09B; REQ-0022 | Previous-stable upgrades, bootstrap, recovery, support examples, quality profiles, signatures, and artifact identity pass on x86, x64, and ARM64. |
+| I-16 | Review readiness independently, publish after authorization, and record the release and retrospective. | I-15 | CP-09C/CP-09D; REQ-0022/REQ-0023 | Every required gate is Pass; exact baseline, evidence, approval, artifact digests, and improvement ownership are recorded. |
+
+I-09/I-10 can follow I-05 before I-06/I-07/I-08 if repository authoring becomes the
+higher priority; both paths must finish before I-13. This is a sequencing option,
+not authorization to create parallel agents or begin implementation.
+
+### 6.2 First delivery cycle
+
+Start with I-00 through I-03. This cycle closes the current presentation gaps and
+establishes the safety boundary needed by every subsequent mutation feature.
+
+1. I-00: inventory existing behavior and evidence at the release baseline. Include
+   the download/CPU fixes shipped in 1.2.8 and the local, uncommitted interactive
+   self-upgrade prompt fix. Revalidate the latter after it is committed; do not
+   count working-tree behavior as published functionality.
+2. I-01: use the inventory to finish missing presentation behavior, rather than
+   rebuilding the existing color, progress, logging, and help infrastructure.
+   Verify that self-upgrade scheduling and actual completion remain distinct.
+3. I-02: introduce the shared plan contract and cover install, remove, selected
+   upgrades, all-package upgrades, and self-upgrade with the same decision rules.
+4. I-03: prove mutation-free dry runs, including failures and unsupported flag
+   combinations. Later repository authoring and cleanup use this same boundary.
+
+For each increment, record its selected obligation IDs, exact scope, exclusions,
+dependencies, demonstration, test profiles, evidence paths, and remaining risks
+before implementation. Use one reviewable pull request per increment, splitting
+large implementation work into smaller PRs under the same increment when needed.
+An increment closes only after implementation, tests, documentation, traceability,
+and required native/manual evidence agree. A partial result stays In progress.
+
+Backward-compatible, independently useful changes may ship as 1.x patches after
+normal release approval. Behavior requiring a documented migration remains in
+the 2.0 candidate line. Increment numbers are planning identifiers, not promised
+release versions. No fixed duration or release date is assigned; estimate the
+next increment after its scope and dependencies are reconciled.
+
+Quality-harness scaffolding, C99 inventory, reference documentation, and migration
+notes begin during I-00 and evolve with each feature. I-13 and I-14 are completion
+gates for those tracks, not instructions to defer all testing or documentation
+until the end. Preserve 1.x package/signature/index/deployment contracts throughout.
+Dependency solving, a GUI, automatic key trust, and guaranteed legacy-Windows
+support remain outside this plan.
 
 ## 7. Global release gates
 

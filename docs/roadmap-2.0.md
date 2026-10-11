@@ -1,5 +1,9 @@
 # WPM 2.0 Release Roadmap
 
+The [implementation work plan](work-plan-2.0.md#61-increment-delivery-plan)
+breaks this roadmap into ordered increments, dependencies, and exit evidence.
+The sequence is proposed; it does not assign release dates or mark features complete.
+
 ## Goal
 
 Make WPM easier to understand, safer to operate, and quicker to recover when a

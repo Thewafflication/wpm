@@ -3237,6 +3237,9 @@ int wpm_archive_schedule_self_upgrade(const char *archive_path,
     PROCESS_INFORMATION process;
     DWORD previous_repository_length;
     BOOL process_created;
+    DWORD console_mode;
+    HANDLE background_output = INVALID_HANDLE_VALUE;
+    SECURITY_ATTRIBUTES background_security;
     int result = 0;
     if (!normalized_full_path(archive_path, archive_full,
                               sizeof(archive_full)) ||
@@ -3329,6 +3332,30 @@ int wpm_archive_schedule_self_upgrade(const char *archive_path,
     startup.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
     startup.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
     startup.hStdError = GetStdHandle(STD_ERROR_HANDLE);
+    /* The shell resumes as soon as this process exits. Console output from
+       the handoff would overwrite its new prompt, making Enter appear
+       necessary. Keep interactive completion in the existing audit log;
+       preserve inherited streams for callers capturing the full operation. */
+    if (GetConsoleMode(startup.hStdOutput, &console_mode)) {
+        memset(&background_security, 0, sizeof(background_security));
+        background_security.nLength = sizeof(background_security);
+        background_security.bInheritHandle = TRUE;
+        background_output = CreateFileA("NUL", GENERIC_READ | GENERIC_WRITE,
+                                        FILE_SHARE_READ | FILE_SHARE_WRITE,
+                                        &background_security, OPEN_EXISTING,
+                                        FILE_ATTRIBUTE_NORMAL, NULL);
+        if (background_output == INVALID_HANDLE_VALUE) {
+            printf("Error: could not configure background self-upgrade "
+                   "output (Windows error %lu).\n",
+                   (unsigned long)GetLastError());
+            goto cleanup;
+        }
+        startup.hStdInput = background_output;
+        startup.hStdOutput = background_output;
+        if (GetConsoleMode(startup.hStdError, &console_mode)) {
+            startup.hStdError = background_output;
+        }
+    }
     previous_repository_length = GetEnvironmentVariableA(
         "WPM_PACKAGE_REPOSITORY_URL", previous_repository,
         sizeof(previous_repository));
@@ -3363,8 +3390,15 @@ int wpm_archive_schedule_self_upgrade(const char *archive_path,
            "this process exits.\n",
            expected_version);
     printf("Self-upgrade output: %s\n", log_path);
+    if (background_output != INVALID_HANDLE_VALUE) {
+        printf("Completion runs in the background; check the log for the "
+               "final upgrade result.\n");
+    }
     result = 1;
 cleanup:
+    if (background_output != INVALID_HANDLE_VALUE) {
+        CloseHandle(background_output);
+    }
     if (!remove_directory_tree_with_retry(stage)) {
         result = 0;
     }

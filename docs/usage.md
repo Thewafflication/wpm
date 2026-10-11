@@ -274,11 +274,12 @@ version-specific removal and audit.
 
 When WPM upgrades itself, it validates the candidate, launches the candidate
 `wpm.exe` from `cache\self-upgrade`, and exits. The cached process inherits the
-caller's console and output streams, reports that it is waiting for the original
-process to exit, and then reports when installation begins and its final result.
-This allows a
-managed Program Files installation to be replaced safely without making the
-handoff invisible to interactive users or redirected output.
+caller's output streams when output is redirected, reporting when it is waiting
+for the original process, when installation begins, and its final result.
+In an interactive console, completion runs in the background and records its
+result in the output log, leaving the command prompt usable without pressing
+Enter again. This allows a managed Program Files installation to be replaced
+safely.
 The original command reports the self-upgrade as `scheduled` and prints the
 path to a persistent output log. The completion process records installation
 script output and the final `upgraded` or `failed` result in that log.
