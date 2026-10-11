@@ -508,6 +508,19 @@ if(BUILD_TESTING)
     message(FATAL_ERROR "PowerShell is required to run the WPM tests")
   endif()
   find_package(Python3 COMPONENTS Interpreter REQUIRED)
+  add_test(
+    NAME presentation-integration
+    COMMAND
+      "${Python3_EXECUTABLE}"
+      "${CMAKE_SOURCE_DIR}/tests/presentation-integration.py" --wpm
+      $<TARGET_FILE:wpm>
+  )
+  set_tests_properties(
+    presentation-integration
+    PROPERTIES
+      TIMEOUT
+        120
+  )
   find_program(WPM_TLS_POWERSHELL_EXECUTABLE NAMES pwsh REQUIRED)
   add_test(
     NAME https-integration

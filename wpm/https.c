@@ -308,8 +308,10 @@ static int https_open(https_connection *connection, const https_url *url,
     }
     host = gethostbyname(url->host);
     if (!host || host->h_addrtype != AF_INET || host->h_length != 4) {
-        printf("Error: HTTPS DNS lookup failed for %s (Winsock %d).\n",
-               url->host, WSAGetLastError());
+        wpm_event_printf(
+            WPM_EVENT_ERROR, "https.error", "https", "command",
+            "Error: HTTPS DNS lookup failed for %s (Winsock %d).\n", url->host,
+            WSAGetLastError());
         return 0;
     }
     for (i = 0; host->h_addr_list[i]; i++) {
@@ -340,9 +342,11 @@ static int https_open(https_connection *connection, const https_url *url,
         connection->socket = INVALID_SOCKET;
     }
     if (connection->socket == INVALID_SOCKET) {
-        printf("Error: HTTPS direct connection failed for %s:%u; check "
-               "network/proxy settings.\n",
-               url->host, (unsigned)url->port);
+        wpm_event_printf(
+            WPM_EVENT_ERROR, "https.error", "https", "command",
+            "Error: HTTPS direct connection failed for %s:%u; check "
+            "network/proxy settings.\n",
+            url->host, (unsigned)url->port);
         return 0;
     }
     result = mbedtls_ssl_config_defaults(
@@ -370,10 +374,12 @@ static int https_open(https_connection *connection, const https_url *url,
     if (result != 0 || mbedtls_ssl_get_verify_result(&connection->ssl) != 0) {
         char error[256];
         mbedtls_strerror(result, error, sizeof(error));
-        printf("Error: TLS verification/handshake failed for %s: %s "
-               "(certificate flags 0x%lx).\n",
-               url->host, error,
-               (unsigned long)mbedtls_ssl_get_verify_result(&connection->ssl));
+        wpm_event_printf(
+            WPM_EVENT_ERROR, "https.error", "https", "command",
+            "Error: TLS verification/handshake failed for %s: %s "
+            "(certificate flags 0x%lx).\n",
+            url->host, error,
+            (unsigned long)mbedtls_ssl_get_verify_result(&connection->ssl));
         return 0;
     }
     return 1;
@@ -673,9 +679,11 @@ int wpm_https_download(const char *initial, const char *destination,
             &roots, (const unsigned char *)wpm_ca_pem, sizeof(wpm_ca_pem));
     }
     if (ca_result != 0) {
-        printf("Error: could not load complete TLS CA bundle (Mbed TLS result "
-               "%d).\n",
-               ca_result);
+        wpm_event_printf(
+            WPM_EVENT_ERROR, "https.error", "https", "command",
+            "Error: could not load complete TLS CA bundle (Mbed TLS result "
+            "%d).\n",
+            ca_result);
         goto cleanup;
     }
     connection = (https_connection *)calloc(1, sizeof(*connection));
@@ -717,8 +725,9 @@ int wpm_https_download(const char *initial, const char *destination,
             continue;
         }
         if (response.status != 200) {
-            printf("Error: HTTPS server returned status %d.\n",
-                   response.status);
+            wpm_event_printf(WPM_EVENT_ERROR, "https.error", "https", "command",
+                             "Error: HTTPS server returned status %d.\n",
+                             response.status);
             goto cleanup;
         }
         output = CreateFileA(temporary, GENERIC_WRITE, 0, NULL, CREATE_NEW,
@@ -760,7 +769,8 @@ cleanup:
         if (created) {
             DeleteFileA(temporary);
         }
-        printf("Error: bundled HTTPS download failed: %s\n", initial);
+        wpm_event_printf(WPM_EVENT_ERROR, "https.error", "https", "command",
+                         "Error: bundled HTTPS download failed: %s\n", initial);
     }
     return success;
 }

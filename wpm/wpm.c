@@ -20,9 +20,11 @@
 #ifdef WPM_HAS_WCRT
 static void print_cpu_count(const char *label, unsigned long count) {
     if (count) {
-        printf("  %s: %lu\n", label, count);
+        wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                         "  %s: %lu\n", label, count);
     } else {
-        printf("  %s: unknown\n", label);
+        wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                         "  %s: unknown\n", label);
     }
 }
 #endif
@@ -70,10 +72,15 @@ static void print_cpu_info(void) {
             break;
         }
     }
-    printf("CPU:\n");
-    printf("  Process architecture: %s\n", architecture);
-    printf("  Vendor: %s\n", cpu && cpu->vendor[0] ? cpu->vendor : "unknown");
-    printf("  Brand: %s\n", cpu && cpu->brand[0] ? cpu->brand : "unknown");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command", "CPU:\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  Process architecture: %s\n", architecture);
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  Vendor: %s\n",
+                     cpu && cpu->vendor[0] ? cpu->vendor : "unknown");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  Brand: %s\n",
+                     cpu && cpu->brand[0] ? cpu->brand : "unknown");
     /* XP lacks the extended topology API used by WCRT. A single system
        logical processor can only belong to one active physical core. */
     if (!core_count && logical_count == 1) {
@@ -83,27 +90,33 @@ static void print_cpu_info(void) {
     print_cpu_count("Physical cores (system)", core_count);
     print_cpu_count("Available processors (process affinity)",
                     wcrt_cpu_available_count());
-    printf("  Usable instruction sets:");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  Usable instruction sets:");
     if (cpu) {
         for (i = 0; i < sizeof(features) / sizeof(features[0]); i++) {
             if (cpu->features & features[i].flag) {
-                printf(" %s", features[i].name);
+                wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                                 " %s", features[i].name);
                 printed = 1;
             }
         }
     }
     if (!printed) {
-        printf(" %s", cpu ? "none detected" : "unknown");
+        wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command", " %s",
+                         cpu ? "none detected" : "unknown");
     }
-    printf("\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command", "\n");
 #ifdef WPM_ZLIB_SSE2
-    printf("  Compression/extraction kernels: %s\n",
-           wcrt_cpu_has_features(WCRT_CPU_SSE2) ? "SSE2" : "scalar");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  Compression/extraction kernels: %s\n",
+                     wcrt_cpu_has_features(WCRT_CPU_SSE2) ? "SSE2" : "scalar");
 #else
-    printf("  Compression/extraction kernels: scalar\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  Compression/extraction kernels: scalar\n");
 #endif
 #else
-    printf("CPU: detection unavailable\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "CPU: detection unavailable\n");
 #endif
 }
 
@@ -141,47 +154,64 @@ static const char *command_name(Command command) {
 static void print_usage_line(Command command) {
     switch (command) {
     case CMD_INIT:
-        printf("Usage: wpm init [package_name]\n");
+        wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                         "Usage: wpm init [package_name]\n");
         break;
     case CMD_BUILD:
-        printf("Usage: wpm build <source_dir> [output_dir] [--no-index] "
-               "[--sign <private-key-file>]\n");
+        wpm_event_printf(
+            WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+            "Usage: wpm build <source_dir> [output_dir] [--no-index] "
+            "[--sign <private-key-file>]\n");
         break;
     case CMD_VERIFY:
-        printf("Usage: wpm verify <package...>\n");
+        wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                         "Usage: wpm verify <package...>\n");
         break;
     case CMD_INSTALL:
-        printf("Usage: wpm install <package...> [--arch <arch>] [--version "
-               "<semver>] [--offline] [--allow-unsigned]\n");
+        wpm_event_printf(
+            WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+            "Usage: wpm install <package...> [--arch <arch>] [--version "
+            "<semver>] [--offline] [--allow-unsigned]\n");
         break;
     case CMD_REMOVE:
-        printf("Usage: wpm remove <package...>\n");
+        wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                         "Usage: wpm remove <package...>\n");
         break;
     case CMD_REPO:
-        printf("Usage: wpm repo <add|list|remove|update> ...\n");
+        wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                         "Usage: wpm repo <add|list|remove|update> ...\n");
         break;
     case CMD_KEYGEN:
-        printf("Usage: wpm keygen <private-key-file> <public-key-file> "
-               "[--default]\n");
+        wpm_event_printf(
+            WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+            "Usage: wpm keygen <private-key-file> <public-key-file> "
+            "[--default]\n");
         break;
     case CMD_KEY:
-        printf("Usage: wpm key default <private-key-file>|--clear\n");
+        wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                         "Usage: wpm key default <private-key-file>|--clear\n");
         break;
     case CMD_TRUST:
-        printf("Usage: wpm trust <add|list|revoke> ...\n");
+        wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                         "Usage: wpm trust <add|list|revoke> ...\n");
         break;
     case CMD_CONFIG:
-        printf("Usage: wpm config <set|get|unset> prerelease ...\n");
+        wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                         "Usage: wpm config <set|get|unset> prerelease ...\n");
         break;
     case CMD_UPDATE:
-        printf("Usage: wpm update [--offline]\n");
+        wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                         "Usage: wpm update [--offline]\n");
         break;
     case CMD_UPGRADE:
-        printf("Usage: wpm upgrade <package...> [--arch <arch>] [--version "
-               "<semver>] | --all [--arch <arch>] [-y|--yes]\n");
+        wpm_event_printf(
+            WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+            "Usage: wpm upgrade <package...> [--arch <arch>] [--version "
+            "<semver>] | --all [--arch <arch>] [-y|--yes]\n");
         break;
     default:
-        printf("Usage: wpm <command> [options]\n");
+        wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                         "Usage: wpm <command> [options]\n");
         break;
     }
 }
@@ -237,9 +267,12 @@ static int validate_command_options(Command command, int argc, char **argv,
             continue;
         }
         if (!command_option_is_known(command, option)) {
-            printf("Error: invalid option for %s: %s.\n", name, option);
+            wpm_event_printf(WPM_EVENT_ERROR, "wpm.error", "wpm", "command",
+                             "Error: invalid option for %s: %s.\n", name,
+                             option);
             print_usage_line(command);
-            printf("Run 'wpm help %s' for more information.\n", name);
+            wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                             "Run 'wpm help %s' for more information.\n", name);
             return 0;
         }
         if (command_option_takes_value(command, option)) {
@@ -249,10 +282,31 @@ static int validate_command_options(Command command, int argc, char **argv,
                 argv[i + 1][1] >= '0' && argv[i + 1][1] <= '9';
             if (i + 1 >= argc ||
                 (argv[i + 1][0] == '-' && !negative_priority)) {
-                printf("Error: option %s requires a value for %s.\n", option,
-                       name);
+                wpm_event_printf(WPM_EVENT_ERROR, "wpm.error", "wpm", "command",
+                                 "Error: option %s requires a value for %s.\n",
+                                 option, name);
                 print_usage_line(command);
-                printf("Run 'wpm help %s' for more information.\n", name);
+                wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                                 "Run 'wpm help %s' for more information.\n",
+                                 name);
+                return 0;
+            }
+            if (strcmp(option, "--arch") == 0 && _stricmp(argv[i + 1], "any") &&
+                _stricmp(argv[i + 1], "x86") && _stricmp(argv[i + 1], "x64") &&
+                _stricmp(argv[i + 1], "arm64")) {
+                wpm_event_printf(WPM_EVENT_ERROR, "command.selector.invalid",
+                                 name, "arguments",
+                                 "Error: unsupported architecture: %s\n",
+                                 argv[i + 1]);
+                print_usage_line(command);
+                return 0;
+            }
+            if (strcmp(option, "--version") == 0 &&
+                !wpm_repo_version_is_valid(argv[i + 1])) {
+                wpm_event_printf(WPM_EVENT_ERROR, "command.selector.invalid",
+                                 name, "arguments",
+                                 "Error: --version requires valid SemVer.\n");
+                print_usage_line(command);
                 return 0;
             }
             i++;
@@ -263,9 +317,11 @@ static int validate_command_options(Command command, int argc, char **argv,
 
 static int invalid_operand_shape(Command command, const char *detail) {
     const char *name = command_name(command);
-    printf("Error: %s for %s.\n", detail, name);
+    wpm_event_printf(WPM_EVENT_ERROR, "wpm.error", "wpm", "command",
+                     "Error: %s for %s.\n", detail, name);
     print_usage_line(command);
-    printf("Run 'wpm help %s' for more information.\n", name);
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "Run 'wpm help %s' for more information.\n", name);
     return 0;
 }
 
@@ -358,9 +414,11 @@ static int collect_command_operands(Command command, int argc, char **argv,
 
 static int invalid_action_shape(Command command, const char *detail) {
     const char *name = command_name(command);
-    printf("Error: %s for %s.\n", detail, name);
+    wpm_event_printf(WPM_EVENT_ERROR, "wpm.error", "wpm", "command",
+                     "Error: %s for %s.\n", detail, name);
     print_usage_line(command);
-    printf("Run 'wpm help %s' for more information.\n", name);
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "Run 'wpm help %s' for more information.\n", name);
     return 0;
 }
 
@@ -466,23 +524,31 @@ static void print_runtime_mode(void) {
         snprintf(managed_root, sizeof(managed_root), "%s\\WPM", program_files) >
             0 &&
         path_is_beneath(executable_path, managed_root)) {
-        printf("Runtime mode: managed\n");
+        wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                         "Runtime mode: managed\n");
     } else {
-        printf("Runtime mode: portable\n");
+        wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                         "Runtime mode: portable\n");
     }
     if (path_length > 0 && path_length < sizeof(executable_path)) {
-        printf("Executable: %s\n", executable_path);
+        wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                         "Executable: %s\n", executable_path);
     }
     if (https_backend == WPM_HTTPS_BUNDLED) {
-        printf("HTTPS backend: Mbed TLS %s (TLS 1.2)\n",
-               MBEDTLS_VERSION_STRING);
-        printf("TLS trust: %s\n", ca_file && *ca_file
-                                      ? "configured CA file"
-                                      : "embedded Mozilla CA bundle");
+        wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                         "HTTPS backend: Mbed TLS %s (TLS 1.2)\n",
+                         MBEDTLS_VERSION_STRING);
+        wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                         "TLS trust: %s\n",
+                         ca_file && *ca_file ? "configured CA file"
+                                             : "embedded Mozilla CA bundle");
     } else if (https_backend == WPM_HTTPS_URLMON) {
-        printf("HTTPS backend: URLMon (Windows TLS and certificate store)\n");
+        wpm_event_printf(
+            WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+            "HTTPS backend: URLMon (Windows TLS and certificate store)\n");
     } else {
-        printf("HTTPS backend: invalid WPM_HTTPS_BACKEND setting\n");
+        wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                         "HTTPS backend: invalid WPM_HTTPS_BACKEND setting\n");
     }
 }
 
@@ -490,13 +556,18 @@ static void print_diagnostics(void) {
     char data_root[MAX_PATH];
     print_runtime_mode();
     if (!wpm_get_data_root(data_root, sizeof(data_root))) {
-        printf("Data directory: unknown\n");
+        wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                         "Data directory: unknown\n");
         return;
     }
-    printf("Data directory: %s\n", data_root);
-    printf("Package directory: %s\\packages\n", data_root);
-    printf("Cache directory: %s\\cache\n", data_root);
-    printf("Configuration directory: %s\\config\n", data_root);
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "Data directory: %s\n", data_root);
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "Package directory: %s\\packages\n", data_root);
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "Cache directory: %s\\cache\n", data_root);
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "Configuration directory: %s\\config\n", data_root);
 }
 
 static void print_windows_dependency_version(const char *display_name,
@@ -513,22 +584,25 @@ static void print_windows_dependency_version(const char *display_name,
     if (!module || GetModuleFileNameA(module, path, sizeof(path)) == 0 ||
         (size = GetFileVersionInfoSizeA(path, &handle)) == 0 ||
         (version_data = malloc(size)) == NULL) {
-        printf("  %s unknown (%s)\n", display_name, description);
+        wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                         "  %s unknown (%s)\n", display_name, description);
         return;
     }
     if (!GetFileVersionInfoA(path, 0, size, version_data) ||
         !VerQueryValueA(version_data, "\\", (LPVOID *)&fixed_info,
                         &fixed_info_size) ||
         fixed_info_size < sizeof(*fixed_info)) {
-        printf("  %s unknown (%s)\n", display_name, description);
+        wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                         "  %s unknown (%s)\n", display_name, description);
         free(version_data);
         return;
     }
-    printf("  %s %u.%u.%u.%u (%s)\n", display_name,
-           HIWORD(fixed_info->dwFileVersionMS),
-           LOWORD(fixed_info->dwFileVersionMS),
-           HIWORD(fixed_info->dwFileVersionLS),
-           LOWORD(fixed_info->dwFileVersionLS), description);
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  %s %u.%u.%u.%u (%s)\n", display_name,
+                     HIWORD(fixed_info->dwFileVersionMS),
+                     LOWORD(fixed_info->dwFileVersionMS),
+                     HIWORD(fixed_info->dwFileVersionLS),
+                     LOWORD(fixed_info->dwFileVersionLS), description);
     free(version_data);
 }
 
@@ -561,12 +635,16 @@ int main(int argc, char *argv[]) {
         }
         if (strncmp(argv[i], "--color", 7) == 0 &&
             (!remove_count || !wpm_set_color_policy(color_value))) {
-            printf("Error: invalid --color value%s%s; expected auto, always, "
-                   "or never.\n",
-                   color_value ? ": " : "", color_value ? color_value : "");
-            printf(
+            wpm_event_printf(
+                WPM_EVENT_ERROR, "wpm.error", "wpm", "command",
+                "Error: invalid --color value%s%s; expected auto, always, "
+                "or never.\n",
+                color_value ? ": " : "", color_value ? color_value : "");
+            wpm_event_printf(
+                WPM_EVENT_INFO, "wpm.info", "wpm", "command",
                 "Usage: wpm [--color auto|always|never] <command> [options]\n");
-            printf("Run 'wpm --help' for more information.\n");
+            wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                             "Run 'wpm --help' for more information.\n");
             return 1;
         }
         if (remove_count) {
@@ -584,8 +662,10 @@ int main(int argc, char *argv[]) {
         if (verbose) {
             print_runtime_mode();
         }
-        printf("Usage: wpm <command> [options]\n");
-        printf("Run 'wpm --help' for commands and options.\n");
+        wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                         "Usage: wpm <command> [options]\n");
+        wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                         "Run 'wpm --help' for commands and options.\n");
         return 0;
     }
     if ((argc == 8 || argc == 9 || argc == 10) &&
@@ -611,21 +691,26 @@ int main(int argc, char *argv[]) {
         }
         HANDLE parent = OpenProcess(SYNCHRONIZE, FALSE, parent_id);
         if (parent) {
-            printf("WPM self-upgrade handoff started (PID %lu); waiting for "
-                   "invoking process PID %lu to exit.\n",
-                   (unsigned long)GetCurrentProcessId(),
-                   (unsigned long)parent_id);
+            wpm_event_printf(
+                WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                "WPM self-upgrade handoff started (PID %lu); waiting for "
+                "invoking process PID %lu to exit.\n",
+                (unsigned long)GetCurrentProcessId(), (unsigned long)parent_id);
             fflush(stdout);
             WaitForSingleObject(parent, INFINITE);
             CloseHandle(parent);
         }
-        printf("Invoking WPM process has exited; completing the self-upgrade "
-               "now.\n");
-        printf("Self-upgrade stage 2 of 2: the new WPM %s independently "
-               "re-verifies the "
-               "package before applying it (this is why the package is "
-               "validated twice).\n",
-               argv[4]);
+        wpm_event_printf(
+            WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+            "Invoking WPM process has exited; completing the self-upgrade "
+            "now.\n");
+        wpm_event_printf(
+            WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+            "Self-upgrade stage 2 of 2: the new WPM %s independently "
+            "re-verifies the "
+            "package before applying it (this is why the package is "
+            "validated twice).\n",
+            argv[4]);
         fflush(stdout);
         if (!wpm_initialize_data_directories()) {
             return 1;
@@ -636,8 +721,9 @@ int main(int argc, char *argv[]) {
         }
         completed = wpm_archive_upgrade(argv[2], atoi(argv[7]) != 0, "wpm",
                                         argv[4], argv[5], argv[6]);
-        printf("Result: wpm %s %s\n", argv[5],
-               completed ? "upgraded" : "failed");
+        wpm_event_printf(WPM_EVENT_RESULT, "wpm.result", "wpm", "command",
+                         "Result: wpm %s %s\n", argv[5],
+                         completed ? "upgraded" : "failed");
         fflush(stdout);
         if (self_upgrade_log_path &&
             fopen_s(&self_upgrade_log, self_upgrade_log_path, "a") == 0) {
@@ -676,15 +762,21 @@ int main(int argc, char *argv[]) {
             return 0;
         }
         if (command_index + 2 != argc) {
-            printf("Error: help accepts one command name.\n");
-            printf("Usage: wpm help [command]\n");
+            wpm_event_printf(WPM_EVENT_ERROR, "wpm.error", "wpm", "command",
+                             "Error: help accepts one command name.\n");
+            wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                             "Usage: wpm help [command]\n");
             return 1;
         }
         help_command = parse_command(argv[command_index + 1]);
         if (help_command == CMD_UNKNOWN) {
-            printf("Error: unknown help topic: %s.\n", argv[command_index + 1]);
-            printf("Usage: wpm help [command]\n");
-            printf("Run 'wpm --help' for available commands.\n");
+            wpm_event_printf(WPM_EVENT_ERROR, "wpm.error", "wpm", "command",
+                             "Error: unknown help topic: %s.\n",
+                             argv[command_index + 1]);
+            wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                             "Usage: wpm help [command]\n");
+            wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                             "Run 'wpm --help' for available commands.\n");
             return 1;
         }
         print_usage(help_command);
@@ -694,8 +786,11 @@ int main(int argc, char *argv[]) {
     if (command_help && command_index >= 0) {
         Command help_command = parse_command(argv[command_index]);
         if (help_command == CMD_UNKNOWN) {
-            printf("Error: unknown command: %s.\n", argv[command_index]);
-            printf("Usage: wpm help [command]\n");
+            wpm_event_printf(WPM_EVENT_ERROR, "wpm.error", "wpm", "command",
+                             "Error: unknown command: %s.\n",
+                             argv[command_index]);
+            wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                             "Usage: wpm help [command]\n");
             return 1;
         }
         print_usage(help_command);
@@ -752,6 +847,13 @@ int main(int argc, char *argv[]) {
                 "Warning: WPM could not initialize its operational log.\n");
     }
 
+    if (verbose) {
+        wpm_event_printf(WPM_EVENT_DEBUG, "command.start", command_name(cmd),
+                         "resolve", "Verbose: Command: %s\n",
+                         command_name(cmd));
+        print_diagnostics();
+    }
+
     switch (cmd) {
     case CMD_BUILD: {
         const char *source_dir = NULL;
@@ -773,13 +875,16 @@ int main(int argc, char *argv[]) {
             } else if (!output_dir) {
                 output_dir = argv[i];
             } else {
-                printf("Usage: wpm build <source_dir> [output_dir] "
-                       "[--no-index] [--verbose]\n");
+                wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                                 "Usage: wpm build <source_dir> [output_dir] "
+                                 "[--no-index] [--verbose]\n");
                 return 1;
             }
         }
         if (!source_dir) {
-            printf("Usage: wpm build <source_dir> [output_dir] [--no-index]\n");
+            wpm_event_printf(
+                WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                "Usage: wpm build <source_dir> [output_dir] [--no-index]\n");
             return 1;
         }
         if (!signing_key) {
@@ -797,7 +902,8 @@ int main(int argc, char *argv[]) {
             return 1;
         }
         if (no_index) {
-            printf("Skipped package index update.\n");
+            wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                             "Skipped package index update.\n");
         }
         break;
     }
@@ -814,7 +920,8 @@ int main(int argc, char *argv[]) {
             }
         }
         if (package_count == 0) {
-            printf("No packages specified.\n");
+            wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                             "No packages specified.\n");
             return 1;
         }
         break;
@@ -845,7 +952,8 @@ int main(int argc, char *argv[]) {
             }
         }
         if (package_count == 0) {
-            printf("No packages specified.\n");
+            wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                             "No packages specified.\n");
             return 1;
         }
 
@@ -865,8 +973,10 @@ int main(int argc, char *argv[]) {
             wpm_archive_set_progress(++package_number, package_count);
             if (extension && _stricmp(extension, ".zip") == 0) {
                 if (selected_arch || selected_version) {
-                    printf("Error: --arch and --version are not valid for "
-                           "ZIP-path installation.\n");
+                    wpm_event_printf(
+                        WPM_EVENT_ERROR, "wpm.error", "wpm", "command",
+                        "Error: --arch and --version are not valid for "
+                        "ZIP-path installation.\n");
                     return 1;
                 }
                 if (!wpm_archive_install(argv[i], allow_unsigned)) {
@@ -883,7 +993,8 @@ int main(int argc, char *argv[]) {
 
     case CMD_REMOVE: {
         if (argc < 3) {
-            printf("No packages specified.\n");
+            wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                             "No packages specified.\n");
             return 1;
         }
 
@@ -919,9 +1030,11 @@ int main(int argc, char *argv[]) {
                 }
             }
             if (!valid) {
-                printf("Usage: wpm repo add "
-                       "<https-url|http-url|directory|UNC-path> [--priority "
-                       "<integer>] [--allow-insecure-http]\n");
+                wpm_event_printf(
+                    WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                    "Usage: wpm repo add "
+                    "<https-url|http-url|directory|UNC-path> [--priority "
+                    "<integer>] [--allow-insecure-http]\n");
                 return 1;
             }
             if (!wpm_repo_add(argv[command_index + 2], priority,
@@ -940,7 +1053,8 @@ int main(int argc, char *argv[]) {
                 return 1;
             }
         } else {
-            printf("Usage: wpm repo <add|list|remove|update> ...\n");
+            wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                             "Usage: wpm repo <add|list|remove|update> ...\n");
             return 1;
         }
         break;
@@ -954,15 +1068,20 @@ int main(int argc, char *argv[]) {
             if (!wpm_clear_default_key()) {
                 return 1;
             }
-            printf("Default signing key cleared.\n");
-            printf("Result: default signing key cleared\n");
+            wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                             "Default signing key cleared.\n");
+            wpm_event_printf(WPM_EVENT_RESULT, "wpm.result", "wpm", "command",
+                             "Result: default signing key cleared\n");
         } else if (strcmp(action, "default") == 0 && command_index + 2 < argc) {
             if (!wpm_set_default_key(argv[command_index + 2])) {
                 return 1;
             }
-            printf("Result: default signing key configured\n");
+            wpm_event_printf(WPM_EVENT_RESULT, "wpm.result", "wpm", "command",
+                             "Result: default signing key configured\n");
         } else {
-            printf("Usage: wpm key default <private-key-file>|--clear\n");
+            wpm_event_printf(
+                WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                "Usage: wpm key default <private-key-file>|--clear\n");
             return 1;
         }
         break;
@@ -984,7 +1103,8 @@ int main(int argc, char *argv[]) {
                 return 1;
             }
         } else {
-            printf("Usage: wpm trust <add|list|revoke> ...\n");
+            wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                             "Usage: wpm trust <add|list|revoke> ...\n");
             return 1;
         }
         break;
@@ -1002,7 +1122,9 @@ int main(int argc, char *argv[]) {
             }
         }
         if (strcmp(setting, "prerelease") != 0) {
-            printf("Usage: wpm config <set|get|unset> prerelease ...\n");
+            wpm_event_printf(
+                WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                "Usage: wpm config <set|get|unset> prerelease ...\n");
             return 1;
         }
         if (strcmp(action, "get") == 0) {
@@ -1012,7 +1134,9 @@ int main(int argc, char *argv[]) {
         } else if (strcmp(action, "set") == 0 && command_index + 3 < argc) {
             const char *value = argv[command_index + 3];
             if (_stricmp(value, "true") && _stricmp(value, "false")) {
-                printf("Error: prerelease value must be true or false.\n");
+                wpm_event_printf(
+                    WPM_EVENT_ERROR, "wpm.error", "wpm", "command",
+                    "Error: prerelease value must be true or false.\n");
                 return 1;
             }
             if (!wpm_config_prerelease_set(package,
@@ -1024,16 +1148,21 @@ int main(int argc, char *argv[]) {
                 return 1;
             }
         } else {
-            printf("Usage: wpm config <set|get|unset> prerelease ...\n");
+            wpm_event_printf(
+                WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                "Usage: wpm config <set|get|unset> prerelease ...\n");
             return 1;
         }
         break;
     }
 
     case CMD_UNKNOWN:
-        printf("Error: unknown command: %s.\n", argv[command_index]);
-        printf("Usage: wpm <command> [options]\n");
-        printf("Run 'wpm --help' for available commands.\n");
+        wpm_event_printf(WPM_EVENT_ERROR, "wpm.error", "wpm", "command",
+                         "Error: unknown command: %s.\n", argv[command_index]);
+        wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                         "Usage: wpm <command> [options]\n");
+        wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                         "Run 'wpm --help' for available commands.\n");
         return 1;
 
     case CMD_KEYGEN: {
@@ -1071,8 +1200,10 @@ int main(int argc, char *argv[]) {
         }
         if ((!all && name_count == 0) || (all && name_count > 0) ||
             (all && selected_version) || (assume_yes && !all)) {
-            printf("Usage: wpm upgrade <package...> [--arch <arch>] [--version "
-                   "<semver>] | --all [--arch <arch>]\n");
+            wpm_event_printf(
+                WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                "Usage: wpm upgrade <package...> [--arch <arch>] [--version "
+                "<semver>] | --all [--arch <arch>]\n");
             return 1;
         }
         if (!wpm_repo_upgrade(names, name_count, all, selected_arch,
@@ -1084,16 +1215,19 @@ int main(int argc, char *argv[]) {
     }
     case CMD_INIT: {
         char name[128] = {0};
-        printf("Initializing WPM package...\n\n");
+        wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                         "Initializing WPM package...\n\n");
 
         if (argc > 3) {
-            printf("Usage: wpm init [package_name]\n");
+            wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                             "Usage: wpm init [package_name]\n");
             return 1;
         }
 
         if (argc == 3) {
             if (strlen(argv[2]) >= sizeof(name)) {
-                printf(
+                wpm_event_printf(
+                    WPM_EVENT_INFO, "wpm.info", "wpm", "command",
                     "Invalid package name. Maximum length is %zu characters.\n",
                     sizeof(name) - 1);
                 return 1;
@@ -1106,18 +1240,21 @@ int main(int argc, char *argv[]) {
         }
 
         if (!wpm_package_name_is_valid(name)) {
-            printf("Invalid package name. Use letters, numbers, '.', '-', or "
-                   "'_'.\n");
+            wpm_event_printf(
+                WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                "Invalid package name. Use letters, numbers, '.', '-', or "
+                "'_'.\n");
             return 1;
         }
 
-        printf("\n");
+        wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command", "\n");
 
         if (!wpm_init_run(name)) {
             return 1;
         }
 
-        printf("\nDone.\n");
+        wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                         "\nDone.\n");
         break;
     }
 
@@ -1134,25 +1271,36 @@ int main(int argc, char *argv[]) {
 }
 
 void print_version() {
-    printf(
+    wpm_event_printf(
+        WPM_EVENT_INFO, "wpm.info", "wpm", "command",
         "=================================================================\n");
-    printf("Waughtal Package Manager (wpm) Version %s \n", WPM_VERSION);
-    printf(
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "Waughtal Package Manager (wpm) Version %s \n",
+                     WPM_VERSION);
+    wpm_event_printf(
+        WPM_EVENT_INFO, "wpm.info", "wpm", "command",
         "=================================================================\n");
-    printf("Dependencies:\n");
-    printf("  mbedTLS %s (bundled TLS 1.2, embedded CA roots)\n",
-           MBEDTLS_VERSION_STRING);
-    printf("  minizip-ng %s (commit %s%s)\n", WPM_MINIZIP_NG_VERSION,
-           WPM_MINIZIP_NG_COMMIT, WPM_MINIZIP_NG_DIRTY ? ", dirty" : "");
-    printf("  zlib-ng %s (commit %s%s)\n", WPM_ZLIB_NG_VERSION,
-           WPM_ZLIB_NG_COMMIT, WPM_ZLIB_NG_DIRTY ? ", dirty" : "");
-    printf("  libsodium %s (commit %s%s)\n", WPM_SODIUM_VERSION,
-           WPM_SODIUM_COMMIT, WPM_SODIUM_DIRTY ? ", dirty" : "");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "Dependencies:\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  mbedTLS %s (bundled TLS 1.2, embedded CA roots)\n",
+                     MBEDTLS_VERSION_STRING);
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  minizip-ng %s (commit %s%s)\n", WPM_MINIZIP_NG_VERSION,
+                     WPM_MINIZIP_NG_COMMIT,
+                     WPM_MINIZIP_NG_DIRTY ? ", dirty" : "");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  zlib-ng %s (commit %s%s)\n", WPM_ZLIB_NG_VERSION,
+                     WPM_ZLIB_NG_COMMIT, WPM_ZLIB_NG_DIRTY ? ", dirty" : "");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  libsodium %s (commit %s%s)\n", WPM_SODIUM_VERSION,
+                     WPM_SODIUM_COMMIT, WPM_SODIUM_DIRTY ? ", dirty" : "");
 #ifdef WPM_HAS_WCRT
     if (GetModuleHandleA("wcrt.dll")) {
         print_windows_dependency_version("wcrt", "wcrt.dll", "runtime library");
     } else {
-        printf("  wcrt %s (runtime library)\n", WPM_WCRT_VERSION);
+        wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                         "  wcrt %s (runtime library)\n", WPM_WCRT_VERSION);
     }
 #endif
     print_windows_dependency_version("urlmon", "urlmon.dll",
@@ -1166,159 +1314,254 @@ void print_usage(Command c) {
         switch (c) {
         case CMD_INIT:
             print_usage_line(c);
-            printf("\nInitialize package metadata in the current "
-                   "directory.\n\nExample:\n  wpm init my-package\n");
+            wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                             "\nInitialize package metadata in the current "
+                             "directory.\n\nExample:\n  wpm init my-package\n");
             return;
         case CMD_BUILD:
             print_usage_line(c);
-            printf(
+            wpm_event_printf(
+                WPM_EVENT_INFO, "wpm.info", "wpm", "command",
                 "\nBuild and optionally sign a package archive.\n\nExample:\n  "
                 "wpm build .\\my-package .\\dist --sign .\\release.private\n");
             return;
         case CMD_VERIFY:
             print_usage_line(c);
-            printf("\nValidate packages without installing them.\n\nExample:\n "
-                   " wpm verify .\\dist\\my-package-any-1.0.0.zip\n");
+            wpm_event_printf(
+                WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                "\nValidate packages without installing them.\n\nExample:\n "
+                " wpm verify .\\dist\\my-package-any-1.0.0.zip\n");
             return;
         case CMD_INSTALL:
             print_usage_line(c);
-            printf("\nInstall a local archive or a package selected from "
-                   "repositories.\n\nExample:\n  wpm install my-package --arch "
-                   "x64\n");
+            wpm_event_printf(
+                WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                "\nInstall a local archive or a package selected from "
+                "repositories.\n\nExample:\n  wpm install my-package --arch "
+                "x64\n");
             return;
         case CMD_REMOVE:
             print_usage_line(c);
-            printf(
+            wpm_event_printf(
+                WPM_EVENT_INFO, "wpm.info", "wpm", "command",
                 "\nRemove packages using their retained "
                 "archives.\n\nExample:\n  wpm remove my-package-x64-1.0.0\n");
             return;
         case CMD_REPO:
             print_usage_line(c);
-            printf("\nManage package repositories.\n\nExamples:\n  wpm repo "
-                   "add .\\repository --priority 10\n  wpm repo list\n  wpm "
-                   "repo update --offline\n");
+            wpm_event_printf(
+                WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                "\nManage package repositories.\n\nExamples:\n  wpm repo "
+                "add .\\repository --priority 10\n  wpm repo list\n  wpm "
+                "repo update --offline\n");
             return;
         case CMD_KEYGEN:
             print_usage_line(c);
-            printf("\nGenerate an Ed25519 signing-key pair.\n\nExample:\n  wpm "
-                   "keygen .\\release.private .\\release.public --default\n");
+            wpm_event_printf(
+                WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                "\nGenerate an Ed25519 signing-key pair.\n\nExample:\n  wpm "
+                "keygen .\\release.private .\\release.public --default\n");
             return;
         case CMD_KEY:
             print_usage_line(c);
-            printf("\nSelect or clear the default package-signing "
-                   "key.\n\nExamples:\n  wpm key default .\\release.private\n  "
-                   "wpm key default --clear\n");
+            wpm_event_printf(
+                WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                "\nSelect or clear the default package-signing "
+                "key.\n\nExamples:\n  wpm key default .\\release.private\n  "
+                "wpm key default --clear\n");
             return;
         case CMD_TRUST:
             print_usage_line(c);
-            printf("\nManage trusted package-signing keys.\n\nExamples:\n  wpm "
-                   "trust add .\\maintainer.public\n  wpm trust list\n  wpm "
-                   "trust revoke <64-character-key-id>\n");
+            wpm_event_printf(
+                WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                "\nManage trusted package-signing keys.\n\nExamples:\n  wpm "
+                "trust add .\\maintainer.public\n  wpm trust list\n  wpm "
+                "trust revoke <64-character-key-id>\n");
             return;
         case CMD_CONFIG:
             print_usage_line(c);
-            printf("\nConfigure prerelease package selection.\n\nExample:\n  "
-                   "wpm config set prerelease true --package my-package\n");
+            wpm_event_printf(
+                WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                "\nConfigure prerelease package selection.\n\nExample:\n  "
+                "wpm config set prerelease true --package my-package\n");
             return;
         case CMD_UPDATE:
             print_usage_line(c);
-            printf("\nRefresh repository metadata and report available "
-                   "updates.\n\nExample:\n  wpm update\n");
+            wpm_event_printf(
+                WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                "\nRefresh repository metadata and report available "
+                "updates.\n\nExample:\n  wpm update\n");
             return;
         case CMD_UPGRADE:
             print_usage_line(c);
-            printf("\nUpgrade selected installed packages.\n\nExamples:\n  wpm "
-                   "upgrade my-package\n  wpm upgrade --all --yes\n");
+            wpm_event_printf(
+                WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                "\nUpgrade selected installed packages.\n\nExamples:\n  wpm "
+                "upgrade my-package\n  wpm upgrade --all --yes\n");
             return;
         default:
             break;
         }
     }
-    printf("Usage:\n");
-    printf("  wpm <command> [options]\n\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command", "Usage:\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  wpm <command> [options]\n\n");
 
-    printf("Commands:\n");
-    printf("  build <source_dir> [output_dir] [--no-index]\n");
-    printf("      Build a package from source\n\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "Commands:\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  build <source_dir> [output_dir] [--no-index]\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "      Build a package from source\n\n");
 
-    printf("  verify <package...>\n");
-    printf("      Validate signed packages without installing them\n\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  verify <package...>\n");
+    wpm_event_printf(
+        WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+        "      Validate signed packages without installing them\n\n");
 
-    printf("  install <package...>\n");
-    printf("      Install one or more packages\n\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  install <package...>\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "      Install one or more packages\n\n");
 
-    printf("  init [package_name]\n");
-    printf("      Initialize new package\n\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  init [package_name]\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "      Initialize new package\n\n");
 
-    printf("  remove <package...>\n");
-    printf("      Remove one or more packages\n\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  remove <package...>\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "      Remove one or more packages\n\n");
 
-    printf("  repo <add|list|remove|update> ...\n");
-    printf("      Configure HTTPS, opted-in HTTP, local, or UNC package "
-           "repositories\n\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  repo <add|list|remove|update> ...\n");
+    wpm_event_printf(
+        WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+        "      Configure HTTPS, opted-in HTTP, local, or UNC package "
+        "repositories\n\n");
 
-    printf("  keygen <private-key-file> <public-key-file> [--default]\n");
-    printf("      Generate an Ed25519 signing key pair\n\n");
-    printf("  key default <private-key-file>|--clear\n");
-    printf("      Configure the default signing key\n\n");
-    printf("  trust <add|list|revoke> ...\n");
-    printf("      Manage trusted package signing keys\n\n");
+    wpm_event_printf(
+        WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+        "  keygen <private-key-file> <public-key-file> [--default]\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "      Generate an Ed25519 signing key pair\n\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  key default <private-key-file>|--clear\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "      Configure the default signing key\n\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  trust <add|list|revoke> ...\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "      Manage trusted package signing keys\n\n");
 
-    printf("  config <set|get|unset> prerelease ...\n");
-    printf("      Configure stable or prerelease package selection\n\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  config <set|get|unset> prerelease ...\n");
+    wpm_event_printf(
+        WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+        "      Configure stable or prerelease package selection\n\n");
 
-    printf("  update\n");
-    printf("      Update package index\n\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  update\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "      Update package index\n\n");
 
-    printf("  upgrade <package...> | --all [-y]\n");
-    printf("      Upgrade one or more packages\n\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  upgrade <package...> | --all [-y]\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "      Upgrade one or more packages\n\n");
 
-    printf("Options:\n");
-    printf("  -h, --help\n");
-    printf("      Display this help information\n\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "Options:\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  -h, --help\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "      Display this help information\n\n");
 
-    printf("  --version\n");
-    printf("      Display WPM and dependency version information\n\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  --version\n");
+    wpm_event_printf(
+        WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+        "      Display WPM and dependency version information\n\n");
 
-    printf("  --verbose\n");
-    printf("      Display detailed file-operation progress; may appear before "
-           "or after a command\n\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  --verbose\n");
+    wpm_event_printf(
+        WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+        "      Display detailed file-operation progress; may appear before "
+        "or after a command\n\n");
 
-    printf("  --color <auto|always|never>\n");
-    printf("      Control semantic output styling; default is auto\n\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  --color <auto|always|never>\n");
+    wpm_event_printf(
+        WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+        "      Control semantic output styling; default is auto\n\n");
 
-    printf("  --diagnose\n");
-    printf("      Display runtime mode and resolved WPM locations\n\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  --diagnose\n");
+    wpm_event_printf(
+        WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+        "      Display runtime mode and resolved WPM locations\n\n");
 
-    printf("  --no-index\n");
-    printf("      Skip updating index during build\n\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  --no-index\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "      Skip updating index during build\n\n");
 
-    printf("  --offline\n");
-    printf("      Use cached repository data only\n\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  --offline\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "      Use cached repository data only\n\n");
 
-    printf("  --sign <private-key-file>\n");
-    printf("      Sign a package during build\n\n");
-    printf("  --allow-unsigned\n");
-    printf("      Allow installation of an unsigned package\n\n");
-    printf("  -y, --yes\n");
-    printf("      Confirm a planned --all upgrade without prompting\n\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  --sign <private-key-file>\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "      Sign a package during build\n\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  --allow-unsigned\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "      Allow installation of an unsigned package\n\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  -y, --yes\n");
+    wpm_event_printf(
+        WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+        "      Confirm a planned --all upgrade without prompting\n\n");
 
-    printf("Examples:\n");
-    printf("  wpm build ./my_project\n");
-    printf("  wpm init my-package\n");
-    printf("  wpm verify .\\dist\\my-package-any-1.0.0.zip\n");
-    printf("  wpm install my-package --arch x64\n");
-    printf("  wpm remove my-package-x64-1.0.0\n");
-    printf("  wpm repo add .\\repository --priority 10\n");
-    printf("  wpm repo update\n");
-    printf("  wpm keygen .\\release.private .\\release.public --default\n");
-    printf("  wpm key default .\\release.private\n");
-    printf("  wpm trust add .\\maintainer.public\n");
-    printf("  wpm config set prerelease true --package my-package\n");
-    printf("  wpm update\n");
-    printf("  wpm upgrade --all --yes\n");
-    printf("  wpm --diagnose\n");
-    printf("  wpm remove my-package-x64-1.0.0 && wpm install my-package\n\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "Examples:\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  wpm build ./my_project\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  wpm init my-package\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  wpm verify .\\dist\\my-package-any-1.0.0.zip\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  wpm install my-package --arch x64\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  wpm remove my-package-x64-1.0.0\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  wpm repo add .\\repository --priority 10\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  wpm repo update\n");
+    wpm_event_printf(
+        WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+        "  wpm keygen .\\release.private .\\release.public --default\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  wpm key default .\\release.private\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  wpm trust add .\\maintainer.public\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  wpm config set prerelease true --package my-package\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  wpm update\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  wpm upgrade --all --yes\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  wpm --diagnose\n");
+    wpm_event_printf(
+        WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+        "  wpm remove my-package-x64-1.0.0 && wpm install my-package\n\n");
 }
 
 Command parse_command(const char *cmd) {

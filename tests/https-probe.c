@@ -18,6 +18,26 @@ int wpm_printf(const char *format, ...) {
     return result;
 }
 
+int wpm_event_printf(wpm_event_class kind, const char *code,
+                     const char *operation, const char *phase,
+                     const char *format, ...) {
+    char message[8192];
+    int result;
+    va_list arguments;
+    (void)kind;
+    (void)code;
+    (void)operation;
+    (void)phase;
+    va_start(arguments, format);
+    result = vsnprintf(message, sizeof(message), format, arguments);
+    va_end(arguments);
+    if (result >= 0 && result < (int)sizeof(message)) {
+        fputs(message, stdout);
+        fflush(stdout);
+    }
+    return result;
+}
+
 int main(int argc, char **argv) {
     if (argc == 2 && strcmp(argv[1], "--self-test") == 0) {
         static const char *invalid[] = {"http://localhost/",

@@ -124,8 +124,10 @@ static int may_change_machine_trust(void) {
     if (has_data_override() || elevated()) {
         return 1;
     }
-    printf("Error: administrator elevation is required to modify the machine "
-           "trust store.\n");
+    wpm_event_printf(
+        WPM_EVENT_ERROR, "signing.error", "signing", "command",
+        "Error: administrator elevation is required to modify the machine "
+        "trust store.\n");
     return 0;
 }
 static int protect_private_key(const char *path) {
@@ -256,7 +258,8 @@ int wpm_set_default_key(const char *private_path) {
     FILE *f;
     if (!GetFullPathNameA(private_path, sizeof(full), full, NULL) ||
         !load_private(full, secret)) {
-        printf("Error: invalid private key.\n");
+        wpm_event_printf(WPM_EVENT_ERROR, "signing.error", "signing", "command",
+                         "Error: invalid private key.\n");
         return 0;
     }
     memcpy(pub,
@@ -270,7 +273,8 @@ int wpm_set_default_key(const char *private_path) {
     fprintf(f, "path=%s\nkey-id=%s\n", full, id);
     fclose(f);
     sodium_memzero(secret, sizeof(secret));
-    printf("Default signing key: %s\n", id);
+    wpm_event_printf(WPM_EVENT_INFO, "signing.info", "signing", "command",
+                     "Default signing key: %s\n", id);
     return 1;
 }
 int wpm_clear_default_key(void) {
@@ -305,8 +309,10 @@ int wpm_get_default_key(char *result, size_t size) {
     sodium_memzero(secret, sizeof(secret));
     free(text);
     if (!ok) {
-        printf("Error: configured default signing key is missing, malformed, "
-               "or does not match its key identifier.\n");
+        wpm_event_printf(
+            WPM_EVENT_ERROR, "signing.error", "signing", "command",
+            "Error: configured default signing key is missing, malformed, "
+            "or does not match its key identifier.\n");
     }
     return ok ? 1 : -1;
 }
@@ -317,28 +323,33 @@ int wpm_keygen(const char *private_path, const char *public_path,
     char id[KEY_ID_SIZE];
     if (GetFileAttributesA(private_path) != INVALID_FILE_ATTRIBUTES ||
         GetFileAttributesA(public_path) != INVALID_FILE_ATTRIBUTES) {
-        printf("Error: could not generate key pair.\n");
+        wpm_event_printf(WPM_EVENT_ERROR, "signing.error", "signing", "command",
+                         "Error: could not generate key pair.\n");
         return 0;
     }
     if (sodium_init() < 0 || crypto_sign_keypair(pub, sec) != 0 ||
         !write_private(private_path, sec)) {
-        printf("Error: could not generate key pair.\n");
+        wpm_event_printf(WPM_EVENT_ERROR, "signing.error", "signing", "command",
+                         "Error: could not generate key pair.\n");
         sodium_memzero(sec, sizeof(sec));
         return 0;
     }
     if (!write_public(public_path, pub)) {
         DeleteFileA(private_path);
-        printf("Error: could not generate key pair.\n");
+        wpm_event_printf(WPM_EVENT_ERROR, "signing.error", "signing", "command",
+                         "Error: could not generate key pair.\n");
         sodium_memzero(sec, sizeof(sec));
         return 0;
     }
     key_id(pub, id, sizeof(id));
     sodium_memzero(sec, sizeof(sec));
-    printf("Generated key ID: %s\nPublic key: %s\n", id, public_path);
+    wpm_event_printf(WPM_EVENT_INFO, "signing.info", "signing", "command",
+                     "Generated key ID: %s\nPublic key: %s\n", id, public_path);
     if (make_default && !wpm_set_default_key(private_path)) {
         return 0;
     }
-    printf("Result: signing key generated %s\n", id);
+    wpm_event_printf(WPM_EVENT_RESULT, "signing.result", "signing", "command",
+                     "Result: signing key generated %s\n", id);
     return 1;
 }
 int wpm_trust_add(const char *public_path) {
@@ -351,19 +362,24 @@ int wpm_trust_add(const char *public_path) {
         return 0;
     }
     if (GetFileAttributesA(r) != INVALID_FILE_ATTRIBUTES) {
-        printf("Error: key is revoked: %s\n", id);
+        wpm_event_printf(WPM_EVENT_ERROR, "signing.error", "signing", "command",
+                         "Error: key is revoked: %s\n", id);
         return 0;
     }
     if (GetFileAttributesA(p) != INVALID_FILE_ATTRIBUTES) {
-        printf("Key is already trusted: %s\n", id);
-        printf("Result: trust active %s\n", id);
+        wpm_event_printf(WPM_EVENT_INFO, "signing.info", "signing", "command",
+                         "Key is already trusted: %s\n", id);
+        wpm_event_printf(WPM_EVENT_RESULT, "signing.result", "signing",
+                         "command", "Result: trust active %s\n", id);
         return 1;
     }
     if (!write_public(p, pub)) {
         return 0;
     }
-    printf("Trusted key: %s\n", id);
-    printf("Result: trust active %s\n", id);
+    wpm_event_printf(WPM_EVENT_INFO, "signing.info", "signing", "command",
+                     "Trusted key: %s\n", id);
+    wpm_event_printf(WPM_EVENT_RESULT, "signing.result", "signing", "command",
+                     "Result: trust active %s\n", id);
     return 1;
 }
 static int list_keys(const char *directory, const char *pattern,
@@ -381,7 +397,8 @@ static int list_keys(const char *directory, const char *pattern,
     do {
         char id[KEY_ID_SIZE];
         strncpy_s(id, sizeof(id), entry.cFileName, 64);
-        printf("%s %s\n", id, status);
+        wpm_event_printf(WPM_EVENT_INFO, "signing.info", "signing", "command",
+                         "%s %s\n", id, status);
     } while (FindNextFileA(find, &entry));
     FindClose(find);
     return 1;
@@ -395,7 +412,8 @@ int wpm_trust_list(void) {
     active = list_keys(d, "*.pub", "active");
     revoked = list_keys(d, "*.revoked", "revoked");
     if (!active && !revoked) {
-        printf("No trusted keys.\n");
+        wpm_event_printf(WPM_EVENT_INFO, "signing.info", "signing", "command",
+                         "No trusted keys.\n");
     }
     return 1;
 }
@@ -406,14 +424,17 @@ int wpm_trust_revoke(const char *id) {
         snprintf(p, sizeof(p), "%s\\%s.pub", d, id) < 0 ||
         snprintf(r, sizeof(r), "%s\\%s.revoked", d, id) < 0 ||
         GetFileAttributesA(p) == INVALID_FILE_ATTRIBUTES) {
-        printf("Error: trusted key not found: %s\n", id);
+        wpm_event_printf(WPM_EVENT_ERROR, "signing.error", "signing", "command",
+                         "Error: trusted key not found: %s\n", id);
         return 0;
     }
     if (!MoveFileExA(p, r, MOVEFILE_REPLACE_EXISTING)) {
         return 0;
     }
-    printf("Revoked key: %s\n", id);
-    printf("Result: trust revoked %s\n", id);
+    wpm_event_printf(WPM_EVENT_INFO, "signing.info", "signing", "command",
+                     "Revoked key: %s\n", id);
+    wpm_event_printf(WPM_EVENT_RESULT, "signing.result", "signing", "command",
+                     "Result: trust revoked %s\n", id);
     return 1;
 }
 int wpm_sign_package_index(const char *source, const char *private_path) {
@@ -433,7 +454,8 @@ int wpm_sign_package_index(const char *source, const char *private_path) {
     if (!join(index, sizeof(index), source, ".wpm\\index.csv") ||
         !join(sigpath, sizeof(sigpath), source, ".wpm\\signature.json") ||
         !load_private(private_path, sec) || !read_all(index, &data, &n)) {
-        printf("Error: could not sign package index.\n");
+        wpm_event_printf(WPM_EVENT_ERROR, "signing.error", "signing", "command",
+                         "Error: could not sign package index.\n");
         return 0;
     }
     memcpy(pub, sec + crypto_sign_SECRETKEYBYTES - crypto_sign_PUBLICKEYBYTES,
@@ -482,17 +504,23 @@ int wpm_validate_package_signature(const char *stage, int allow,
     }
     if (GetFileAttributesA(sigp) == INVALID_FILE_ATTRIBUTES) {
         if (allow && (has_data_override() || elevated())) {
-            printf("Warning: installing unsigned package.\n");
+            wpm_event_printf(WPM_EVENT_WARNING, "signing.warning", "signing",
+                             "command",
+                             "Warning: installing unsigned package.\n");
             if (result_id && result_size) {
                 strcpy_s(result_id, result_size, "unsigned");
             }
             return 1;
         }
         if (allow) {
-            printf("Error: administrator elevation is required to install an "
-                   "unsigned package.\n");
+            wpm_event_printf(
+                WPM_EVENT_ERROR, "signing.error", "signing", "command",
+                "Error: administrator elevation is required to install an "
+                "unsigned package.\n");
         } else {
-            printf("Error: unsigned packages are not allowed.\n");
+            wpm_event_printf(WPM_EVENT_ERROR, "signing.error", "signing",
+                             "command",
+                             "Error: unsigned packages are not allowed.\n");
         }
         return 0;
     }
@@ -516,13 +544,15 @@ int wpm_validate_package_signature(const char *stage, int allow,
         sodium_base642bin(pub, sizeof(pub), pub64, strlen(pub64), NULL, &pl,
                           NULL, sodium_base64_VARIANT_ORIGINAL) != 0 ||
         pl != sizeof(pub)) {
-        printf("Error: package signature validation failed.\n");
+        wpm_event_printf(WPM_EVENT_ERROR, "signing.error", "signing", "command",
+                         "Error: package signature validation failed.\n");
         goto fail;
     }
     strcpy_s(declared_id, sizeof(declared_id), id);
     known = GetFileAttributesA(pubp) != INVALID_FILE_ATTRIBUTES;
     if (known && !load_public(pubp, pub)) {
-        printf("Error: package signature validation failed.\n");
+        wpm_event_printf(WPM_EVENT_ERROR, "signing.error", "signing", "command",
+                         "Error: package signature validation failed.\n");
         goto fail;
     }
     if (!key_id(pub, id, sizeof(id)) || strcmp(id, declared_id) != 0 ||
@@ -531,22 +561,30 @@ int wpm_validate_package_signature(const char *stage, int allow,
         sl != sizeof(sig) ||
         crypto_sign_verify_detached(sig, data, (unsigned long long)n, pub) !=
             0) {
-        printf("Error: package signature validation failed.\n");
+        wpm_event_printf(WPM_EVENT_ERROR, "signing.error", "signing", "command",
+                         "Error: package signature validation failed.\n");
         goto fail;
     }
     if (!known) {
-        printf("Package signing key %s is not trusted. Trust it? [y/N]: ",
-               declared_id);
+        wpm_event_printf(
+            WPM_EVENT_PROMPT, "signing.prompt", "signing", "command",
+            "Package signing key %s is not trusted. Trust it? [y/N]: ",
+            declared_id);
         if (!fgets(answer, sizeof(answer), stdin) ||
             (tolower((unsigned char)answer[0]) != 'y')) {
-            printf("Error: signing key was not trusted.\n");
+            wpm_event_printf(WPM_EVENT_ERROR, "signing.error", "signing",
+                             "command",
+                             "Error: signing key was not trusted.\n");
             goto fail;
         }
         if (!may_change_machine_trust() || !write_public(pubp, pub)) {
-            printf("Error: could not trust signing key.\n");
+            wpm_event_printf(WPM_EVENT_ERROR, "signing.error", "signing",
+                             "command",
+                             "Error: could not trust signing key.\n");
             goto fail;
         }
-        printf("Trusted key: %s\n", declared_id);
+        wpm_event_printf(WPM_EVENT_INFO, "signing.info", "signing", "command",
+                         "Trusted key: %s\n", declared_id);
     }
     if (result_id && result_size) {
         strcpy_s(result_id, result_size, declared_id);

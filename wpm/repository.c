@@ -88,7 +88,8 @@ static void repository_verbose_log(const char *format, ...) {
     va_start(arguments, format);
     if (vsnprintf(message, sizeof(message), format, arguments) >= 0) {
         message[sizeof(message) - 1] = '\0';
-        printf("Verbose: Repository: %s\n", message);
+        wpm_event_printf(WPM_EVENT_DEBUG, "repository.debug", "repository",
+                         "command", "Verbose: Repository: %s\n", message);
     }
     va_end(arguments);
 }
@@ -200,8 +201,10 @@ static int repository_normalize(const char *source, char *result, size_t size,
     DWORD required;
     if (!source || !*source || strpbrk(source, "\t\r\n")) {
         if (report_error) {
-            printf("Error: repository locator is empty or contains a "
-                   "control character.\n");
+            wpm_event_printf(WPM_EVENT_ERROR, "repository.error", "repository",
+                             "command",
+                             "Error: repository locator is empty or contains a "
+                             "control character.\n");
         }
         return 0;
     }
@@ -211,8 +214,11 @@ static int repository_normalize(const char *source, char *result, size_t size,
         }
         if (!web_locator_valid(result, is_https_repository(result) ? 8 : 7)) {
             if (report_error) {
-                printf("Error: repository URL requires an authority and "
-                       "cannot contain credentials.\n");
+                wpm_event_printf(
+                    WPM_EVENT_ERROR, "repository.error", "repository",
+                    "command",
+                    "Error: repository URL requires an authority and "
+                    "cannot contain credentials.\n");
             }
             return 0;
         }
@@ -225,16 +231,19 @@ static int repository_normalize(const char *source, char *result, size_t size,
     }
     if (strstr(source, "://")) {
         if (report_error) {
-            printf("Error: repository locators must use https://, opted-in "
-                   "http://, or a filesystem path.\n");
+            wpm_event_printf(
+                WPM_EVENT_ERROR, "repository.error", "repository", "command",
+                "Error: repository locators must use https://, opted-in "
+                "http://, or a filesystem path.\n");
         }
         return 0;
     }
     required = GetFullPathNameA(source, (DWORD)size, result, NULL);
     if (!required || required >= size) {
         if (report_error) {
-            printf("Error: repository path is invalid or too long: %s\n",
-                   source);
+            wpm_event_printf(
+                WPM_EVENT_ERROR, "repository.error", "repository", "command",
+                "Error: repository path is invalid or too long: %s\n", source);
         }
         return 0;
     }
@@ -246,8 +255,11 @@ static int repository_normalize(const char *source, char *result, size_t size,
     if (result[0] == '\\' && result[1] == '\\') {
         if (!unc_locator_valid(result)) {
             if (report_error) {
-                printf("Error: UNC repositories require a server and share "
-                       "and cannot use a device namespace.\n");
+                wpm_event_printf(
+                    WPM_EVENT_ERROR, "repository.error", "repository",
+                    "command",
+                    "Error: UNC repositories require a server and share "
+                    "and cannot use a device namespace.\n");
             }
             return 0;
         }
@@ -259,15 +271,19 @@ static int repository_normalize(const char *source, char *result, size_t size,
     if (length < 3 || !isalpha((unsigned char)result[0]) || result[1] != ':' ||
         result[2] != '\\') {
         if (report_error) {
-            printf("Error: filesystem repositories require a drive-qualified "
-                   "or UNC path.\n");
+            wpm_event_printf(
+                WPM_EVENT_ERROR, "repository.error", "repository", "command",
+                "Error: filesystem repositories require a drive-qualified "
+                "or UNC path.\n");
         }
         return 0;
     }
     if (strchr(result + 2, ':')) {
         if (report_error) {
-            printf("Error: filesystem repository paths cannot contain a "
-                   "colon after the drive prefix.\n");
+            wpm_event_printf(
+                WPM_EVENT_ERROR, "repository.error", "repository", "command",
+                "Error: filesystem repository paths cannot contain a "
+                "colon after the drive prefix.\n");
         }
         return 0;
     }
@@ -320,15 +336,20 @@ static int load_repositories(repository *result, int *count) {
                     (!is_web_repository(url) &&
                      _stricmp(url, normalized) != 0)) {
                     if (!is_web_repository(url)) {
-                        printf(
+                        wpm_event_printf(
+                            WPM_EVENT_WARNING, "repository.warning",
+                            "repository", "command",
                             "Warning: ignoring invalid configured filesystem "
                             "repository locator: %s\n"
                             "  Remove it with: wpm repo remove \"%s\"\n",
                             url, url);
                     } else {
-                        printf("Warning: ignoring an invalid configured web "
-                               "repository locator. Remove or re-add it with "
-                               "'wpm repo'.\n");
+                        wpm_event_printf(
+                            WPM_EVENT_WARNING, "repository.warning",
+                            "repository", "command",
+                            "Warning: ignoring an invalid configured web "
+                            "repository locator. Remove or re-add it with "
+                            "'wpm repo'.\n");
                     }
                     continue;
                 }
@@ -387,7 +408,9 @@ static int rewrite(const char *wanted, int priority, int allow_http,
         if (input) {
             fclose(input);
         }
-        printf("Error: could not write repository configuration.\n");
+        wpm_event_printf(WPM_EVENT_ERROR, "repository.error", "repository",
+                         "command",
+                         "Error: could not write repository configuration.\n");
         return 0;
     }
     if (input) {
@@ -413,15 +436,21 @@ static int rewrite(const char *wanted, int priority, int allow_http,
     if (fclose(output) ||
         !MoveFileExA(temporary, path, MOVEFILE_REPLACE_EXISTING)) {
         DeleteFileA(temporary);
-        printf("Error: could not save repository configuration.\n");
+        wpm_event_printf(WPM_EVENT_ERROR, "repository.error", "repository",
+                         "command",
+                         "Error: could not save repository configuration.\n");
         return 0;
     }
     if (remove && !found) {
-        printf("Error: repository is not configured: %s\n", wanted);
+        wpm_event_printf(WPM_EVENT_ERROR, "repository.error", "repository",
+                         "command", "Error: repository is not configured: %s\n",
+                         wanted);
         return 0;
     }
-    printf("Repository %s: %s\n",
-           remove ? "removed" : (found ? "updated" : "added"), wanted);
+    wpm_event_printf(WPM_EVENT_INFO, "repository.info", "repository", "command",
+                     "Repository %s: %s\n",
+                     remove ? "removed" : (found ? "updated" : "added"),
+                     wanted);
     return 1;
 }
 int wpm_repo_add(const char *url, int priority, int allow_insecure_http) {
@@ -430,24 +459,31 @@ int wpm_repo_add(const char *url, int priority, int allow_insecure_http) {
         return 0;
     }
     if (is_http_repository(normalized) && !allow_insecure_http) {
-        printf(
+        wpm_event_printf(
+            WPM_EVENT_ERROR, "repository.error", "repository", "command",
             "Error: plain HTTP repositories require --allow-insecure-http.\n");
         return 0;
     }
     if (!is_http_repository(normalized) && allow_insecure_http) {
-        printf("Error: --allow-insecure-http is valid only for an http:// "
-               "repository.\n");
+        wpm_event_printf(
+            WPM_EVENT_ERROR, "repository.error", "repository", "command",
+            "Error: --allow-insecure-http is valid only for an http:// "
+            "repository.\n");
         return 0;
     }
     if (allow_insecure_http) {
-        printf("Warning: insecure HTTP transport exposes repository metadata "
-               "and downloads; "
-               "package signatures and trust checks remain required.\n");
+        wpm_event_printf(
+            WPM_EVENT_WARNING, "repository.warning", "repository", "command",
+            "Warning: insecure HTTP transport exposes repository metadata "
+            "and downloads; "
+            "package signatures and trust checks remain required.\n");
     }
     if (!rewrite(normalized, priority, allow_insecure_http, 0)) {
         return 0;
     }
-    printf("Result: repository configured %s\n", normalized);
+    wpm_event_printf(WPM_EVENT_RESULT, "repository.result", "repository",
+                     "command", "Result: repository configured %s\n",
+                     normalized);
     return 1;
 }
 int wpm_repo_remove(const char *url) {
@@ -468,7 +504,8 @@ int wpm_repo_remove(const char *url) {
     if (cache_path(wanted, cached, sizeof(cached))) {
         DeleteFileA(cached);
     }
-    printf("Result: repository removed %s\n", wanted);
+    wpm_event_printf(WPM_EVENT_RESULT, "repository.result", "repository",
+                     "command", "Result: repository removed %s\n", wanted);
     return 1;
 }
 int wpm_repo_list(void) {
@@ -478,13 +515,16 @@ int wpm_repo_list(void) {
         return 0;
     }
     if (!count) {
-        printf("No repositories configured.\n");
+        wpm_event_printf(WPM_EVENT_INFO, "repository.info", "repository",
+                         "command", "No repositories configured.\n");
         return 1;
     }
     for (i = 0; i < count; i++) {
-        printf("%d\t%s%s\n", repositories[i].priority, repositories[i].url,
-               repositories[i].allow_insecure_http ? "\t[insecure HTTP allowed]"
-                                                   : "");
+        wpm_event_printf(
+            WPM_EVENT_INFO, "repository.info", "repository", "command",
+            "%d\t%s%s\n", repositories[i].priority, repositories[i].url,
+            repositories[i].allow_insecure_http ? "\t[insecure HTTP allowed]"
+                                                : "");
     }
     return 1;
 }
@@ -602,8 +642,10 @@ download_on_progress(download_callback *callback, ULONG current, ULONG total,
              (!is_http_repository(redirect) ||
               !same_web_origin(callback->initial_url, redirect))) ||
             (!callback->insecure_http && is_http_repository(redirect))) {
-            printf("Error: repository redirect changed to a disallowed origin "
-                   "or scheme.\n");
+            wpm_event_printf(
+                WPM_EVENT_ERROR, "repository.error", "repository", "command",
+                "Error: repository redirect changed to a disallowed origin "
+                "or scheme.\n");
             return E_ABORT;
         }
     }
@@ -707,9 +749,11 @@ static int urlmon_download(const char *url, const char *destination,
     }
     wpm_progress_finish(&callback.progress, succeeded);
     if (!succeeded) {
-        printf("Error: transport read failed (HRESULT 0x%08lx, filesystem "
-               "error %lu): %s\n",
-               (unsigned long)result, (unsigned long)move_error, url);
+        wpm_event_printf(
+            WPM_EVENT_ERROR, "repository.error", "repository", "command",
+            "Error: transport read failed (HRESULT 0x%08lx, filesystem "
+            "error %lu): %s\n",
+            (unsigned long)result, (unsigned long)move_error, url);
         DeleteFileA(temporary);
     }
     return succeeded;
@@ -827,8 +871,10 @@ static int http_download(const char *url, const char *destination,
         if (!query_info(request, WPM_HTTP_QUERY_LOCATION, location,
                         &location_size, NULL) ||
             !http_redirect_url(url, location, current, sizeof(current))) {
-            printf("Error: HTTP redirect changed to a disallowed origin or "
-                   "scheme.\n");
+            wpm_event_printf(
+                WPM_EVENT_ERROR, "repository.error", "repository", "command",
+                "Error: HTTP redirect changed to a disallowed origin or "
+                "scheme.\n");
             goto cleanup;
         }
         close_handle(request);
@@ -861,9 +907,11 @@ static int http_download(const char *url, const char *destination,
                          (unsigned long long)content_length);
     } while (read);
     if (content_length && received != content_length) {
-        printf("Error: HTTP response was incomplete (expected %lu bytes, "
-               "received %llu).\n",
-               (unsigned long)content_length, received);
+        wpm_event_printf(
+            WPM_EVENT_ERROR, "repository.error", "repository", "command",
+            "Error: HTTP response was incomplete (expected %lu bytes, "
+            "received %llu).\n",
+            (unsigned long)content_length, received);
         goto cleanup;
     }
     if (fclose(output)) {
@@ -889,23 +937,71 @@ cleanup:
         wpm_progress_finish(&progress, succeeded);
     }
     if (!succeeded) {
-        printf("Error: insecure HTTP read failed (status %lu, Windows error "
-               "%lu): %s\n",
-               (unsigned long)status, (unsigned long)GetLastError(), current);
+        wpm_event_printf(
+            WPM_EVENT_ERROR, "repository.error", "repository", "command",
+            "Error: insecure HTTP read failed (status %lu, Windows error "
+            "%lu): %s\n",
+            (unsigned long)status, (unsigned long)GetLastError(), current);
         if (temporary[0]) {
             DeleteFileA(temporary);
         }
     }
     return succeeded;
 }
-static int copy_local(const char *source, const char *destination) {
+static int copy_local(const char *source, const char *destination,
+                      const char *label) {
     char temporary[PATH_SIZE];
+    HANDLE input, output;
+    unsigned char buffer[65536];
+    DWORD count;
+    LARGE_INTEGER size;
+    int succeeded = 1;
+    wpm_progress progress;
     if (snprintf(temporary, sizeof(temporary), "%s.download", destination) <
         0) {
         return 0;
     }
     DeleteFileA(temporary);
-    if (!CopyFileA(source, temporary, FALSE)) {
+    input = CreateFileA(source, GENERIC_READ, FILE_SHARE_READ, NULL,
+                        OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (input == INVALID_HANDLE_VALUE) {
+        return 0;
+    }
+    output = CreateFileA(temporary, GENERIC_WRITE, 0, NULL, CREATE_NEW,
+                         FILE_ATTRIBUTE_NORMAL, NULL);
+    if (output == INVALID_HANDLE_VALUE) {
+        CloseHandle(input);
+        return 0;
+    }
+    wpm_progress_start(
+        &progress, "Copying", "Copy", "Copied", label,
+        GetFileSizeEx(input, &size) ? (unsigned long long)size.QuadPart : 0);
+    for (;;) {
+        DWORD written;
+        if (!ReadFile(input, buffer, sizeof(buffer), &count, NULL)) {
+            succeeded = 0;
+            break;
+        }
+        if (!count) {
+            break;
+        }
+        if (!WriteFile(output, buffer, count, &written, NULL) ||
+            written != count) {
+            succeeded = 0;
+            break;
+        }
+        wpm_progress_add(&progress, count);
+    }
+    if (!FlushFileBuffers(output)) {
+        succeeded = 0;
+    }
+    if (!CloseHandle(output)) {
+        succeeded = 0;
+    }
+    CloseHandle(input);
+    wpm_progress_finish(&progress, succeeded);
+    if (!succeeded) {
+        DeleteFileA(temporary);
         return 0;
     }
     if (!SetFileAttributesA(temporary, FILE_ATTRIBUTE_NORMAL)) {
@@ -928,22 +1024,26 @@ static int retrieve(const char *source, const char *destination,
         if (backend == WPM_HTTPS_URLMON) {
             return urlmon_download(source, destination, label);
         }
-        printf("Error: WPM_HTTPS_BACKEND must be auto, bundled or urlmon; "
-               "WPM_TLS_CA_FILE requires auto or bundled.\n");
+        wpm_event_printf(
+            WPM_EVENT_ERROR, "repository.error", "repository", "command",
+            "Error: WPM_HTTPS_BACKEND must be auto, bundled or urlmon; "
+            "WPM_TLS_CA_FILE requires auto or bundled.\n");
         return 0;
     }
     if (is_http_repository(source)) {
         if (!allow_insecure_http) {
             return 0;
         }
-        printf("Warning: using insecure HTTP transport for %s; content remains "
-               "subject "
-               "to package signature and trust validation.\n",
-               source);
+        wpm_event_printf(
+            WPM_EVENT_WARNING, "repository.warning", "repository", "command",
+            "Warning: using insecure HTTP transport for %s; content remains "
+            "subject "
+            "to package signature and trust validation.\n",
+            source);
         return http_download(source, destination, label);
     }
     REPO_VERBOSE("copying local source: %s", source);
-    return copy_local(source, destination);
+    return copy_local(source, destination, label);
 }
 static int index_is_fresh(const char *path) {
     WIN32_FILE_ATTRIBUTE_DATA data;
@@ -974,7 +1074,9 @@ static int refresh(repository *repo, int offline, int required) {
     REPO_VERBOSE("cache: %s", cached);
     if (offline && is_web_repository(repo->url)) {
         if (GetFileAttributesA(cached) == INVALID_FILE_ATTRIBUTES) {
-            printf("Error: no cached index for %s while offline.\n", repo->url);
+            wpm_event_printf(
+                WPM_EVENT_ERROR, "repository.error", "repository", "command",
+                "Error: no cached index for %s while offline.\n", repo->url);
         } else {
             REPO_VERBOSE("using cached index (offline)");
         }
@@ -987,33 +1089,43 @@ static int refresh(repository *repo, int offline, int required) {
     if (ensure_cache_directory("repositories") &&
         index_source(repo->url, url, sizeof(url)) &&
         retrieve(url, cached, "repository index", repo->allow_insecure_http)) {
-        printf("Updated repository index: %s\n", repo->url);
+        wpm_event_printf(WPM_EVENT_INFO, "repository.info", "repository",
+                         "command", "Updated repository index: %s\n",
+                         repo->url);
         return 1;
     }
     if (!is_web_repository(repo->url)) {
-        printf("Error: could not read filesystem repository index: %s\n",
-               repo->url);
+        wpm_event_printf(
+            WPM_EVENT_ERROR, "repository.error", "repository", "command",
+            "Error: could not read filesystem repository index: %s\n",
+            repo->url);
         return 0;
     }
     if (GetFileAttributesA(cached) != INVALID_FILE_ATTRIBUTES) {
-        printf("Warning: could not refresh %s; using cached index.\n",
-               repo->url);
+        wpm_event_printf(
+            WPM_EVENT_WARNING, "repository.warning", "repository", "command",
+            "Warning: could not refresh %s; using cached index.\n", repo->url);
         return 1;
     }
-    printf("Warning: could not retrieve repository index: %s\n", repo->url);
+    wpm_event_printf(
+        WPM_EVENT_WARNING, "repository.warning", "repository", "command",
+        "Warning: could not retrieve repository index: %s\n", repo->url);
     return 0;
 }
 static int report_available_updates(void);
 int wpm_repo_update(int offline) {
     repository repositories[MAX_REPOSITORIES];
     int count, i, refreshed = 0;
-    printf("Updating repositories...\n");
+    wpm_event_printf(WPM_EVENT_INFO, "repository.info", "repository", "command",
+                     "Updating repositories...\n");
     if (!load_repositories(repositories, &count)) {
         return 0;
     }
     if (!count) {
-        printf("No repositories configured.\n");
-        printf("Result: repositories updated\n");
+        wpm_event_printf(WPM_EVENT_INFO, "repository.info", "repository",
+                         "command", "No repositories configured.\n");
+        wpm_event_printf(WPM_EVENT_RESULT, "repository.result", "repository",
+                         "command", "Result: repositories updated\n");
         return 1;
     }
     for (i = 0; i < count; i++) {
@@ -1024,7 +1136,8 @@ int wpm_repo_update(int offline) {
     if (!refreshed || !report_available_updates()) {
         return 0;
     }
-    printf("Result: repositories updated\n");
+    wpm_event_printf(WPM_EVENT_RESULT, "repository.result", "repository",
+                     "command", "Result: repositories updated\n");
     return 1;
 }
 
@@ -1139,8 +1252,10 @@ static int parse_index(const char *path, repository *repo,
         json_value_end(&p);
     }
     if (!version_ok) {
-        printf("Warning: repository index has unsupported schema: %s\n",
-               repo->url);
+        wpm_event_printf(
+            WPM_EVENT_WARNING, "repository.warning", "repository", "command",
+            "Warning: repository index has unsupported schema: %s\n",
+            repo->url);
         free(text);
         return 0;
     }
@@ -1202,7 +1317,8 @@ static int parse_index(const char *path, repository *repo,
     REPO_VERBOSE("parsed %d package entries from %s%s", *count - before,
                  repo->url, complete ? "" : " (entry capacity reached)");
     if (!complete) {
-        printf(
+        wpm_event_printf(
+            WPM_EVENT_WARNING, "repository.warning", "repository", "command",
             "Warning: repository package capacity (%d) was reached while "
             "reading %s; later entries or repositories may be unavailable.\n",
             MAX_PACKAGES, repo->url);
@@ -1439,6 +1555,11 @@ static int is_prerelease(const char *value) {
     return semver_parse(value, &parsed) && parsed.prerelease != NULL;
 }
 
+int wpm_repo_version_is_valid(const char *version) {
+    semver parsed;
+    return version && semver_parse(version, &parsed);
+}
+
 static int prerelease_path(char *path, size_t size) {
     char root[PATH_SIZE];
     return wpm_get_data_root(root, sizeof(root)) &&
@@ -1539,28 +1660,39 @@ static int rewrite_prerelease(const char *package, int enabled, int remove) {
 int wpm_config_prerelease_set(const char *package_name, int enabled) {
     const char *scope = package_name ? package_name : "global";
     if (!rewrite_prerelease(package_name, enabled, 0)) {
-        printf("Error: could not save prerelease configuration.\n");
+        wpm_event_printf(WPM_EVENT_ERROR, "repository.error", "repository",
+                         "command",
+                         "Error: could not save prerelease configuration.\n");
         return 0;
     }
-    printf("Prerelease %s=%s.\n", scope, enabled ? "true" : "false");
-    printf("Result: prerelease configured %s %s\n", scope,
-           enabled ? "true" : "false");
+    wpm_event_printf(WPM_EVENT_INFO, "repository.info", "repository", "command",
+                     "Prerelease %s=%s.\n", scope, enabled ? "true" : "false");
+    wpm_event_printf(WPM_EVENT_RESULT, "repository.result", "repository",
+                     "command", "Result: prerelease configured %s %s\n", scope,
+                     enabled ? "true" : "false");
     return 1;
 }
 int wpm_config_prerelease_get(const char *package_name) {
     int overridden = 0, value = prerelease_effective(package_name, &overridden);
-    printf("prerelease=%s (%s)\n", value ? "true" : "false",
-           package_name ? (overridden ? "package override" : "global setting")
-                        : "global setting");
+    wpm_event_printf(WPM_EVENT_INFO, "repository.info", "repository", "command",
+                     "prerelease=%s (%s)\n", value ? "true" : "false",
+                     package_name
+                         ? (overridden ? "package override" : "global setting")
+                         : "global setting");
     return 1;
 }
 int wpm_config_prerelease_unset(const char *package_name) {
     if (!package_name || !rewrite_prerelease(package_name, 0, 1)) {
-        printf("Error: package prerelease override was not found.\n");
+        wpm_event_printf(WPM_EVENT_ERROR, "repository.error", "repository",
+                         "command",
+                         "Error: package prerelease override was not found.\n");
         return 0;
     }
-    printf("Prerelease override removed: %s\n", package_name);
-    printf("Result: prerelease override removed %s\n", package_name);
+    wpm_event_printf(WPM_EVENT_INFO, "repository.info", "repository", "command",
+                     "Prerelease override removed: %s\n", package_name);
+    wpm_event_printf(WPM_EVENT_RESULT, "repository.result", "repository",
+                     "command", "Result: prerelease override removed %s\n",
+                     package_name);
     return 1;
 }
 
@@ -1606,17 +1738,23 @@ static int load_installed(installed_entry *result, int *count) {
             continue;
         }
         if (!wpm_archive_inspect(path, &info)) {
-            printf("Warning: unreadable installed package record: %s\n  Path: "
-                   "%s\n",
-                   item.cFileName, path);
+            wpm_event_printf(
+                WPM_EVENT_WARNING, "repository.warning", "repository",
+                "command",
+                "Warning: unreadable installed package record: %s\n  Path: "
+                "%s\n",
+                item.cFileName, path);
             continue;
         }
         if (!semver_parse(info.version, &parsed)) {
-            printf("Warning: installed package record has non-SemVer version "
-                   "'%s': %s\n  Path: %s\n  This legacy record is ignored for "
-                   "update selection; review the archive before deciding "
-                   "whether it is obsolete.\n",
-                   info.version, item.cFileName, path);
+            wpm_event_printf(
+                WPM_EVENT_WARNING, "repository.warning", "repository",
+                "command",
+                "Warning: installed package record has non-SemVer version "
+                "'%s': %s\n  Path: %s\n  This legacy record is ignored for "
+                "update selection; review the archive before deciding "
+                "whether it is obsolete.\n",
+                info.version, item.cFileName, path);
             continue;
         }
         installed_entry *e = &result[(*count)++];
@@ -1656,8 +1794,10 @@ static package_entry *select_candidate(package_entry *entries, int count,
         }
         named++;
         if (!semver_parse(entries[i].version, &parsed)) {
-            printf("Warning: ignoring invalid SemVer %s for %s.\n",
-                   entries[i].version, name);
+            wpm_event_printf(WPM_EVENT_WARNING, "repository.warning",
+                             "repository", "command",
+                             "Warning: ignoring invalid SemVer %s for %s.\n",
+                             entries[i].version, name);
             continue;
         }
         if (exact_version && strcmp(entries[i].version, exact_version) != 0) {
@@ -1712,16 +1852,20 @@ static package_entry *select_candidate(package_entry *entries, int count,
                  prerelease_excluded, architecture_excluded,
                  selected ? selected->version : "none");
     if (install_mode && !selected && prerelease_excluded) {
-        printf("Warning: matching prerelease packages were excluded because "
-               "prereleases are disabled.\n  Enable them for this package "
-               "with: wpm config set prerelease true --package %s\n",
-               name);
+        wpm_event_printf(
+            WPM_EVENT_WARNING, "repository.warning", "repository", "command",
+            "Warning: matching prerelease packages were excluded because "
+            "prereleases are disabled.\n  Enable them for this package "
+            "with: wpm config set prerelease true --package %s\n",
+            name);
     } else if (install_mode && !selected && architecture_excluded) {
-        printf("Warning: matching packages were found, but none support "
-               "architecture %s.\n  An available architecture is: %s\n  Retry "
-               "with: wpm install %s --arch %s\n",
-               arch ? arch : WPM_TARGET_ARCH, available_arch, name,
-               available_arch);
+        wpm_event_printf(
+            WPM_EVENT_WARNING, "repository.warning", "repository", "command",
+            "Warning: matching packages were found, but none support "
+            "architecture %s.\n  An available architecture is: %s\n  Retry "
+            "with: wpm install %s --arch %s\n",
+            arch ? arch : WPM_TARGET_ARCH, available_arch, name,
+            available_arch);
     }
     return selected;
 }
@@ -1748,13 +1892,17 @@ static int obtain(repository *repositories, package_entry *selected,
     }
     if (GetFileAttributesA(path) == INVALID_FILE_ATTRIBUTES) {
         if (offline && is_web_repository(repo->url)) {
-            printf("Error: package is not cached while offline: %s\n",
-                   selected->name);
+            wpm_event_printf(WPM_EVENT_ERROR, "repository.error", "repository",
+                             "command",
+                             "Error: package is not cached while offline: %s\n",
+                             selected->name);
             return 0;
         }
         if (!ensure_cache_directory("packages") ||
             !retrieve(source, path, label, repo->allow_insecure_http)) {
-            printf("Error: could not retrieve package: %s\n", source);
+            wpm_event_printf(WPM_EVENT_ERROR, "repository.error", "repository",
+                             "command",
+                             "Error: could not retrieve package: %s\n", source);
             return 0;
         }
     }
@@ -1769,12 +1917,16 @@ int wpm_repo_install(const char *package_name, const char *arch,
     char package[PATH_SIZE];
     semver parsed;
     if (version && !semver_parse(version, &parsed)) {
-        printf("Error: --version requires valid SemVer.\n");
+        wpm_event_printf(WPM_EVENT_ERROR, "repository.error", "repository",
+                         "command",
+                         "Error: --version requires valid SemVer.\n");
         return 0;
     }
     if (arch && _stricmp(arch, "any") && _stricmp(arch, "x86") &&
         _stricmp(arch, "x64") && _stricmp(arch, "arm64")) {
-        printf("Error: unsupported architecture: %s\n", arch);
+        wpm_event_printf(WPM_EVENT_ERROR, "repository.error", "repository",
+                         "command", "Error: unsupported architecture: %s\n",
+                         arch);
         return 0;
     }
     if (!load_entries(repositories, &rc, entries, &ec, offline)) {
@@ -1782,17 +1934,22 @@ int wpm_repo_install(const char *package_name, const char *arch,
     }
     selected = select_candidate(entries, ec, package_name, arch, version, 1);
     if (!selected) {
-        printf(
+        wpm_event_printf(
+            WPM_EVENT_ERROR, "repository.error", "repository", "command",
             "Error: package was not found with the requested selectors: %s\n",
             package_name);
         return 0;
     }
     if (!obtain(repositories, selected, offline, package, sizeof(package))) {
-        printf("Error: invalid package URL in repository index.\n");
+        wpm_event_printf(WPM_EVENT_ERROR, "repository.error", "repository",
+                         "command",
+                         "Error: invalid package URL in repository index.\n");
         return 0;
     }
-    printf("Installing %s %s %s from %s\n", selected->name, selected->arch,
-           selected->version, repositories[selected->order].url);
+    wpm_event_printf(WPM_EVENT_INFO, "repository.info", "repository", "command",
+                     "Installing %s %s %s from %s\n", selected->name,
+                     selected->arch, selected->version,
+                     repositories[selected->order].url);
     wpm_archive_set_repository_url(repositories[selected->order].url);
     result = wpm_archive_install(package, allow_unsigned);
     wpm_archive_set_repository_url(NULL);
@@ -1863,10 +2020,13 @@ static int print_upgrade_plan(installed_entry *installed, int installed_count,
             continue;
         }
         if (!count) {
-            printf("Planned upgrades:\n");
+            wpm_event_printf(WPM_EVENT_INFO, "repository.info", "repository",
+                             "command", "Planned upgrades:\n");
         }
-        printf("  %s %s: %s -> %s\n", installed[i].name, installed[i].arch,
-               installed[i].version, selected->version);
+        wpm_event_printf(WPM_EVENT_INFO, "repository.info", "repository",
+                         "command", "  %s %s: %s -> %s\n", installed[i].name,
+                         installed[i].arch, installed[i].version,
+                         selected->version);
         count++;
     }
     return count;
@@ -1879,7 +2039,8 @@ static int confirm_upgrade_plan(int assume_yes) {
     if (assume_yes) {
         return 1;
     }
-    printf("Proceed with these upgrades? [y/N]: ");
+    wpm_event_printf(WPM_EVENT_PROMPT, "repository.prompt", "repository",
+                     "command", "Proceed with these upgrades? [y/N]: ");
     fflush(stdout);
     input = GetStdHandle(STD_INPUT_HANDLE);
     if (input == NULL || input == INVALID_HANDLE_VALUE ||
@@ -1936,11 +2097,14 @@ static int report_available_updates(void) {
     }
     count = print_upgrade_plan(installed, ic, entries, ec, NULL);
     if (!count) {
-        printf("All installed packages are current.\n");
+        wpm_event_printf(WPM_EVENT_INFO, "repository.info", "repository",
+                         "command", "All installed packages are current.\n");
     } else {
-        printf("%d package %s can be upgraded. Run 'wpm upgrade --all' to "
-               "review and apply.\n",
-               count, count == 1 ? "identity" : "identities");
+        wpm_event_printf(
+            WPM_EVENT_INFO, "repository.info", "repository", "command",
+            "%d package %s can be upgraded. Run 'wpm upgrade --all' to "
+            "review and apply.\n",
+            count, count == 1 ? "identity" : "identities");
     }
     return 1;
 }
@@ -1955,7 +2119,9 @@ int wpm_repo_upgrade(const char **package_names, int package_count, int all,
                     progress_total;
     semver parsed;
     if (version && !semver_parse(version, &parsed)) {
-        printf("Error: --version requires valid SemVer.\n");
+        wpm_event_printf(WPM_EVENT_ERROR, "repository.error", "repository",
+                         "command",
+                         "Error: --version requires valid SemVer.\n");
         return 0;
     }
     if (!load_installed(installed, &ic) ||
@@ -1968,11 +2134,14 @@ int wpm_repo_upgrade(const char **package_names, int package_count, int all,
     if (all) {
         int planned = print_upgrade_plan(installed, ic, entries, ec, arch);
         if (planned && !confirm_upgrade_plan(assume_yes)) {
-            printf("Upgrade cancelled; no packages were changed.\n");
+            wpm_event_printf(WPM_EVENT_INFO, "repository.info", "repository",
+                             "command",
+                             "Upgrade cancelled; no packages were changed.\n");
             return 1;
         }
         if (planned) {
-            printf("\n");
+            wpm_event_printf(WPM_EVENT_INFO, "repository.info", "repository",
+                             "command", "\n");
         }
     }
     for (int i = 0; i < ic; i++) {
@@ -1993,8 +2162,11 @@ int wpm_repo_upgrade(const char **package_names, int package_count, int all,
             continue;
         }
         if (conflict) {
-            printf("Warning: ignoring conflicting any installation for %s.\n",
-                   installed[i].name);
+            wpm_event_printf(
+                WPM_EVENT_WARNING, "repository.warning", "repository",
+                "command",
+                "Warning: ignoring conflicting any installation for %s.\n",
+                installed[i].name);
             if (arch && _stricmp(arch, "any") == 0) {
                 failures++;
             }
@@ -2004,35 +2176,48 @@ int wpm_repo_upgrade(const char **package_names, int package_count, int all,
         selected = select_candidate(entries, ec, installed[i].name,
                                     installed[i].arch, version, 0);
         if (!selected) {
-            printf("%s %s %s is current.\n", installed[i].name,
-                   installed[i].arch, installed[i].version);
-            printf("Result: %s %s current\n", installed[i].name,
-                   installed[i].arch);
+            wpm_event_printf(WPM_EVENT_INFO, "repository.info", "repository",
+                             "command", "%s %s %s is current.\n",
+                             installed[i].name, installed[i].arch,
+                             installed[i].version);
+            wpm_event_printf(WPM_EVENT_RESULT, "repository.result",
+                             "repository", "command", "Result: %s %s current\n",
+                             installed[i].name, installed[i].arch);
             continue;
         }
         comparison =
             semver_compare(selected->version, installed[i].version, &valid);
         if (!valid || comparison <= 0) {
             if (version) {
-                printf("Error: requested upgrade version must be newer than "
-                       "installed %s.\n",
-                       installed[i].version);
-                printf("Result: %s %s failed\n", installed[i].name,
-                       installed[i].arch);
+                wpm_event_printf(
+                    WPM_EVENT_ERROR, "repository.error", "repository",
+                    "command",
+                    "Error: requested upgrade version must be newer than "
+                    "installed %s.\n",
+                    installed[i].version);
+                wpm_event_printf(WPM_EVENT_RESULT, "repository.result",
+                                 "repository", "command",
+                                 "Result: %s %s failed\n", installed[i].name,
+                                 installed[i].arch);
                 failures++;
             } else {
-                printf("%s %s %s is current.\n", installed[i].name,
-                       installed[i].arch, installed[i].version);
-                printf("Result: %s %s current\n", installed[i].name,
-                       installed[i].arch);
+                wpm_event_printf(WPM_EVENT_INFO, "repository.info",
+                                 "repository", "command",
+                                 "%s %s %s is current.\n", installed[i].name,
+                                 installed[i].arch, installed[i].version);
+                wpm_event_printf(WPM_EVENT_RESULT, "repository.result",
+                                 "repository", "command",
+                                 "Result: %s %s current\n", installed[i].name,
+                                 installed[i].arch);
             }
             continue;
         }
         is_self = _stricmp(selected->name, "wpm") == 0;
         wpm_archive_set_progress(++progress_current, progress_total);
         if (!obtain(repositories, selected, offline, cached, sizeof(cached))) {
-            printf("Result: %s %s failed\n", installed[i].name,
-                   installed[i].arch);
+            wpm_event_printf(WPM_EVENT_RESULT, "repository.result",
+                             "repository", "command", "Result: %s %s failed\n",
+                             installed[i].name, installed[i].arch);
             failures++;
             continue;
         }
@@ -2046,13 +2231,15 @@ int wpm_repo_upgrade(const char **package_names, int package_count, int all,
                                           selected->arch, installed[i].version);
         wpm_archive_set_repository_url(NULL);
         if (!operation_ok) {
-            printf("Result: %s %s failed\n", installed[i].name,
-                   installed[i].arch);
+            wpm_event_printf(WPM_EVENT_RESULT, "repository.result",
+                             "repository", "command", "Result: %s %s failed\n",
+                             installed[i].name, installed[i].arch);
             failures++;
             continue;
         }
-        printf("Result: %s %s %s\n", installed[i].name, installed[i].arch,
-               is_self ? "scheduled" : "upgraded");
+        wpm_event_printf(WPM_EVENT_RESULT, "repository.result", "repository",
+                         "command", "Result: %s %s %s\n", installed[i].name,
+                         installed[i].arch, is_self ? "scheduled" : "upgraded");
     }
     for (int n = 0; n < package_count; n++) {
         int found = 0;
@@ -2063,14 +2250,17 @@ int wpm_repo_upgrade(const char **package_names, int package_count, int all,
             }
         }
         if (!found) {
-            printf(
+            wpm_event_printf(
+                WPM_EVENT_ERROR, "repository.error", "repository", "command",
                 "Error: requested package identity is not installed: %s%s%s\n",
                 package_names[n], arch ? " " : "", arch ? arch : "");
             failures++;
         }
     }
     if (!processed && !failures) {
-        printf("No installed packages matched the request.\n");
+        wpm_event_printf(WPM_EVENT_INFO, "repository.info", "repository",
+                         "command",
+                         "No installed packages matched the request.\n");
         return 0;
     }
     return failures == 0;

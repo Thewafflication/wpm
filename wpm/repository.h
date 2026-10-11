@@ -2,6 +2,10 @@
 #ifndef WPM_REPOSITORY_H
 #define WPM_REPOSITORY_H
 
+/** Validate a version selector without accessing or changing repository state.
+ */
+int wpm_repo_version_is_valid(const char *version);
+
 /** Enable or disable detailed repository diagnostics. */
 void wpm_repo_set_verbose(int enabled);
 /** Add or reprioritize a supported repository locator. */

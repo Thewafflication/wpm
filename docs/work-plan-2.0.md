@@ -16,6 +16,9 @@
 [the baseline inventory](increment-00-baseline.md). Product requirement states
 remain separate from increment delivery; I-01 through I-03 are next.
 
+I-01 implementation and verification allocation are recorded in
+[current command presentation](increment-01-presentation.md).
+
 ## 1. Objective
 
 Complete the remaining work in `docs/roadmap-2.0.md` while preserving WPM's

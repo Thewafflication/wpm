@@ -18,16 +18,19 @@ static int create_wpm_directory(void) {
         if ((attributes & FILE_ATTRIBUTE_DIRECTORY) != 0) {
             return 1;
         }
-        printf("Error: .wpm exists but is not a directory.\n");
+        wpm_event_printf(WPM_EVENT_ERROR, "init.error", "init", "command",
+                         "Error: .wpm exists but is not a directory.\n");
         return 0;
     }
 
     if (!CreateDirectoryA(".wpm", NULL)) {
-        printf("Error: could not create .wpm directory.\n");
+        wpm_event_printf(WPM_EVENT_ERROR, "init.error", "init", "command",
+                         "Error: could not create .wpm directory.\n");
         return 0;
     }
 
-    printf("Created .wpm/\n");
+    wpm_event_printf(WPM_EVENT_INFO, "init.info", "init", "command",
+                     "Created .wpm/\n");
     return 1;
 }
 
@@ -150,7 +153,8 @@ int wpm_current_directory_name(char *name, size_t size) {
 
     length = GetCurrentDirectoryA(sizeof(path), path);
     if (length == 0 || length >= sizeof(path)) {
-        printf("Error: could not determine the current directory.\n");
+        wpm_event_printf(WPM_EVENT_ERROR, "init.error", "init", "command",
+                         "Error: could not determine the current directory.\n");
         return 0;
     }
 
@@ -166,11 +170,14 @@ int wpm_current_directory_name(char *name, size_t size) {
     directory_name = directory_name ? directory_name + 1 : path;
 
     if (!directory_name[0]) {
-        printf("Error: the current directory does not have a package name.\n");
+        wpm_event_printf(
+            WPM_EVENT_ERROR, "init.error", "init", "command",
+            "Error: the current directory does not have a package name.\n");
         return 0;
     }
     if (strlen(directory_name) >= size) {
-        printf(
+        wpm_event_printf(
+            WPM_EVENT_ERROR, "init.error", "init", "command",
             "Error: current directory name exceeds the package name limit.\n");
         return 0;
     }
@@ -203,7 +210,9 @@ int wpm_init_run(const char *name) {
 
     if (!create_package_txt(name) || !create_index_csv() || !create_ignore() ||
         !create_install_cmd() || !create_remove_cmd()) {
-        printf("Error: could not create one or more package files.\n");
+        wpm_event_printf(
+            WPM_EVENT_ERROR, "init.error", "init", "command",
+            "Error: could not create one or more package files.\n");
         return 0;
     }
 

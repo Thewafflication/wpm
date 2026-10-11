@@ -292,6 +292,127 @@ static void wpm_report_failure_log(void) {
     wsp_log_write(&wpm_logger, WSP_LOG_INFO, "%s", notice);
 }
 
+/* Filter once before any renderer sees an event. CSI/OSC/control bytes must
+   not reach logs or allow caller-controlled diagnostics to alter a terminal. */
+static void wpm_safe_event_text(char *text) {
+    char *read = text, *write = text;
+    static const char *protected_fields[] = {
+        "secret-key=", "password=", "token=", "access_token=", "api_key="};
+    size_t i;
+    while (*read) {
+        unsigned char c = (unsigned char)*read++;
+        if (c == 27) {
+            if (*read == '[') {
+                read++;
+                while (*read && !(*read >= '@' && *read <= '~')) {
+                    read++;
+                }
+                if (*read) {
+                    read++;
+                }
+            } else if (*read == ']') {
+                read++;
+                while (*read && *read != '\a' &&
+                       !(*read == 27 && read[1] == '\\')) {
+                    read++;
+                }
+                if (*read == '\a') {
+                    read++;
+                } else if (*read) {
+                    read += 2;
+                }
+            }
+            continue;
+        }
+        if (c >= 32 || c == '\n' || c == '\r' || c == '\t') {
+            *write++ = (char)c;
+        }
+    }
+    *write = '\0';
+    /* Remove URI user information without exposing either username or secret.
+     */
+    read = text;
+    while ((read = strstr(read, "://")) != NULL) {
+        char *authority = read + 3;
+        char *end = authority + strcspn(authority, "/?# \t\r\n");
+        char *at = memchr(authority, '@', (size_t)(end - authority));
+        if (at) {
+            memmove(authority, at + 1, strlen(at + 1) + 1);
+        }
+        read = authority;
+    }
+    for (i = 0; i < sizeof(protected_fields) / sizeof(protected_fields[0]);
+         i++) {
+        read = text;
+        while ((read = strstr(read, protected_fields[i])) != NULL) {
+            char *value = read + strlen(protected_fields[i]);
+            char *end = value + strcspn(value, "& \t\r\n\"'");
+            /* Shorten in place; never expand or truncate the remaining message.
+             */
+            if (end > value) {
+                *value = '*';
+                memmove(value + 1, end, strlen(end) + 1);
+            }
+            read = value + (end > value);
+        }
+    }
+}
+
+int wpm_event_printf(wpm_event_class kind, const char *code,
+                     const char *operation, const char *phase,
+                     const char *format, ...) {
+    static const wpm_message_style styles[] = {
+        WPM_STYLE_NONE,    WPM_STYLE_PROGRESS, WPM_STYLE_SUCCESS,
+        WPM_STYLE_WARNING, WPM_STYLE_ERROR,    WPM_STYLE_PROMPT,
+        WPM_STYLE_SCRIPT,  WPM_STYLE_RESULT,   WPM_STYLE_NONE};
+    static const wsp_log_level levels[] = {
+        WSP_LOG_INFO, WSP_LOG_INFO, WSP_LOG_PASS, WSP_LOG_WARN, WSP_LOG_ERROR,
+        WSP_LOG_INFO, WSP_LOG_INFO, WSP_LOG_PASS, WSP_LOG_DEBUG};
+    char message[8192];
+    va_list arguments;
+    int result;
+    if ((unsigned)kind >= sizeof(styles) / sizeof(styles[0])) {
+        return -1;
+    }
+    va_start(arguments, format);
+    result = vsnprintf(message, sizeof(message), format, arguments);
+    va_end(arguments);
+    if (result < 0 || result >= (int)sizeof(message)) {
+        return -1;
+    }
+    wpm_safe_event_text(message);
+    result = wpm_write_console_message(message, styles[kind]);
+    if (wpm_logger_initialized && message[0]) {
+        size_t length = strlen(message);
+        while (length &&
+               (message[length - 1] == '\r' || message[length - 1] == '\n')) {
+            message[--length] = 0;
+        }
+        if (length) {
+            char *line = message;
+            while (*line) {
+                char *end = strpbrk(line, "\r\n");
+                if (end) {
+                    *end = 0;
+                }
+                if (*line) {
+                    wsp_log_write(&wpm_logger, levels[kind],
+                                  "event=%s operation=%s phase=%s %s", code,
+                                  operation, phase, line);
+                }
+                if (!end) {
+                    break;
+                }
+                line = end + 1;
+            }
+        }
+    }
+    if (kind == WPM_EVENT_ERROR) {
+        wpm_report_failure_log();
+    }
+    return result;
+}
+
 int wpm_vprintf(const char *format, va_list arguments) {
     char message[8192];
     size_t length;
@@ -300,6 +421,7 @@ int wpm_vprintf(const char *format, va_list arguments) {
         return -1;
     }
     message[sizeof(message) - 1] = '\0';
+    wpm_safe_event_text(message);
     result = wpm_write_console_message(message, wpm_message_style_for(message));
     if (wpm_logger_initialized) {
         length = strlen(message);

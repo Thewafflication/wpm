@@ -95,10 +95,12 @@ void wpm_archive_set_progress(int current, int total) {
 static void print_package_progress(const char *package_name,
                                    const char *phase) {
     if (wpm_progress_total > 1) {
-        printf("[%d of %d] %s: %s...\n", wpm_progress_current,
-               wpm_progress_total, package_name, phase);
+        wpm_event_printf(WPM_EVENT_PROGRESS, "archive.progress", "archive",
+                         phase, "[%d of %d] %s: %s...\n", wpm_progress_current,
+                         wpm_progress_total, package_name, phase);
     } else {
-        printf("%s: %s...\n", package_name, phase);
+        wpm_event_printf(WPM_EVENT_PROGRESS, "archive.progress", "archive",
+                         phase, "%s: %s...\n", package_name, phase);
     }
 }
 
@@ -122,7 +124,8 @@ static void verbose_log(const char *format, ...) {
     va_start(arguments, format);
     if (vsnprintf(message, sizeof(message), format, arguments) >= 0) {
         message[sizeof(message) - 1] = '\0';
-        printf("Verbose: %s\n", message);
+        wpm_event_printf(WPM_EVENT_DEBUG, "archive.debug", "archive", "command",
+                         "Verbose: %s\n", message);
     }
     va_end(arguments);
 }
@@ -793,7 +796,8 @@ int wpm_initialize_data_directories(void) {
         !create_directories(data_root) || !create_directories(temp_root) ||
         !create_directories(package_root) || !create_directories(cache_root) ||
         !create_directories(config_root)) {
-        printf("Error: could not initialize WPM data directories.\n");
+        wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                         "Error: could not initialize WPM data directories.\n");
         return 0;
     }
 
@@ -1031,13 +1035,16 @@ static int read_package_metadata(const char *source_dir,
 
     if (!join_path(package_path, sizeof(package_path), source_dir,
                    ".wpm\\package.txt")) {
-        printf("Error: package metadata path is too long.\n");
+        wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                         "Error: package metadata path is too long.\n");
         return 0;
     }
 
     file = wpm_fopen(package_path, "r");
     if (!file) {
-        printf("Error: could not open package metadata: %s\n", package_path);
+        wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                         "Error: could not open package metadata: %s\n",
+                         package_path);
         return 0;
     }
 
@@ -1064,35 +1071,44 @@ static int read_package_metadata(const char *source_dir,
 
         if (_stricmp(key, "name") == 0) {
             if (strlen(value) >= sizeof(metadata->name)) {
-                printf("Error: package name metadata is too long.\n");
+                wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive",
+                                 "command",
+                                 "Error: package name metadata is too long.\n");
                 fclose(file);
                 return 0;
             }
             strcpy_s(metadata->name, sizeof(metadata->name), value);
         } else if (_stricmp(key, "version") == 0) {
             if (strlen(value) >= sizeof(metadata->version)) {
-                printf("Error: package version metadata is too long.\n");
+                wpm_event_printf(
+                    WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                    "Error: package version metadata is too long.\n");
                 fclose(file);
                 return 0;
             }
             strcpy_s(metadata->version, sizeof(metadata->version), value);
         } else if (_stricmp(key, "arch") == 0) {
             if (strlen(value) >= sizeof(metadata->arch)) {
-                printf("Error: package arch metadata is too long.\n");
+                wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive",
+                                 "command",
+                                 "Error: package arch metadata is too long.\n");
                 fclose(file);
                 return 0;
             }
             strcpy_s(metadata->arch, sizeof(metadata->arch), value);
         } else if (_stricmp(key, "debug") == 0 &&
                    !parse_bool_metadata_value(value, &metadata->debug)) {
-            printf("Error: package metadata debug must be true or false.\n");
+            wpm_event_printf(
+                WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                "Error: package metadata debug must be true or false.\n");
             fclose(file);
             return 0;
         }
     }
 
     if (ferror(file)) {
-        printf("Error: could not read package metadata.\n");
+        wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                         "Error: could not read package metadata.\n");
         fclose(file);
         return 0;
     }
@@ -1101,8 +1117,10 @@ static int read_package_metadata(const char *source_dir,
     if (!is_safe_metadata_value(metadata->name) ||
         !is_safe_metadata_value(metadata->version) ||
         !is_safe_metadata_value(metadata->arch)) {
-        printf("Error: package metadata requires safe name, version, and arch "
-               "values.\n");
+        wpm_event_printf(
+            WPM_EVENT_ERROR, "archive.error", "archive", "command",
+            "Error: package metadata requires safe name, version, and arch "
+            "values.\n");
         return 0;
     }
 
@@ -1289,7 +1307,8 @@ static int ensure_sodium_ready(void) {
         return 1;
     }
     if (sodium_init() < 0) {
-        printf("Error: could not initialize libsodium.\n");
+        wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                         "Error: could not initialize libsodium.\n");
         return 0;
     }
 
@@ -1500,24 +1519,30 @@ static int update_package_index(const char *source_dir,
     if (!join_path(wpm_dir, sizeof(wpm_dir), source_dir, ".wpm") ||
         !join_path(index_path, sizeof(index_path), source_dir,
                    ".wpm\\index.csv")) {
-        printf("Error: package index path is too long.\n");
+        wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                         "Error: package index path is too long.\n");
         return 0;
     }
 
     if (!create_directories(wpm_dir)) {
-        printf("Error: could not create package metadata directory: %s\n",
-               wpm_dir);
+        wpm_event_printf(
+            WPM_EVENT_ERROR, "archive.error", "archive", "command",
+            "Error: could not create package metadata directory: %s\n",
+            wpm_dir);
         return 0;
     }
 
     if (!load_ignore_list(source_dir, &ignore_list)) {
-        printf("Error: could not read .wpmignore file.\n");
+        wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                         "Error: could not read .wpmignore file.\n");
         return 0;
     }
 
     index = wpm_fopen(index_path, "w");
     if (!index) {
-        printf("Error: could not write package index: %s\n", index_path);
+        wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                         "Error: could not write package index: %s\n",
+                         index_path);
         return 0;
     }
 
@@ -1529,7 +1554,8 @@ static int update_package_index(const char *source_dir,
         success = 0;
     }
     if (!success) {
-        printf("Error: could not populate package index.\n");
+        wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                         "Error: could not populate package index.\n");
         return 0;
     }
 
@@ -1663,18 +1689,22 @@ int wpm_archive_build(const char *source_dir, const char *output_dir,
     verbose_log("Building package from: %s", source_dir);
 
     if (!is_directory(source_dir)) {
-        printf("Error: source directory not found: %s\n", source_dir);
+        wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                         "Error: source directory not found: %s\n", source_dir);
         return 0;
     }
     if (!create_directories(output_dir)) {
-        printf("Error: could not create output directory: %s\n", output_dir);
+        wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                         "Error: could not create output directory: %s\n",
+                         output_dir);
         return 0;
     }
     if (!normalized_full_path(source_dir, source_full_path,
                               sizeof(source_full_path)) ||
         !normalized_full_path(output_dir, output_full_path,
                               sizeof(output_full_path))) {
-        printf("Error: source or output path is too long.\n");
+        wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                         "Error: source or output path is too long.\n");
         return 0;
     }
     trim_trailing_separators(source_full_path);
@@ -1693,12 +1723,14 @@ int wpm_archive_build(const char *source_dir, const char *output_dir,
         if (written < 0 || (size_t)written >= sizeof(archive_name) ||
             !join_path(output_path, sizeof(output_path), output_full_path,
                        archive_name)) {
-            printf("Error: output path is too long.\n");
+            wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive",
+                             "command", "Error: output path is too long.\n");
             return 0;
         }
     }
 
     if (update_index) {
+        print_package_progress(metadata.name, "Preparing package index");
         verbose_log("Writing package index: %s\\.wpm\\index.csv",
                     source_full_path);
         if (!update_package_index(source_full_path, output_path)) {
@@ -1708,16 +1740,20 @@ int wpm_archive_build(const char *source_dir, const char *output_dir,
     if (private_key && private_key[0] &&
         (!update_index ||
          !wpm_sign_package_index(source_full_path, private_key))) {
-        printf("Error: package signing requires a valid generated index.\n");
+        wpm_event_printf(
+            WPM_EVENT_ERROR, "archive.error", "archive", "command",
+            "Error: package signing requires a valid generated index.\n");
         return 0;
     }
 
     verbose_log("Creating archive: %s", output_path);
+    print_package_progress(metadata.name, "Creating archive");
 
     writer = mz_zip_writer_create();
     if (!writer) {
         remove(output_path);
-        printf("Error: could not create archive: %s\n", output_path);
+        wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                         "Error: could not create archive: %s\n", output_path);
         return 0;
     }
     mz_zip_writer_set_raw(writer, 1);
@@ -1735,11 +1771,16 @@ writer_cleanup:
 
     if (!success) {
         remove(output_path);
-        printf("Error: failed while building archive.\n");
+        wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                         "Error: failed while building archive.\n");
         return 0;
     }
 
-    printf("Built package: %s\n", output_path);
+    wpm_event_printf(WPM_EVENT_SUCCESS, "archive.success", "archive", "command",
+                     "Built package: %s\n", output_path);
+    wpm_event_printf(WPM_EVENT_RESULT, "package.build.result", "build",
+                     "complete", "Result: %s %s built\n", metadata.name,
+                     metadata.arch);
     return 1;
 }
 
@@ -1821,14 +1862,17 @@ static int wpm_archive_extract_with_label(const char *archive_path,
     verbose_log("Extracting archive: %s", archive_path);
 
     if (!create_directories(destination_dir)) {
-        printf("Error: could not create extraction directory: %s\n",
-               destination_dir);
+        wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                         "Error: could not create extraction directory: %s\n",
+                         destination_dir);
         return 0;
     }
 
     reader = mz_zip_reader_create();
     if (!reader || mz_zip_reader_open_file(reader, archive_path) != MZ_OK) {
-        printf("Error: could not open package archive: %s\n", archive_path);
+        wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                         "Error: could not open package archive: %s\n",
+                         archive_path);
         goto cleanup;
     }
     mz_zip_reader_set_raw(reader, 1);
@@ -1851,7 +1895,9 @@ static int wpm_archive_extract_with_label(const char *archive_path,
             !is_safe_archive_path(info->filename) ||
             mz_zip_attrib_is_symlink(info->external_fa, info->version_madeby) ==
                 MZ_OK) {
-            printf("Error: package contains an invalid path.\n");
+            wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive",
+                             "command",
+                             "Error: package contains an invalid path.\n");
             goto cleanup;
         }
 
@@ -1863,22 +1909,27 @@ static int wpm_archive_extract_with_label(const char *archive_path,
         }
         if (!join_path(destination_path, sizeof(destination_path),
                        destination_dir, relative_path)) {
-            printf("Error: extracted path is too long.\n");
+            wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive",
+                             "command", "Error: extracted path is too long.\n");
             goto cleanup;
         }
 
         if (mz_zip_reader_entry_is_dir(reader) == MZ_OK) {
             verbose_log("Creating directory: %s", destination_path);
             if (!create_directories(destination_path)) {
-                printf("Error: could not create directory: %s\n",
-                       destination_path);
+                wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive",
+                                 "command",
+                                 "Error: could not create directory: %s\n",
+                                 destination_path);
                 goto cleanup;
             }
         } else {
             verbose_log("Extracting file: %s", destination_path);
             if (!create_parent_directory(destination_path, previous_parent,
                                          sizeof(previous_parent))) {
-                printf("Error: could not extract file: %s\n", destination_path);
+                wpm_event_printf(
+                    WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                    "Error: could not extract file: %s\n", destination_path);
                 goto cleanup;
             }
             if (info->compression_method == MZ_COMPRESS_METHOD_DEFLATE) {
@@ -1886,7 +1937,9 @@ static int wpm_archive_extract_with_label(const char *archive_path,
             }
             if (!wpm_zip_extract_current_file(reader, info, destination_path,
                                               &progress)) {
-                printf("Error: could not extract file: %s\n", destination_path);
+                wpm_event_printf(
+                    WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                    "Error: could not extract file: %s\n", destination_path);
                 goto cleanup;
             }
         }
@@ -2039,8 +2092,9 @@ static int verify_index_completeness(const char *destination_dir,
         } else if (_stricmp(relative_path, ".wpm/index.csv") != 0 &&
                    _stricmp(relative_path, ".wpm/signature.json") != 0 &&
                    !index_contains_path(paths, relative_path)) {
-            printf("Error: package contains unindexed file: %s.\n",
-                   relative_path);
+            wpm_event_printf(
+                WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                "Error: package contains unindexed file: %s.\n", relative_path);
             FindClose(search);
             return 0;
         }
@@ -2176,13 +2230,16 @@ static int verify_file_batch(wcrt_thread_pool *pool, wpm_verify_file *tasks,
         }
     }
     if (pool && wcrt_thread_pool_wait(pool) != 0) {
-        printf("Error: could not wait for package verification.\n");
+        wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                         "Error: could not wait for package verification.\n");
         return 0;
     }
     for (i = 0; i < count; ++i) {
         if (!tasks[i].valid) {
-            printf("Error: package signature verification failed for %s.\n",
-                   tasks[i].filename);
+            wpm_event_printf(
+                WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                "Error: package signature verification failed for %s.\n",
+                tasks[i].filename);
             return 0;
         }
         if (progress) {
@@ -2209,7 +2266,9 @@ static int verify_package_index_contents(const char *destination_dir,
 
     index = wpm_fopen(index_path, "r");
     if (!index) {
-        printf("Error: could not open package index: %s\n", index_path);
+        wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                         "Error: could not open package index: %s\n",
+                         index_path);
         return 0;
     }
 
@@ -2219,7 +2278,9 @@ static int verify_package_index_contents(const char *destination_dir,
     }
     tasks = calloc(WPM_VERIFY_BATCH_SIZE, sizeof(*tasks));
     if (!tasks) {
-        printf("Error: could not allocate package verification tasks.\n");
+        wpm_event_printf(
+            WPM_EVENT_ERROR, "archive.error", "archive", "command",
+            "Error: could not allocate package verification tasks.\n");
         fclose(index);
         return 0;
     }
@@ -2257,15 +2318,19 @@ static int verify_package_index_contents(const char *destination_dir,
 
         comma = strchr(line, ',');
         if (!comma) {
-            printf("Error: invalid package index entry at line %lu.\n",
-                   line_number);
+            wpm_event_printf(
+                WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                "Error: invalid package index entry at line %lu.\n",
+                line_number);
             goto verification_done;
         }
         second_comma = strchr(comma + 1, ',');
         third_comma = second_comma ? strchr(second_comma + 1, ',') : NULL;
         if (!second_comma || !third_comma) {
-            printf("Error: invalid package index entry at line %lu.\n",
-                   line_number);
+            wpm_event_printf(
+                WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                "Error: invalid package index entry at line %lu.\n",
+                line_number);
             goto verification_done;
         }
 
@@ -2286,8 +2351,10 @@ static int verify_package_index_contents(const char *destination_dir,
                      1) != 1 ||
             strlen(expected_hash) != WPM_BLAKE2B_HEX_SIZE - 1 ||
             _stricmp(algorithm, "blake2b") != 0) {
-            printf("Error: invalid package index entry at line %lu.\n",
-                   line_number);
+            wpm_event_printf(
+                WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                "Error: invalid package index entry at line %lu.\n",
+                line_number);
             goto verification_done;
         }
 
@@ -2300,7 +2367,9 @@ static int verify_package_index_contents(const char *destination_dir,
 
         if (!join_path(file_path, sizeof(file_path), destination_dir,
                        relative_path)) {
-            printf("Error: indexed package path is too long.\n");
+            wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive",
+                             "command",
+                             "Error: indexed package path is too long.\n");
             goto verification_done;
         }
 
@@ -2320,7 +2389,8 @@ static int verify_package_index_contents(const char *destination_dir,
     }
 
     if (ferror(index)) {
-        printf("Error: could not read package index.\n");
+        wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                         "Error: could not read package index.\n");
         goto verification_done;
     }
 
@@ -2346,7 +2416,9 @@ verification_done:
             return 1;
         }
         if (!load_index_paths(index_path, &paths)) {
-            printf("Error: could not load package index paths.\n");
+            wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive",
+                             "command",
+                             "Error: could not load package index paths.\n");
             return 0;
         }
         complete = verify_index_completeness(destination_dir, "", &paths);
@@ -2364,7 +2436,8 @@ static int verify_package_index(const char *destination_dir,
 
     if (!join_path(index_path, sizeof(index_path), destination_dir,
                    ".wpm\\index.csv")) {
-        printf("Error: package index path is too long.\n");
+        wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                         "Error: package index path is too long.\n");
         return 0;
     }
     if (!file_exists_at_path(index_path)) {
@@ -2713,17 +2786,23 @@ static void report_script_failure(const char *action_name, DWORD exit_code,
                                   const char *log_path) {
     char github_url[WPM_PATH_SIZE];
     char *suffix;
-    printf("Error: %s script failed with exit code %lu.\n", action_name,
-           (unsigned long)exit_code);
-    printf("Script log: %s\n", log_path);
+    wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                     "Error: %s script failed with exit code %lu.\n",
+                     action_name, (unsigned long)exit_code);
+    wpm_event_printf(WPM_EVENT_INFO, "archive.info", "archive", "command",
+                     "Script log: %s\n", log_path);
     if (!repository_url) {
-        printf(
+        wpm_event_printf(
+            WPM_EVENT_INFO, "archive.info", "archive", "command",
             "Repository URL: unavailable for this local or legacy package.\n");
-        printf("Please create an issue with the package maintainer and attach "
-               "the script log.\n");
+        wpm_event_printf(
+            WPM_EVENT_INFO, "archive.info", "archive", "command",
+            "Please create an issue with the package maintainer and attach "
+            "the script log.\n");
         return;
     }
-    printf("Repository URL: %s\n", repository_url);
+    wpm_event_printf(WPM_EVENT_INFO, "archive.info", "archive", "command",
+                     "Repository URL: %s\n", repository_url);
     if (_strnicmp(repository_url, "https://github.com/", 19) == 0 &&
         strlen(repository_url) < sizeof(github_url)) {
         strcpy_s(github_url, sizeof(github_url), repository_url);
@@ -2737,14 +2816,18 @@ static void report_script_failure(const char *action_name, DWORD exit_code,
         }
         if (strlen(github_url) + strlen("/issues/new") < sizeof(github_url)) {
             strcat(github_url, "/issues/new");
-            printf("Please create a GitHub issue for this failure and attach "
-                   "the script log:\n  %s\n",
-                   github_url);
+            wpm_event_printf(
+                WPM_EVENT_INFO, "archive.info", "archive", "command",
+                "Please create a GitHub issue for this failure and attach "
+                "the script log:\n  %s\n",
+                github_url);
             return;
         }
     }
-    printf("Please create an issue in the repository above and attach the "
-           "script log.\n");
+    wpm_event_printf(
+        WPM_EVENT_INFO, "archive.info", "archive", "command",
+        "Please create an issue in the repository above and attach the "
+        "script log.\n");
 }
 
 static int run_package_script(const char *staging_dir, const char *script_name,
@@ -2778,7 +2861,8 @@ static int run_package_script(const char *staging_dir, const char *script_name,
 
     if (!join_path(script_path, sizeof(script_path), staging_dir,
                    script_name)) {
-        printf("Error: %s script path is too long.\n", action_name);
+        wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                         "Error: %s script path is too long.\n", action_name);
         return 0;
     }
     if (result_exit_code) {
@@ -2793,7 +2877,9 @@ static int run_package_script(const char *staging_dir, const char *script_name,
                                            sizeof(inherited_repository));
     if (!create_script_log(package_name, action_name, log_path,
                            sizeof(log_path), &log)) {
-        printf("Error: could not create the %s script log.\n", action_name);
+        wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                         "Error: could not create the %s script log.\n",
+                         action_name);
         return 0;
     }
     fprintf(log,
@@ -2801,7 +2887,9 @@ static int run_package_script(const char *staging_dir, const char *script_name,
             action_name, package_name, script_path,
             repository_url ? repository_url : "unavailable");
     fflush(log);
-    printf("Logging %s script output to: %s\n", action_name, log_path);
+    wpm_event_printf(WPM_EVENT_INFO, "archive.info", "archive", "command",
+                     "Logging %s script output to: %s\n", action_name,
+                     log_path);
     if (GetEnvironmentVariableA("WPM_SELF_UPGRADE_LOG", self_upgrade_log,
                                 sizeof(self_upgrade_log)) > 0 &&
         _stricmp(self_upgrade_log, log_path) != 0) {
@@ -2811,7 +2899,8 @@ static int run_package_script(const char *staging_dir, const char *script_name,
     written = snprintf(command_line, sizeof(command_line),
                        "cmd.exe /d /s /c call \"%s\"", script_path);
     if (written < 0 || (size_t)written >= sizeof(command_line)) {
-        printf("Error: %s command is too long.\n", action_name);
+        wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                         "Error: %s command is too long.\n", action_name);
         if (handoff_log) {
             fclose(handoff_log);
         }
@@ -2824,8 +2913,10 @@ static int run_package_script(const char *staging_dir, const char *script_name,
     pipe_security.bInheritHandle = TRUE;
     if (!CreatePipe(&pipe_read, &pipe_write, &pipe_security, 0) ||
         !SetHandleInformation(pipe_read, HANDLE_FLAG_INHERIT, 0)) {
-        printf("Error: could not create the %s script output stream.\n",
-               action_name);
+        wpm_event_printf(
+            WPM_EVENT_ERROR, "archive.error", "archive", "command",
+            "Error: could not create the %s script output stream.\n",
+            action_name);
         if (pipe_read) {
             CloseHandle(pipe_read);
         }
@@ -2848,7 +2939,9 @@ static int run_package_script(const char *staging_dir, const char *script_name,
     startup_info.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
     startup_info.hStdOutput = pipe_write;
     startup_info.hStdError = pipe_write;
-    printf("--- package %s: %s script output ---\n", package_name, action_name);
+    wpm_event_printf(WPM_EVENT_SCRIPT, "archive.script", "archive", "command",
+                     "--- package %s: %s script output ---\n", package_name,
+                     action_name);
     fflush(stdout);
     if (terminal.interactive && getenv("NO_COLOR") == NULL) {
         if (getenv("FORCE_COLOR") == NULL &&
@@ -2868,8 +2961,9 @@ static int run_package_script(const char *staging_dir, const char *script_name,
         if (added_clicolor_force) {
             SetEnvironmentVariableA("CLICOLOR_FORCE", NULL);
         }
-        printf("Error: could not start %s script: %s\n", action_name,
-               script_path);
+        wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                         "Error: could not start %s script: %s\n", action_name,
+                         script_path);
         CloseHandle(pipe_read);
         CloseHandle(pipe_write);
         if (handoff_log) {
@@ -2931,8 +3025,10 @@ static int run_package_script(const char *staging_dir, const char *script_name,
     if (terminal.interactive) {
         SetConsoleTextAttribute(terminal.output, terminal.default_attributes);
     }
-    printf("--- end package %s: %s script output (exit code %lu) ---\n",
-           package_name, action_name, (unsigned long)exit_code);
+    wpm_event_printf(
+        WPM_EVENT_INFO, "archive.info", "archive", "command",
+        "--- end package %s: %s script output (exit code %lu) ---\n",
+        package_name, action_name, (unsigned long)exit_code);
     fprintf(log, "\n--- exit-code=%lu ---\n", (unsigned long)exit_code);
     if (result_exit_code) {
         *result_exit_code = exit_code;
@@ -2977,7 +3073,8 @@ int wpm_archive_verify(const char *archive_path) {
     verbose_log("Verifying archive: %s", archive_path);
     if (!normalized_full_path(archive_path, archive_full_path,
                               sizeof(archive_full_path))) {
-        printf("Error: package path is too long: %s\n", archive_path);
+        wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                         "Error: package path is too long: %s\n", archive_path);
         return 0;
     }
     if (!wpm_get_data_root(data_root, sizeof(data_root)) ||
@@ -2987,7 +3084,9 @@ int wpm_archive_verify(const char *archive_path) {
                  (unsigned long long)wpm_tick_count()) < 0 ||
         !create_directories(temp_root) ||
         !remove_directory_tree_with_retry(staging_path)) {
-        printf("Error: could not prepare package verification staging.\n");
+        wpm_event_printf(
+            WPM_EVENT_ERROR, "archive.error", "archive", "command",
+            "Error: could not prepare package verification staging.\n");
         return 0;
     }
 
@@ -3009,16 +3108,19 @@ int wpm_archive_verify(const char *archive_path) {
 
 cleanup:
     if (!remove_directory_tree_with_retry(staging_path)) {
-        printf("Error: could not remove verification staging directory: %s\n",
-               staging_path);
+        wpm_event_printf(
+            WPM_EVENT_ERROR, "archive.error", "archive", "command",
+            "Error: could not remove verification staging directory: %s\n",
+            staging_path);
         success = 0;
     }
     if (!success) {
         return 0;
     }
-    printf("Verified package: %s (%s %s %s; signing key %s)\n",
-           path_basename(archive_full_path), metadata.name, metadata.arch,
-           metadata.version, signing_key_id);
+    wpm_event_printf(WPM_EVENT_SUCCESS, "archive.success", "archive", "command",
+                     "Verified package: %s (%s %s %s; signing key %s)\n",
+                     path_basename(archive_full_path), metadata.name,
+                     metadata.arch, metadata.version, signing_key_id);
     return 1;
 }
 
@@ -3048,9 +3150,11 @@ installed_architecture_is_compatible(const wpm_package_metadata *candidate) {
         }
         installed_any = _stricmp(installed.arch, "any") == 0;
         if (candidate_any != installed_any) {
-            printf("Error: package architecture conflicts with installed %s "
-                   "%s; remove the conflicting installation first.\n",
-                   installed.name, installed.arch);
+            wpm_event_printf(
+                WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                "Error: package architecture conflicts with installed %s "
+                "%s; remove the conflicting installation first.\n",
+                installed.name, installed.arch);
             FindClose(find);
             return 0;
         }
@@ -3078,7 +3182,8 @@ int wpm_archive_install(const char *archive_path, int allow_unsigned) {
 
     if (!normalized_full_path(archive_path, archive_full_path,
                               sizeof(archive_full_path))) {
-        printf("Error: package path is too long: %s\n", archive_path);
+        wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                         "Error: package path is too long: %s\n", archive_path);
         return 0;
     }
 
@@ -3089,7 +3194,8 @@ int wpm_archive_install(const char *archive_path, int allow_unsigned) {
         *extension = '\0';
     }
     if (!is_valid_package_name(package_name)) {
-        printf("Error: package archive must have a name.\n");
+        wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                         "Error: package archive must have a name.\n");
         return 0;
     }
     display_name =
@@ -3105,16 +3211,20 @@ int wpm_archive_install(const char *archive_path, int allow_unsigned) {
                    package_name) ||
         !join_path(stored_archive_path, sizeof(stored_archive_path),
                    package_store, path_basename(archive_full_path))) {
-        printf("Error: installation path is too long.\n");
+        wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                         "Error: installation path is too long.\n");
         return 0;
     }
 
     if (!create_directories(temp_root) || !create_directories(package_store)) {
-        printf("Error: could not create WPM data directories.\n");
+        wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                         "Error: could not create WPM data directories.\n");
         return 0;
     }
     if (!remove_directory_tree_with_retry(staging_path)) {
-        printf("Error: could not clear staging directory: %s\n", staging_path);
+        wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                         "Error: could not clear staging directory: %s\n",
+                         staging_path);
         return 0;
     }
 
@@ -3152,17 +3262,22 @@ int wpm_archive_install(const char *archive_path, int allow_unsigned) {
     }
     if (_stricmp(archive_full_path, stored_archive_path) != 0 &&
         !CopyFileA(archive_full_path, stored_archive_path, FALSE)) {
-        printf("Error: could not store package archive: %s\n",
-               stored_archive_path);
+        wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                         "Error: could not store package archive: %s\n",
+                         stored_archive_path);
         goto cleanup;
     }
     if (!record_archive_repository(stored_archive_path)) {
-        printf("Warning: could not retain the package repository URL for "
-               "removal diagnostics.\n");
+        wpm_event_printf(
+            WPM_EVENT_WARNING, "archive.warning", "archive", "command",
+            "Warning: could not retain the package repository URL for "
+            "removal diagnostics.\n");
     }
     if (!write_installation_audit(data_root, path_basename(archive_full_path),
                                   &metadata, signing_key_id)) {
-        printf("Error: could not record package verification audit.\n");
+        wpm_event_printf(
+            WPM_EVENT_ERROR, "archive.error", "archive", "command",
+            "Error: could not record package verification audit.\n");
         goto cleanup;
     }
 
@@ -3170,15 +3285,20 @@ int wpm_archive_install(const char *archive_path, int allow_unsigned) {
 
 cleanup:
     if (!remove_directory_tree_with_retry(staging_path)) {
-        printf("Error: could not remove staging directory: %s\n", staging_path);
+        wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                         "Error: could not remove staging directory: %s\n",
+                         staging_path);
         success = 0;
     }
     if (!success) {
         return 0;
     }
 
-    printf("Installed package; archive stored at: %s\n", stored_archive_path);
-    printf("Result: %s %s installed\n", metadata.name, metadata.arch);
+    wpm_event_printf(WPM_EVENT_SUCCESS, "archive.success", "archive", "command",
+                     "Installed package; archive stored at: %s\n",
+                     stored_archive_path);
+    wpm_event_printf(WPM_EVENT_RESULT, "archive.result", "archive", "command",
+                     "Result: %s %s installed\n", metadata.name, metadata.arch);
     return 1;
 }
 
@@ -3271,10 +3391,12 @@ int wpm_archive_schedule_self_upgrade(const char *archive_path,
     strcpy_s(metadata.name, sizeof(metadata.name), "wpm");
     strcpy_s(metadata.version, sizeof(metadata.version), expected_version);
     strcpy_s(metadata.arch, sizeof(metadata.arch), expected_arch);
-    printf("Self-upgrade stage 1 of 2: the installed WPM verifies the new %s "
-           "package "
-           "before launching it to finish the upgrade.\n",
-           expected_version);
+    wpm_event_printf(
+        WPM_EVENT_INFO, "archive.info", "archive", "command",
+        "Self-upgrade stage 1 of 2: the installed WPM verifies the new %s "
+        "package "
+        "before launching it to finish the upgrade.\n",
+        expected_version);
     print_package_progress("wpm", "Extracting package");
     if (!wpm_archive_extract_with_label(archive_full, stage, "wpm")) {
         write_upgrade_audit(root, &metadata, old_version,
@@ -3296,24 +3418,30 @@ int wpm_archive_schedule_self_upgrade(const char *archive_path,
         strcmp(metadata.version, expected_version) != 0 ||
         _stricmp(metadata.arch, expected_arch) != 0 ||
         !file_exists_at_path(staged_exe)) {
-        printf("Error: WPM self-upgrade package metadata or executable does "
-               "not match the selected candidate.\n");
+        wpm_event_printf(
+            WPM_EVENT_ERROR, "archive.error", "archive", "command",
+            "Error: WPM self-upgrade package metadata or executable does "
+            "not match the selected candidate.\n");
         write_upgrade_audit(root, &metadata, old_version,
                             path_basename(archive_full), signing_key, 1,
                             "self-upgrade-metadata", 0);
         goto cleanup;
     }
     if (!CopyFileA(staged_exe, handoff_exe, FALSE)) {
-        printf("Error: could not cache the WPM self-upgrade executable "
-               "(Windows error %lu).\n",
-               (unsigned long)GetLastError());
+        wpm_event_printf(
+            WPM_EVENT_ERROR, "archive.error", "archive", "command",
+            "Error: could not cache the WPM self-upgrade executable "
+            "(Windows error %lu).\n",
+            (unsigned long)GetLastError());
         goto cleanup;
     }
     if (file_exists_at_path(staged_runtime) &&
         !CopyFileA(staged_runtime, handoff_runtime, FALSE)) {
-        printf("Error: could not cache the optional WPM runtime dependency "
-               "(Windows error %lu).\n",
-               (unsigned long)GetLastError());
+        wpm_event_printf(
+            WPM_EVENT_ERROR, "archive.error", "archive", "command",
+            "Error: could not cache the optional WPM runtime dependency "
+            "(Windows error %lu).\n",
+            (unsigned long)GetLastError());
         goto cleanup;
     }
     if (snprintf(command, sizeof(command),
@@ -3345,9 +3473,11 @@ int wpm_archive_schedule_self_upgrade(const char *archive_path,
                                         &background_security, OPEN_EXISTING,
                                         FILE_ATTRIBUTE_NORMAL, NULL);
         if (background_output == INVALID_HANDLE_VALUE) {
-            printf("Error: could not configure background self-upgrade "
-                   "output (Windows error %lu).\n",
-                   (unsigned long)GetLastError());
+            wpm_event_printf(
+                WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                "Error: could not configure background self-upgrade "
+                "output (Windows error %lu).\n",
+                (unsigned long)GetLastError());
             goto cleanup;
         }
         startup.hStdInput = background_output;
@@ -3374,8 +3504,9 @@ int wpm_archive_schedule_self_upgrade(const char *archive_path,
         SetEnvironmentVariableA("WPM_PACKAGE_REPOSITORY_URL", NULL);
     }
     if (!process_created) {
-        printf("Error: could not launch the cached WPM self-upgrade "
-               "executable.\n");
+        wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                         "Error: could not launch the cached WPM self-upgrade "
+                         "executable.\n");
         goto cleanup;
     }
     verbose_log("Self-upgrade invoking process PID: %lu",
@@ -3386,13 +3517,18 @@ int wpm_archive_schedule_self_upgrade(const char *archive_path,
                 (unsigned long)GetCurrentProcessId());
     CloseHandle(process.hThread);
     CloseHandle(process.hProcess);
-    printf("Scheduled WPM self-upgrade to %s; installation will continue after "
-           "this process exits.\n",
-           expected_version);
-    printf("Self-upgrade output: %s\n", log_path);
+    wpm_event_printf(
+        WPM_EVENT_INFO, "archive.info", "archive", "command",
+        "Scheduled WPM self-upgrade to %s; installation will continue after "
+        "this process exits.\n",
+        expected_version);
+    wpm_event_printf(WPM_EVENT_INFO, "archive.info", "archive", "command",
+                     "Self-upgrade output: %s\n", log_path);
     if (background_output != INVALID_HANDLE_VALUE) {
-        printf("Completion runs in the background; check the log for the "
-               "final upgrade result.\n");
+        wpm_event_printf(
+            WPM_EVENT_INFO, "archive.info", "archive", "command",
+            "Completion runs in the background; check the log for the "
+            "final upgrade result.\n");
     }
     result = 1;
 cleanup:
@@ -3459,8 +3595,10 @@ int wpm_archive_upgrade(const char *archive_path, int allow_unsigned,
     if (_stricmp(metadata.name, expected_name) != 0 ||
         strcmp(metadata.version, expected_version) != 0 ||
         _stricmp(metadata.arch, expected_arch) != 0) {
-        printf("Error: downloaded package metadata does not match the selected "
-               "repository entry.\n");
+        wpm_event_printf(
+            WPM_EVENT_ERROR, "archive.error", "archive", "command",
+            "Error: downloaded package metadata does not match the selected "
+            "repository entry.\n");
         write_upgrade_audit(root, &metadata, old_version, base, signing_key, 1,
                             "metadata", 0);
         goto cleanup;
@@ -3475,25 +3613,33 @@ int wpm_archive_upgrade(const char *archive_path, int allow_unsigned,
                             metadata.name, &script_exit)) {
         write_upgrade_audit(root, &metadata, old_version, base, signing_key, 1,
                             "install-script", script_exit);
-        printf("Warning: package-maintainer recovery may be required.\n");
+        wpm_event_printf(
+            WPM_EVENT_WARNING, "archive.warning", "archive", "command",
+            "Warning: package-maintainer recovery may be required.\n");
         goto cleanup;
     }
     if (_stricmp(archive_full, stored) != 0 &&
         !CopyFileA(archive_full, stored, FALSE)) {
         write_upgrade_audit(root, &metadata, old_version, base, signing_key, 1,
                             "archive-retention", 0);
-        printf("Error: upgrade deployed software but archive retention failed; "
-               "recovery is required.\n");
+        wpm_event_printf(
+            WPM_EVENT_ERROR, "archive.error", "archive", "command",
+            "Error: upgrade deployed software but archive retention failed; "
+            "recovery is required.\n");
         goto cleanup;
     }
     if (!record_archive_repository(stored)) {
-        printf("Warning: could not retain the package repository URL for "
-               "removal diagnostics.\n");
+        wpm_event_printf(
+            WPM_EVENT_WARNING, "archive.warning", "archive", "command",
+            "Warning: could not retain the package repository URL for "
+            "removal diagnostics.\n");
     }
     if (!write_upgrade_audit(root, &metadata, old_version, base, signing_key, 0,
                              NULL, 0)) {
-        printf("Error: upgrade deployed software but audit recording failed; "
-               "recovery is required.\n");
+        wpm_event_printf(
+            WPM_EVENT_ERROR, "archive.error", "archive", "command",
+            "Error: upgrade deployed software but audit recording failed; "
+            "recovery is required.\n");
         goto cleanup;
     }
     success = 1;
@@ -3504,8 +3650,9 @@ cleanup:
     if (!success) {
         return 0;
     }
-    printf("Upgraded %s %s %s to %s.\n", expected_name, expected_arch,
-           old_version, expected_version);
+    wpm_event_printf(WPM_EVENT_SUCCESS, "archive.success", "archive", "command",
+                     "Upgraded %s %s %s to %s.\n", expected_name, expected_arch,
+                     old_version, expected_version);
     return 1;
 }
 
@@ -3525,7 +3672,8 @@ int wpm_archive_remove(const char *package_name) {
     int success = 0;
 
     if (strlen(package_name) >= sizeof(archive_name)) {
-        printf("Error: package name is too long.\n");
+        wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                         "Error: package name is too long.\n");
         return 0;
     }
     strcpy_s(archive_name, sizeof(archive_name), package_name);
@@ -3534,7 +3682,9 @@ int wpm_archive_remove(const char *package_name) {
         *extension = '\0';
     }
     if (!is_valid_package_name(archive_name)) {
-        printf("Error: package name must be a stored archive name.\n");
+        wpm_event_printf(
+            WPM_EVENT_ERROR, "archive.error", "archive", "command",
+            "Error: package name must be a stored archive name.\n");
         return 0;
     }
 
@@ -3549,18 +3699,22 @@ int wpm_archive_remove(const char *package_name) {
         written < 0 || (size_t)written >= sizeof(stored_archive_name) ||
         !join_path(stored_archive_path, sizeof(stored_archive_path),
                    package_store, stored_archive_name)) {
-        printf("Error: removal path is too long.\n");
+        wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                         "Error: removal path is too long.\n");
         return 0;
     }
     if (!file_exists_at_path(stored_archive_path)) {
-        printf("Error: stored package archive not found: %s\n",
-               stored_archive_path);
+        wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                         "Error: stored package archive not found: %s\n",
+                         stored_archive_path);
         return 0;
     }
     verbose_log("Removing archive: %s", stored_archive_path);
     if (!create_directories(temp_root) ||
         !remove_directory_tree_with_retry(staging_path)) {
-        printf("Error: could not prepare removal staging directory.\n");
+        wpm_event_printf(
+            WPM_EVENT_ERROR, "archive.error", "archive", "command",
+            "Error: could not prepare removal staging directory.\n");
         return 0;
     }
     verbose_log("Using removal staging directory: %s", staging_path);
@@ -3590,8 +3744,9 @@ int wpm_archive_remove(const char *package_name) {
     }
     verbose_log("Deleting retained archive: %s", stored_archive_path);
     if (!DeleteFileA(stored_archive_path)) {
-        printf("Error: could not remove stored package archive: %s\n",
-               stored_archive_path);
+        wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                         "Error: could not remove stored package archive: %s\n",
+                         stored_archive_path);
         goto cleanup;
     }
     if (repository_record_path(stored_archive_path, repository_url,
@@ -3602,14 +3757,18 @@ int wpm_archive_remove(const char *package_name) {
 
 cleanup:
     if (!remove_directory_tree_with_retry(staging_path)) {
-        printf("Error: could not remove staging directory: %s\n", staging_path);
+        wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
+                         "Error: could not remove staging directory: %s\n",
+                         staging_path);
         success = 0;
     }
     if (!success) {
         return 0;
     }
 
-    printf("Removed package: %s\n", archive_name);
-    printf("Result: %s %s removed\n", metadata.name, metadata.arch);
+    wpm_event_printf(WPM_EVENT_SUCCESS, "archive.success", "archive", "command",
+                     "Removed package: %s\n", archive_name);
+    wpm_event_printf(WPM_EVENT_RESULT, "archive.result", "archive", "command",
+                     "Result: %s %s removed\n", metadata.name, metadata.arch);
     return 1;
 }
