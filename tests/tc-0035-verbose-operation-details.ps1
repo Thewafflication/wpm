@@ -44,7 +44,9 @@ try {
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name (
         'Report detailed verbose install lifecycle wi' +
         'thout environment secrets'
-    ) -Arguments @('install', $archive, '--allow-unsigned', '--verbose') `
+    ) `
+        -Arguments @('install', '--yes', `
+            $archive, '--allow-unsigned', '--verbose') `
         -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -ne 0) {
@@ -78,7 +80,9 @@ try {
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name (
         'Report detailed verbose removal lifecycle wi' +
         'thout environment secrets'
-    ) -Arguments @('remove', "$pkgName-any-1.0.0", '--verbose') -Assert {
+    ) `
+        -Arguments @('remove', '--yes', `
+            "$pkgName-any-1.0.0", '--verbose') -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -ne 0) {
             throw "Verbose removal failed. $Output"

@@ -67,7 +67,7 @@ try {
     $results += Invoke-WpmTestStep `
         -WpmExe $WpmExe `
         -Name 'Install package before removal' `
-        -Arguments @('install', $archivePath, '--allow-unsigned') `
+        -Arguments @('install', '--yes', $archivePath, '--allow-unsigned') `
         -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -ne 0) {
@@ -86,7 +86,7 @@ try {
     $results += Invoke-WpmTestStep `
         -WpmExe $WpmExe `
         -Name 'Remove retained package by archive name' `
-        -Arguments @('remove', "$archivePackageName.zip") `
+        -Arguments @('remove', '--yes', "$archivePackageName.zip") `
         -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -ne 0) {

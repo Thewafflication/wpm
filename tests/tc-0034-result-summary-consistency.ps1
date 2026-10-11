@@ -88,7 +88,7 @@ try {
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name (
         'Install ends with one identity result summar' +
         'y'
-    ) -Arguments @('install', $archive, '--allow-unsigned') -Assert {
+    ) -Arguments @('install', '--yes', $archive, '--allow-unsigned') -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -ne 0) {
             throw "Install failed. $Output"
@@ -108,7 +108,8 @@ try {
     }
 
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
-        'Remove ends with one identity result summary' -Arguments @('remove', `
+        'Remove ends with one identity result summary' `
+        -Arguments @('remove', '--yes', `
             "$pkgName-any-1.0.0") -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -ne 0) {

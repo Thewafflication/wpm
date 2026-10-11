@@ -69,7 +69,7 @@ try {
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name (
         'Frame package-script output and preserve scr' +
         'ipt text without reinterpretation'
-    ) -Arguments @('install', $okArchive, '--allow-unsigned') -Assert {
+    ) -Arguments @('install', '--yes', $okArchive, '--allow-unsigned') -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -ne 0) {
             throw (
@@ -117,7 +117,9 @@ try {
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name (
         'Report WPM failure despite a script claiming' +
         ' success'
-    ) -Arguments @('install', $failArchive, '--allow-unsigned') -Assert {
+    ) `
+        -Arguments @('install', '--yes', `
+            $failArchive, '--allow-unsigned') -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -eq 0) {
             throw (

@@ -213,7 +213,9 @@ try {
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name (
         'Install named package from offline cache usi' +
         'ng priority'
-    ) -Arguments @('install', $packageName, '--offline', '--allow-unsigned') `
+    ) `
+        -Arguments @('install', '--yes', `
+            $packageName, '--offline', '--allow-unsigned') `
         -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -ne 0) {
@@ -242,7 +244,8 @@ try {
         }
     }
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
-        'Reject uncached named package while offline' -Arguments @('install', `
+        'Reject uncached named package while offline' `
+        -Arguments @('install', '--yes', `
             'missing-package', '--offline') -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -eq 0 -or $Output -notmatch 'was not found') {
@@ -255,7 +258,7 @@ try {
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name (
         'Suggest an available architecture when match' +
         'ing packages are incompatible'
-    ) -Arguments @('install', $architectureOnlyPackage, '--offline', `
+    ) -Arguments @('install', '--yes', $architectureOnlyPackage, '--offline', `
             '--allow-unsigned') -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -eq 0 -or $Output -notmatch `
@@ -278,7 +281,9 @@ try {
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name (
         'Explain repository package lookup in verbose' +
         ' mode'
-    ) -Arguments @('install', 'missing-package', '--offline', '--verbose') `
+    ) `
+        -Arguments @('install', '--yes', `
+            'missing-package', '--offline', '--verbose') `
         -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -eq 0) {

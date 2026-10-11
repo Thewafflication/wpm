@@ -154,7 +154,7 @@ try {
     $results += Invoke-WpmTestStep `
         -WpmExe $WpmExe `
         -Name 'Install archive with valid signatures' `
-        -Arguments @('install', $archivePath, '--allow-unsigned') `
+        -Arguments @('install', '--yes', $archivePath, '--allow-unsigned') `
         -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -ne 0) {
@@ -188,7 +188,9 @@ try {
     $results += Invoke-WpmTestStep `
         -WpmExe $WpmExe `
         -Name 'Reject archive with tampered indexed file' `
-        -Arguments @('install', $tamperedArchivePath, '--allow-unsigned') `
+        `
+        -Arguments @('install', '--yes', `
+            $tamperedArchivePath, '--allow-unsigned') `
         -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -eq 0) {
@@ -239,7 +241,9 @@ try {
             "Reject $fault after earlier verification bat" +
             "ches"
         ) `
-            -Arguments @('install', $variantPath, '--allow-unsigned') -Assert {
+            `
+        -Arguments @('install', '--yes', `
+            $variantPath, '--allow-unsigned') -Assert {
             param($ExitCode, $Output)
             if ($ExitCode -eq 0) {
                 throw "Accepted $fault package."

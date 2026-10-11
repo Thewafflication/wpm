@@ -149,7 +149,7 @@ function Install-Baseline {
     param([string]$Name, [string]$Version, [string]$Arch)
     $archive = New-PackageArchive -Name $Name -Version $Version -Arch $Arch `
         -Marker "baseline-$Version"
-    $output = & $WpmExe install $archive --allow-unsigned 2>&1
+    $output = & $WpmExe install $archive --yes --allow-unsigned 2>&1
     if ($LASTEXITCODE -ne 0) {
         throw (
             "Could not install baseline $Name $Arch " +
@@ -379,10 +379,13 @@ try {
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name (
         'Bypass upgrade-all prompt with -y and show i' +
         'nstall-script output'
-    ) -Arguments @('upgrade', '--all', '--arch', 'arm64', '-y', '--offline', `
+    ) `
+        -Arguments @('upgrade', '--yes', `
+            '--all', '--arch', 'arm64', '-y', '--offline', `
             '--allow-unsigned') -Assert {
         param($ExitCode, $Output)
-        if ($ExitCode -ne 0 -or $Output -notmatch '(?i)planned upgrades' -or
+        if ($ExitCode -ne 0 -or $Output -notmatch `
+                '(?i)planned upgrades|operation plan' -or
             $Output -notmatch [regex]::Escape( `
                     "$($packages.Confirm): Extracting package...") -or
             $Output -notmatch [regex]::Escape( `
@@ -401,7 +404,9 @@ try {
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name (
         'Reject unsigned upgrade before script execut' +
         'ion'
-    ) -Arguments @('upgrade', $packages.Architecture, '--offline') -Assert {
+    ) `
+        -Arguments @('upgrade', '--yes', `
+            $packages.Architecture, '--offline') -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -eq 0 -or $Output -notmatch '(?i)unsigned|signature') {
  `
@@ -418,7 +423,7 @@ try {
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name (
         'Upgrade all installed specific architectures' +
         ' and ignore any candidate'
-    ) -Arguments @('upgrade', $packages.Architecture, '--offline', `
+    ) -Arguments @('upgrade', '--yes', $packages.Architecture, '--offline', `
             '--allow-unsigned') -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -ne 0) {
@@ -441,7 +446,7 @@ try {
     }
 
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
-        'Reject conflicting any installation' -Arguments @('install', `
+        'Reject conflicting any installation' -Arguments @('install', '--yes', `
             $packages.Conflict, '--arch', 'any', '--version', '2.0.0', `
                 '--offline', `
             '--allow-unsigned') -Assert {
@@ -457,7 +462,7 @@ try {
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name (
         'Do not upgrade specific identity from any ca' +
         'ndidate'
-    ) -Arguments @('upgrade', $packages.Conflict, '--offline', `
+    ) -Arguments @('upgrade', '--yes', $packages.Conflict, '--offline', `
             '--allow-unsigned') -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -ne 0 -or $Output -notmatch '(?i)current') {
@@ -470,7 +475,8 @@ try {
 
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
         'Install exact named architecture and version' -Arguments @( `
-            'install', $packages.Named, '--arch', 'x86', '--version', '1.0.0', `
+            'install', '--yes', `
+            $packages.Named, '--arch', 'x86', '--version', '1.0.0', `
             '--offline', '--allow-unsigned') -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -ne 0) {
@@ -487,7 +493,7 @@ try {
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name (
         'Upgrade one exact architecture to one exact ' +
         'version'
-    ) -Arguments @('upgrade', $packages.Selector, '--arch', 'x86', `
+    ) -Arguments @('upgrade', '--yes', $packages.Selector, '--arch', 'x86', `
         '--version', `
             '1.1.0', '--offline', '--allow-unsigned') -Assert {
         param($ExitCode, $Output)
@@ -505,7 +511,8 @@ try {
         }
     }
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
-        'Reject equal-version upgrade request' -Arguments @('upgrade', `
+        'Reject equal-version upgrade request' `
+        -Arguments @('upgrade', '--yes', `
             $packages.Selector, '--arch', 'x86', '--version', '1.1.0', `
                 '--offline', `
             '--allow-unsigned') -Assert {
@@ -516,7 +523,8 @@ try {
         }
     }
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
-        'Reject selectors for ZIP path installation' -Arguments @('install', ( `
+        'Reject selectors for ZIP path installation' `
+        -Arguments @('install', '--yes', ( `
                 Join-Path $outputDir "$($packages.Selector)-x86-1.1.0.zip"), `
                     '--arch', `
             'x86', '--allow-unsigned') -Assert {
@@ -541,7 +549,7 @@ try {
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name (
         'Suggest enabling prereleases when all matchi' +
         'ng candidates are excluded'
-    ) -Arguments @('install', $packages.PrereleaseOnly, '--offline', `
+    ) -Arguments @('install', '--yes', $packages.PrereleaseOnly, '--offline', `
             '--allow-unsigned') -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -eq 0 -or $Output -notmatch '(?i)prerelease.+excluded') `
@@ -564,7 +572,7 @@ try {
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name (
         'Select stable candidate while prereleases ar' +
         'e disabled'
-    ) -Arguments @('upgrade', $packages.Prerelease, '--offline', `
+    ) -Arguments @('upgrade', '--yes', $packages.Prerelease, '--offline', `
             '--allow-unsigned') -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -ne 0) {
@@ -604,7 +612,8 @@ try {
         }
     }
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
-        'Use SemVer numeric prerelease ordering' -Arguments @('upgrade', `
+        'Use SemVer numeric prerelease ordering' `
+        -Arguments @('upgrade', '--yes', `
             $packages.Prerelease, '--offline', '--allow-unsigned') -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -ne 0) {
@@ -630,7 +639,7 @@ try {
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name (
         'Continue multi-package upgrade after script ' +
         'failure'
-    ) -Arguments @('upgrade', $packages.Failure, $packages.Continue, `
+    ) -Arguments @('upgrade', '--yes', $packages.Failure, $packages.Continue, `
             '--offline', '--allow-unsigned') -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -eq 0) {
@@ -719,7 +728,7 @@ try {
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name (
         'Complete WPM self-upgrade through cached exe' +
         'cutable handoff'
-    ) -Arguments @('upgrade', 'wpm', '--offline', '--allow-unsigned', `
+    ) -Arguments @('upgrade', '--yes', 'wpm', '--offline', '--allow-unsigned', `
             '--verbose') -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -ne 0 -or $Output -notmatch '(?i)scheduled|continue') {

@@ -94,7 +94,9 @@ try {
     $results += Invoke-WpmTestStep `
         -WpmExe $WpmExe `
         -Name 'Stage, verify, install, and store archive' `
-        -Arguments @('install', $archivePath, '--verbose', '--allow-unsigned') `
+        `
+        -Arguments @('install', '--yes', `
+            $archivePath, '--verbose', '--allow-unsigned') `
         -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -ne 0) {

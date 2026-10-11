@@ -487,6 +487,73 @@ int wpm_sign_package_index(const char *source, const char *private_path) {
     sodium_memzero(sec, sizeof(sec));
     return 1;
 }
+int wpm_validate_signature_bytes(const char *signature,
+                                 const unsigned char *index, size_t length,
+                                 int allow_unsigned, char *result,
+                                 size_t size) {
+    char root[PATH_SIZE], public_path[PATH_SIZE], revoked_path[PATH_SIZE];
+    char id[65], computed[65], public_text[128], signature_text[256];
+    unsigned char public_key[crypto_sign_PUBLICKEYBYTES];
+    unsigned char expected_key[crypto_sign_PUBLICKEYBYTES];
+    unsigned char detached[crypto_sign_BYTES];
+    size_t decoded;
+    if (!signature) {
+        if (!allow_unsigned || !(has_data_override() || elevated())) {
+            wpm_event_printf(WPM_EVENT_ERROR, "plan.unsigned", "plan",
+                             "validate",
+                             "Error: unsigned package requires "
+                             "--allow-unsigned and an authorized data root.\n");
+            return 0;
+        }
+        strcpy_s(result, size, "unsigned");
+        return 1;
+    }
+    if (!index || sodium_init() < 0 ||
+        occurrences(signature, "\"version\"") != 1 ||
+        occurrences(signature, "\"algorithm\"") != 1 ||
+        occurrences(signature, "\"key_id\"") != 1 ||
+        occurrences(signature, "\"public_key\"") != 1 ||
+        occurrences(signature, "\"signature\"") != 1 ||
+        !strstr(signature, "\"version\": 1") ||
+        !strstr(signature, "\"algorithm\": \"ed25519\"") ||
+        !field(signature, "\"key_id\": \"", id, sizeof(id)) ||
+        !field(signature, "\"public_key\": \"", public_text,
+               sizeof(public_text)) ||
+        !field(signature, "\"signature\": \"", signature_text,
+               sizeof(signature_text)) ||
+        strlen(id) != 64 || strspn(id, "0123456789abcdef") != 64 ||
+        !wpm_get_data_root(root, sizeof(root)) ||
+        snprintf(public_path, sizeof(public_path), "%s\\trust\\%s.pub", root,
+                 id) >= (int)sizeof(public_path) ||
+        snprintf(revoked_path, sizeof(revoked_path), "%s\\trust\\%s.revoked",
+                 root, id) >= (int)sizeof(revoked_path) ||
+        GetFileAttributesA(revoked_path) != INVALID_FILE_ATTRIBUTES ||
+        !load_public(public_path, expected_key) ||
+        sodium_base642bin(public_key, sizeof(public_key), public_text,
+                          strlen(public_text), NULL, &decoded, NULL,
+                          sodium_base64_VARIANT_ORIGINAL) ||
+        decoded != sizeof(public_key) ||
+        memcmp(public_key, expected_key, sizeof(public_key)) ||
+        !key_id(public_key, computed, sizeof(computed)) ||
+        strcmp(id, computed) ||
+        sodium_base642bin(detached, sizeof(detached), signature_text,
+                          strlen(signature_text), NULL, &decoded, NULL,
+                          sodium_base64_VARIANT_ORIGINAL) ||
+        decoded != sizeof(detached) ||
+        crypto_sign_verify_detached(detached, index, (unsigned long long)length,
+                                    public_key)) {
+        wpm_event_printf(WPM_EVENT_ERROR, "plan.trust.invalid", "plan",
+                         "validate",
+                         "Error: package signature is invalid, revoked, or not "
+                         "already trusted; "
+                         "use 'wpm trust add' for an independently verified "
+                         "public key first.\n");
+        return 0;
+    }
+    strcpy_s(result, size, id);
+    return 1;
+}
+
 int wpm_validate_package_signature(const char *stage, int allow,
                                    char *result_id, size_t result_size) {
     char sigp[PATH_SIZE], index[PATH_SIZE], id[KEY_ID_SIZE],

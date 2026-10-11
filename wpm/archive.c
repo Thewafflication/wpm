@@ -11,6 +11,7 @@
 #include "archive.h"
 #include "logging.h"
 #include "progress.h"
+#include "operation.h"
 #include "helpers.h"
 #include "mz.h"
 #include "mz_strm.h"
@@ -151,6 +152,7 @@ typedef struct wpm_zip_output {
     uint64_t size;
     uint32_t crc32;
     wpm_progress *progress;
+    crypto_generichash_state *hash;
 } wpm_zip_output;
 
 static int wpm_zlib_ng_buffer_reserve(wpm_zlib_ng_buffer *buffer,
@@ -333,6 +335,9 @@ static int wpm_zip_output_write(wpm_zip_output *output,
     }
     if (output->memory) {
         memcpy(output->memory + output->size, data, size);
+    }
+    if (output->hash && crypto_generichash_update(output->hash, data, size)) {
+        return 0;
     }
     output->crc32 = (uint32_t)zng_crc32(output->crc32, data, (uint32_t)size);
     output->size += size;
@@ -2452,6 +2457,216 @@ static int verify_package_index(const char *destination_dir,
     return result;
 }
 
+static int read_zip_text(void *reader, const char *name, size_t maximum,
+                         char **text, size_t *length) {
+    mz_zip_file *info = NULL;
+    int status = mz_zip_reader_locate_entry(reader, name, 0);
+    *text = NULL;
+    *length = 0;
+    if (status == MZ_END_OF_LIST || status == MZ_EXIST_ERROR) {
+        return 1;
+    }
+    if (status != MZ_OK ||
+        mz_zip_reader_entry_get_info(reader, &info) != MZ_OK ||
+        info->uncompressed_size < 0 ||
+        (uint64_t)info->uncompressed_size > maximum) {
+        return 0;
+    }
+    *length = (size_t)info->uncompressed_size;
+    *text = malloc(*length + 1);
+    if (!*text || !wpm_zip_read_current_memory(
+                      reader, info, (unsigned char *)*text, *length)) {
+        return 0;
+    }
+    (*text)[*length] = 0;
+    return memchr(*text, 0, *length) == NULL;
+}
+
+int wpm_archive_validate_readonly(const char *archive_path, int allow_unsigned,
+                                  char *signing_key, size_t signing_key_size) {
+    void *reader = mz_zip_reader_create();
+    char *index = NULL, *signature = NULL, *working = NULL;
+    size_t index_size, signature_size;
+    wpm_index_paths paths = {0}, files = {0};
+    int status, success = 0;
+    const char *failure = "archive path, integrity, or trust";
+    char failed_path[WPM_PATH_SIZE] = "";
+    if (!reader || !ensure_sodium_ready() ||
+        mz_zip_reader_open_file(reader, archive_path) != MZ_OK) {
+        goto done;
+    }
+    mz_zip_reader_set_raw(reader, 1);
+    if (!read_zip_text(reader, ".wpm/index.csv", 4 * 1024 * 1024, &index,
+                       &index_size) ||
+        !read_zip_text(reader, ".wpm/signature.json", 16384, &signature,
+                       &signature_size) ||
+        !wpm_validate_signature_bytes(signature, (unsigned char *)index,
+                                      index_size, allow_unsigned, signing_key,
+                                      signing_key_size)) {
+        goto done;
+    }
+    if (index) {
+        char *line;
+        working = malloc(index_size + 1);
+        if (!working) {
+            goto done;
+        }
+        memcpy(working, index, index_size + 1);
+        line = working;
+        while (*line) {
+            char *next = strpbrk(line, "\r\n");
+            char *size_text, *expected_hash, *algorithm, *end;
+            unsigned long long expected_size;
+            unsigned char digest[WPM_BLAKE2B_BYTES];
+            char hex[WPM_BLAKE2B_HEX_SIZE];
+            crypto_generichash_state hash;
+            wpm_zip_output output;
+            mz_zip_file *info;
+            if (next) {
+                *next++ = 0;
+                while (*next == '\r' || *next == '\n') {
+                    next++;
+                }
+            }
+            trim_line(line);
+            if (!*line || !_stricmp(line, "filename,size,hash,algorithm")) {
+                line = next ? next : line + strlen(line);
+                continue;
+            }
+            size_text = strchr(line, ',');
+            expected_hash = size_text ? strchr(size_text + 1, ',') : NULL;
+            algorithm = expected_hash ? strchr(expected_hash + 1, ',') : NULL;
+            failure = "invalid package index entry";
+            if (!size_text || !expected_hash || !algorithm) {
+                goto done;
+            }
+            *size_text++ = 0;
+            *expected_hash++ = 0;
+            *algorithm++ = 0;
+            trim_line(line);
+            trim_line(size_text);
+            trim_line(expected_hash);
+            trim_line(algorithm);
+            if (!is_safe_archive_path(line) || *size_text < '0' ||
+                *size_text > '9' ||
+                strlen(expected_hash) != WPM_BLAKE2B_HEX_SIZE - 1 ||
+                _stricmp(algorithm, "blake2b")) {
+                goto done;
+            }
+            failure = "package signature verification failed";
+            strcpy_s(failed_path, sizeof(failed_path), line);
+            expected_size = strtoull(size_text, &end, 10);
+            if (*end || mz_zip_reader_locate_entry(reader, line, 0) != MZ_OK ||
+                mz_zip_reader_entry_get_info(reader, &info) != MZ_OK ||
+                info->uncompressed_size < 0 ||
+                (uint64_t)info->uncompressed_size != expected_size ||
+                crypto_generichash_init(&hash, NULL, 0, sizeof(digest))) {
+                goto done;
+            }
+            memset(&output, 0, sizeof(output));
+            output.file = INVALID_HANDLE_VALUE;
+            output.capacity = expected_size;
+            output.hash = &hash;
+            if (!wpm_zip_read_current_entry(reader, info, &output) ||
+                crypto_generichash_final(&hash, digest, sizeof(digest))) {
+                goto done;
+            }
+            sodium_bin2hex(hex, sizeof(hex), digest, sizeof(digest));
+            if (_stricmp(hex, expected_hash) || paths.count >= 4096) {
+                goto done;
+            }
+            {
+                char **grown =
+                    realloc(paths.items, (paths.count + 1) * sizeof(char *));
+                if (!grown) {
+                    goto done;
+                }
+                paths.items = grown;
+                paths.items[paths.count] = malloc(strlen(line) + 1);
+                if (!paths.items[paths.count]) {
+                    goto done;
+                }
+                strcpy(paths.items[paths.count++], line);
+            }
+            line = next ? next : line + strlen(line);
+        }
+        if (paths.count > 1) {
+            qsort(paths.items, paths.count, sizeof(char *),
+                  compare_index_paths);
+        }
+        for (size_t i = 1; i < paths.count; i++) {
+            if (!_stricmp(paths.items[i - 1], paths.items[i])) {
+                goto done;
+            }
+        }
+    }
+    failure = "archive entry integrity or completeness";
+    status = mz_zip_reader_goto_first_entry(reader);
+    while (status == MZ_OK) {
+        mz_zip_file *info;
+        wpm_zip_output output;
+        if (mz_zip_reader_entry_get_info(reader, &info) != MZ_OK ||
+            !is_safe_archive_path(info->filename) || files.count >= 8192) {
+            goto done;
+        }
+        strcpy_s(failed_path, sizeof(failed_path), info->filename);
+        {
+            char **grown =
+                realloc(files.items, (files.count + 1) * sizeof(char *));
+            if (!grown) {
+                goto done;
+            }
+            files.items = grown;
+            files.items[files.count] = malloc(strlen(info->filename) + 1);
+            if (!files.items[files.count]) {
+                goto done;
+            }
+            strcpy(files.items[files.count], info->filename);
+            normalize_archive_separators(files.items[files.count++]);
+        }
+        if (mz_zip_reader_entry_is_dir(reader) != MZ_OK) {
+            if (signature && index &&
+                _stricmp(info->filename, ".wpm/index.csv") &&
+                _stricmp(info->filename, ".wpm/signature.json") &&
+                !index_contains_path(&paths, info->filename)) {
+                goto done;
+            }
+            memset(&output, 0, sizeof(output));
+            output.file = INVALID_HANDLE_VALUE;
+            output.capacity = (uint64_t)info->uncompressed_size;
+            if (!wpm_zip_read_current_entry(reader, info, &output)) {
+                goto done;
+            }
+        }
+        status = mz_zip_reader_goto_next_entry(reader);
+    }
+    if (status != MZ_END_OF_LIST) {
+        goto done;
+    }
+    if (files.count > 1) {
+        qsort(files.items, files.count, sizeof(char *), compare_index_paths);
+    }
+    for (size_t i = 1; i < files.count; i++) {
+        if (!_stricmp(files.items[i - 1], files.items[i])) {
+            goto done;
+        }
+    }
+    success = 1;
+done:
+    free(index);
+    free(signature);
+    free(working);
+    free_index_paths(&paths);
+    free_index_paths(&files);
+    mz_zip_reader_delete(&reader);
+    if (!success) {
+        wpm_event_printf(WPM_EVENT_ERROR, "plan.archive.invalid", "plan",
+                         "validate", "Error: %s%s%s (read-only validation).\n",
+                         failure, *failed_path ? " for " : "", failed_path);
+    }
+    return success;
+}
+
 static int is_valid_package_name(const char *package_name) {
     if (!package_name[0] || strcmp(package_name, ".") == 0 ||
         strcmp(package_name, "..") == 0) {
@@ -2859,6 +3074,10 @@ static int run_package_script(const char *staging_dir, const char *script_name,
     int added_clicolor_force = 0;
     int written;
 
+    if (!wpm_operation_before_script()) {
+        return 0;
+    }
+
     if (!join_path(script_path, sizeof(script_path), staging_dir,
                    script_name)) {
         wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
@@ -3178,6 +3397,14 @@ int wpm_archive_install(const char *archive_path, int allow_unsigned) {
     char *extension;
     int success = 0;
 
+    if (!wpm_operation_archive("install", archive_path, NULL,
+                               wpm_repository_url, allow_unsigned)) {
+        return 0;
+    }
+    if (wpm_operation_collecting()) {
+        return 1;
+    }
+
     verbose_log("Installing archive: %s", archive_path);
 
     if (!normalized_full_path(archive_path, archive_full_path,
@@ -3294,6 +3521,7 @@ cleanup:
         return 0;
     }
 
+    wpm_operation_completed();
     wpm_event_printf(WPM_EVENT_SUCCESS, "archive.success", "archive", "command",
                      "Installed package; archive stored at: %s\n",
                      stored_archive_path);
@@ -3361,6 +3589,13 @@ int wpm_archive_schedule_self_upgrade(const char *archive_path,
     HANDLE background_output = INVALID_HANDLE_VALUE;
     SECURITY_ATTRIBUTES background_security;
     int result = 0;
+    if (!wpm_operation_archive("self-upgrade", archive_path, old_version,
+                               wpm_repository_url, allow_unsigned)) {
+        return 0;
+    }
+    if (wpm_operation_collecting()) {
+        return 1;
+    }
     if (!normalized_full_path(archive_path, archive_full,
                               sizeof(archive_full)) ||
         !wpm_get_data_root(root, sizeof(root)) ||
@@ -3538,6 +3773,9 @@ cleanup:
     if (!remove_directory_tree_with_retry(stage)) {
         result = 0;
     }
+    if (result) {
+        wpm_operation_completed();
+    }
     return result;
 }
 
@@ -3551,6 +3789,13 @@ int wpm_archive_upgrade(const char *archive_path, int allow_unsigned,
     wpm_package_metadata metadata;
     DWORD script_exit = 0;
     int success = 0;
+    if (!wpm_operation_archive("upgrade", archive_path, old_version,
+                               wpm_repository_url, allow_unsigned)) {
+        return 0;
+    }
+    if (wpm_operation_collecting()) {
+        return 1;
+    }
     memset(&metadata, 0, sizeof(metadata));
     strcpy_s(metadata.name, sizeof(metadata.name), expected_name);
     strcpy_s(metadata.version, sizeof(metadata.version), expected_version);
@@ -3650,6 +3895,7 @@ cleanup:
     if (!success) {
         return 0;
     }
+    wpm_operation_completed();
     wpm_event_printf(WPM_EVENT_SUCCESS, "archive.success", "archive", "command",
                      "Upgraded %s %s %s to %s.\n", expected_name, expected_arch,
                      old_version, expected_version);
@@ -3709,6 +3955,12 @@ int wpm_archive_remove(const char *package_name) {
                          stored_archive_path);
         return 0;
     }
+    if (!wpm_operation_archive("remove", stored_archive_path, NULL, NULL, 1)) {
+        return 0;
+    }
+    if (wpm_operation_collecting()) {
+        return 1;
+    }
     verbose_log("Removing archive: %s", stored_archive_path);
     if (!create_directories(temp_root) ||
         !remove_directory_tree_with_retry(staging_path)) {
@@ -3766,6 +4018,7 @@ cleanup:
         return 0;
     }
 
+    wpm_operation_completed();
     wpm_event_printf(WPM_EVENT_SUCCESS, "archive.success", "archive", "command",
                      "Removed package: %s\n", archive_name);
     wpm_event_printf(WPM_EVENT_RESULT, "archive.result", "archive", "command",

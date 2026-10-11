@@ -25,4 +25,10 @@ int wpm_sign_package_index(const char *source_dir, const char *private_path);
 int wpm_validate_package_signature(const char *staging_dir, int allow_unsigned,
                                    char *key_id, size_t key_id_size);
 
+/** Validate in-memory signed index bytes using existing trust; never add keys.
+ */
+int wpm_validate_signature_bytes(const char *signature,
+                                 const unsigned char *index, size_t length,
+                                 int allow_unsigned, char *key_id, size_t size);
+
 #endif

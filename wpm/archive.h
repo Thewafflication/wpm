@@ -88,6 +88,10 @@ int wpm_archive_install(const char *archive_path, int allow_unsigned);
  */
 int wpm_archive_inspect(const char *archive_path, wpm_package_info *info);
 
+/** Validate archive paths, CRCs, index hashes, and trust without extraction. */
+int wpm_archive_validate_readonly(const char *archive_path, int allow_unsigned,
+                                  char *signing_key, size_t signing_key_size);
+
 /**
  * Upgrade an installed package from a validated candidate archive.
  * @param[in] archive_path Candidate archive.

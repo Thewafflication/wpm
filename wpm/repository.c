@@ -16,6 +16,7 @@
 #include "https.h"
 #include "repository.h"
 #include "logging.h"
+#include "operation.h"
 #include "progress.h"
 
 #define PATH_SIZE 4096
@@ -2131,9 +2132,9 @@ int wpm_repo_upgrade(const char **package_names, int package_count, int all,
     progress_total =
         count_upgrade_candidates(installed, ic, entries, ec, package_names,
                                  package_count, all, arch, version);
-    if (all) {
+    if (all && !wpm_operation_collecting()) {
         int planned = print_upgrade_plan(installed, ic, entries, ec, arch);
-        if (planned && !confirm_upgrade_plan(assume_yes)) {
+        if (planned && !confirm_upgrade_plan(1)) {
             wpm_event_printf(WPM_EVENT_INFO, "repository.info", "repository",
                              "command",
                              "Upgrade cancelled; no packages were changed.\n");
@@ -2237,9 +2238,12 @@ int wpm_repo_upgrade(const char **package_names, int package_count, int all,
             failures++;
             continue;
         }
-        wpm_event_printf(WPM_EVENT_RESULT, "repository.result", "repository",
-                         "command", "Result: %s %s %s\n", installed[i].name,
-                         installed[i].arch, is_self ? "scheduled" : "upgraded");
+        if (!wpm_operation_collecting()) {
+            wpm_event_printf(WPM_EVENT_RESULT, "repository.result",
+                             "repository", "command", "Result: %s %s %s\n",
+                             installed[i].name, installed[i].arch,
+                             is_self ? "scheduled" : "upgraded");
+        }
     }
     for (int n = 0; n < package_count; n++) {
         int found = 0;

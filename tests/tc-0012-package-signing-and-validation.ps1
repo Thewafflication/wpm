@@ -186,7 +186,8 @@ try {
     }
 
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
-        'Reject package signed by unknown key' -Arguments @('install', `
+        'Reject package signed by unknown key' `
+        -Arguments @('install', '--yes', `
             $archivePath) -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -eq 0) {
@@ -272,7 +273,7 @@ try {
 
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
         'Install package with trusted valid signature' -Arguments @( `
-            'install', $archivePath) -Assert {
+            'install', '--yes', $archivePath) -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -ne 0 -or (Get-Content -Raw -LiteralPath `
                     $deployment).Trim() -ne 'signed') {
@@ -331,7 +332,7 @@ try {
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name (
         'Reject package signed by a second unknown ke' +
         'y'
-    ) -Arguments @('install', $untrustedArchivePath) -Assert {
+    ) -Arguments @('install', '--yes', $untrustedArchivePath) -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -eq 0) {
             throw 'Untrusted-key package was installed.'
@@ -367,7 +368,8 @@ try {
         }
     }
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
-        'Reject package signed by revoked key' -Arguments @('install', `
+        'Reject package signed by revoked key' `
+        -Arguments @('install', '--yes', `
             $untrustedArchivePath) -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -eq 0) {
@@ -429,7 +431,7 @@ try {
             }
         )) {
         $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
-            "Reject $($variant.Name)" -Arguments @('install', `
+            "Reject $($variant.Name)" -Arguments @('install', '--yes', `
                 $variant.Archive) -Assert {
             param($ExitCode, $Output)
             if ($ExitCode -eq 0) {
@@ -492,7 +494,7 @@ try {
         }
     }
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
-        'Reject unsigned package by default' -Arguments @('install', `
+        'Reject unsigned package by default' -Arguments @('install', '--yes', `
             $unsignedArchivePath) -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -eq 0) {
@@ -516,7 +518,8 @@ try {
     }
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
         'Allow explicitly overridden unsigned package' -Arguments @( `
-            'install', $unsignedArchivePath, '--allow-unsigned') -Assert {
+            'install', '--yes', `
+            $unsignedArchivePath, '--allow-unsigned') -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -ne 0 -or $Output -notmatch '(?i)warning') {
             throw (

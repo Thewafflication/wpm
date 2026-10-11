@@ -8,6 +8,7 @@
 #include "https.h"
 #include "init.h"
 #include "logging.h"
+#include "operation.h"
 #include "repository.h"
 #include "signing.h"
 #include <stdlib.h>
@@ -171,11 +172,11 @@ static void print_usage_line(Command command) {
         wpm_event_printf(
             WPM_EVENT_INFO, "wpm.info", "wpm", "command",
             "Usage: wpm install <package...> [--arch <arch>] [--version "
-            "<semver>] [--offline] [--allow-unsigned]\n");
+            "<semver>] [--offline] [--allow-unsigned] [-y|--yes]\n");
         break;
     case CMD_REMOVE:
         wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
-                         "Usage: wpm remove <package...>\n");
+                         "Usage: wpm remove <package...> [-y|--yes]\n");
         break;
     case CMD_REPO:
         wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
@@ -226,6 +227,11 @@ static int command_option_takes_value(Command command, const char *option) {
 }
 
 static int command_option_is_known(Command command, const char *option) {
+    if ((command == CMD_INSTALL || command == CMD_REMOVE ||
+         command == CMD_UPGRADE) &&
+        (!strcmp(option, "--yes") || !strcmp(option, "-y"))) {
+        return 1;
+    }
     if (strcmp(option, "--verbose") == 0) {
         return 1;
     }
@@ -608,6 +614,7 @@ static void print_windows_dependency_version(const char *display_name,
 
 int main(int argc, char *argv[]) {
     int verbose = 0;
+    int plan_yes = 0;
     int offline = 0;
     int command_index = -1;
     int show_version = 0;
@@ -833,6 +840,19 @@ int main(int argc, char *argv[]) {
         !validate_command_actions(cmd, argc, argv, command_index)) {
         return 1;
     }
+    if (cmd == CMD_INSTALL || cmd == CMD_REMOVE || cmd == CMD_UPGRADE) {
+        for (int i = command_index + 1; i < argc; i++) {
+            if (!strcmp(argv[i], "--yes") || !strcmp(argv[i], "-y")) {
+                plan_yes = 1;
+                for (int j = i; j + 1 < argc; j++) {
+                    argv[j] = argv[j + 1];
+                }
+                argc--;
+                i--;
+            }
+        }
+        wpm_operation_begin(plan_yes);
+    }
     wpm_set_verbose(verbose);
     SetEnvironmentVariableA("WPM_VERBOSE", verbose ? "1" : NULL);
     wpm_repo_set_verbose(verbose);
@@ -854,6 +874,7 @@ int main(int argc, char *argv[]) {
         print_diagnostics();
     }
 
+operation_dispatch:
     switch (cmd) {
     case CMD_BUILD: {
         const char *source_dir = NULL;
@@ -1178,7 +1199,7 @@ int main(int argc, char *argv[]) {
 
     case CMD_UPGRADE: {
         const char *names[128];
-        int name_count = 0, all = 0, allow_unsigned = 0, assume_yes = 0;
+        int name_count = 0, all = 0, allow_unsigned = 0, assume_yes = plan_yes;
         const char *selected_arch = NULL;
         const char *selected_version = NULL;
         for (int i = command_index + 1; i < argc; i++) {
@@ -1199,7 +1220,7 @@ int main(int argc, char *argv[]) {
             }
         }
         if ((!all && name_count == 0) || (all && name_count > 0) ||
-            (all && selected_version) || (assume_yes && !all)) {
+            (all && selected_version)) {
             wpm_event_printf(
                 WPM_EVENT_INFO, "wpm.info", "wpm", "command",
                 "Usage: wpm upgrade <package...> [--arch <arch>] [--version "
@@ -1266,6 +1287,13 @@ int main(int argc, char *argv[]) {
 
     default:
         return 1;
+    }
+    if (wpm_operation_collecting()) {
+        int confirmation = wpm_operation_confirm();
+        if (confirmation <= 0) {
+            return confirmation < 0 ? 1 : 0;
+        }
+        goto operation_dispatch;
     }
     return 0;
 }

@@ -507,3 +507,19 @@ Useful local presets:
 - Test all cases through CTest: `test-x86-debug`
 - Test one case through CTest: `test-tc-0001-x86-debug` through
   `test-tc-0007-x86-debug`
+
+## 2.0 increment preview: shared operation approval
+
+Install, remove, selected upgrade, and upgrade-all now print a complete package
+plan before deployment or staging. Plans include identity, architecture, old/new
+version, repository/input, trust, controlled roots, package scripts, retention,
+and deferred self-upgrade completion. The plan digest binds approval to archive
+content and package/trust/configuration state. Changes require a new plan.
+
+Use `--yes` or `-y` on each lifecycle command for unattended operation. Empty
+input, EOF, and anything except `y`/`yes` cancel safely. Cancellation exits zero;
+invalidated plans exit nonzero. Unknown signing keys require independent
+verification and `wpm trust add` before planning. Preparing repository indexes,
+package caches, and operational logs is separate from deployment approval in
+I-02; I-03 adds a read-only planning capability. These changes ship as 2.0 alpha
+increments while 1.2.10 remains the stable release.

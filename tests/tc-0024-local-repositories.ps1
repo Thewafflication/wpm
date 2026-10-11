@@ -127,7 +127,7 @@ try {
     }
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
         'Retain signature policy for local repository' -Arguments @( `
-            'install', $packageName, '--offline') -Assert {
+            'install', '--yes', $packageName, '--offline') -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -eq 0) {
             throw (
@@ -137,7 +137,8 @@ try {
         }
     }
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
-        'Install named package from local repository' -Arguments @('install', `
+        'Install named package from local repository' `
+        -Arguments @('install', '--yes', `
             $packageName, '--offline', '--allow-unsigned') -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -ne 0) {
@@ -157,7 +158,7 @@ try {
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name (
         'Reject package path escaping local repositor' +
         'y'
-    ) -Arguments @('install', $traversalName, '--offline', `
+    ) -Arguments @('install', '--yes', $traversalName, '--offline', `
             '--allow-unsigned') -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -eq 0 -or $Output -notmatch 'invalid package URL') {

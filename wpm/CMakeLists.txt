@@ -37,6 +37,8 @@ set(
   "wpm.c"
   "logging.c"
   "logging.h"
+  "operation.c"
+  "operation.h"
   "progress.c"
   "progress.h"
   "archive.c"
@@ -508,6 +510,19 @@ if(BUILD_TESTING)
     message(FATAL_ERROR "PowerShell is required to run the WPM tests")
   endif()
   find_package(Python3 COMPONENTS Interpreter REQUIRED)
+  add_test(
+    NAME operation-integration
+    COMMAND
+      "${Python3_EXECUTABLE}"
+      "${CMAKE_SOURCE_DIR}/tests/operation-integration.py" --wpm
+      $<TARGET_FILE:wpm>
+  )
+  set_tests_properties(
+    operation-integration
+    PROPERTIES
+      TIMEOUT
+        120
+  )
   add_test(
     NAME presentation-integration
     COMMAND

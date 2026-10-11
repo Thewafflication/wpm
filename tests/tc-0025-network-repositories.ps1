@@ -154,7 +154,7 @@ try {
         }
     }
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
-        'Retain signature policy over HTTP' -Arguments @('install', `
+        'Retain signature policy over HTTP' -Arguments @('install', '--yes', `
             $packageName) -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -eq 0) {
@@ -165,7 +165,8 @@ try {
         }
     }
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
-        'Install from opted-in HTTP repository' -Arguments @('install', `
+        'Install from opted-in HTTP repository' `
+        -Arguments @('install', '--yes', `
             $packageName, '--allow-unsigned') -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -ne 0) {
@@ -178,7 +179,8 @@ try {
         }
     }
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
-        'Reject cross-origin HTTP package URL' -Arguments @('install', `
+        'Reject cross-origin HTTP package URL' `
+        -Arguments @('install', '--yes', `
             $crossOriginName, '--allow-unsigned') -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -eq 0 -or $Output -notmatch 'invalid package URL') {
