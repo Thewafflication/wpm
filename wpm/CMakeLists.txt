@@ -933,6 +933,7 @@ if(BUILD_TESTING)
   )
   add_dependencies(
     check
+    wpm-capability-test
     wpm-https-test
     wpm-blake2b-test
   )
@@ -960,12 +961,21 @@ if(BUILD_TESTING)
       VERBATIM
     )
     add_dependencies(verify test-reports)
+    string(
+      CONCAT
+      WPM_COMPONENT_TEST_REGEX
+      "^(https-.*|blake2b-simd|zlib-sse2|"
+      "readonly-capabilities|operation-integration|"
+      "presentation-integration|dry-run-integration)$"
+    )
     add_custom_target(
       check-components
       COMMAND
         ${CMAKE_CTEST_COMMAND} --output-on-failure -R
-        "^(https-.*|blake2b-simd|zlib-sse2)$"
+        "${WPM_COMPONENT_TEST_REGEX}"
       DEPENDS
+        wpm
+        wpm-capability-test
         wpm-https-test
         wpm-blake2b-test
       WORKING_DIRECTORY ${CMAKE_BINARY_DIR}

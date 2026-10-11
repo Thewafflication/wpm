@@ -64,5 +64,8 @@ retain their later roadmap increments.
 
 The final source review added the internal completion capability guard after
 global-option normalization. Tag `2.0.0-alpha.2` was cancelled before publication;
-the corrected I-03 delivery tag is `2.0.0-alpha.2.1`. Native release verification
-must use that exact source, including the argument-order no-write regressions.
+alpha.2.1 native verification then exposed a missing capability-test build
+dependency in the selective verification target. The target now builds and runs
+all new component tests before the fresh full suite. The corrected I-03 delivery
+tag is `2.0.0-alpha.2.2`. Native release verification must use that exact source,
+including argument-order no-write regressions and the selective build path.
