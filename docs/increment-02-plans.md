@@ -46,3 +46,12 @@ Completion requires the required lint/build/full tests and native x86/x64/ARM64
 release matrix. Parent REQ-0015 remains Proposed until composite dry-run and
 later recovery allocations are reconciled. New package, index, or signature
 formats are not introduced by this increment.
+
+## Prerelease upgrade verification
+
+The initial alpha.1 workflow passed native verification/builds and signing,
+but its previous-stable upgrade fixture did not enable the prerelease policy.
+The signed x64 candidate then passed a real local upgrade from 1.2.10 after the
+fixture explicitly opted in for WPM. The corrected delivery tag is
+`2.0.0-alpha.1.1`; alpha.1 remains an unpublished failed tag. The fixture opt-in
+changes disposable test state only and preserves stable users' default policy.
