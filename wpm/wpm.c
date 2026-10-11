@@ -52,6 +52,8 @@ static void print_cpu_info(void) {
                     {WCRT_CPU_ARM_ATOMICS, "ARM-ATOMICS"}};
     const struct wcrt_cpu_info *cpu = wcrt_cpu_get_info();
     const char *architecture = "unknown";
+    unsigned long logical_count = wcrt_cpu_logical_count();
+    unsigned long core_count = wcrt_cpu_core_count();
     size_t i;
     int printed = 0;
 
@@ -72,8 +74,13 @@ static void print_cpu_info(void) {
     printf("  Process architecture: %s\n", architecture);
     printf("  Vendor: %s\n", cpu && cpu->vendor[0] ? cpu->vendor : "unknown");
     printf("  Brand: %s\n", cpu && cpu->brand[0] ? cpu->brand : "unknown");
-    print_cpu_count("Logical processors (system)", wcrt_cpu_logical_count());
-    print_cpu_count("Physical cores (system)", wcrt_cpu_core_count());
+    /* XP lacks the extended topology API used by WCRT. A single system
+       logical processor can only belong to one active physical core. */
+    if (!core_count && logical_count == 1) {
+        core_count = 1;
+    }
+    print_cpu_count("Logical processors (system)", logical_count);
+    print_cpu_count("Physical cores (system)", core_count);
     print_cpu_count("Available processors (process affinity)",
                     wcrt_cpu_available_count());
     printf("  Usable instruction sets:");

@@ -242,12 +242,15 @@ void wpm_progress_start(wpm_progress *progress, const char *ongoing_verb,
 
 void wpm_progress_set(wpm_progress *progress, unsigned long long current,
                       unsigned long long total) {
+    int total_changed;
     if (!progress || !progress->started) {
         return;
     }
+    total_changed = progress->total != total;
     progress->current = current;
     progress->total = total;
-    progress_render(progress, 0);
+    /* Show newly available size information even for short index downloads. */
+    progress_render(progress, total_changed);
 }
 
 void wpm_progress_add(wpm_progress *progress, unsigned long long bytes) {

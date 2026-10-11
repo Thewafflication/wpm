@@ -228,6 +228,14 @@ def check(server, path, succeeds, trust=True):
         payload if succeeds else b"unchanged"
     ), path
     if succeeds:
+        assert "Download progress: TLS test: 0 bytes" in result.stdout, (
+            result.stdout
+        )
+        if path == "/valid":
+            assert (
+                f"Download progress: TLS test: 0% (0/{len(payload)} bytes)"
+                in result.stdout
+            ), result.stdout
         assert f"Downloaded TLS test: {len(payload)} bytes" in result.stdout, (
             result.stdout
         )
