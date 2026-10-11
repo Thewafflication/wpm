@@ -97,6 +97,15 @@ try {
         )
     }
 
+    # Stable WPM intentionally excludes prereleases even with --version.
+    # Opt in only inside this disposable upgrade verification fixture.
+    if ($CandidateVersion.Contains('-')) {
+        & $previousExecutable config set prerelease true --package wpm
+        if ($LASTEXITCODE -ne 0) {
+            throw 'Could not enable candidate prerelease in the test fixture.'
+        }
+    }
+
     $output = & $previousExecutable upgrade wpm --arch $Architecture `
         --version $CandidateVersion --offline 2>&1 | Out-String
     if ($LASTEXITCODE -ne 0 -or $output -notmatch '(?i)scheduled') {
