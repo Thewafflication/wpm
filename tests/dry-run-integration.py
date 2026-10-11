@@ -141,6 +141,29 @@ with tempfile.TemporaryDirectory(prefix="wpm-dry-run-") as directory:
         ("install", "missing-package", "--offline"),
         ("install", new),
         ("remove", "missing"),
+        (
+            "--color",
+            "never",
+            "--complete-self-upgrade",
+            new,
+            "0",
+            "2.0.0",
+            "any",
+            "1.0.0",
+            "1",
+            root / "internal.log",
+        ),
+        (
+            "--verbose",
+            "--complete-self-upgrade",
+            new,
+            "0",
+            "2.0.0",
+            "any",
+            "1.0.0",
+            "1",
+            root / "internal-verbose.log",
+        ),
     ):
         before = snapshot(root)
         run(*command, "--dry-run", expected=1)

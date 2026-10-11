@@ -696,6 +696,10 @@ int main(int argc, char *argv[]) {
     }
     if ((argc == 8 || argc == 9 || argc == 10) &&
         strcmp(argv[1], "--complete-self-upgrade") == 0) {
+        if (!wpm_require_capability(WPM_CAP_WRITE | WPM_CAP_HANDOFF,
+                                    "internal self-upgrade completion")) {
+            return 1;
+        }
         DWORD parent_id = (DWORD)strtoul(argv[3], NULL, 10);
         int completed;
         int completion_verbose = strcmp(argv[argc - 1], "--verbose") == 0;

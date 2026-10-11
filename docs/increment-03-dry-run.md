@@ -43,6 +43,8 @@ are rechecked after confirmation, before initialization, and before scripts.
 - The same test starts from an absent data root, exercises external log paths,
   contradictory flags, unsupported build/repo/trust/update commands, missing
   records, unsigned-policy rejection, damaged payloads, and uncached web data.
+  Internal completion with preceding color/verbose flags is denied at its
+  handoff boundary before its independent log can be opened.
 - `readonly-capabilities` calls the production write-open helper directly with
   seven write/update modes, checks retained bytes, and tests write/script/
   handoff/network denial. A lower-level caller cannot restore authority.
@@ -57,3 +59,10 @@ reconciliation and later recovery allocations. No whole-2.0 verification or
 package-script rollback guarantee is implied. Remaining media consumption,
 transport policy, recovery, machine schemas, and final quality/readiness work
 retain their later roadmap increments.
+
+## Delivery correction
+
+The final source review added the internal completion capability guard after
+global-option normalization. Tag `2.0.0-alpha.2` was cancelled before publication;
+the corrected I-03 delivery tag is `2.0.0-alpha.2.1`. Native release verification
+must use that exact source, including the argument-order no-write regressions.
