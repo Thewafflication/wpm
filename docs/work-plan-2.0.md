@@ -673,3 +673,7 @@ unlocked retry evidence. Existing invalid URL rejection and 1.x defaults remain.
 and remediation. Snapshot, loopback no-network, stale/corrupt/absent source,
 configuration, credential, and CLI tests cover the additive query. Broader
 I-06/I-08 health and machine-readable obligations remain open.
+
+1.2.22 extends read-only repository diagnosis through optional `--links`,
+sharing resolver normalization and bounds. Nested/cyclic/offline graph fixtures,
+invalid links, missing/stale catalogs, and snapshots cover the additive mode.

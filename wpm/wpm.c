@@ -251,7 +251,8 @@ static int command_option_is_known(Command command, const char *option) {
         return strcmp(option, "--allow-unsigned") == 0 ||
                strcmp(option, "--offline") == 0;
     case CMD_REPO:
-        return strcmp(option, "--allow-insecure-http") == 0 ||
+        return strcmp(option, "--links") == 0 ||
+               strcmp(option, "--allow-insecure-http") == 0 ||
                strcmp(option, "--offline") == 0;
     case CMD_KEYGEN:
         return strcmp(option, "--default") == 0;
@@ -442,6 +443,10 @@ static int validate_command_actions(Command command, int argc, char **argv,
     const char *action = count > 0 ? operands[0] : "list";
 
     if (command == CMD_REPO) {
+        if (command_has_option(argc, argv, command_index, "--links") &&
+            strcmp(action, "diagnose")) {
+            return invalid_action_shape(command, "--links requires diagnose");
+        }
         if (strcmp(action, "diagnose") == 0) {
             if (count == 1 &&
                 !command_has_option(argc, argv, command_index, "--priority") &&
@@ -1104,7 +1109,11 @@ operation_dispatch:
                 return 1;
             }
         } else if (strcmp(action, "diagnose") == 0) {
-            if (!wpm_repo_diagnose()) {
+            int healthy =
+                command_has_option(argc, argv, command_index, "--links")
+                    ? wpm_repo_diagnose_links()
+                    : wpm_repo_diagnose();
+            if (!healthy) {
                 return 1;
             }
         } else if (strcmp(action, "add") == 0) {
@@ -1460,7 +1469,7 @@ void print_usage(Command c) {
                 WPM_EVENT_INFO, "wpm.info", "wpm", "command",
                 "\nManage package repositories.\n\nExamples:\n  wpm repo "
                 "add .\\repository --priority 10\n  wpm repo list\n  wpm "
-                "repo update --offline\n  wpm repo diagnose\n");
+                "repo update --offline\n  wpm repo diagnose [--links]\n");
             return;
         case CMD_KEYGEN:
             print_usage_line(c);

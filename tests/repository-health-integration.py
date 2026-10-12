@@ -140,11 +140,102 @@ with tempfile.TemporaryDirectory(prefix="wpm-repo-health-") as directory:
         config.write_text(entries + "# comment\n\n")
         run("repo", "diagnose", succeeds=True)
         config.write_text(entries)
+        previous = source / "previous"
+        nested = previous / "nested"
+        nested.mkdir(parents=True)
+        previous_index = previous / "index.json"
+        previous_valid = json.dumps(
+            {
+                "version": 1,
+                "packages": [],
+                "repositories": ["nested"],
+            }
+        )
+        previous_index.write_text(previous_valid)
+        (nested / "index.json").write_text(valid)
+        source_index.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "packages": [],
+                    "repositories": ["previous", "previous"],
+                }
+            )
+        )
+        linked_web = web + "/previous"
+        web_cache.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "packages": [],
+                    "repositories": [linked_web],
+                }
+            )
+        )
+        linked_cache = cache(linked_web)
+        linked_cache.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "packages": [],
+                    "repositories": [web],
+                }
+            )
+        )
+        run("repo", "diagnose", succeeds=True)
+        text = run("repo", "diagnose", "--links", succeeds=True)
+        assert "Inspected roots: 6; link issues: 0" in text, text
+        assert "Linked from repository 2" in text, text
+        linked_cache.unlink()
+        text = run("repo", "diagnose", "--links")
+        assert "unavailable: 1" in text, text
+        linked_cache = cache(linked_web)
+        os.utime(linked_cache, (stale, stale))
+        text = run("repo", "diagnose", "--links")
+        assert "stale: 1" in text, text
+        now = time.time()
+        os.utime(linked_cache, (now, now))
+        previous_index.write_text('{"version":1,"packages":[],}')
+        text = run("repo", "diagnose", "--links")
+        assert "invalid: 1" in text, text
+        previous_index.write_text(previous_valid)
+        source_index.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "packages": [],
+                    "repositories": ["previous", "../escape", credentialed],
+                }
+            )
+        )
+        text = run("repo", "diagnose", "--links")
+        assert "link issues: 2" in text, text
+        nodes = []
+        for number in range(35):
+            node = source / f"node-{number:02d}"
+            node.mkdir()
+            (node / "index.json").write_text(valid)
+            nodes.append(node.name)
+        source_index.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "packages": [],
+                    "repositories": nodes,
+                }
+            )
+        )
+        web_cache.write_text(valid)
+        text = run("repo", "diagnose", "--links")
+        assert "Inspected roots: 32; link issues: 6" in text, text
+        source_index.write_text(valid)
         for arguments in (
             ("repo", "diagnose", "extra"),
             ("repo", "diagnose", "--priority", "10"),
             ("repo", "diagnose", "--allow-insecure-http"),
             ("repo", "diagnose", "--unknown"),
+            ("repo", "list", "--links"),
+            ("repo", "add", source, "--links"),
         ):
             text = run(*arguments)
             assert "Usage:" in text, text

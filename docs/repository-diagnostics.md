@@ -31,3 +31,23 @@ records, architecture conflicts, pending self-upgrade, trust assessment, and a
 versioned machine-readable report remain allocated to broader I-06/I-08 work.
 I-04/I-05 media and managed-network evidence also remains open. This delivery
 does not claim those parent increments complete; breaking changes stay on 2.x.
+
+## Linked catalog inspection (1.2.22)
+
+`wpm repo diagnose --links` also inspects reachable linked catalogs using local
+source files and existing web caches. It never prepares missing caches. The
+report keeps configured roots first, appends linked roots in discovery order,
+and identifies each linked root's parent repository number. Missing or invalid
+catalogs stop discovery through that root; other readable branches continue.
+
+The query shares resolution's root normalization, transport restrictions,
+cycle/duplicate handling, and 32-root bound. It reports link issues for unsafe
+references, malformed link fields, or exhausted capacity and returns attention
+status. Locators remain omitted, including rejected credential-bearing links.
+The default report and existing public diagnosis function retain their behavior.
+
+The snapshot/loopback fixture covers nested local roots, cached web cycles,
+duplicates, missing/stale/corrupt descendants, unsafe references, capacity,
+credential safety, strict flag scope, and zero filesystem/network changes.
+Installed records, architecture conflicts, pending self-upgrade, trust
+assessment, and versioned machine output remain future work.

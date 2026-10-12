@@ -17,6 +17,9 @@ int wpm_repo_remove(const char *url);
 /** Inspect configured catalog health without writes or network access.
  * Returns nonzero only when all configured catalogs are usable and fresh. */
 int wpm_repo_diagnose(void);
+/** Inspect configured and linked catalog health without writes or networking.
+ */
+int wpm_repo_diagnose_links(void);
 /** Refresh repository indexes, optionally using cached data only. */
 int wpm_repo_update(int offline);
 /** Resolve and install one package using the requested selectors. */

@@ -1622,6 +1622,9 @@ cleanup:
 }
 static int append_repository_link(repository *repositories, int *count,
                                   const repository *parent, const char *link);
+static int append_repository_link_mode(repository *repositories, int *count,
+                                       const repository *parent,
+                                       const char *link, int quiet);
 static int parse_index(const char *path, repository *repo,
                        package_entry *packages, int *count,
                        repository *repositories, int *repository_count) {
@@ -1775,11 +1778,69 @@ static int parse_index(const char *path, repository *repo,
     free(text);
     return 1;
 }
-int wpm_repo_diagnose(void) {
+static int diagnose_links(const char *path, repository *repositories,
+                          int *count, int parent, int *parents, int *issues) {
+    FILE *input = wpm_fopen(path, "rb");
+    char *text = NULL;
+    const char *p;
+    long size;
+    int result = 0;
+    if (!input) {
+        return 0;
+    }
+    if (fseek(input, 0, SEEK_END) || (size = ftell(input)) < 2 ||
+        size > 4 * 1024 * 1024 || fseek(input, 0, SEEK_SET)) {
+        goto cleanup;
+    }
+    text = malloc((size_t)size + 1);
+    if (!text || fread(text, 1, (size_t)size, input) != (size_t)size) {
+        goto cleanup;
+    }
+    text[size] = 0;
+    if (memchr(text, 0, (size_t)size) || !json_document_valid(text) ||
+        !index_version_supported(text)) {
+        goto cleanup;
+    }
+    p = index_field(text, "repositories");
+    result = 1;
+    if (!p) {
+        goto cleanup;
+    }
+    if (*p != '[') {
+        (*issues)++;
+        goto cleanup;
+    }
+    p++;
+    while (*(p = skip_ws(p)) && *p != ']') {
+        char link[PATH_SIZE];
+        int before = *count;
+        if (!json_string(&p, link, sizeof(link))) {
+            (*issues)++;
+            break;
+        }
+        if (!append_repository_link_mode(repositories, count,
+                                         &repositories[parent], link, 1)) {
+            (*issues)++;
+        } else if (*count > before) {
+            parents[before] = parent + 1;
+        }
+        p = skip_ws(p);
+        if (*p != ',') {
+            break;
+        }
+        p++;
+    }
+cleanup:
+    free(text);
+    fclose(input);
+    return result;
+}
+static int diagnose_repositories(int follow_links) {
     repository repositories[MAX_REPOSITORIES];
     char path[PATH_SIZE];
     int count, invalid_config = 0, usable = 0, unavailable = 0;
     int invalid = 0, stale = 0, saved_verbose = repository_verbose;
+    int configured, issues = 0, parents[MAX_REPOSITORIES] = {0};
     wpm_set_readonly(1);
     repository_verbose =
         0; /* Query output never prints credentialed locators. */
@@ -1791,6 +1852,7 @@ int wpm_repo_diagnose(void) {
             "diagnose", "Error: repository configuration could not be read.\n");
         return 0;
     }
+    configured = count;
     wpm_event_printf(WPM_EVENT_INFO, "repository.health.start", "repository",
                      "diagnose", "Repository health (read-only):\n");
     for (int i = 0; i < count; i++) {
@@ -1806,7 +1868,9 @@ int wpm_repo_diagnose(void) {
         if (!located || GetFileAttributesA(path) == INVALID_FILE_ATTRIBUTES) {
             unavailable++;
             status = "unavailable";
-        } else if (!index_file_supported(path, 0)) {
+        } else if (!index_file_supported(path, 0) ||
+                   (follow_links && !diagnose_links(path, repositories, &count,
+                                                    i, parents, &issues))) {
             invalid++;
             status = "invalid or unreadable index";
         } else {
@@ -1821,13 +1885,23 @@ int wpm_repo_diagnose(void) {
         wpm_event_printf(WPM_EVENT_INFO, "repository.health.item", "repository",
                          "diagnose", "  Repository %d: %s; %s\n", i + 1,
                          transport, status);
+        if (parents[i]) {
+            wpm_event_printf(WPM_EVENT_INFO, "repository.health.parent",
+                             "repository", "diagnose",
+                             "    Linked from repository %d\n", parents[i]);
+        }
     }
     wpm_event_printf(
         WPM_EVENT_INFO, "repository.health.summary", "repository", "diagnose",
         "  Configured roots: %d; usable indexes: %d; unavailable: %d; "
         "invalid: %d; stale: %d; invalid configuration: %d\n",
-        count, usable, unavailable, invalid, stale, invalid_config);
-    if (unavailable || invalid || stale || invalid_config) {
+        configured, usable, unavailable, invalid, stale, invalid_config);
+    if (follow_links) {
+        wpm_event_printf(
+            WPM_EVENT_INFO, "repository.health.links", "repository", "diagnose",
+            "  Inspected roots: %d; link issues: %d\n", count, issues);
+    }
+    if (unavailable || invalid || stale || invalid_config || issues) {
         wpm_event_printf(
             WPM_EVENT_INFO, "repository.health.remediation", "repository",
             "diagnose",
@@ -1845,6 +1919,8 @@ int wpm_repo_diagnose(void) {
                      "Result: repository health healthy\n");
     return 1;
 }
+int wpm_repo_diagnose(void) { return diagnose_repositories(0); }
+int wpm_repo_diagnose_links(void) { return diagnose_repositories(1); }
 static int safe_relative_item(const char *item) {
     const char *segment;
     const char *cursor;
@@ -1895,15 +1971,18 @@ static int package_source(const char *root, const char *item, char *result,
 }
 
 /* Bound the complete graph and deduplicate roots before fetching links. */
-static int append_repository_link(repository *repositories, int *count,
-                                  const repository *parent, const char *link) {
+static int append_repository_link_mode(repository *repositories, int *count,
+                                       const repository *parent,
+                                       const char *link, int quiet) {
     char source[PATH_SIZE], normalized[PATH_SIZE];
     if (!package_source(parent->url, link, source, sizeof(source)) ||
         !repository_normalize(source, normalized, sizeof(normalized), 0)) {
-        wpm_event_printf(WPM_EVENT_WARNING, "repository.link.invalid",
-                         "repository", "resolve",
-                         "Warning: ignoring unsafe repository link in %s.\n",
-                         parent->url);
+        if (!quiet) {
+            wpm_event_printf(
+                WPM_EVENT_WARNING, "repository.link.invalid", "repository",
+                "resolve", "Warning: ignoring unsafe repository link in %s.\n",
+                parent->url);
+        }
         return 0;
     }
     for (int i = 0; i < *count; i++) {
@@ -1912,10 +1991,12 @@ static int append_repository_link(repository *repositories, int *count,
         }
     }
     if (*count >= MAX_REPOSITORIES) {
-        wpm_event_printf(WPM_EVENT_WARNING, "repository.link.capacity",
-                         "repository", "resolve",
-                         "Warning: repository link capacity (%d) reached.\n",
-                         MAX_REPOSITORIES);
+        if (!quiet) {
+            wpm_event_printf(
+                WPM_EVENT_WARNING, "repository.link.capacity", "repository",
+                "resolve", "Warning: repository link capacity (%d) reached.\n",
+                MAX_REPOSITORIES);
+        }
         return 0;
     }
     repository *child = &repositories[*count];
@@ -1924,6 +2005,10 @@ static int append_repository_link(repository *repositories, int *count,
     strcpy_s(child->url, sizeof(child->url), normalized);
     (*count)++;
     return 1;
+}
+static int append_repository_link(repository *repositories, int *count,
+                                  const repository *parent, const char *link) {
+    return append_repository_link_mode(repositories, count, parent, link, 0);
 }
 typedef struct {
     unsigned long long major, minor, patch;
