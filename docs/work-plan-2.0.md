@@ -736,3 +736,9 @@ Chocolatey instead of trusting exit zero, retries incomplete installs, and
 preserves session PATH entries such as setup-python. A fixture reproduces the
 observed exit-zero/missing-tool failure, bounded retry, nonzero exit rejection,
 and session PATH preservation without installing any system package.
+
+1.2.30 adds read-only available-catalog inventory through local/cached linked
+roots, exact selectors, semantic ordering, and prerelease policy labels. Shared
+bounded catalog reads preserve authoring behavior. Loopback zero-request and
+snapshot fixtures cover duplicates, missing/stale/locked/corrupt metadata,
+invalid links/configuration, credentials, and bounds. I-08 remains partial.

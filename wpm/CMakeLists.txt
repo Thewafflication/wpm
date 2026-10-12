@@ -579,6 +579,19 @@ if(BUILD_TESTING)
         60
   )
   add_test(
+    NAME available-list-integration
+    COMMAND
+      "${Python3_EXECUTABLE}"
+      "${CMAKE_SOURCE_DIR}/tests/available-list-integration.py" --wpm
+      $<TARGET_FILE:wpm>
+  )
+  set_tests_properties(
+    available-list-integration
+    PROPERTIES
+      TIMEOUT
+        120
+  )
+  add_test(
     NAME installed-list-integration
     COMMAND
       "${Python3_EXECUTABLE}"
@@ -1105,6 +1118,7 @@ if(BUILD_TESTING)
       "repository-publish-integration|"
       "recovery-integration|"
       "installed-list-integration|"
+      "available-list-integration|"
       "documentation-installation|"
       "presentation-integration|dry-run-integration)$"
     )

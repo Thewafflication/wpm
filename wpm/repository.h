@@ -27,6 +27,10 @@ int wpm_repo_list(void);
  */
 int wpm_repo_list_installed(const char *name, const char *arch,
                             const char *version);
+/** List local/cached linked-catalog metadata without writes or web retrieval.
+ * Reports prerelease policy; does not fetch or validate package archives. */
+int wpm_repo_list_available(const char *name, const char *arch,
+                            const char *version);
 /** Remove a configured repository. */
 int wpm_repo_remove(const char *url);
 /** Inspect configured catalog health without managed writes or web retrieval.

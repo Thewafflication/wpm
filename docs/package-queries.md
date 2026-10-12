@@ -36,3 +36,41 @@ This is a partial I-08/CP-05B delivery. Available catalogs, detailed show/select
 queries, full integrity/trust assessment, conflicts, upgrade/recovery context,
 and general machine output remain open. Existing operation defaults and package
 formats remain compatible; breaking changes stay reserved for 2.x.
+
+## Available catalog inventory (1.2.30)
+
+`wpm list --available [package] [--arch <arch>] [--version <semver>]` reads
+configured filesystem catalogs and existing web caches, following bounded linked
+roots without preparing caches or fetching archives. The same exact selectors
+apply. All matching versions remain visible, including duplicates across roots.
+Rows show repository ordinal, priority, linked parent where relevant, and stable
+or prerelease-allowed/excluded policy. Policy labels do not certify archive trust
+or successful installation; no candidate is silently selected by this inventory.
+
+Rows sort by name, architecture, descending semantic version, full version
+string, priority, root ordinal, and locator tie-break. The existing global and
+package prerelease settings are read without changes. Source locators are
+omitted; `repo diagnose --links` explains source availability and graph issues.
+Verbose query internals also avoid printing repository locators.
+
+Catalog reads share the bounded grammar/schema/document reader with author
+verification/publication. Required entry fields, semantic versions, supported
+architectures, and existing transport/relative-path rules are checked. Invalid
+entries are skipped and counted while other usable entries remain visible.
+Catalogs with malformed or duplicate required root fields are rejected. This
+strict query does not change the legacy install resolver's parsing/defaults.
+
+Missing, unreadable, invalid, or stale catalogs, invalid configuration/links,
+invalid entries, and exhausted bounds yield an explicit partial result and exit
+1. Stale cache entries remain visible and labeled. No matches in a complete
+healthy query returns 0. Bounds remain 32 roots, 96 catalog entries, and 4 MiB per
+index. No data/cache/trust/log writes, scripts, web retrieval, extraction, or
+archive integrity checks occur. Filesystem/UNC reads use the caller's OS access.
+The result describes present local/cache metadata, not the latest remote state.
+
+The loopback fixture records zero requests and checks full filesystem snapshots.
+It covers linked roots/cycles, duplicate versions, semantic order, exact filters,
+prerelease policy, absent data/log roots, stale/missing/locked catalogs, invalid
+entries/root fields/links/configuration, credentials, root/entry bounds, and
+stable complete/partial status. Detailed show/selection, trust/deployment health,
+and general machine output remain open in the broader I-08 work.

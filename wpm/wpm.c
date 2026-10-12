@@ -187,9 +187,10 @@ static void print_usage_line(Command command) {
                          "[--confirm|--dry-run]\n");
         break;
     case CMD_LIST:
-        wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
-                         "Usage: wpm list [package] [--arch <arch>] "
-                         "[--version <semver>] [--offline]\n");
+        wpm_event_printf(
+            WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+            "Usage: wpm list [--available] [package] [--arch <arch>] "
+            "[--version <semver>] [--offline]\n");
         break;
     case CMD_RECOVERY:
         wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
@@ -282,7 +283,8 @@ static int command_option_is_known(Command command, const char *option) {
     case CMD_RECOVERY:
         return strcmp(option, "--offline") == 0;
     case CMD_LIST:
-        return strcmp(option, "--offline") == 0;
+        return strcmp(option, "--offline") == 0 ||
+               strcmp(option, "--available") == 0;
     case CMD_UPGRADE:
         return strcmp(option, "--all") == 0 || strcmp(option, "-y") == 0 ||
                strcmp(option, "--yes") == 0 ||
@@ -1391,8 +1393,13 @@ operation_dispatch:
                 version = argv[++i];
             }
         }
-        if (!wpm_repo_list_installed(count ? operands[0] : NULL, arch,
-                                     version)) {
+        int complete =
+            command_has_option(argc, argv, command_index, "--available")
+                ? wpm_repo_list_available(count ? operands[0] : NULL, arch,
+                                          version)
+                : wpm_repo_list_installed(count ? operands[0] : NULL, arch,
+                                          version);
+        if (!complete) {
             return 1;
         }
         break;
@@ -1673,7 +1680,8 @@ void print_usage(Command c) {
                 WPM_EVENT_INFO, "wpm.info", "wpm", "command",
                 "\nInspect retained installed-package metadata without "
                 "extraction or writes.\n\nExamples:\n  wpm list\n  "
-                "wpm list my-package --arch x64\n");
+                "wpm list my-package --arch x64\n  "
+                "wpm list --available my-package\n");
             return;
         case CMD_RECOVERY:
             print_usage_line(c);

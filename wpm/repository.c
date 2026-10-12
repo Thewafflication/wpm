@@ -2676,20 +2676,9 @@ static int author_catalog_fields(const char *text) {
     return fields == 3;
 }
 
-static int author_read_catalog(const char *root, HANDLE *catalog, char **text,
-                               package_entry *entries, int *count,
-                               const char **array_end) {
-    char path[PATH_SIZE];
-    DWORD attributes, size, high = 0, read;
-    const char *p;
-    *count = 0;
-    attributes = GetFileAttributesA(root);
-    if (attributes == INVALID_FILE_ATTRIBUTES ||
-        !(attributes & FILE_ATTRIBUTE_DIRECTORY) ||
-        (attributes & FILE_ATTRIBUTE_REPARSE_POINT) ||
-        !author_file(root, "index.json", path, sizeof(path))) {
-        return 0;
-    }
+static int query_catalog_document(const char *path, HANDLE *catalog,
+                                  char **text) {
+    DWORD size, high = 0, read;
     *catalog = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, NULL,
                            OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (*catalog == INVALID_HANDLE_VALUE) {
@@ -2707,6 +2696,23 @@ static int author_read_catalog(const char *root, HANDLE *catalog, char **text,
     (*text)[size] = 0;
     if (memchr(*text, 0, size) || !json_document_valid(*text) ||
         !index_version_supported(*text) || !author_catalog_fields(*text)) {
+        return 0;
+    }
+    return 1;
+}
+
+static int author_read_catalog(const char *root, HANDLE *catalog, char **text,
+                               package_entry *entries, int *count,
+                               const char **array_end) {
+    char path[PATH_SIZE];
+    DWORD attributes = GetFileAttributesA(root);
+    const char *p;
+    *count = 0;
+    if (attributes == INVALID_FILE_ATTRIBUTES ||
+        !(attributes & FILE_ATTRIBUTE_DIRECTORY) ||
+        (attributes & FILE_ATTRIBUTE_REPARSE_POINT) ||
+        !author_file(root, "index.json", path, sizeof(path)) ||
+        !query_catalog_document(path, catalog, text)) {
         return 0;
     }
     p = index_field(*text, "packages");
@@ -3284,6 +3290,156 @@ static int load_entries(repository *repositories, int *repository_count,
                  *entry_count, *repository_count);
     return usable;
 }
+static int available_record_order(const void *left, const void *right) {
+    const package_entry *a = left, *b = right;
+    int order = _stricmp(a->name, b->name), valid;
+    if (!order) {
+        order = _stricmp(a->arch, b->arch);
+    }
+    if (!order) {
+        order = -semver_compare(a->version, b->version, &valid);
+    }
+    if (!order) {
+        order = strcmp(a->version, b->version);
+    }
+    if (!order && a->priority != b->priority) {
+        order = a->priority > b->priority ? -1 : 1;
+    }
+    if (!order && a->order != b->order) {
+        order = a->order < b->order ? -1 : 1;
+    }
+    return order ? order : strcmp(a->url, b->url);
+}
+
+int wpm_repo_list_available(const char *name, const char *arch,
+                            const char *version) {
+    repository *roots = calloc(MAX_REPOSITORIES, sizeof(*roots));
+    package_entry *records = calloc(MAX_PACKAGES, sizeof(*records));
+    int parents[MAX_REPOSITORIES] = {0}, stale[MAX_REPOSITORIES] = {0};
+    char path[PATH_SIZE], source[PATH_SIZE];
+    int root_count = 0, configured = 0, count = 0, issues = 0, limited = 0;
+    int matched = 0, saved_verbose = repository_verbose, loaded = 0;
+    wpm_set_readonly(1);
+    repository_verbose = 0;
+    if (!roots || !records ||
+        !load_repositories(roots, &root_count, &issues, 0)) {
+        goto done;
+    }
+    configured = root_count;
+    loaded = 1;
+    for (int i = 0; i < root_count; i++) {
+        HANDLE input = INVALID_HANDLE_VALUE;
+        char *text = NULL;
+        const char *p;
+        int web = is_web_repository(roots[i].url);
+        int located = web ? cache_path(roots[i].url, path, sizeof(path))
+                          : index_source(roots[i].url, path, sizeof(path));
+        if (!located || !query_catalog_document(path, &input, &text)) {
+            issues++;
+            goto catalog_done;
+        }
+        p = index_field(text, "packages");
+        if (!p || *p++ != '[') {
+            issues++;
+            goto catalog_done;
+        }
+        if (web && !index_is_fresh(path)) {
+            stale[i] = 1;
+            issues++;
+        }
+        if (!diagnose_links(path, roots, &root_count, i, parents, &issues)) {
+            issues++;
+        }
+        while (*(p = skip_ws(p)) != ']') {
+            package_entry record;
+            const char *start = p;
+            if (count == MAX_PACKAGES) {
+                limited = 1;
+                break;
+            }
+            if (!author_entry(&p, &record) || strpbrk(record.name, "\\/:*") ||
+                !package_source(roots[i].url, record.url, source,
+                                sizeof(source))) {
+                issues++;
+                p = start;
+                if (!json_value_end(&p)) {
+                    break;
+                }
+            } else {
+                record.priority = roots[i].priority;
+                record.order = i;
+                records[count++] = record;
+            }
+            p = skip_ws(p);
+            if (*p == ',') {
+                p++;
+            } else if (*p != ']') {
+                issues++;
+                break;
+            }
+        }
+    catalog_done:
+        free(text);
+        if (input != INVALID_HANDLE_VALUE) {
+            CloseHandle(input);
+        }
+    }
+    qsort(records, (size_t)count, sizeof(*records), available_record_order);
+    wpm_event_printf(
+        WPM_EVENT_INFO, "query.available.start", "list", "query",
+        "Available catalog metadata (read-only):\n"
+        "  Archives, signing trust, and deployed software are not verified.\n");
+    for (int i = 0; i < count; i++) {
+        package_entry *record = &records[i];
+        const char *policy;
+        if ((name && _stricmp(record->name, name)) ||
+            (arch && _stricmp(record->arch, arch)) ||
+            (version && strcmp(record->version, version))) {
+            continue;
+        }
+        policy = !is_prerelease(record->version) ? "stable"
+                 : prerelease_effective(record->name, NULL)
+                     ? "prerelease allowed"
+                     : "prerelease excluded";
+        matched++;
+        wpm_event_printf(WPM_EVENT_INFO, "query.available.item", "list",
+                         "query",
+                         "  %s %s %s\n    Repository: %d; priority: %d; %s%s\n",
+                         record->name, record->arch, record->version,
+                         record->order + 1, record->priority, policy,
+                         stale[record->order] ? "; stale cache" : "");
+        if (parents[record->order]) {
+            wpm_event_printf(WPM_EVENT_INFO, "query.available.parent", "list",
+                             "query", "    Linked from repository %d\n",
+                             parents[record->order]);
+        }
+    }
+    wpm_event_printf(
+        WPM_EVENT_RESULT, "query.available.summary", "list", "query",
+        "Result: %d matching catalog records; configured roots: %d; "
+        "inspected roots: %d; catalog issues: %d; limited: %s\n",
+        matched, configured, root_count, issues, limited ? "yes" : "no");
+    if (issues || limited) {
+        wpm_event_printf(
+            WPM_EVENT_INFO, "query.available.next", "list", "query",
+            "Next action: use 'wpm repo diagnose --links' to inspect sources, "
+            "check local media/catalog metadata, and run 'wpm update' to "
+            "refresh missing or stale web caches. This query is partial.\n");
+    }
+done:
+    free(roots);
+    free(records);
+    repository_verbose = saved_verbose;
+    if (!loaded) {
+        wpm_event_printf(WPM_EVENT_ERROR, "query.available.failed", "list",
+                         "query",
+                         "Error: available catalogs could not be "
+                         "read; check repository configuration.\n");
+    }
+    return fflush(stdout) == 0 && !ferror(stdout) && loaded && !issues &&
+           !limited;
+}
+
 static int load_installed(installed_entry *result, int *count) {
     char root[PATH_SIZE], store[PATH_SIZE], search[PATH_SIZE], path[PATH_SIZE];
     WIN32_FIND_DATAA item;
