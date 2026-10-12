@@ -133,6 +133,22 @@ with tempfile.TemporaryDirectory(prefix="wpm-repository-sign-") as directory:
     env["WPM_DATA_DIR"] = str(data)
     for variable in ("WPM_LOG_FILE", "WPM_LOG_DIR"):
         env.pop(variable)
+    public_original = index_public.read_bytes()
+    index_public.write_bytes(
+        public_original.replace(b"wpm-public-key-v1", b"wpm-public-key-v10")
+    )
+    sign("--dry-run", succeeds=False, readonly=True)
+    index_public.write_bytes(public_original)
+    for ending in (b"\n", b"\r\n"):
+        index_public.write_bytes(public_original.replace(b"\n", ending))
+        sign("--dry-run", readonly=True)
+    index_public.write_bytes(public_original)
+    private_original = index_private.read_bytes()
+    index_private.write_bytes(
+        private_original.replace(b"wpm-private-key-v1", b"wpm-private-key-v10")
+    )
+    sign(succeeds=False)
+    index_private.write_bytes(private_original)
     sign("--dry-run", readonly=True)
     before = snapshot(root)
     with read_lock(index_private, share=0):

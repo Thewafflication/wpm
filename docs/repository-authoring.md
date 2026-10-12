@@ -248,3 +248,8 @@ duplicates/bad/unportable leaves, candidate/lock conflicts, locked input/target,
 invalid CLI shapes, and snapshots without scripts. I-09 remains partial for
 full confirmation, complete finding collection, integrated sign/index transactions,
 consumer pin/cache policy, copy/media, and physical environment evidence.
+
+From 1.2.41, selected private/public key files must contain a complete supported
+version-1 header token; a `v10` or longer suffix is not interpreted as `v1`.
+Generated version-1 key files and LF/CRLF line endings remain supported. This
+schema check does not make a repository-distributed key an independent authority.

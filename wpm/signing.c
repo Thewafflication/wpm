@@ -182,6 +182,15 @@ done:
     }
     return ok;
 }
+static int key_header_supported(const char *text, const char *header) {
+    const char *position = strstr(text, header);
+    if (!position) {
+        return 0;
+    }
+    position += strlen(header);
+    return !*position || *position == '\r' || *position == '\n';
+}
+
 static int load_private(const char *path, unsigned char *secret) {
     unsigned char *text;
     size_t n;
@@ -191,7 +200,7 @@ static int load_private(const char *path, unsigned char *secret) {
     if (!read_all(path, &text, &n)) {
         return 0;
     }
-    if (strstr((char *)text, "wpm-private-key-v1") &&
+    if (key_header_supported((char *)text, "wpm-private-key-v1") &&
         field((char *)text, "secret-key", b64, sizeof(b64)) &&
         sodium_base642bin(secret, crypto_sign_SECRETKEYBYTES, b64, strlen(b64),
                           NULL, &out, NULL,
@@ -212,7 +221,7 @@ static int load_public(const char *path, unsigned char *public_key) {
     if (!read_all(path, &text, &n)) {
         return 0;
     }
-    if (strstr((char *)text, "wpm-public-key-v1") &&
+    if (key_header_supported((char *)text, "wpm-public-key-v1") &&
         field((char *)text, "public-key=", b64, sizeof(b64)) &&
         sodium_base642bin(public_key, crypto_sign_PUBLICKEYBYTES, b64,
                           strlen(b64), NULL, &out, NULL,

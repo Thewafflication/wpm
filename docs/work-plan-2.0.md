@@ -843,3 +843,11 @@ unchanged and identical results preserve catalog mtime. Dry-run is read-only;
 existing index.sig is retained and explicit re-signing remains separate. Native
 fixtures cover ordering, conflicts/locks, 96/97 bounds, unsigned authorization,
 reparse roots, CLI shapes, and absent-root snapshots. Full I-09 remains partial.
+
+1.2.41 corrects the related key-file version prefix bug: loaders previously
+accepted wpm-public-key-v10/private-key-v10 as v1. Whole version-1 header tokens
+now require an end-of-line/end-of-text delimiter, preserving generated v1 files
+and LF/CRLF endings. A retained original failing catalog-sign dry-run demonstrates
+the issue; normal and public-only dry-run fixtures reject unsupported headers.
+This rejects unsupported formats without changing valid v1 key material or
+introducing a new trust role/default policy.
