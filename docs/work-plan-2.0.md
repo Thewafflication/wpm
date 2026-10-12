@@ -824,3 +824,13 @@ public-trust inputs remain under `out/failures/archive-verify-*` and the focused
 version regression is promoted to the native suite. No private key is copied
 into that failure evidence. This fixes unsupported schema admission without
 changing archive/index/signature formats or supported version-1 defaults.
+
+1.2.39 adds exact-byte catalog signing and explicit per-command index public-key
+verification as a separate authority from package trust. Detached index.sig
+publication uses the cooperative author lock, owned/flushed candidates, explicit
+replacement, held catalog bytes, and no private-key copying. Dry-run reads only
+public selection and private attributes. Fixtures cover separate roles, missing/
+wrong/stale/malformed signatures, conflicts/locks, key mismatch, private input
+inside the root, revoked package trust, and read-only snapshots. Legacy consumers
+and persisted repository policy remain unchanged; full pin/cache/consumer/media
+and authoring completion remain open under REQ-0017/I-09.

@@ -14,6 +14,17 @@ int wpm_repo_init(const char *directory, int dry_run);
 /** Verify one filesystem catalog and its archives using existing trust only.
  * Performs no managed writes, web retrieval, extraction, or scripts. */
 int wpm_repo_verify(const char *directory, int allow_unsigned);
+/** Require a catalog signature by the explicitly selected index public key.
+ * This authority is separate from the package trust store; no writes/prompts.
+ */
+int wpm_repo_verify_index(const char *directory, int allow_unsigned,
+                          const char *public_key);
+/** Sign an unchanged catalog with an explicit private/public index-key pair.
+ * Dry-run reads public selection only; existing signatures need replacement
+ * authorization. Legacy consumers still authenticate packages separately. */
+int wpm_repo_sign(const char *directory, const char *private_key,
+                  const char *public_key, int replace, int allow_unsigned,
+                  int dry_run);
 /** Append a validated archive to a filesystem catalog without overwriting
  * package identities. Dry-run performs no managed writes. */
 int wpm_repo_add_package(const char *directory, const char *archive,

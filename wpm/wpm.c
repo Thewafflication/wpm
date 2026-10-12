@@ -207,10 +207,10 @@ static void print_usage_line(Command command) {
                          "[--json] [--offline]\n");
         break;
     case CMD_REPO:
-        wpm_event_printf(
-            WPM_EVENT_INFO, "wpm.info", "wpm", "command",
-            "Usage: wpm repo "
-            "<init|verify|add-package|add|list|remove|update|diagnose> ...\n");
+        wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                         "Usage: wpm repo "
+                         "<init|verify|sign|add-package|add|list|remove|update|"
+                         "diagnose> ...\n");
         break;
     case CMD_KEYGEN:
         wpm_event_printf(
@@ -255,6 +255,8 @@ static int command_option_takes_value(Command command, const char *option) {
             (strcmp(option, "--arch") == 0 ||
              strcmp(option, "--version") == 0)) ||
            (command == CMD_REPO && strcmp(option, "--priority") == 0) ||
+           (command == CMD_REPO &&
+            (!strcmp(option, "--sign") || !strcmp(option, "--index-key"))) ||
            (command == CMD_RECOVERY && strcmp(option, "--limit") == 0) ||
            ((command == CMD_LIST || command == CMD_SHOW) &&
             strcmp(option, "--repo") == 0) ||
@@ -285,6 +287,7 @@ static int command_option_is_known(Command command, const char *option) {
                strcmp(option, "--offline") == 0;
     case CMD_REPO:
         return strcmp(option, "--dry-run") == 0 ||
+               strcmp(option, "--replace-signature") == 0 ||
                strcmp(option, "--json") == 0 ||
                strcmp(option, "--allow-unsigned") == 0 ||
                strcmp(option, "--links") == 0 ||
@@ -559,15 +562,55 @@ static int validate_command_actions(Command command, int argc, char **argv,
     }
 
     if (command == CMD_REPO) {
+        int private_options = 0, public_options = 0;
+        for (int i = command_index + 1; i < argc; i++) {
+            if (!strcmp(argv[i], "--sign")) {
+                private_options++;
+            }
+            if (!strcmp(argv[i], "--index-key")) {
+                public_options++;
+            }
+        }
+        if (private_options > 1 || public_options > 1) {
+            return invalid_action_shape(command, "duplicate signer selection");
+        }
+        if ((command_has_option(argc, argv, command_index, "--sign") ||
+             command_has_option(argc, argv, command_index,
+                                "--replace-signature")) &&
+            strcmp(action, "sign")) {
+            return invalid_action_shape(command,
+                                        "signing options require sign");
+        }
+        if (command_has_option(argc, argv, command_index, "--index-key") &&
+            strcmp(action, "verify") && strcmp(action, "sign")) {
+            return invalid_action_shape(command,
+                                        "--index-key requires sign or verify");
+        }
         if (command_has_option(argc, argv, command_index, "--json") &&
             strcmp(action, "diagnose")) {
             return invalid_action_shape(command, "--json requires diagnose");
         }
         if (command_has_option(argc, argv, command_index, "--allow-unsigned") &&
-            strcmp(action, "verify") && strcmp(action, "add-package")) {
+            strcmp(action, "verify") && strcmp(action, "add-package") &&
+            strcmp(action, "sign")) {
             return invalid_action_shape(command,
                                         "--allow-unsigned requires verify "
-                                        "or add-package");
+                                        "or add-package or sign");
+        }
+        if (!strcmp(action, "sign")) {
+            if (count == 2 &&
+                command_has_option(argc, argv, command_index, "--sign") &&
+                command_has_option(argc, argv, command_index, "--index-key") &&
+                !command_has_option(argc, argv, command_index, "--priority") &&
+                !command_has_option(argc, argv, command_index, "--links") &&
+                !command_has_option(argc, argv, command_index, "--offline") &&
+                !command_has_option(argc, argv, command_index,
+                                    "--allow-insecure-http")) {
+                return 1;
+            }
+            return invalid_action_shape(
+                command, "sign requires a directory, --sign private key and "
+                         "--index-key public key");
         }
         if (!strcmp(action, "add-package")) {
             if (count == 3 &&
@@ -1057,7 +1100,8 @@ int main(int argc, char *argv[]) {
         int count = collect_command_operands(cmd, argc, argv, command_index,
                                              operands, 8);
         repository_dry_run = count && (!strcmp(operands[0], "init") ||
-                                       !strcmp(operands[0], "add-package"));
+                                       !strcmp(operands[0], "add-package") ||
+                                       !strcmp(operands[0], "sign"));
     }
     if (dry_run && cmd != CMD_INSTALL && cmd != CMD_REMOVE &&
         cmd != CMD_UPGRADE && !repository_dry_run) {
@@ -1358,13 +1402,38 @@ operation_dispatch:
                                       dry_run)) {
                 return 1;
             }
+        } else if (strcmp(action, "sign") == 0) {
+            const char *private_key = NULL, *public_key = NULL;
+            for (int i = command_index + 1; i < argc; i++) {
+                if (!strcmp(argv[i], "--sign")) {
+                    private_key = argv[++i];
+                } else if (!strcmp(argv[i], "--index-key")) {
+                    public_key = argv[++i];
+                }
+            }
+            if (!wpm_repo_sign(operands[1], private_key, public_key,
+                               command_has_option(argc, argv, command_index,
+                                                  "--replace-signature"),
+                               command_has_option(argc, argv, command_index,
+                                                  "--allow-unsigned"),
+                               dry_run)) {
+                return 1;
+            }
         } else if (strcmp(action, "verify") == 0) {
             const char *operands[3];
+            const char *public_key = NULL;
+            for (int i = command_index + 1; i < argc; i++) {
+                if (!strcmp(argv[i], "--index-key")) {
+                    public_key = argv[++i];
+                }
+            }
             collect_command_operands(CMD_REPO, argc, argv, command_index,
                                      operands, 3);
-            if (!wpm_repo_verify(operands[1],
-                                 command_has_option(argc, argv, command_index,
-                                                    "--allow-unsigned"))) {
+            if (!wpm_repo_verify_index(operands[1],
+                                       command_has_option(argc, argv,
+                                                          command_index,
+                                                          "--allow-unsigned"),
+                                       public_key)) {
                 return 1;
             }
         } else if (strcmp(action, "diagnose") == 0) {
@@ -1901,7 +1970,7 @@ void print_usage(Command c) {
 
     wpm_event_printf(
         WPM_EVENT_INFO, "wpm.info", "wpm", "command",
-        "  repo <init|verify|add-package|add|list|remove|update|diagnose> "
+        "  repo <init|verify|sign|add-package|add|list|remove|update|diagnose> "
         "...\n");
     wpm_event_printf(
         WPM_EVENT_INFO, "wpm.info", "wpm", "command",

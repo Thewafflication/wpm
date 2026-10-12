@@ -653,6 +653,19 @@ if(BUILD_TESTING)
       "${CMAKE_SOURCE_DIR}/tests/repository-verify-integration.py" --wpm
       $<TARGET_FILE:wpm>
   )
+  add_test(
+    NAME repository-sign-integration
+    COMMAND
+      "${Python3_EXECUTABLE}"
+      "${CMAKE_SOURCE_DIR}/tests/repository-sign-integration.py" --wpm
+      $<TARGET_FILE:wpm>
+  )
+  set_tests_properties(
+    repository-sign-integration
+    PROPERTIES
+      TIMEOUT
+        120
+  )
   set_tests_properties(
     repository-verify-integration
     PROPERTIES
@@ -1133,6 +1146,7 @@ if(BUILD_TESTING)
       "repository-verify-integration|"
       "repository-publish-integration|"
       "recovery-integration|"
+      "repository-sign-integration|"
       "quality-query-harness|"
       "installed-list-integration|"
       "available-list-integration|"

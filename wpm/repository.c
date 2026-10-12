@@ -22,6 +22,7 @@
 #include "progress.h"
 #include "json_output.h"
 #include "json_input.h"
+#include "signing.h"
 
 #define PATH_SIZE 4096
 #define MAX_REPOSITORIES 32
@@ -2773,7 +2774,258 @@ static int author_verify_entries(const char *root, package_entry *entries,
     return 1;
 }
 
+static int author_signature_document(const char *text, const char *catalog,
+                                     const char *public_key, char *id,
+                                     size_t id_size) {
+    const char *p = json_content(text);
+    char algorithm[16] = "", purpose[32] = "", public_text[128] = "";
+    char signature_text[256] = "";
+    unsigned fields = 0;
+    if (!json_document_valid(text) || !wpm_json_version_one(text) ||
+        *p++ != '{') {
+        return 0;
+    }
+    while (*(p = skip_ws(p)) != '}') {
+        char key[32], *value = NULL;
+        size_t capacity = 0;
+        unsigned field = 0;
+        if (!json_string(&p, key, sizeof(key)) || *(p = skip_ws(p)) != ':') {
+            return 0;
+        }
+        p = skip_ws(p + 1);
+        if (!strcmp(key, "version")) {
+            field = 1;
+        } else if (!strcmp(key, "purpose")) {
+            field = 2;
+            value = purpose;
+            capacity = sizeof(purpose);
+        } else if (!strcmp(key, "algorithm")) {
+            field = 4;
+            value = algorithm;
+            capacity = sizeof(algorithm);
+        } else if (!strcmp(key, "key_id")) {
+            field = 8;
+            value = id;
+            capacity = id_size;
+        } else if (!strcmp(key, "public_key")) {
+            field = 16;
+            value = public_text;
+            capacity = sizeof(public_text);
+        } else if (!strcmp(key, "signature")) {
+            field = 32;
+            value = signature_text;
+            capacity = sizeof(signature_text);
+        }
+        if ((fields & field) || (value && !json_string(&p, value, capacity)) ||
+            (!value && !json_value_end(&p))) {
+            return 0;
+        }
+        fields |= field;
+        p = skip_ws(p);
+        if (*p == ',') {
+            p++;
+        } else if (*p != '}') {
+            return 0;
+        }
+    }
+    return fields == 63 && !strcmp(purpose, "repository-index") &&
+           !strcmp(algorithm, "ed25519") && strlen(id) == 64 &&
+           strspn(id, "0123456789abcdef") == 64 &&
+           wpm_verify_repository_bytes((const unsigned char *)catalog,
+                                       strlen(catalog), public_key, id,
+                                       public_text, signature_text);
+}
+
+static int author_verify_signature(const char *root, const char *catalog,
+                                   const char *public_key, char *id,
+                                   size_t id_size) {
+    char path[PATH_SIZE], signature[16385];
+    HANDLE input;
+    DWORD size, high = 0, read;
+    int success = 0;
+    if (!author_file(root, "index.sig", path, sizeof(path))) {
+        return 0;
+    }
+    input = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, NULL,
+                        OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (input == INVALID_HANDLE_VALUE) {
+        return 0;
+    }
+    size = GetFileSize(input, &high);
+    if (!high && size > 0 && size < sizeof(signature) &&
+        ReadFile(input, signature, size, &read, NULL) && read == size &&
+        !memchr(signature, 0, size)) {
+        signature[size] = 0;
+        success = author_signature_document(signature, catalog, public_key, id,
+                                            id_size);
+    }
+    CloseHandle(input);
+    return success;
+}
+
+int wpm_repo_sign(const char *directory, const char *private_key,
+                  const char *public_key, int replace, int allow_unsigned,
+                  int dry_run) {
+    char root[PATH_SIZE], private_full[PATH_SIZE], signature_path[PATH_SIZE];
+    char candidate[PATH_SIZE], lock_path[PATH_SIZE], id[65], document[1024];
+    char *text = NULL;
+    const char *array_end, *phase = "resolve repository and explicit key pair";
+    package_entry *entries = calloc(MAX_PACKAGES, sizeof(*entries));
+    HANDLE catalog = INVALID_HANDLE_VALUE, output = INVALID_HANDLE_VALUE;
+    HANDLE lock = INVALID_HANDLE_VALUE, old = INVALID_HANDLE_VALUE;
+    DWORD attributes, size, written;
+    int count = 0, owned = 0, success = 0;
+    size_t root_length;
+    if (dry_run) {
+        wpm_set_readonly(1);
+    } else if (!wpm_require_capability(WPM_CAP_WRITE,
+                                       "sign repository index")) {
+        goto done;
+    }
+    if (!entries || !directory || !private_key || !public_key ||
+        is_web_repository(directory) ||
+        !repository_normalize(directory, root, sizeof(root), 1) ||
+        !(size = GetFullPathNameA(private_key, sizeof(private_full),
+                                  private_full, NULL)) ||
+        size >= sizeof(private_full) ||
+        !join_path(signature_path, sizeof(signature_path), root, "index.sig") ||
+        !join_path(candidate, sizeof(candidate), root, ".index.sig.new") ||
+        !join_path(lock_path, sizeof(lock_path), root, ".wpm-publish.lock")) {
+        goto done;
+    }
+    root_length = strlen(root);
+    if (!_strnicmp(private_full, root, root_length) &&
+        (!private_full[root_length] || private_full[root_length] == '\\' ||
+         root[root_length - 1] == '\\')) {
+        phase = "keep the selected private key outside the repository";
+        goto done;
+    }
+    attributes = GetFileAttributesA(private_full);
+    if (attributes == INVALID_FILE_ATTRIBUTES ||
+        (attributes &
+         (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) ||
+        !wpm_index_key_id(public_key, id, sizeof(id))) {
+        goto done;
+    }
+    attributes = GetFileAttributesA(root);
+    if (attributes == INVALID_FILE_ATTRIBUTES ||
+        !(attributes & FILE_ATTRIBUTE_DIRECTORY) ||
+        (attributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
+        goto done;
+    }
+    if (!dry_run) {
+        phase = "acquire exclusive publication lock";
+        lock = CreateFileA(lock_path, GENERIC_WRITE | DELETE, 0, NULL,
+                           CREATE_NEW, FILE_FLAG_DELETE_ON_CLOSE, NULL);
+        if (lock == INVALID_HANDLE_VALUE) {
+            goto done;
+        }
+    }
+    phase = "validate unchanged catalog and package archives";
+    if (!author_read_catalog(root, &catalog, &text, entries, &count,
+                             &array_end) ||
+        !author_verify_entries(root, entries, count, allow_unsigned)) {
+        goto done;
+    }
+    phase = "protect signature destination and existing candidates";
+    if (GetFileAttributesA(candidate) != INVALID_FILE_ATTRIBUTES) {
+        goto done;
+    }
+    attributes = GetFileAttributesA(signature_path);
+    if (attributes != INVALID_FILE_ATTRIBUTES) {
+        if (!replace || (attributes & (FILE_ATTRIBUTE_DIRECTORY |
+                                       FILE_ATTRIBUTE_REPARSE_POINT))) {
+            goto done;
+        }
+        old = CreateFileA(signature_path, GENERIC_READ, FILE_SHARE_READ, NULL,
+                          OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+        if (old == INVALID_HANDLE_VALUE) {
+            goto done;
+        }
+    } else if (GetLastError() != ERROR_FILE_NOT_FOUND) {
+        goto done;
+    }
+    if (dry_run) {
+        wpm_event_printf(WPM_EVENT_RESULT, "repository.sign.planned",
+                         "repository", "plan",
+                         "Result: catalog signing planned (%d packages)\n"
+                         "Index signer: %s\nPrivate key bytes are not read; "
+                         "the key pair is checked during actual signing.\n",
+                         count, id);
+        success = 1;
+        goto done;
+    }
+    phase = "sign exact catalog bytes and validate explicit key selection";
+    if (!wpm_sign_repository_bytes((const unsigned char *)text, strlen(text),
+                                   private_full, public_key, document,
+                                   sizeof(document), id, sizeof(id)) ||
+        !author_signature_document(document, text, public_key, id,
+                                   sizeof(id))) {
+        goto done;
+    }
+    output = CreateFileA(candidate, GENERIC_WRITE, 0, NULL, CREATE_NEW,
+                         FILE_ATTRIBUTE_NORMAL, NULL);
+    if (output == INVALID_HANDLE_VALUE) {
+        goto done;
+    }
+    owned = 1;
+    size = (DWORD)strlen(document);
+    phase = "flush and atomically publish signature";
+    if (!WriteFile(output, document, size, &written, NULL) || written != size ||
+        !FlushFileBuffers(output)) {
+        goto done;
+    }
+    CloseHandle(output);
+    output = INVALID_HANDLE_VALUE;
+    if (old != INVALID_HANDLE_VALUE) {
+        CloseHandle(old);
+        old = INVALID_HANDLE_VALUE;
+    }
+    if (!(replace
+              ? MoveFileExA(candidate, signature_path,
+                            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)
+              : MoveFileA(candidate, signature_path))) {
+        goto done;
+    }
+    owned = 0;
+    wpm_event_printf(WPM_EVENT_RESULT, "repository.signed", "repository",
+                     "sign",
+                     "Result: repository catalog signed (%d packages)\n"
+                     "Index signer: %s\n",
+                     count, id);
+    success = 1;
+done:
+    if (output != INVALID_HANDLE_VALUE) {
+        CloseHandle(output);
+    }
+    if (old != INVALID_HANDLE_VALUE) {
+        CloseHandle(old);
+    }
+    if (catalog != INVALID_HANDLE_VALUE) {
+        CloseHandle(catalog);
+    }
+    if (owned) {
+        DeleteFileA(candidate);
+    }
+    if (lock != INVALID_HANDLE_VALUE) {
+        CloseHandle(lock);
+    }
+    free(entries);
+    free(text);
+    if (!success) {
+        wpm_event_printf(WPM_EVENT_ERROR, "repository.sign.failed",
+                         "repository", "sign",
+                         "Error: catalog signing failed: %s.\n", phase);
+    }
+    return success;
+}
+
 int wpm_repo_verify(const char *directory, int allow_unsigned) {
+    return wpm_repo_verify_index(directory, allow_unsigned, NULL);
+}
+
+int wpm_repo_verify_index(const char *directory, int allow_unsigned,
+                          const char *public_key) {
     char root[PATH_SIZE], *text = NULL;
     const char *array_end, *phase = "read and validate catalog";
     package_entry *entries = calloc(MAX_PACKAGES, sizeof(*entries));
@@ -2785,6 +3037,16 @@ int wpm_repo_verify(const char *directory, int allow_unsigned) {
         !author_read_catalog(root, &catalog, &text, entries, &count,
                              &array_end)) {
         goto done;
+    }
+    if (public_key) {
+        char id[65];
+        phase = "verify catalog signature with the explicitly pinned index key";
+        if (!author_verify_signature(root, text, public_key, id, sizeof(id))) {
+            goto done;
+        }
+        wpm_event_printf(WPM_EVENT_SUCCESS, "repository.index.signature.valid",
+                         "repository", "verify",
+                         "Catalog signature verified: %s\n", id);
     }
     phase = "validate archive path, identity, integrity, and trust";
     if (!author_verify_entries(root, entries, count, allow_unsigned)) {

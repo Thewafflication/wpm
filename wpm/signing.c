@@ -201,6 +201,7 @@ static int load_private(const char *path, unsigned char *secret) {
     }
     sodium_memzero(text, n);
     free(text);
+    sodium_memzero(b64, sizeof(b64));
     return ok;
 }
 static int load_public(const char *path, unsigned char *public_key) {
@@ -513,6 +514,79 @@ int wpm_sign_package_index(const char *source, const char *private_path) {
     sodium_memzero(sec, sizeof(sec));
     return 1;
 }
+int wpm_index_key_id(const char *public_path, char *id, size_t size) {
+    unsigned char public_key[crypto_sign_PUBLICKEYBYTES];
+    return public_path && sodium_init() >= 0 &&
+           load_public(public_path, public_key) && key_id(public_key, id, size);
+}
+
+int wpm_sign_repository_bytes(const unsigned char *data, size_t length,
+                              const char *private_path, const char *public_path,
+                              char *document, size_t capacity, char *id,
+                              size_t id_size) {
+    unsigned char secret[crypto_sign_SECRETKEYBYTES] = {0};
+    unsigned char expected[crypto_sign_PUBLICKEYBYTES];
+    unsigned char detached[crypto_sign_BYTES];
+    char public_text[128], signature_text[256];
+    unsigned long long signature_size;
+    int written, success = 0;
+    if (!data || !length || !private_path || !public_path || !document ||
+        sodium_init() < 0 || !load_public(public_path, expected) ||
+        !load_private(private_path, secret) ||
+        memcmp(expected, secret + crypto_sign_SECRETKEYBYTES - sizeof(expected),
+               sizeof(expected)) ||
+        !key_id(expected, id, id_size) ||
+        crypto_sign_detached(detached, &signature_size, data,
+                             (unsigned long long)length, secret) ||
+        crypto_sign_verify_detached(detached, data, (unsigned long long)length,
+                                    expected)) {
+        goto done;
+    }
+    sodium_bin2base64(public_text, sizeof(public_text), expected,
+                      sizeof(expected), sodium_base64_VARIANT_ORIGINAL);
+    sodium_bin2base64(signature_text, sizeof(signature_text), detached,
+                      sizeof(detached), sodium_base64_VARIANT_ORIGINAL);
+    written = snprintf(document, capacity,
+                       "{\n  \"version\": 1,\n"
+                       "  \"purpose\": \"repository-index\",\n"
+                       "  \"algorithm\": \"ed25519\",\n"
+                       "  \"key_id\": \"%s\",\n"
+                       "  \"public_key\": \"%s\",\n"
+                       "  \"signature\": \"%s\"\n}\n",
+                       id, public_text, signature_text);
+    success = written > 0 && (size_t)written < capacity;
+done:
+    sodium_memzero(secret, sizeof(secret));
+    return success;
+}
+
+int wpm_verify_repository_bytes(const unsigned char *data, size_t length,
+                                const char *public_path,
+                                const char *declared_id,
+                                const char *public_text,
+                                const char *signature_text) {
+    unsigned char expected[crypto_sign_PUBLICKEYBYTES];
+    unsigned char public_key[crypto_sign_PUBLICKEYBYTES];
+    unsigned char detached[crypto_sign_BYTES];
+    char id[KEY_ID_SIZE];
+    size_t decoded;
+    return data && length && public_path && declared_id && public_text &&
+           signature_text && sodium_init() >= 0 &&
+           load_public(public_path, expected) &&
+           key_id(expected, id, sizeof(id)) && !strcmp(id, declared_id) &&
+           !sodium_base642bin(public_key, sizeof(public_key), public_text,
+                              strlen(public_text), NULL, &decoded, NULL,
+                              sodium_base64_VARIANT_ORIGINAL) &&
+           decoded == sizeof(public_key) &&
+           !memcmp(public_key, expected, sizeof(expected)) &&
+           !sodium_base642bin(detached, sizeof(detached), signature_text,
+                              strlen(signature_text), NULL, &decoded, NULL,
+                              sodium_base64_VARIANT_ORIGINAL) &&
+           decoded == sizeof(detached) &&
+           !crypto_sign_verify_detached(detached, data,
+                                        (unsigned long long)length, expected);
+}
+
 int wpm_validate_signature_bytes(const char *signature,
                                  const unsigned char *index, size_t length,
                                  int allow_unsigned, char *result,

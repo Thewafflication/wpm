@@ -31,4 +31,20 @@ int wpm_validate_signature_bytes(const char *signature,
                                  const unsigned char *index, size_t length,
                                  int allow_unsigned, char *key_id, size_t size);
 
+/** Inspect an explicitly selected public index key without trust-store writes.
+ */
+int wpm_index_key_id(const char *public_path, char *id, size_t size);
+/** Sign exact catalog bytes with an explicit matching private/public pair.
+ * Produces public-only JSON; clears private buffers and writes no files. */
+int wpm_sign_repository_bytes(const unsigned char *data, size_t length,
+                              const char *private_path, const char *public_path,
+                              char *signature, size_t capacity, char *id,
+                              size_t id_size);
+/** Verify exact catalog bytes against the explicitly pinned index public key.
+ * Package-signing trust does not authorize this separate role. */
+int wpm_verify_repository_bytes(const unsigned char *data, size_t length,
+                                const char *public_path, const char *id,
+                                const char *public_text,
+                                const char *signature_text);
+
 #endif
