@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import os
+import shutil
 from pathlib import Path
 import subprocess
 import tempfile
@@ -278,5 +279,25 @@ with tempfile.TemporaryDirectory(prefix="wpm-recovery-") as directory:
         print("SKIP: fixture filesystem cannot create a directory junction")
     saved_dir.rename(audit_dir)
     run("recovery", "list", readonly=True)
+    # Quiescent whole-state restore into a fresh disposable explicit root.
+    # External repository and signing paths retain their original locations.
+    restored = root / "restored-data"
+    before_data = snapshot(data)
+    marker_before = marker.read_bytes(), marker.stat().st_mtime_ns
+    shutil.copytree(data, restored, copy_function=shutil.copy2)
+    assert snapshot(restored) == before_data
+    env["WPM_DATA_DIR"] = str(restored)
+    text = run("list", "recovery-check", readonly=True)
+    assert "recovery-check any 1.0.0" in text, text
+    assert "recovery-check any 1.0.1" not in text, text
+    value = machine()
+    assert value["records"][0]["record"] == audit.name, value
+    assert value["records"][0]["new_version"] == "1.0.1", value
+    run("repo", "verify", repository, readonly=True)
+    run("repo", "diagnose", "--links", succeeds=False, readonly=True)
+    assert snapshot(data) == before_data
+    assert snapshot(restored) == before_data
+    assert (marker.read_bytes(), marker.stat().st_mtime_ns) == marker_before
+    env["WPM_DATA_DIR"] = str(data)
 
 print("PASS: real failed upgrade audit query without mutation or script replay")

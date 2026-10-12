@@ -777,3 +777,11 @@ legacy bytes. Empty, bounded, invalid, unavailable, Unicode, malformed encoding,
 color, credential, and snapshot cases are covered. This optional audit schema
 does not complete general machine output or the authenticated recovery record;
 I-06/I-08 remain partial and breaking contracts remain reserved for 2.x.
+
+1.2.35 documents actual 1.x product/package removal scope, data categories,
+quiescent whole-state backup/restore, protected trust/private-key references,
+pending handoffs, validation, and unsupported partial restores. A real signed
+install/failed-upgrade fixture copies the complete explicit root and proves
+restored metadata, trust verification, and evidence remain usable without writes
+or script replay. ACL/deployment/physical/pending-work demonstrations remain open;
+REQ-0019.006/.007 and I-06 are partial, with unchanged 1.x removal defaults.

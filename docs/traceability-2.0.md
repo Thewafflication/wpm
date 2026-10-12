@@ -64,8 +64,8 @@ every row that is not `Verified` or lacks objective evidence.
 | REQ-0019.003 | TC-0019 | Automated state-transition and trust test | Planned | Not yet produced |
 | REQ-0019.004 | TC-0019 | Automated classification/idempotence test | Planned | Not yet produced |
 | REQ-0019.005 | TC-0019 | Automated deletion-boundary and race test | Planned | Not yet produced |
-| REQ-0019.006 | TC-0019 | Output and documentation inspection | Planned | Not yet produced |
-| REQ-0019.007 | TC-0019 | Documentation inspection and restore demonstration | Planned | Not yet produced |
+| REQ-0019.006 | TC-0019 | Output and documentation inspection | Planned | `docs/lifecycle-data.md`; existing TC-0007 removal fixture; broader messaging open |
+| REQ-0019.007 | TC-0019 | Documentation inspection and restore demonstration | Planned | `docs/lifecycle-data.md`; `tests/recovery-integration.py` quiescent explicit-root restore; ACL/deployment/pending/physical evidence open |
 | REQ-0019.008 | TC-0019 | Architecture-matrix test and evidence inspection | Planned | Not yet produced |
 | REQ-0019.009 | TC-0019 | Failure-message inspection | Planned | Not yet produced |
 | REQ-0020.001 | TC-0020 | Harness isolation self-test | Planned | Not yet produced |

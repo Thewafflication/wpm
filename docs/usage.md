@@ -402,8 +402,11 @@ setup.cmd --user bin\x86\Debug\wpm.exe
 remove.cmd --user
 ```
 
-`remove.cmd` removes that installation and its machine-level environment
-entries. Both scripts accept the `WPM_INSTALL_DIR`, `WPM_DATA_DIR`, and
+`remove.cmd` recursively removes the selected installation and data directories,
+including retained archives, configuration, trust, audits, and internal logs.
+It updates the selected scope's persistent environment entries; it does not
+run all package removal scripts. Save required state outside both deletion roots
+first. See [data lifecycle and backup/restore](lifecycle-data.md). Both scripts accept the `WPM_INSTALL_DIR`, `WPM_DATA_DIR`, and
 `WPM_ENVIRONMENT_REGISTRY_KEY` environment variables as explicit overrides for
 automation and testing.
 
