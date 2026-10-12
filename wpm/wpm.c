@@ -253,6 +253,7 @@ static int command_option_is_known(Command command, const char *option) {
                strcmp(option, "--offline") == 0;
     case CMD_REPO:
         return strcmp(option, "--dry-run") == 0 ||
+               strcmp(option, "--json") == 0 ||
                strcmp(option, "--allow-unsigned") == 0 ||
                strcmp(option, "--links") == 0 ||
                strcmp(option, "--allow-insecure-http") == 0 ||
@@ -446,6 +447,10 @@ static int validate_command_actions(Command command, int argc, char **argv,
     const char *action = count > 0 ? operands[0] : "list";
 
     if (command == CMD_REPO) {
+        if (command_has_option(argc, argv, command_index, "--json") &&
+            strcmp(action, "diagnose")) {
+            return invalid_action_shape(command, "--json requires diagnose");
+        }
         if (command_has_option(argc, argv, command_index, "--allow-unsigned") &&
             strcmp(action, "verify") && strcmp(action, "add-package")) {
             return invalid_action_shape(command,
@@ -963,6 +968,11 @@ int main(int argc, char *argv[]) {
         !validate_command_actions(cmd, argc, argv, command_index)) {
         return 1;
     }
+    if (cmd == CMD_REPO &&
+        command_has_option(argc, argv, command_index, "--json") && verbose) {
+        invalid_action_shape(cmd, "--json and --verbose cannot combine");
+        return 1;
+    }
     if (cmd == CMD_INSTALL || cmd == CMD_REMOVE || cmd == CMD_UPGRADE) {
         for (int i = command_index + 1; i < argc; i++) {
             if (!strcmp(argv[i], "--confirm")) {
@@ -1230,10 +1240,13 @@ operation_dispatch:
                 return 1;
             }
         } else if (strcmp(action, "diagnose") == 0) {
+            int links =
+                command_has_option(argc, argv, command_index, "--links");
             int healthy =
-                command_has_option(argc, argv, command_index, "--links")
-                    ? wpm_repo_diagnose_links()
-                    : wpm_repo_diagnose();
+                command_has_option(argc, argv, command_index, "--json")
+                    ? wpm_repo_diagnose_json(links)
+                : links ? wpm_repo_diagnose_links()
+                        : wpm_repo_diagnose();
             if (!healthy) {
                 return 1;
             }
@@ -1591,7 +1604,8 @@ void print_usage(Command c) {
                 WPM_EVENT_INFO, "wpm.info", "wpm", "command",
                 "\nManage package repositories.\n\nExamples:\n  wpm repo "
                 "add .\\repository --priority 10\n  wpm repo list\n  wpm "
-                "repo update --offline\n  wpm repo diagnose [--links]\n  "
+                "repo update --offline\n  "
+                "wpm repo diagnose [--links] [--json]\n  "
                 "wpm repo init .\\repository [--dry-run]\n  "
                 "wpm repo verify .\\repository [--allow-unsigned]\n  "
                 "wpm repo add-package .\\repository .\\package.zip "

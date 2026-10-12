@@ -516,8 +516,8 @@ static int parse_entry(char *line, int *priority, char **url, int *allow_http) {
     }
     return **url != '\0' && (!is_http_repository(*url) || *allow_http);
 }
-static int load_repositories(repository *result, int *count,
-                             int *invalid_count) {
+static int load_repositories(repository *result, int *count, int *invalid_count,
+                             int quiet) {
     char path[PATH_SIZE], line[PATH_SIZE + 32], normalized[PATH_SIZE];
     FILE *input;
     *count = 0;
@@ -540,11 +540,13 @@ static int load_repositories(repository *result, int *count,
                      _stricmp(url, normalized) != 0)) {
                     if (invalid_count) {
                         (*invalid_count)++;
-                        wpm_event_printf(WPM_EVENT_WARNING,
-                                         "repository.config.invalid",
-                                         "repository", "diagnose",
-                                         "Warning: invalid configured "
-                                         "repository entry ignored.\n");
+                        if (!quiet) {
+                            wpm_event_printf(WPM_EVENT_WARNING,
+                                             "repository.config.invalid",
+                                             "repository", "diagnose",
+                                             "Warning: invalid configured "
+                                             "repository entry ignored.\n");
+                        }
                     } else if (!is_web_repository(url)) {
                         wpm_event_printf(
                             WPM_EVENT_WARNING, "repository.warning",
@@ -735,7 +737,7 @@ int wpm_repo_remove(const char *url) {
 int wpm_repo_list(void) {
     repository repositories[MAX_REPOSITORIES];
     int count, i;
-    if (!load_repositories(repositories, &count, NULL)) {
+    if (!load_repositories(repositories, &count, NULL, 0)) {
         return 0;
     }
     if (!count) {
@@ -2133,7 +2135,7 @@ cleanup:
     fclose(input);
     return result;
 }
-static int diagnose_repositories(int follow_links) {
+static int diagnose_repositories(int follow_links, int json) {
     repository repositories[MAX_REPOSITORIES];
     char path[PATH_SIZE];
     int count, invalid_config = 0, usable = 0, unavailable = 0;
@@ -2142,17 +2144,36 @@ static int diagnose_repositories(int follow_links) {
     wpm_set_readonly(1);
     repository_verbose =
         0; /* Query output never prints credentialed locators. */
-    int loaded = load_repositories(repositories, &count, &invalid_config);
-    repository_verbose = saved_verbose;
+    int loaded = load_repositories(repositories, &count, &invalid_config, json);
+    if (!json) {
+        repository_verbose = saved_verbose;
+    }
     if (!loaded) {
+        repository_verbose = saved_verbose;
+        if (json) {
+            printf(
+                "{\"version\":1,\"follow_links\":%s,\"healthy\":false,"
+                "\"error\":\"configuration_unreadable\",\"roots\":[],"
+                "\"summary\":{\"configured_roots\":0,\"inspected_roots\":0,"
+                "\"usable_indexes\":0,\"unavailable\":0,\"invalid\":0,"
+                "\"stale\":0,\"invalid_configuration\":1,\"link_issues\":0}}\n",
+                follow_links ? "true" : "false");
+            return 0;
+        }
         wpm_event_printf(
             WPM_EVENT_ERROR, "repository.health.failed", "repository",
             "diagnose", "Error: repository configuration could not be read.\n");
         return 0;
     }
     configured = count;
-    wpm_event_printf(WPM_EVENT_INFO, "repository.health.start", "repository",
-                     "diagnose", "Repository health (read-only):\n");
+    if (json) {
+        printf("{\"version\":1,\"follow_links\":%s,\"roots\":[",
+               follow_links ? "true" : "false");
+    } else {
+        wpm_event_printf(WPM_EVENT_INFO, "repository.health.start",
+                         "repository", "diagnose",
+                         "Repository health (read-only):\n");
+    }
     for (int i = 0; i < count; i++) {
         int web = is_web_repository(repositories[i].url);
         const char *transport = !web ? "filesystem source"
@@ -2180,6 +2201,23 @@ static int diagnose_repositories(int follow_links) {
                 status = "valid";
             }
         }
+        if (json) {
+            const char *machine_status =
+                !strcmp(status, "valid")          ? "valid"
+                : !strcmp(status, "valid, stale") ? "stale"
+                : !strcmp(status, "unavailable")  ? "unavailable"
+                                                  : "invalid";
+            printf("%s{\"ordinal\":%d,\"configured\":%s,\"parent\":%d,"
+                   "\"transport\":\"%s\",\"insecure\":%s,\"status\":\"%s\"}",
+                   i ? "," : "", i + 1, i < configured ? "true" : "false",
+                   parents[i],
+                   !web                                      ? "filesystem"
+                   : is_http_repository(repositories[i].url) ? "http"
+                                                             : "https",
+                   is_http_repository(repositories[i].url) ? "true" : "false",
+                   machine_status);
+            continue;
+        }
         wpm_event_printf(WPM_EVENT_INFO, "repository.health.item", "repository",
                          "diagnose", "  Repository %d: %s; %s\n", i + 1,
                          transport, status);
@@ -2188,6 +2226,18 @@ static int diagnose_repositories(int follow_links) {
                              "repository", "diagnose",
                              "    Linked from repository %d\n", parents[i]);
         }
+    }
+    if (json) {
+        int healthy =
+            !(unavailable || invalid || stale || invalid_config || issues);
+        printf("],\"summary\":{\"configured_roots\":%d,\"inspected_roots\":%d,"
+               "\"usable_indexes\":%d,\"unavailable\":%d,\"invalid\":%d,"
+               "\"stale\":%d,\"invalid_configuration\":%d,\"link_issues\":%d},"
+               "\"healthy\":%s}\n",
+               configured, count, usable, unavailable, invalid, stale,
+               invalid_config, issues, healthy ? "true" : "false");
+        repository_verbose = saved_verbose;
+        return fflush(stdout) == 0 && !ferror(stdout) && healthy;
     }
     wpm_event_printf(
         WPM_EVENT_INFO, "repository.health.summary", "repository", "diagnose",
@@ -2217,8 +2267,11 @@ static int diagnose_repositories(int follow_links) {
                      "Result: repository health healthy\n");
     return 1;
 }
-int wpm_repo_diagnose(void) { return diagnose_repositories(0); }
-int wpm_repo_diagnose_links(void) { return diagnose_repositories(1); }
+int wpm_repo_diagnose(void) { return diagnose_repositories(0, 0); }
+int wpm_repo_diagnose_links(void) { return diagnose_repositories(1, 0); }
+int wpm_repo_diagnose_json(int follow_links) {
+    return diagnose_repositories(follow_links != 0, 1);
+}
 static int safe_relative_item(const char *item) {
     const char *segment;
     const char *cursor;
@@ -3218,7 +3271,7 @@ static int load_entries(repository *repositories, int *repository_count,
     char cached[PATH_SIZE];
     int usable = 0;
     *entry_count = 0;
-    if (!load_repositories(repositories, repository_count, NULL)) {
+    if (!load_repositories(repositories, repository_count, NULL, 0)) {
         return 0;
     }
     for (int i = 0; i < *repository_count; i++) {

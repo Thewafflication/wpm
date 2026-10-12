@@ -31,6 +31,8 @@ int wpm_repo_diagnose(void);
  * retrieval.
  */
 int wpm_repo_diagnose_links(void);
+/** Emit a versioned JSON catalog-health report without locators or writes. */
+int wpm_repo_diagnose_json(int follow_links);
 /** Refresh repository indexes, optionally using cached data only. */
 int wpm_repo_update(int offline);
 /** Resolve and install one package using the requested selectors. */

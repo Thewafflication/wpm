@@ -52,3 +52,40 @@ duplicates, missing/stale/corrupt descendants, unsafe references, capacity,
 credential safety, strict flag scope, and zero managed filesystem changes or web requests.
 Installed records, architecture conflicts, pending self-upgrade, trust
 assessment, and versioned machine output remain future work.
+
+## Versioned JSON report (1.2.28)
+
+`wpm repo diagnose --json [--links] [--offline]` emits one JSON document on
+standard output for a valid invocation, including unhealthy configurations.
+The exit status is still 0 for healthy and 1 when attention is required. The
+existing human report remains the default. `--verbose` is rejected with JSON
+before initialization; forced color does not add terminal escapes to JSON.
+
+The report has integer `version: 1`, Boolean `follow_links` and `healthy`, a
+`roots` array, and a `summary` object. Each root provides `ordinal`, Boolean
+`configured`, `parent` (0 for a configured root), `transport` (`filesystem`,
+`http`, or `https`), Boolean `insecure`, and `status` (`valid`, `stale`, `invalid`,
+or `unavailable`). Ordinals follow the same configured/discovery order as the
+human report. The built-in root counts as configured.
+
+Summary keys are `configured_roots`, `inspected_roots`, `usable_indexes`,
+`unavailable`, `invalid`, `stale`, `invalid_configuration`, and `link_issues`.
+A stale index is usable but requires attention. If configuration paths cannot
+be resolved, roots are empty, invalid configuration is 1, and an additional
+`error: "configuration_unreadable"` identifies the failure. Consumers should
+check the version and tolerate additional fields in future compatible reports.
+
+Locators, credentials, filesystem paths, and raw exception text are omitted.
+The command retains the same read-only/no-web-retrieval guarantees and linked
+graph bounds. Argument errors retain normal CLI usage diagnostics; they are
+not JSON health reports. For example:
+
+```text
+wpm repo diagnose --json --links > repository-health.json
+```
+
+The health integration fixture parses actual output with a JSON parser, checks
+counts/status/parent relationships, absence of credentials and locators, forced
+color, configuration-resolution failures, CLI rejection, filesystem snapshots,
+and a loopback server that receives no requests. Broader installed-state health
+and general machine output remain open in I-06/I-08; breaking changes stay on 2.x.

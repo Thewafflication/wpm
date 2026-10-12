@@ -702,3 +702,9 @@ cooperating-writer locks, content-addressed archives, and atomic schema-1 catalo
 updates preserving extensions/links. Real locked-catalog retention and retry,
 collision protection, and existing resolver consumption provide evidence.
 Full regeneration, repository signing, and physical environment gates stay open.
+
+1.2.28 adds an opt-in version-1 JSON repository-health report sharing the human
+query's checks, redaction, read-only boundary, and graph bounds. Actual parser,
+status/count/parent, invalid-config, forced-color, and loopback/snapshot evidence
+cover the format. Broader installed health and general I-08 machine output stay
+open; existing human output remains the default.

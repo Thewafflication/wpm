@@ -92,10 +92,49 @@ with tempfile.TemporaryDirectory(prefix="wpm-repo-health-") as directory:
         path.write_text(valid)
         return path
 
+    def machine(succeeds=False, links=False):
+        options = ["--json"] + (["--links"] if links else [])
+        text = run("repo", "diagnose", *options, succeeds=succeeds)
+        report = json.loads(text)
+        assert report["version"] == 1
+        assert report["healthy"] is succeeds
+        assert report["follow_links"] is links
+        assert len(report["roots"]) == report["summary"]["inspected_roots"]
+        assert [item["ordinal"] for item in report["roots"]] == list(
+            range(1, len(report["roots"]) + 1)
+        )
+        for item in report["roots"]:
+            assert set(item) == {
+                "ordinal",
+                "configured",
+                "parent",
+                "transport",
+                "insecure",
+                "status",
+            }
+            assert item["status"] in {
+                "valid",
+                "stale",
+                "invalid",
+                "unavailable",
+            }
+            assert item["insecure"] == (item["transport"] == "http")
+        assert (
+            str(source) not in text and web not in text and default not in text
+        )
+        return report
+
     try:
         text = run("repo", "diagnose")
         assert "unavailable: 1" in text and "wpm update" in text, text
         assert not data.exists()
+        assert machine()["summary"]["unavailable"] == 1
+        assert not data.exists()
+        env["WPM_DATA_DIR"] = "C:\\" + "x" * 4085
+        report = machine(links=True)
+        assert report["error"] == "configuration_unreadable"
+        assert report["summary"]["invalid_configuration"] == 1
+        env["WPM_DATA_DIR"] = str(data)
         config = data / "config" / "repositories.txt"
         config.parent.mkdir(parents=True)
         entries = f"1000\t{source}\n1\t{web}\tallow-insecure-http=true\n"
@@ -105,23 +144,38 @@ with tempfile.TemporaryDirectory(prefix="wpm-repo-health-") as directory:
         text = run("repo", "diagnose", succeeds=True)
         assert "usable indexes: 3" in text and "health healthy" in text, text
         assert "HTTP cache (insecure)" in text, text
+        report = machine(succeeds=True)
+        assert report["summary"]["usable_indexes"] == 3
+        assert all(item["configured"] for item in report["roots"])
+        json.loads(run("repo", "--json", "diagnose", succeeds=True))
+        json.loads(
+            run(
+                "--color", "always", "repo", "diagnose", "--json", succeeds=True
+            )
+        )
+        json.loads(
+            run("repo", "diagnose", "--json", "--offline", succeeds=True)
+        )
         run("--verbose", "repo", "diagnose", succeeds=True)
         run("repo", "diagnose", "--verbose", succeeds=True)
         run("repo", "diagnose", "--offline", succeeds=True)
         config.write_text(entries + f"0\t{credentialed}\n")
         text = run("--verbose", "repo", "diagnose")
         assert "invalid configuration: 1" in text, text
+        assert machine()["summary"]["invalid_configuration"] == 1
         config.write_text(entries)
 
         stale = time.time() - 7200
         os.utime(web_cache, (stale, stale))
         text = run("repo", "diagnose")
         assert "stale: 1" in text and "Next action:" in text, text
+        assert machine()["roots"][1]["status"] == "stale"
         now = time.time()
         os.utime(web_cache, (now, now))
         source_index.write_text('{"version":1,"packages":[],}')
         text = run("repo", "diagnose")
         assert "invalid: 1" in text and "check index/read access" in text, text
+        assert machine()["summary"]["invalid"] == 1
         for number in (
             "1.0000000000000000000000001",
             "0.9999999999999999999999999",
@@ -136,6 +190,7 @@ with tempfile.TemporaryDirectory(prefix="wpm-repo-health-") as directory:
         try:
             text = run("repo", "diagnose")
             assert "unavailable: 1" in text and "Reconnect local media" in text
+            assert machine()["roots"][0]["status"] == "unavailable"
         finally:
             removed_source.rename(source)
         config.write_text(entries + "2\tC:\\C:\n")
@@ -192,6 +247,17 @@ with tempfile.TemporaryDirectory(prefix="wpm-repo-health-") as directory:
         run("repo", "diagnose", succeeds=True)
         text = run("repo", "diagnose", "--links", succeeds=True)
         assert "Inspected roots: 6; link issues: 0" in text, text
+        report = machine(succeeds=True, links=True)
+        assert report["summary"]["inspected_roots"] == 6
+        assert [item["parent"] for item in report["roots"]] == [
+            0,
+            0,
+            0,
+            1,
+            2,
+            4,
+        ]
+        assert sum(item["configured"] for item in report["roots"]) == 3
         assert "Linked from repository 2" in text, text
         linked_cache.unlink()
         text = run("repo", "diagnose", "--links")
@@ -217,6 +283,7 @@ with tempfile.TemporaryDirectory(prefix="wpm-repo-health-") as directory:
         )
         text = run("repo", "diagnose", "--links")
         assert "link issues: 2" in text, text
+        assert machine(links=True)["summary"]["link_issues"] == 2
         nodes = []
         for number in range(35):
             node = source / f"node-{number:02d}"
@@ -235,6 +302,7 @@ with tempfile.TemporaryDirectory(prefix="wpm-repo-health-") as directory:
         web_cache.write_text(valid)
         text = run("repo", "diagnose", "--links")
         assert "Inspected roots: 32; link issues: 6" in text, text
+        assert machine(links=True)["summary"]["link_issues"] == 6
         source_index.write_text(valid)
         for arguments in (
             ("repo", "diagnose", "extra"),
@@ -243,6 +311,10 @@ with tempfile.TemporaryDirectory(prefix="wpm-repo-health-") as directory:
             ("repo", "diagnose", "--unknown"),
             ("repo", "list", "--links"),
             ("repo", "add", source, "--links"),
+            ("repo", "init", root / "invalid-json", "--json"),
+            ("repo", "list", "--json"),
+            ("repo", "diagnose", "--json", "--verbose"),
+            ("--verbose", "repo", "diagnose", "--json"),
         ):
             text = run(*arguments)
             assert "Usage:" in text, text
