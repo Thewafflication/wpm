@@ -31,6 +31,9 @@ int wpm_repo_list_installed(const char *name, const char *arch,
  * Reports prerelease policy; does not fetch or validate package archives. */
 int wpm_repo_list_available(const char *name, const char *arch,
                             const char *version);
+/** Show all matching retained/catalog metadata without selecting or mutating.
+ * Returns nonzero only for complete metadata with at least one match. */
+int wpm_repo_show(const char *name, const char *arch, const char *version);
 /** Remove a configured repository. */
 int wpm_repo_remove(const char *url);
 /** Inspect configured catalog health without managed writes or web retrieval.

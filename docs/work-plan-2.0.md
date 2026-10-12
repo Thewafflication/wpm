@@ -742,3 +742,9 @@ roots, exact selectors, semantic ordering, and prerelease policy labels. Shared
 bounded catalog reads preserve authoring behavior. Loopback zero-request and
 snapshot fixtures cover duplicates, missing/stale/locked/corrupt metadata,
 invalid links/configuration, credentials, and bounds. I-08 remains partial.
+
+1.2.31 adds `show` over the shared retained/catalog query layer with exact
+selectors, complete/partial status, explicit no-match handling, and all source
+choices retained. Snapshots and zero-request fixtures cover unknown packages,
+ambiguity, incomplete sources, and no script execution. Broader trust/deployment
+health and machine output remain open.

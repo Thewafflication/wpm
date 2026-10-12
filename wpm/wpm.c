@@ -149,6 +149,8 @@ static const char *command_name(Command command) {
         return "recovery";
     case CMD_LIST:
         return "list";
+    case CMD_SHOW:
+        return "show";
     case CMD_UPDATE:
         return "update";
     case CMD_UPGRADE:
@@ -191,6 +193,11 @@ static void print_usage_line(Command command) {
             WPM_EVENT_INFO, "wpm.info", "wpm", "command",
             "Usage: wpm list [--available] [package] [--arch <arch>] "
             "[--version <semver>] [--offline]\n");
+        break;
+    case CMD_SHOW:
+        wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                         "Usage: wpm show <package> [--arch <arch>] "
+                         "[--version <semver>] [--offline]\n");
         break;
     case CMD_RECOVERY:
         wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
@@ -241,7 +248,7 @@ static void print_usage_line(Command command) {
 static int command_option_takes_value(Command command, const char *option) {
     return (command == CMD_BUILD && strcmp(option, "--sign") == 0) ||
            ((command == CMD_INSTALL || command == CMD_UPGRADE ||
-             command == CMD_LIST) &&
+             command == CMD_LIST || command == CMD_SHOW) &&
             (strcmp(option, "--arch") == 0 ||
              strcmp(option, "--version") == 0)) ||
            (command == CMD_REPO && strcmp(option, "--priority") == 0) ||
@@ -285,6 +292,8 @@ static int command_option_is_known(Command command, const char *option) {
     case CMD_LIST:
         return strcmp(option, "--offline") == 0 ||
                strcmp(option, "--available") == 0;
+    case CMD_SHOW:
+        return strcmp(option, "--offline") == 0;
     case CMD_UPGRADE:
         return strcmp(option, "--all") == 0 || strcmp(option, "-y") == 0 ||
                strcmp(option, "--yes") == 0 ||
@@ -380,6 +389,12 @@ static int validate_command_operands(Command command, int argc, char **argv,
     case CMD_LIST:
         if (operands > 1) {
             return invalid_operand_shape(command, "too many package selectors");
+        }
+        break;
+    case CMD_SHOW:
+        if (operands != 1) {
+            return invalid_operand_shape(command,
+                                         "requires one package identity");
         }
         break;
     case CMD_INIT:
@@ -1054,7 +1069,7 @@ int main(int argc, char *argv[]) {
         }
     }
     wpm_set_verbose(verbose);
-    if (cmd == CMD_RECOVERY || cmd == CMD_LIST) {
+    if (cmd == CMD_RECOVERY || cmd == CMD_LIST || cmd == CMD_SHOW) {
         wpm_set_readonly(1);
     }
     SetEnvironmentVariableA("WPM_VERBOSE", verbose ? "1" : NULL);
@@ -1382,10 +1397,11 @@ operation_dispatch:
         break;
     }
 
-    case CMD_LIST: {
+    case CMD_LIST:
+    case CMD_SHOW: {
         const char *operands[1], *arch = NULL, *version = NULL;
-        int count = collect_command_operands(CMD_LIST, argc, argv,
-                                             command_index, operands, 1);
+        int count = collect_command_operands(cmd, argc, argv, command_index,
+                                             operands, 1);
         for (int i = command_index + 1; i < argc; i++) {
             if (!strcmp(argv[i], "--arch")) {
                 arch = argv[++i];
@@ -1394,7 +1410,8 @@ operation_dispatch:
             }
         }
         int complete =
-            command_has_option(argc, argv, command_index, "--available")
+            cmd == CMD_SHOW ? wpm_repo_show(operands[0], arch, version)
+            : command_has_option(argc, argv, command_index, "--available")
                 ? wpm_repo_list_available(count ? operands[0] : NULL, arch,
                                           version)
                 : wpm_repo_list_installed(count ? operands[0] : NULL, arch,
@@ -1683,6 +1700,14 @@ void print_usage(Command c) {
                 "wpm list my-package --arch x64\n  "
                 "wpm list --available my-package\n");
             return;
+        case CMD_SHOW:
+            print_usage_line(c);
+            wpm_event_printf(
+                WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                "\nInspect all matching retained and local/cached catalog "
+                "metadata without selecting a candidate or making changes.\n"
+                "\nExample:\n  wpm show my-package --arch x64\n");
+            return;
         case CMD_RECOVERY:
             print_usage_line(c);
             wpm_event_printf(
@@ -1783,6 +1808,10 @@ void print_usage(Command c) {
                      "      Inspect recorded failed upgrades\n\n"
                      "  list [package] [--arch <arch>] [--version <semver>]\n"
                      "      Inspect retained installed-package metadata\n\n");
+    wpm_event_printf(
+        WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+        "  show <package> [--arch <arch>] [--version <semver>]\n"
+        "      Inspect all matching retained/catalog metadata\n\n");
 
     wpm_event_printf(
         WPM_EVENT_INFO, "wpm.info", "wpm", "command",
@@ -1913,6 +1942,9 @@ void print_usage(Command c) {
 }
 
 Command parse_command(const char *cmd) {
+    if (strcmp(cmd, "show") == 0) {
+        return CMD_SHOW;
+    }
     if (strcmp(cmd, "list") == 0) {
         return CMD_LIST;
     }

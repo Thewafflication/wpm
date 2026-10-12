@@ -25,7 +25,8 @@ typedef enum {
     CMD_UPDATE,   /**< Refresh repository metadata. */
     CMD_UPGRADE,  /**< Upgrade installed packages. */
     CMD_RECOVERY, /**< Inspect recorded operation failures. */
-    CMD_LIST      /**< List retained installed package records. */
+    CMD_LIST,     /**< List retained installed package records. */
+    CMD_SHOW      /**< Show matching retained and catalog package metadata. */
 } Command;
 
 /**

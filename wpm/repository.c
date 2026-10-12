@@ -3311,14 +3311,17 @@ static int available_record_order(const void *left, const void *right) {
     return order ? order : strcmp(a->url, b->url);
 }
 
-int wpm_repo_list_available(const char *name, const char *arch,
-                            const char *version) {
+static int query_available_records(const char *name, const char *arch,
+                                   const char *version, int *matches) {
     repository *roots = calloc(MAX_REPOSITORIES, sizeof(*roots));
     package_entry *records = calloc(MAX_PACKAGES, sizeof(*records));
     int parents[MAX_REPOSITORIES] = {0}, stale[MAX_REPOSITORIES] = {0};
     char path[PATH_SIZE], source[PATH_SIZE];
     int root_count = 0, configured = 0, count = 0, issues = 0, limited = 0;
     int matched = 0, saved_verbose = repository_verbose, loaded = 0;
+    if (matches) {
+        *matches = 0;
+    }
     wpm_set_readonly(1);
     repository_verbose = 0;
     if (!roots || !records ||
@@ -3430,6 +3433,9 @@ done:
     free(roots);
     free(records);
     repository_verbose = saved_verbose;
+    if (matches) {
+        *matches = matched;
+    }
     if (!loaded) {
         wpm_event_printf(WPM_EVENT_ERROR, "query.available.failed", "list",
                          "query",
@@ -3438,6 +3444,11 @@ done:
     }
     return fflush(stdout) == 0 && !ferror(stdout) && loaded && !issues &&
            !limited;
+}
+
+int wpm_repo_list_available(const char *name, const char *arch,
+                            const char *version) {
+    return query_available_records(name, arch, version, NULL);
 }
 
 static int load_installed(installed_entry *result, int *count) {
@@ -3510,8 +3521,8 @@ static int installed_record_order(const void *left, const void *right) {
     return order ? order : _stricmp(a->file, b->file);
 }
 
-int wpm_repo_list_installed(const char *name, const char *arch,
-                            const char *version) {
+static int query_installed_records(const char *name, const char *arch,
+                                   const char *version, int *matches) {
     char root[PATH_SIZE], store[PATH_SIZE], path[PATH_SIZE];
     installed_record *records = calloc(MAX_INSTALLED, sizeof(*records));
     WIN32_FIND_DATAA found;
@@ -3519,6 +3530,9 @@ int wpm_repo_list_installed(const char *name, const char *arch,
     DWORD attributes, failure;
     int count = 0, scanned = 0, issues = 0, limited = 0, matched = 0;
     int success = 0;
+    if (matches) {
+        *matches = 0;
+    }
     wpm_set_readonly(1);
     if (!records || !wpm_get_data_root(root, sizeof(root)) || !*root ||
         !join_path(store, sizeof(store), root, "packages")) {
@@ -3632,7 +3646,52 @@ done:
                          "Error: package records could not be read. "
                          "Check data-root/packages access and layout.\n");
     }
+    if (matches) {
+        *matches = matched;
+    }
     return fflush(stdout) == 0 && !ferror(stdout) && success;
+}
+
+int wpm_repo_list_installed(const char *name, const char *arch,
+                            const char *version) {
+    return query_installed_records(name, arch, version, NULL);
+}
+
+int wpm_repo_show(const char *name, const char *arch, const char *version) {
+    int retained = 0, catalog = 0, retained_complete, catalog_complete,
+        complete;
+    wpm_set_readonly(1);
+    if (!name || !*name) {
+        wpm_event_printf(WPM_EVENT_ERROR, "query.show.selector", "show",
+                         "query",
+                         "Error: show requires a nonempty package identity.\n");
+        return 0;
+    }
+    wpm_event_printf(WPM_EVENT_INFO, "query.show.start", "show", "query",
+                     "Package metadata: %s\n", name);
+    retained_complete = query_installed_records(name, arch, version, &retained);
+    catalog_complete = query_available_records(name, arch, version, &catalog);
+    complete = retained_complete && catalog_complete;
+    if (!retained && !catalog) {
+        wpm_event_printf(
+            WPM_EVENT_ERROR, "query.show.not_found", "show", "query",
+            complete ? "Error: no package metadata matches the selectors.\n"
+                     : "Error: no matches in inspected sources; metadata "
+                       "is incomplete. Check sources before concluding "
+                       "that the package is absent.\n");
+        return 0;
+    }
+    wpm_event_printf(WPM_EVENT_RESULT, "query.show.summary", "show", "query",
+                     "Result: package metadata found; retained: %d; "
+                     "catalog: %d; complete: %s\n",
+                     retained, catalog, complete ? "yes" : "no");
+    if (retained > 1 || catalog > 1) {
+        wpm_event_printf(
+            WPM_EVENT_INFO, "query.show.choices", "show", "query",
+            "Multiple matching records are shown. Refine --arch/--version "
+            "and inspect source choices before making changes.\n");
+    }
+    return fflush(stdout) == 0 && !ferror(stdout) && complete;
 }
 
 static int better_candidate(package_entry *candidate, package_entry *selected) {

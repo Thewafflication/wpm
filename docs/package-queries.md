@@ -74,3 +74,24 @@ prerelease policy, absent data/log roots, stale/missing/locked catalogs, invalid
 entries/root fields/links/configuration, credentials, root/entry bounds, and
 stable complete/partial status. Detailed show/selection, trust/deployment health,
 and general machine output remain open in the broader I-08 work.
+
+## Combined package metadata (1.2.31)
+
+`wpm show <package> [--arch <arch>] [--version <semver>] [--offline]` combines
+the shared retained-record and local/cached linked-catalog queries. It shows all
+matching versions, architectures, and source choices, along with catalog
+priority/prerelease labels. Multiple matches prompt selector refinement instead
+of silently choosing a candidate. The same metadata-only interpretation and
+read-only/no-web-retrieval guarantees apply.
+
+Exit status is 0 only when both queries are complete and at least one record
+matches. A complete healthy query with no matches reports no matching metadata
+and returns 1. An incomplete query reports that absence cannot be concluded from
+the inspected sources; readable matches remain visible with `complete: no`.
+Malformed/missing selectors and inappropriate flags fail before initialization.
+
+The catalog fixture covers combined retained/catalog metadata, exact selectors,
+duplicate choices, unknown packages under healthy and incomplete sources,
+verbose/offline placement, zero loopback requests, full snapshots, and scripts
+that never run. Detailed archive trust/integrity, deployed state, selected
+candidate plans, and general machine output remain open in the broader I-08 work.

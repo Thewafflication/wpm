@@ -11,6 +11,7 @@ import subprocess
 import tempfile
 import threading
 import time
+import zipfile
 
 from repository_test_helpers import read_lock
 
@@ -121,6 +122,21 @@ with tempfile.TemporaryDirectory(prefix="wpm-available-list-") as directory:
         text = run("list", "--available", succeeds=False)
         assert "catalog issues: 1" in text, text
         assert not data.exists()
+        text = run("show", "unknown", succeeds=False)
+        assert "metadata is incomplete" in text, text
+        for arguments in (
+            ("show",),
+            ("show", ""),
+            ("show", "alpha", "extra"),
+            ("show", "alpha", "--arch", "unknown"),
+            ("show", "alpha", "--version", "invalid"),
+            ("show", "alpha", "--available"),
+            ("show", "alpha", "--yes"),
+            ("show", "alpha", "--json"),
+            ("show", "alpha", "--dry-run"),
+        ):
+            run(*arguments, succeeds=False)
+        assert not data.exists()
         config = data / "config" / "repositories.txt"
         config.parent.mkdir(parents=True)
         configuration = f"200\t{source}\n100\t{web}\tallow-insecure-http=true\n"
@@ -161,6 +177,29 @@ with tempfile.TemporaryDirectory(prefix="wpm-available-list-") as directory:
             "alpha any " + version
             for version in ("10.0.0", "3.0.0-beta.1", "2.0.0", "2.0.0", "1.0.0")
         ], rows
+        store = data / "packages"
+        store.mkdir()
+        marker = root / "show-script-ran"
+        with zipfile.ZipFile(store / "alpha-any-0.5.0.zip", "w") as package:
+            package.writestr(
+                ".wpm/package.txt",
+                "name=alpha\nversion=0.5.0\narch=any\ndebug=false\n",
+            )
+            package.writestr(
+                ".wpm/install.cmd",
+                f'@echo off\necho ran>"{marker}"\nexit /b 0\n',
+            )
+        text = run("show", "ALPHA")
+        assert "retained: 1; catalog: 6; complete: yes" in text, text
+        assert "Multiple matching records" in text and "0.5.0" in text, text
+        text = run("show", "alpha", "--arch", "x86", "--offline")
+        assert "retained: 0; catalog: 1; complete: yes" in text, text
+        text = run("show", "alpha", "--version", "2.0.0")
+        assert "retained: 0; catalog: 3; complete: yes" in text, text
+        text = run("show", "unknown", succeeds=False)
+        assert "no package metadata matches" in text, text
+        run("--verbose", "show", "alpha")
+        assert not marker.exists()
         for arguments, count in (
             (("list", "--available", "ALPHA"), 6),
             (("list", "alpha", "--available", "--arch", "x86"), 1),
@@ -184,6 +223,10 @@ with tempfile.TemporaryDirectory(prefix="wpm-available-list-") as directory:
         assert (
             "6 matching catalog records" in text and "catalog issues: 1" in text
         )
+        text = run("show", "alpha", succeeds=False)
+        assert "retained: 1; catalog: 5; complete: no" in text, text
+        text = run("show", "unknown", succeeds=False)
+        assert "metadata is incomplete" in text, text
         child_cache.write_bytes(child_bytes)
         before = snapshot(root)
         with read_lock(source_index, share=0):

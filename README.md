@@ -177,3 +177,5 @@ Use `wpm list [package] [--arch <arch>] [--version <semver>]` for a
 [read-only inventory of retained package metadata](docs/package-queries.md).
 Add `--available` to inspect local and cached linked catalog metadata and
 prerelease policy without downloading archives.
+Use `wpm show <package>` to combine retained and local/cached catalog metadata
+without selecting a candidate or changing state.
