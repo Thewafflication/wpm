@@ -3150,6 +3150,228 @@ static int author_json_string(char *output, size_t capacity,
     return 1;
 }
 
+static int author_index_order(const void *left, const void *right) {
+    const package_entry *a = left, *b = right;
+    int result = _stricmp(a->name, b->name), valid;
+    if (!result) {
+        result = _stricmp(a->arch, b->arch);
+    }
+    if (!result) {
+        result = -semver_compare(a->version, b->version, &valid);
+    }
+    if (!result) {
+        result = strcmp(a->version, b->version);
+    }
+    return result ? result : strcmp(a->url, b->url);
+}
+
+int wpm_repo_index(const char *directory, int allow_unsigned, int dry_run) {
+    char root[PATH_SIZE], packages[PATH_SIZE], pattern[PATH_SIZE],
+        path[PATH_SIZE];
+    char target[PATH_SIZE], candidate[PATH_SIZE], lock_path[PATH_SIZE];
+    char *text = NULL, *updated = NULL;
+    const char *array_end, *array_start, *phase = "validate repository layout";
+    package_entry *entries = calloc(MAX_PACKAGES, sizeof(*entries));
+    HANDLE inputs[MAX_PACKAGES], catalog = INVALID_HANDLE_VALUE;
+    HANDLE search = INVALID_HANDLE_VALUE, lock = INVALID_HANDLE_VALUE;
+    HANDLE output = INVALID_HANDLE_VALUE;
+    WIN32_FIND_DATAA found;
+    DWORD attributes, written;
+    int old_count = 0, count = 0, owned = 0, success = 0;
+    size_t used = 0, prefix, suffix, capacity = 4 * 1024 * 1024 + 1;
+    for (int i = 0; i < MAX_PACKAGES; i++) {
+        inputs[i] = INVALID_HANDLE_VALUE;
+    }
+    if (dry_run) {
+        wpm_set_readonly(1);
+    } else if (!wpm_require_capability(WPM_CAP_WRITE,
+                                       "rebuild repository catalog")) {
+        goto done;
+    }
+    if (!entries || !directory || is_web_repository(directory) ||
+        !repository_normalize(directory, root, sizeof(root), 1) ||
+        !join_path(packages, sizeof(packages), root, "packages") ||
+        !join_path(pattern, sizeof(pattern), packages, "*.zip") ||
+        !join_path(target, sizeof(target), root, "index.json") ||
+        !join_path(candidate, sizeof(candidate), root, ".index.json.new") ||
+        !join_path(lock_path, sizeof(lock_path), root, ".wpm-publish.lock")) {
+        goto done;
+    }
+    attributes = GetFileAttributesA(root);
+    if (attributes == INVALID_FILE_ATTRIBUTES ||
+        !(attributes & FILE_ATTRIBUTE_DIRECTORY) ||
+        (attributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
+        goto done;
+    }
+    attributes = GetFileAttributesA(packages);
+    if (attributes == INVALID_FILE_ATTRIBUTES ||
+        !(attributes & FILE_ATTRIBUTE_DIRECTORY) ||
+        (attributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
+        goto done;
+    }
+    if (!dry_run) {
+        phase = "acquire exclusive publication lock";
+        lock = CreateFileA(lock_path, GENERIC_WRITE | DELETE, 0, NULL,
+                           CREATE_NEW, FILE_FLAG_DELETE_ON_CLOSE, NULL);
+        if (lock == INVALID_HANDLE_VALUE) {
+            goto done;
+        }
+    }
+    phase = "read existing supported catalog";
+    if (!author_read_catalog(root, &catalog, &text, entries, &old_count,
+                             &array_end) ||
+        GetFileAttributesA(candidate) != INVALID_FILE_ATTRIBUTES) {
+        goto done;
+    }
+    phase = "inventory and validate direct package archives";
+    search = FindFirstFileA(pattern, &found);
+    if (search == INVALID_HANDLE_VALUE &&
+        GetLastError() != ERROR_FILE_NOT_FOUND) {
+        goto done;
+    }
+    if (search != INVALID_HANDLE_VALUE) {
+        do {
+            wpm_package_info info;
+            char signer[65];
+            package_entry *entry;
+            if (count == MAX_PACKAGES ||
+                (found.dwFileAttributes &
+                 (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) ||
+                strspn(found.cFileName,
+                       "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                       "0123456789._+-") != strlen(found.cFileName) ||
+                !join_path(path, sizeof(path), packages, found.cFileName)) {
+                goto done;
+            }
+            inputs[count] =
+                CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, NULL,
+                            OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+            if (inputs[count] == INVALID_HANDLE_VALUE ||
+                !wpm_archive_validate_readonly(path, allow_unsigned, signer,
+                                               sizeof(signer)) ||
+                !wpm_archive_inspect(path, &info) ||
+                !wpm_repo_version_is_valid(info.version) ||
+                (_stricmp(info.arch, "any") && _stricmp(info.arch, "x86") &&
+                 _stricmp(info.arch, "x64") && _stricmp(info.arch, "arm64"))) {
+                goto done;
+            }
+            for (int i = 0; i < count; i++) {
+                if (!_stricmp(entries[i].name, info.name) &&
+                    !_stricmp(entries[i].arch, info.arch) &&
+                    !strcmp(entries[i].version, info.version)) {
+                    goto done;
+                }
+            }
+            entry = &entries[count++];
+            memset(entry, 0, sizeof(*entry));
+            strcpy_s(entry->name, sizeof(entry->name), info.name);
+            strcpy_s(entry->version, sizeof(entry->version), info.version);
+            strcpy_s(entry->arch, sizeof(entry->arch), info.arch);
+            snprintf(entry->url, sizeof(entry->url), "packages/%s",
+                     found.cFileName);
+        } while (FindNextFileA(search, &found));
+    }
+    if (search != INVALID_HANDLE_VALUE &&
+        GetLastError() != ERROR_NO_MORE_FILES) {
+        goto done;
+    }
+    qsort(entries, (size_t)count, sizeof(*entries), author_index_order);
+    array_start = index_field(text, "packages") + 1;
+    prefix = (size_t)(array_start - text);
+    suffix = strlen(array_end);
+    updated = malloc(capacity);
+    if (!updated || prefix + suffix >= capacity) {
+        goto done;
+    }
+    memcpy(updated, text, prefix);
+    used = prefix;
+    for (int i = 0; i < count; i++) {
+        char name[1024], version[512], arch[256], url[2048];
+        int length;
+        if (!author_json_string(name, sizeof(name), entries[i].name) ||
+            !author_json_string(version, sizeof(version), entries[i].version) ||
+            !author_json_string(arch, sizeof(arch), entries[i].arch) ||
+            !author_json_string(url, sizeof(url), entries[i].url)) {
+            goto done;
+        }
+        length =
+            snprintf(updated + used, capacity - used,
+                     "%s{\"name\":%s,\"version\":%s,\"arch\":%s,\"url\":%s}",
+                     i ? "," : "", name, version, arch, url);
+        if (length < 0 || (size_t)length >= capacity - used) {
+            goto done;
+        }
+        used += (size_t)length;
+    }
+    if (used + suffix >= capacity) {
+        goto done;
+    }
+    memcpy(updated + used, array_end, suffix + 1);
+    used += suffix;
+    if (dry_run || !strcmp(text, updated)) {
+        wpm_event_printf(
+            WPM_EVENT_RESULT, "repository.index.planned", "repository", "index",
+            "Result: catalog %s (%d packages)\n",
+            dry_run ? "rebuild planned" : "already current", count);
+        success = 1;
+        goto done;
+    }
+    phase = "flush and atomically replace catalog";
+    output = CreateFileA(candidate, GENERIC_WRITE, 0, NULL, CREATE_NEW,
+                         FILE_ATTRIBUTE_NORMAL, NULL);
+    if (output == INVALID_HANDLE_VALUE) {
+        goto done;
+    }
+    owned = 1;
+    if (!WriteFile(output, updated, (DWORD)used, &written, NULL) ||
+        written != used || !FlushFileBuffers(output)) {
+        goto done;
+    }
+    CloseHandle(output);
+    output = INVALID_HANDLE_VALUE;
+    CloseHandle(catalog);
+    catalog = INVALID_HANDLE_VALUE;
+    if (!MoveFileExA(candidate, target,
+                     MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+        goto done;
+    }
+    owned = 0;
+    wpm_event_printf(
+        WPM_EVENT_RESULT, "repository.index.rebuilt", "repository", "index",
+        "Result: repository catalog rebuilt (%d packages)\n", count);
+    success = 1;
+done:
+    if (output != INVALID_HANDLE_VALUE) {
+        CloseHandle(output);
+    }
+    if (catalog != INVALID_HANDLE_VALUE) {
+        CloseHandle(catalog);
+    }
+    if (search != INVALID_HANDLE_VALUE) {
+        FindClose(search);
+    }
+    for (int i = 0; i < MAX_PACKAGES; i++) {
+        if (inputs[i] != INVALID_HANDLE_VALUE) {
+            CloseHandle(inputs[i]);
+        }
+    }
+    if (owned) {
+        DeleteFileA(candidate);
+    }
+    if (lock != INVALID_HANDLE_VALUE) {
+        CloseHandle(lock);
+    }
+    free(entries);
+    free(text);
+    free(updated);
+    if (!success) {
+        wpm_event_printf(WPM_EVENT_ERROR, "repository.index.failed",
+                         "repository", "index",
+                         "Error: catalog rebuild failed: %s.\n", phase);
+    }
+    return success;
+}
+
 int wpm_repo_add_package(const char *directory, const char *source,
                          int allow_unsigned, int dry_run) {
     char root[PATH_SIZE], archive_path[PATH_SIZE], packages[PATH_SIZE];

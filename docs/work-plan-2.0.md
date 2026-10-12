@@ -834,3 +834,12 @@ wrong/stale/malformed signatures, conflicts/locks, key mismatch, private input
 inside the root, revoked package trust, and read-only snapshots. Legacy consumers
 and persisted repository policy remain unchanged; full pin/cache/consumer/media
 and authoring completion remain open under REQ-0017/I-09.
+
+1.2.40 adds deterministic repo index from direct validated packages/*.zip,
+with portable relative locators, exact metadata identity/semver/arch checks,
+duplicate/cap rejection, held inputs, cooperative author lock, flushed candidate,
+and atomic catalog replacement. Outside-array bytes/links/extensions remain
+unchanged and identical results preserve catalog mtime. Dry-run is read-only;
+existing index.sig is retained and explicit re-signing remains separate. Native
+fixtures cover ordering, conflicts/locks, 96/97 bounds, unsigned authorization,
+reparse roots, CLI shapes, and absent-root snapshots. Full I-09 remains partial.

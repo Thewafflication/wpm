@@ -192,3 +192,59 @@ shapes, and public-only dry-run with an absent data/log root. Snapshots verify
 no read-only mutation or script replay. This is partial REQ-0017/I-09 delivery;
 the full signer-policy/consumer/media/copy and authoring completion gates remain
 open, with breaking changes reserved for 2.x.
+
+## Deterministic package-array rebuilding (1.2.40)
+
+```text
+wpm repo index .\repository --dry-run
+wpm repo index .\repository
+wpm repo sign .\repository --sign .\keys\index.private --index-key .\keys\index.public --replace-signature
+wpm repo verify .\repository --index-key .\keys\index.public
+```
+
+`repo index` inventories direct `packages/*.zip` files in an initialized,
+ordinary filesystem/UNC repository. It validates every selected archive's
+paths, integrity, existing trust, metadata, semantic version, and supported
+architecture, rejecting duplicate name/architecture/version identities. It
+holds all selected input files against writes/deletion through publication.
+Unsigned input requires explicit `--allow-unsigned` and existing authorization;
+there are no trust prompts or script/extraction operations.
+
+Leaf filenames must contain only ASCII letters/digits and `._+-`, giving relative
+`packages/<leaf>` locators that do not require a new 1.x URL/path encoding rule.
+Use `repo add-package` to publish an archive under an opaque safe filename when
+its original leaf is not portable. Directories/reparse entries, invalid metadata,
+conflicting identities, unreadable files, or more than 96 selected archives fail
+without replacing the old catalog. Nested directories, root-level archives,
+non-ZIP files, and broader unindexed-file findings are outside this rebuild set.
+
+Rows sort by case-insensitive name/architecture, descending semantic version,
+full version string, and relative locator. The package-array content becomes a
+compact deterministic representation; every byte outside that array is retained,
+including linked repositories, extensions, whitespace, and BOM. The existing
+catalog must have supported grammar/schema and valid entry shapes, but stale
+entry/archive mappings can be replaced from the package directory. Rebuilding
+an already identical array preserves catalog bytes and modification time.
+
+Real updates share the cooperative author lock and use a create-new, flushed
+`.index.json.new` candidate and atomic replacement. Existing candidates/locks,
+unsupported roots, locked replacement, and validation failures preserve prior
+catalog bytes; only the writer's own failed candidate is cleaned up. Directory
+mappings and external editors must remain quiescent. Dry-run reads/validates and
+previews the same bounded result without locks, writes, managed initialization,
+logs, or extraction. Normal execution remains a mutating command even when its
+catalog is already current.
+
+An existing `index.sig` is retained as evidence and is not automatically updated.
+Catalog byte changes make it stale; explicitly re-sign and verify before copying
+a complete distribution tree. This is not an atomic catalog/signature transaction
+or an implicit private-key selection. Existing install/update/resolver defaults,
+configuration, and version-1 formats remain unchanged.
+
+The fixture covers signed archives with semantic ordering, preserved linked and
+extension bytes, dry-run with absent data/log roots, unchanged repeated output,
+duplicates/bad/unportable leaves, candidate/lock conflicts, locked input/target,
+96/97 archive bounds, explicit unsigned policy, an NTFS package-directory junction,
+invalid CLI shapes, and snapshots without scripts. I-09 remains partial for
+full confirmation, complete finding collection, integrated sign/index transactions,
+consumer pin/cache policy, copy/media, and physical environment evidence.

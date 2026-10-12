@@ -25,6 +25,9 @@ int wpm_repo_verify_index(const char *directory, int allow_unsigned,
 int wpm_repo_sign(const char *directory, const char *private_key,
                   const char *public_key, int replace, int allow_unsigned,
                   int dry_run);
+/** Deterministically rebuild the existing schema-1 package array from direct
+ * validated packages/*.zip entries, preserving all outside catalog bytes. */
+int wpm_repo_index(const char *directory, int allow_unsigned, int dry_run);
 /** Append a validated archive to a filesystem catalog without overwriting
  * package identities. Dry-run performs no managed writes. */
 int wpm_repo_add_package(const char *directory, const char *archive,

@@ -592,10 +592,22 @@ static int validate_command_actions(Command command, int argc, char **argv,
         }
         if (command_has_option(argc, argv, command_index, "--allow-unsigned") &&
             strcmp(action, "verify") && strcmp(action, "add-package") &&
-            strcmp(action, "sign")) {
+            strcmp(action, "sign") && strcmp(action, "index")) {
             return invalid_action_shape(command,
                                         "--allow-unsigned requires verify "
-                                        "or add-package or sign");
+                                        "or add-package or sign or index");
+        }
+        if (!strcmp(action, "index")) {
+            if (count == 2 &&
+                !command_has_option(argc, argv, command_index, "--priority") &&
+                !command_has_option(argc, argv, command_index, "--links") &&
+                !command_has_option(argc, argv, command_index, "--offline") &&
+                !command_has_option(argc, argv, command_index,
+                                    "--allow-insecure-http")) {
+                return 1;
+            }
+            return invalid_action_shape(command,
+                                        "index requires one directory");
         }
         if (!strcmp(action, "sign")) {
             if (count == 2 &&
@@ -1101,7 +1113,8 @@ int main(int argc, char *argv[]) {
                                              operands, 8);
         repository_dry_run = count && (!strcmp(operands[0], "init") ||
                                        !strcmp(operands[0], "add-package") ||
-                                       !strcmp(operands[0], "sign"));
+                                       !strcmp(operands[0], "sign") ||
+                                       !strcmp(operands[0], "index"));
     }
     if (dry_run && cmd != CMD_INSTALL && cmd != CMD_REMOVE &&
         cmd != CMD_UPGRADE && !repository_dry_run) {
@@ -1400,6 +1413,13 @@ operation_dispatch:
                                                          command_index,
                                                          "--allow-unsigned"),
                                       dry_run)) {
+                return 1;
+            }
+        } else if (strcmp(action, "index") == 0) {
+            if (!wpm_repo_index(operands[1],
+                                command_has_option(argc, argv, command_index,
+                                                   "--allow-unsigned"),
+                                dry_run)) {
                 return 1;
             }
         } else if (strcmp(action, "sign") == 0) {
@@ -1970,7 +1990,8 @@ void print_usage(Command c) {
 
     wpm_event_printf(
         WPM_EVENT_INFO, "wpm.info", "wpm", "command",
-        "  repo <init|verify|sign|add-package|add|list|remove|update|diagnose> "
+        "  repo "
+        "<init|index|verify|sign|add-package|add|list|remove|update|diagnose> "
         "...\n");
     wpm_event_printf(
         WPM_EVENT_INFO, "wpm.info", "wpm", "command",
