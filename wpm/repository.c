@@ -322,10 +322,14 @@ static int parse_entry(char *line, int *priority, char **url, int *allow_http) {
     }
     return **url != '\0' && (!is_http_repository(*url) || *allow_http);
 }
-static int load_repositories(repository *result, int *count) {
+static int load_repositories(repository *result, int *count,
+                             int *invalid_count) {
     char path[PATH_SIZE], line[PATH_SIZE + 32], normalized[PATH_SIZE];
     FILE *input;
     *count = 0;
+    if (invalid_count) {
+        *invalid_count = 0;
+    }
     if (!config_path(path, sizeof(path))) {
         return 0;
     }
@@ -340,7 +344,14 @@ static int load_repositories(repository *result, int *count) {
                                           0) ||
                     (!is_web_repository(url) &&
                      _stricmp(url, normalized) != 0)) {
-                    if (!is_web_repository(url)) {
+                    if (invalid_count) {
+                        (*invalid_count)++;
+                        wpm_event_printf(WPM_EVENT_WARNING,
+                                         "repository.config.invalid",
+                                         "repository", "diagnose",
+                                         "Warning: invalid configured "
+                                         "repository entry ignored.\n");
+                    } else if (!is_web_repository(url)) {
                         wpm_event_printf(
                             WPM_EVENT_WARNING, "repository.warning",
                             "repository", "command",
@@ -370,9 +381,20 @@ static int load_repositories(repository *result, int *count) {
                         allow_http ? "insecure-http" : "standard", normalized);
                     (*count)++;
                 }
+            } else if (invalid_count) {
+                char *start = line;
+                while (*start && isspace((unsigned char)*start)) {
+                    start++;
+                }
+                if (*start && *start != '#') {
+                    (*invalid_count)++;
+                }
             }
         }
         fclose(input);
+    } else if (invalid_count &&
+               GetFileAttributesA(path) != INVALID_FILE_ATTRIBUTES) {
+        (*invalid_count)++;
     }
     for (int i = 0; i < *count; i++) {
         if (_stricmp(result[i].url, WPM_DEFAULT_REPOSITORY) == 0) {
@@ -519,7 +541,7 @@ int wpm_repo_remove(const char *url) {
 int wpm_repo_list(void) {
     repository repositories[MAX_REPOSITORIES];
     int count, i;
-    if (!load_repositories(repositories, &count)) {
+    if (!load_repositories(repositories, &count, NULL)) {
         return 0;
     }
     if (!count) {
@@ -1137,7 +1159,7 @@ static int publish_repository_index(const char *candidate, const char *cached) {
         (unsigned long)error, cached);
     return 0;
 }
-static int index_file_supported(const char *path);
+static int index_file_supported(const char *path, int report);
 static int refresh(repository *repo, int offline, int required) {
     char cached[PATH_SIZE], url[PATH_SIZE], candidate[PATH_SIZE];
     int length, prepared = 0;
@@ -1170,7 +1192,7 @@ static int refresh(repository *repo, int offline, int required) {
         ensure_cache_directory("repositories") &&
         retrieve(url, candidate, "repository index",
                  repo->allow_insecure_http) &&
-        index_file_supported(candidate) &&
+        index_file_supported(candidate, 1) &&
         publish_repository_index(candidate, cached)) {
         wpm_event_printf(WPM_EVENT_INFO, "repository.info", "repository",
                          "command", "Updated repository index: %s\n",
@@ -1563,7 +1585,7 @@ static int index_version_supported(const char *text) {
     return version == 1.0 && (*end == ',' || *end == '}');
 }
 /* Validate schema admission before replacing a previous cached catalog. */
-static int index_file_supported(const char *path) {
+static int index_file_supported(const char *path, int report) {
     FILE *input = wpm_fopen(path, "rb");
     char *text = NULL;
     const char *packages;
@@ -1587,7 +1609,7 @@ static int index_file_supported(const char *path) {
 cleanup:
     free(text);
     fclose(input);
-    if (!supported) {
+    if (!supported && report) {
         wpm_event_printf(
             WPM_EVENT_WARNING, "repository.index.rejected", "repository",
             "refresh",
@@ -1751,6 +1773,76 @@ static int parse_index(const char *path, repository *repo,
         }
     }
     free(text);
+    return 1;
+}
+int wpm_repo_diagnose(void) {
+    repository repositories[MAX_REPOSITORIES];
+    char path[PATH_SIZE];
+    int count, invalid_config = 0, usable = 0, unavailable = 0;
+    int invalid = 0, stale = 0, saved_verbose = repository_verbose;
+    wpm_set_readonly(1);
+    repository_verbose =
+        0; /* Query output never prints credentialed locators. */
+    int loaded = load_repositories(repositories, &count, &invalid_config);
+    repository_verbose = saved_verbose;
+    if (!loaded) {
+        wpm_event_printf(
+            WPM_EVENT_ERROR, "repository.health.failed", "repository",
+            "diagnose", "Error: repository configuration could not be read.\n");
+        return 0;
+    }
+    wpm_event_printf(WPM_EVENT_INFO, "repository.health.start", "repository",
+                     "diagnose", "Repository health (read-only):\n");
+    for (int i = 0; i < count; i++) {
+        int web = is_web_repository(repositories[i].url);
+        const char *transport = !web ? "filesystem source"
+                                : is_http_repository(repositories[i].url)
+                                    ? "HTTP cache (insecure)"
+                                    : "HTTPS cache";
+        const char *status;
+        int located =
+            web ? cache_path(repositories[i].url, path, sizeof(path))
+                : index_source(repositories[i].url, path, sizeof(path));
+        if (!located || GetFileAttributesA(path) == INVALID_FILE_ATTRIBUTES) {
+            unavailable++;
+            status = "unavailable";
+        } else if (!index_file_supported(path, 0)) {
+            invalid++;
+            status = "invalid or unreadable index";
+        } else {
+            usable++;
+            if (web && !index_is_fresh(path)) {
+                stale++;
+                status = "valid, stale";
+            } else {
+                status = "valid";
+            }
+        }
+        wpm_event_printf(WPM_EVENT_INFO, "repository.health.item", "repository",
+                         "diagnose", "  Repository %d: %s; %s\n", i + 1,
+                         transport, status);
+    }
+    wpm_event_printf(
+        WPM_EVENT_INFO, "repository.health.summary", "repository", "diagnose",
+        "  Configured roots: %d; usable indexes: %d; unavailable: %d; "
+        "invalid: %d; stale: %d; invalid configuration: %d\n",
+        count, usable, unavailable, invalid, stale, invalid_config);
+    if (unavailable || invalid || stale || invalid_config) {
+        wpm_event_printf(
+            WPM_EVENT_INFO, "repository.health.remediation", "repository",
+            "diagnose",
+            "  Next action: use 'wpm repo list' to match repository numbers. "
+            "Reconnect local media and check index/read access; run "
+            "'wpm update' to refresh web caches. Remove or re-add invalid "
+            "configuration entries.\n");
+        wpm_event_printf(WPM_EVENT_RESULT, "repository.health.attention",
+                         "repository", "diagnose",
+                         "Result: repository health needs attention\n");
+        return 0;
+    }
+    wpm_event_printf(WPM_EVENT_RESULT, "repository.health.healthy",
+                     "repository", "diagnose",
+                     "Result: repository health healthy\n");
     return 1;
 }
 static int safe_relative_item(const char *item) {
@@ -2163,7 +2255,7 @@ static int load_entries(repository *repositories, int *repository_count,
     char cached[PATH_SIZE];
     int usable = 0;
     *entry_count = 0;
-    if (!load_repositories(repositories, repository_count)) {
+    if (!load_repositories(repositories, repository_count, NULL)) {
         return 0;
     }
     for (int i = 0; i < *repository_count; i++) {

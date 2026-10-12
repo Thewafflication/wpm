@@ -14,6 +14,9 @@ int wpm_repo_add(const char *url, int priority, int allow_insecure_http);
 int wpm_repo_list(void);
 /** Remove a configured repository. */
 int wpm_repo_remove(const char *url);
+/** Inspect configured catalog health without writes or network access.
+ * Returns nonzero only when all configured catalogs are usable and fresh. */
+int wpm_repo_diagnose(void);
 /** Refresh repository indexes, optionally using cached data only. */
 int wpm_repo_update(int offline);
 /** Resolve and install one package using the requested selectors. */

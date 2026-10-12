@@ -160,3 +160,6 @@ WPM does not automatically trust keys distributed by package repositories.
 
 Repository indexes can link to earlier release repositories using the optional
 [schema-1 linked repository layout](docs/linked-repositories.md).
+
+Use `wpm repo diagnose` for a [read-only repository health report](
+docs/repository-diagnostics.md) and suggested next actions.

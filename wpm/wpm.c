@@ -182,8 +182,9 @@ static void print_usage_line(Command command) {
                          "[--confirm|--dry-run]\n");
         break;
     case CMD_REPO:
-        wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
-                         "Usage: wpm repo <add|list|remove|update> ...\n");
+        wpm_event_printf(
+            WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+            "Usage: wpm repo <add|list|remove|update|diagnose> ...\n");
         break;
     case CMD_KEYGEN:
         wpm_event_printf(
@@ -441,6 +442,15 @@ static int validate_command_actions(Command command, int argc, char **argv,
     const char *action = count > 0 ? operands[0] : "list";
 
     if (command == CMD_REPO) {
+        if (strcmp(action, "diagnose") == 0) {
+            if (count == 1 &&
+                !command_has_option(argc, argv, command_index, "--priority") &&
+                !command_has_option(argc, argv, command_index,
+                                    "--allow-insecure-http")) {
+                return 1;
+            }
+            return invalid_action_shape(command, "diagnose takes no operands");
+        }
         if ((strcmp(action, "list") == 0 || strcmp(action, "update") == 0) &&
             count == 1) {
             return 1;
@@ -903,13 +913,17 @@ int main(int argc, char *argv[]) {
             wpm_operation_begin(plan_yes);
         }
     }
+    if (cmd == CMD_REPO && command_index + 1 < argc &&
+        !strcmp(argv[command_index + 1], "diagnose")) {
+        wpm_set_readonly(1);
+    }
     wpm_set_verbose(verbose);
     SetEnvironmentVariableA("WPM_VERBOSE", verbose ? "1" : NULL);
     wpm_repo_set_verbose(verbose);
     if (verbose) {
         print_runtime_mode();
     }
-    if (!dry_run && !wpm_operation_active()) {
+    if (!wpm_is_readonly() && !dry_run && !wpm_operation_active()) {
         if (!wpm_initialize_data_directories()) {
             return 1;
         }
@@ -1089,6 +1103,10 @@ operation_dispatch:
             if (!wpm_repo_list()) {
                 return 1;
             }
+        } else if (strcmp(action, "diagnose") == 0) {
+            if (!wpm_repo_diagnose()) {
+                return 1;
+            }
         } else if (strcmp(action, "add") == 0) {
             int priority = 0;
             int allow_insecure_http = 0;
@@ -1126,8 +1144,9 @@ operation_dispatch:
                 return 1;
             }
         } else {
-            wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
-                             "Usage: wpm repo <add|list|remove|update> ...\n");
+            wpm_event_printf(
+                WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                "Usage: wpm repo <add|list|remove|update|diagnose> ...\n");
             return 1;
         }
         break;
@@ -1441,7 +1460,7 @@ void print_usage(Command c) {
                 WPM_EVENT_INFO, "wpm.info", "wpm", "command",
                 "\nManage package repositories.\n\nExamples:\n  wpm repo "
                 "add .\\repository --priority 10\n  wpm repo list\n  wpm "
-                "repo update --offline\n");
+                "repo update --offline\n  wpm repo diagnose\n");
             return;
         case CMD_KEYGEN:
             print_usage_line(c);
@@ -1524,7 +1543,7 @@ void print_usage(Command c) {
                      "      Remove one or more packages\n\n");
 
     wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
-                     "  repo <add|list|remove|update> ...\n");
+                     "  repo <add|list|remove|update|diagnose> ...\n");
     wpm_event_printf(
         WPM_EVENT_INFO, "wpm.info", "wpm", "command",
         "      Configure HTTPS, opted-in HTTP, local, or UNC package "

@@ -668,3 +668,8 @@ legacy default workflows remain covered; physical media demonstrations stay open
 1.2.20 adds accurate package acquisition failures and cache-publication retry
 diagnostics, with real Windows destination locking, cache retention, and
 unlocked retry evidence. Existing invalid URL rejection and 1.x defaults remain.
+
+1.2.21 adds the read-only `repo diagnose` command for configured catalog health
+and remediation. Snapshot, loopback no-network, stale/corrupt/absent source,
+configuration, credential, and CLI tests cover the additive query. Broader
+I-06/I-08 health and machine-readable obligations remain open.

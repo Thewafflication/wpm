@@ -563,6 +563,19 @@ if(BUILD_TESTING)
       wpm-capability-test "${CMAKE_CURRENT_BINARY_DIR}/capability-test.tmp"
   )
   add_test(
+    NAME repository-health-integration
+    COMMAND
+      "${Python3_EXECUTABLE}"
+      "${CMAKE_SOURCE_DIR}/tests/repository-health-integration.py" --wpm
+      $<TARGET_FILE:wpm>
+  )
+  set_tests_properties(
+    repository-health-integration
+    PROPERTIES
+      TIMEOUT
+        120
+  )
+  add_test(
     NAME linked-repository-integration
     COMMAND
       "${Python3_EXECUTABLE}"
@@ -992,7 +1005,7 @@ if(BUILD_TESTING)
       WPM_COMPONENT_TEST_REGEX
       "^(https-.*|blake2b-simd|zlib-sse2|"
       "readonly-capabilities|operation-integration|local-media-integration|"
-      "linked-repository-integration|"
+      "linked-repository-integration|repository-health-integration|"
       "presentation-integration|dry-run-integration)$"
     )
     add_custom_target(
