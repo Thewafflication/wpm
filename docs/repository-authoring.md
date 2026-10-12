@@ -68,7 +68,7 @@ absent data/log roots, trust rejection and revocation, identity mismatches,
 malformed/duplicate/missing entries, archive tampering, unsigned opt-in, invalid
 flags, and complete filesystem snapshots with no script execution.
 
-## Immutable package publication (1.2.27)
+## Immutable package publication (1.2.28)
 
 `wpm repo add-package <directory> <archive> [--allow-unsigned] [--dry-run]`
 appends a validated package to an initialized filesystem repository. Existing

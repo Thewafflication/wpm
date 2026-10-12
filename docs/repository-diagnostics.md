@@ -75,7 +75,7 @@ be resolved, roots are empty, invalid configuration is 1, and an additional
 `error: "configuration_unreadable"` identifies the failure. Consumers should
 check the version and tolerate additional fields in future compatible reports.
 
-As of 1.2.29, diagnosis also counts configuration entries omitted after the
+As of 1.2.28, diagnosis also counts configuration entries omitted after the
 32-root capacity is reached. It continues checking remaining configuration
 lines, ignores blank/comment lines, and reports excess or malformed entries
 as invalid configuration. It does not inspect more than 32 roots. Normal

@@ -49,8 +49,12 @@ set(
   "init.h"
   "helpers.c"
   "helpers.h"
+  "hashing.c"
+  "hashing.h"
   "repository.c"
   "repository.h"
+  "recovery.c"
+  "recovery.h"
   "signing.c"
   "signing.h"
   "${WPM_ICON_FILE}"
@@ -563,6 +567,19 @@ if(BUILD_TESTING)
       wpm-capability-test "${CMAKE_CURRENT_BINARY_DIR}/capability-test.tmp"
   )
   add_test(
+    NAME recovery-integration
+    COMMAND
+      "${Python3_EXECUTABLE}"
+      "${CMAKE_SOURCE_DIR}/tests/recovery-integration.py" --wpm
+      $<TARGET_FILE:wpm>
+  )
+  set_tests_properties(
+    recovery-integration
+    PROPERTIES
+      TIMEOUT
+        120
+  )
+  add_test(
     NAME repository-publish-integration
     COMMAND
       "${Python3_EXECUTABLE}"
@@ -1061,6 +1078,7 @@ if(BUILD_TESTING)
       "http-length-integration|repository-init-integration|"
       "repository-verify-integration|"
       "repository-publish-integration|"
+      "recovery-integration|"
       "presentation-integration|dry-run-integration)$"
     )
     add_custom_target(

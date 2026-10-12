@@ -23,7 +23,8 @@ typedef enum {
     CMD_KEY,     /**< Manage signing-key configuration. */
     CMD_CONFIG,  /**< Manage WPM configuration. */
     CMD_UPDATE,  /**< Refresh repository metadata. */
-    CMD_UPGRADE  /**< Upgrade installed packages. */
+    CMD_UPGRADE, /**< Upgrade installed packages. */
+    CMD_RECOVERY /**< Inspect recorded operation failures. */
 } Command;
 
 /**

@@ -697,7 +697,7 @@ completeness, identity matching, existing trust/revocation, explicit unsigned
 opt-in, and complete filesystem snapshots cover this additive command. The
 legacy install resolver remains compatible; I-09 publication/signing stays open.
 
-1.2.27 adds validated immutable package publication with dry-run, exclusive
+1.2.28 adds validated immutable package publication with dry-run, exclusive
 cooperating-writer locks, content-addressed archives, and atomic schema-1 catalog
 updates preserving extensions/links. Real locked-catalog retention and retry,
 collision protection, and existing resolver consumption provide evidence.
@@ -709,7 +709,19 @@ status/count/parent, invalid-config, forced-color, and loopback/snapshot evidenc
 cover the format. Broader installed health and general I-08 machine output stay
 open; existing human output remains the default.
 
-1.2.29 reports excess configuration entries in repository diagnosis instead
+1.2.28 reports excess configuration entries in repository diagnosis instead
 of returning healthy after silently stopping at 32 roots. Human/JSON counts,
 comments, malformed trailing entries, and read-only snapshots are verified;
 normal resolver selection and capacity remain compatible.
+
+1.2.28 adds bounded read-only failed-upgrade audit inspection with a real signed
+failing-script fixture, snapshots, malformed/locked record and junction
+rejection, credential filtering, and explicit partial-query status. See
+`docs/increment-06-recovery-audits.md`. Guarded retry/cleanup and broader I-06
+recovery/restore work remain open.
+
+The attempted 1.2.27 publisher release did not publish: native x86 verification
+caught a libsodium header macro changing later WinInet calling conventions.
+1.2.28 isolates hashing in its own module so transport declarations retain
+their native Windows ABI. It incorporates the completed authoring,
+JSON/capacity diagnosis, and recovery-query slices after full native gates.

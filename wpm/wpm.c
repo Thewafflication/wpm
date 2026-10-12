@@ -11,6 +11,7 @@
 #include "operation.h"
 #include "capability.h"
 #include "repository.h"
+#include "recovery.h"
 #include "signing.h"
 #include <stdlib.h>
 #include <windows.h>
@@ -144,6 +145,8 @@ static const char *command_name(Command command) {
         return "trust";
     case CMD_CONFIG:
         return "config";
+    case CMD_RECOVERY:
+        return "recovery";
     case CMD_UPDATE:
         return "update";
     case CMD_UPGRADE:
@@ -180,6 +183,10 @@ static void print_usage_line(Command command) {
         wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
                          "Usage: wpm remove <package...> [-y|--yes] "
                          "[--confirm|--dry-run]\n");
+        break;
+    case CMD_RECOVERY:
+        wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                         "Usage: wpm recovery [list] [--offline]\n");
         break;
     case CMD_REPO:
         wpm_event_printf(
@@ -263,6 +270,8 @@ static int command_option_is_known(Command command, const char *option) {
     case CMD_KEY:
         return strcmp(option, "--clear") == 0;
     case CMD_UPDATE:
+        return strcmp(option, "--offline") == 0;
+    case CMD_RECOVERY:
         return strcmp(option, "--offline") == 0;
     case CMD_UPGRADE:
         return strcmp(option, "--all") == 0 || strcmp(option, "-y") == 0 ||
@@ -445,6 +454,13 @@ static int validate_command_actions(Command command, int argc, char **argv,
     int count = collect_command_operands(command, argc, argv, command_index,
                                          operands, 8);
     const char *action = count > 0 ? operands[0] : "list";
+
+    if (command == CMD_RECOVERY) {
+        if (!count || (count == 1 && !strcmp(action, "list"))) {
+            return 1;
+        }
+        return invalid_action_shape(command, "expected list without operands");
+    }
 
     if (command == CMD_REPO) {
         if (command_has_option(argc, argv, command_index, "--json") &&
@@ -1021,6 +1037,9 @@ int main(int argc, char *argv[]) {
         }
     }
     wpm_set_verbose(verbose);
+    if (cmd == CMD_RECOVERY) {
+        wpm_set_readonly(1);
+    }
     SetEnvironmentVariableA("WPM_VERBOSE", verbose ? "1" : NULL);
     wpm_repo_set_verbose(verbose);
     if (verbose) {
@@ -1346,6 +1365,11 @@ operation_dispatch:
         break;
     }
 
+    case CMD_RECOVERY:
+        if (!wpm_recovery_list()) {
+            return 1;
+        }
+        break;
     case CMD_CONFIG: {
         const char *action =
             command_index + 1 < argc ? argv[command_index + 1] : "";
@@ -1611,6 +1635,13 @@ void print_usage(Command c) {
                 "wpm repo add-package .\\repository .\\package.zip "
                 "[--dry-run]\n");
             return;
+        case CMD_RECOVERY:
+            print_usage_line(c);
+            wpm_event_printf(
+                WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                "\nInspect recorded failed upgrades without writes or scripts."
+                "\n\nExample:\n  wpm recovery list\n");
+            return;
         case CMD_KEYGEN:
             print_usage_line(c);
             wpm_event_printf(
@@ -1695,6 +1726,8 @@ void print_usage(Command c) {
         WPM_EVENT_INFO, "wpm.info", "wpm", "command",
         "  repo <init|verify|add-package|add|list|remove|update|diagnose> "
         "...\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  recovery [list] [--offline]\n");
     wpm_event_printf(
         WPM_EVENT_INFO, "wpm.info", "wpm", "command",
         "      Configure HTTPS, opted-in HTTP, local, or UNC package "
@@ -1829,6 +1862,9 @@ void print_usage(Command c) {
 }
 
 Command parse_command(const char *cmd) {
+    if (strcmp(cmd, "recovery") == 0) {
+        return CMD_RECOVERY;
+    }
     if (strcmp(cmd, "init") == 0) {
         return CMD_INIT;
     }

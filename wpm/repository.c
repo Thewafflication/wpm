@@ -6,7 +6,6 @@
 #include <limits.h>
 #include <stdarg.h>
 #include <windows.h>
-#include "sodium.h"
 #ifdef __TINYC__
 #include "tcc_support/urlmon.h"
 #else
@@ -14,6 +13,7 @@
 #endif
 #include "archive.h"
 #include "helpers.h"
+#include "hashing.h"
 #include "https.h"
 #include "repository.h"
 #include "logging.h"
@@ -2803,39 +2803,6 @@ done:
     return success;
 }
 
-static int author_hash(HANDLE input, char *hex, size_t capacity) {
-    crypto_generichash_state hash;
-    unsigned char buffer[65536], digest[32];
-    DWORD count;
-    LARGE_INTEGER expected;
-    uint64_t received = 0;
-    if (SetFilePointer(input, 0, NULL, FILE_BEGIN) ==
-            INVALID_SET_FILE_POINTER ||
-        !GetFileSizeEx(input, &expected) || expected.QuadPart < 0 ||
-        sodium_init() < 0 || crypto_generichash_init(&hash, NULL, 0, 32)) {
-        return 0;
-    }
-    for (;;) {
-        if (!ReadFile(input, buffer, sizeof(buffer), &count, NULL)) {
-            return 0;
-        }
-        if (!count) {
-            break;
-        }
-        if (crypto_generichash_update(&hash, buffer, count)) {
-            return 0;
-        }
-        if (received > (uint64_t)expected.QuadPart ||
-            count > (uint64_t)expected.QuadPart - received) {
-            return 0;
-        }
-        received += count;
-    }
-    return received == (uint64_t)expected.QuadPart &&
-           !crypto_generichash_final(&hash, digest, sizeof(digest)) &&
-           sodium_bin2hex(hex, capacity, digest, sizeof(digest)) != NULL;
-}
-
 static int author_copy(HANDLE input, const char *candidate) {
     HANDLE output = INVALID_HANDLE_VALUE;
     unsigned char buffer[65536];
@@ -2984,7 +2951,7 @@ int wpm_repo_add_package(const char *directory, const char *source,
         (_stricmp(info.arch, "any") && _stricmp(info.arch, "x86") &&
          _stricmp(info.arch, "x64") && _stricmp(info.arch, "arm64")) ||
         !wpm_repo_version_is_valid(info.version) ||
-        !author_hash(input, digest, sizeof(digest))) {
+        !wpm_hash_open_file(input, digest, sizeof(digest))) {
         goto done;
     }
     phase = "reject duplicate package identity";
@@ -3035,7 +3002,8 @@ int wpm_repo_add_package(const char *directory, const char *source,
         published = CreateFileA(artifact, GENERIC_READ, FILE_SHARE_READ, NULL,
                                 OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
         if (published == INVALID_HANDLE_VALUE ||
-            !author_hash(published, existing_digest, sizeof(existing_digest)) ||
+            !wpm_hash_open_file(published, existing_digest,
+                                sizeof(existing_digest)) ||
             strcmp(digest, existing_digest)) {
             goto done;
         }
@@ -3063,7 +3031,8 @@ int wpm_repo_add_package(const char *directory, const char *source,
         published = CreateFileA(artifact, GENERIC_READ, FILE_SHARE_READ, NULL,
                                 OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
         if (published == INVALID_HANDLE_VALUE ||
-            !author_hash(published, existing_digest, sizeof(existing_digest)) ||
+            !wpm_hash_open_file(published, existing_digest,
+                                sizeof(existing_digest)) ||
             strcmp(digest, existing_digest)) {
             goto done;
         }

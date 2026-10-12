@@ -169,3 +169,6 @@ its catalog/archives with `wpm repo verify <directory>`; see
 [repository authoring](docs/repository-authoring.md).
 Publish validated packages with
 `wpm repo add-package <directory> <archive> [--dry-run]`.
+
+Inspect [recorded failed upgrades](docs/increment-06-recovery-audits.md) with
+`wpm recovery list` before considering a retry.

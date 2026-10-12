@@ -31,9 +31,9 @@ kernel.DeviceIoControl.restype = wintypes.BOOL
 
 
 @contextmanager
-def read_lock(path):
+def read_lock(path, share=1):
     """Hold a read handle that denies writes and replacement."""
-    handle = kernel.CreateFileW(str(path), 0x80000000, 1, None, 3, 0, None)
+    handle = kernel.CreateFileW(str(path), 0x80000000, share, None, 3, 0, None)
     if handle == wintypes.HANDLE(-1).value:
         raise ctypes.WinError(ctypes.get_last_error())
     try:
