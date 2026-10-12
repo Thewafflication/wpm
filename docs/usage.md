@@ -78,7 +78,29 @@ Inspect the resolved executable and WPM locations without changing them:
 
 ```text
 wpm --diagnose
+wpm --diagnose --json
 ```
+
+From 1.2.46, optional `--json` emits one newline-terminated UTF-8 document with
+schema `wpm.runtime-diagnose.v1`. The shared runtime query supplies mode,
+executable, data/package/cache/configuration locations, selected HTTPS backend,
+and CA trust-source category. It does not open a configured CA file or probe
+repositories, installed archives, deployment, or TLS connectivity. Relative
+explicit data roots retain their existing native selection semantics.
+
+`complete: true`, `status: complete`, and exit 0 mean this configuration view
+was fully represented. Unavailable locations or an invalid backend produce
+`status: partial` and exit 1; unavailable or invalid-UTF-8 fields are null.
+`serialization_issues` counts fields that could not be safely represented.
+Paths use the shared secret redaction; CA-file paths are omitted. This optional
+view does not migrate native path encoding or certify operational health.
+
+Valid JSON invocations contain no color, progress, prompts, human text, stderr,
+managed initialization, or logs. `--offline` and `--dry-run` are accepted but the
+query is always read-only. Repeated machine-mode flags, incompatible options,
+operands, and `--verbose` fail before initialization with ordinary usage errors.
+Global color policy remains accepted. Existing human output and exit semantics
+remain unchanged. The proposed 2.0 `wpm.output.v1` envelope remains separate.
 
 ## Commands
 

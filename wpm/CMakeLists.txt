@@ -621,6 +621,19 @@ if(BUILD_TESTING)
         120
   )
   add_test(
+    NAME runtime-diagnose-integration
+    COMMAND
+      "${Python3_EXECUTABLE}"
+      "${CMAKE_SOURCE_DIR}/tests/runtime-diagnose-integration.py" --wpm
+      $<TARGET_FILE:wpm>
+  )
+  set_tests_properties(
+    runtime-diagnose-integration
+    PROPERTIES
+      TIMEOUT
+        120
+  )
+  add_test(
     NAME quality-query-harness
     COMMAND
       "${Python3_EXECUTABLE}"
@@ -1161,7 +1174,7 @@ if(BUILD_TESTING)
       "recovery-integration|"
       "repository-sign-integration|"
       "repository-index-integration|"
-      "quality-query-harness|"
+      "quality-query-harness|runtime-diagnose-integration|"
       "installed-list-integration|"
       "available-list-integration|"
       "documentation-installation|"

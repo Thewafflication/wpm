@@ -8,6 +8,7 @@
 #include "https.h"
 #include "init.h"
 #include "logging.h"
+#include "json_output.h"
 #include "operation.h"
 #include "capability.h"
 #include "repository.h"
@@ -751,72 +752,164 @@ static int path_is_beneath(const char *path, const char *root) {
             path[root_length] == '/');
 }
 
-static void print_runtime_mode(void) {
-    char executable_path[MAX_PATH];
-    char managed_root[MAX_PATH];
-    char program_files[MAX_PATH];
-    DWORD path_length;
-    wpm_https_backend https_backend = wpm_https_get_backend();
-    const char *ca_file = getenv("WPM_TLS_CA_FILE");
+typedef struct runtime_query {
+    char executable[MAX_PATH];
+    char data_root[MAX_PATH];
+    int executable_known;
+    int data_root_known;
+    int managed;
+    int configured_ca;
+    wpm_https_backend backend;
+} runtime_query;
 
+static void collect_runtime_query(runtime_query *query) {
+    char managed_root[MAX_PATH], program_files[MAX_PATH];
+    DWORD length;
+    const char *ca_file;
+    memset(query, 0, sizeof(*query));
+    query->backend = wpm_https_get_backend();
+    ca_file = getenv("WPM_TLS_CA_FILE");
+    query->configured_ca = ca_file && *ca_file;
+    query->data_root_known =
+        wpm_get_data_root(query->data_root, sizeof(query->data_root));
     if (!wpm_get_environment_variable("ProgramW6432", program_files,
                                       sizeof(program_files)) &&
         !wpm_get_environment_variable("ProgramFiles", program_files,
                                       sizeof(program_files))) {
         program_files[0] = '\0';
     }
-    path_length =
-        GetModuleFileNameA(NULL, executable_path, sizeof(executable_path));
+    length =
+        GetModuleFileNameA(NULL, query->executable, sizeof(query->executable));
+    query->executable_known = length > 0 && length < sizeof(query->executable);
+    query->managed = program_files[0] && query->executable_known &&
+                     snprintf(managed_root, sizeof(managed_root), "%s\\WPM",
+                              program_files) > 0 &&
+                     path_is_beneath(query->executable, managed_root);
+}
 
-    if (program_files[0] && path_length > 0 &&
-        path_length < sizeof(executable_path) &&
-        snprintf(managed_root, sizeof(managed_root), "%s\\WPM", program_files) >
-            0 &&
-        path_is_beneath(executable_path, managed_root)) {
+static void render_runtime_mode(const runtime_query *query) {
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "Runtime mode: %s\n",
+                     query->managed ? "managed" : "portable");
+    if (query->executable_known) {
         wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
-                         "Runtime mode: managed\n");
-    } else {
-        wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
-                         "Runtime mode: portable\n");
+                         "Executable: %s\n", query->executable);
     }
-    if (path_length > 0 && path_length < sizeof(executable_path)) {
-        wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
-                         "Executable: %s\n", executable_path);
-    }
-    if (https_backend == WPM_HTTPS_BUNDLED) {
+    if (query->backend == WPM_HTTPS_BUNDLED) {
         wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
                          "HTTPS backend: Mbed TLS %s (TLS 1.2)\n",
                          MBEDTLS_VERSION_STRING);
         wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
                          "TLS trust: %s\n",
-                         ca_file && *ca_file ? "configured CA file"
-                                             : "embedded Mozilla CA bundle");
-    } else if (https_backend == WPM_HTTPS_URLMON) {
-        wpm_event_printf(
-            WPM_EVENT_INFO, "wpm.info", "wpm", "command",
-            "HTTPS backend: URLMon (Windows TLS and certificate store)\n");
+                         query->configured_ca ? "configured CA file"
+                                              : "embedded Mozilla CA bundle");
+    } else if (query->backend == WPM_HTTPS_URLMON) {
+        wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                         "HTTPS backend: URLMon (Windows TLS and "
+                         "certificate store)\n");
     } else {
         wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
                          "HTTPS backend: invalid WPM_HTTPS_BACKEND setting\n");
     }
 }
 
+static void print_runtime_mode(void) {
+    runtime_query query;
+    collect_runtime_query(&query);
+    render_runtime_mode(&query);
+}
+
 static void print_diagnostics(void) {
-    char data_root[MAX_PATH];
-    print_runtime_mode();
-    if (!wpm_get_data_root(data_root, sizeof(data_root))) {
+    runtime_query query;
+    collect_runtime_query(&query);
+    render_runtime_mode(&query);
+    if (!query.data_root_known) {
         wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
                          "Data directory: unknown\n");
         return;
     }
     wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
-                     "Data directory: %s\n", data_root);
+                     "Data directory: %s\n", query.data_root);
     wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
-                     "Package directory: %s\\packages\n", data_root);
+                     "Package directory: %s\\packages\n", query.data_root);
     wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
-                     "Cache directory: %s\\cache\n", data_root);
+                     "Cache directory: %s\\cache\n", query.data_root);
     wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
-                     "Configuration directory: %s\\config\n", data_root);
+                     "Configuration directory: %s\\config\n", query.data_root);
+}
+
+static int runtime_json_path(const runtime_query *query, const char *suffix) {
+    char path[MAX_PATH + 32];
+    if (!query->data_root_known) {
+        fputs("null", stdout);
+        return 1;
+    }
+    snprintf(path, sizeof(path), "%s%s", query->data_root, suffix);
+    return wpm_json_string(path);
+}
+
+static int print_diagnostics_json(void) {
+    runtime_query query;
+    unsigned issues = 0;
+    int complete;
+    collect_runtime_query(&query);
+    fputs("{\"schema\":\"wpm.runtime-diagnose.v1\","
+          "\"inspection\":\"runtime_configuration\",\"runtime_mode\":",
+          stdout);
+    issues += !wpm_json_string(query.managed ? "managed" : "portable");
+    fputs(",\"executable\":", stdout);
+    if (query.executable_known) {
+        issues += !wpm_json_string(query.executable);
+    } else {
+        fputs("null", stdout);
+    }
+    fputs(",\"data_root\":", stdout);
+    issues += !runtime_json_path(&query, "");
+    fputs(",\"package_directory\":", stdout);
+    issues += !runtime_json_path(&query, "\\packages");
+    fputs(",\"cache_directory\":", stdout);
+    issues += !runtime_json_path(&query, "\\cache");
+    fputs(",\"configuration_directory\":", stdout);
+    issues += !runtime_json_path(&query, "\\config");
+    fputs(",\"https\":{\"backend\":", stdout);
+    issues +=
+        !wpm_json_string(query.backend == WPM_HTTPS_BUNDLED  ? "bundled_mbedtls"
+                         : query.backend == WPM_HTTPS_URLMON ? "urlmon"
+                                                             : "invalid");
+    fputs(",\"trust_source\":", stdout);
+    if (query.backend == WPM_HTTPS_INVALID) {
+        fputs("null", stdout);
+    } else {
+        issues +=
+            !wpm_json_string(query.backend == WPM_HTTPS_URLMON ? "windows_store"
+                             : query.configured_ca ? "configured_ca_file"
+                                                   : "embedded_mozilla_bundle");
+    }
+    fputs("},", stdout);
+    complete = query.executable_known && query.data_root_known && !issues &&
+               query.backend != WPM_HTTPS_INVALID;
+    fprintf(stdout,
+            "\"serialization_issues\":%u,\"complete\":%s,"
+            "\"status\":\"%s\",\"exit_code\":%d}\n",
+            issues, complete ? "true" : "false",
+            complete ? "complete" : "partial", complete ? 0 : 1);
+    return complete ? 0 : 1;
+}
+
+static int diagnostic_json_shape(int argc, char **argv, int verbose) {
+    unsigned seen = 0;
+    for (int i = 1; i < argc; i++) {
+        unsigned flag = !strcmp(argv[i], "--diagnose")  ? 1
+                        : !strcmp(argv[i], "--json")    ? 2
+                        : !strcmp(argv[i], "--offline") ? 4
+                        : !strcmp(argv[i], "--dry-run") ? 8
+                                                        : 0;
+        if (!flag || (seen & flag)) {
+            return 0;
+        }
+        seen |= flag;
+    }
+    return !verbose && (seen & 3) == 3;
 }
 
 static void print_windows_dependency_version(const char *display_name,
@@ -1067,6 +1160,20 @@ int main(int argc, char *argv[]) {
         }
         print_usage(help_command);
         return 0;
+    }
+
+    if (show_diagnostics && command_has_option(argc, argv, 0, "--json")) {
+        if (!diagnostic_json_shape(argc, argv, verbose)) {
+            wpm_event_printf(WPM_EVENT_ERROR, "diagnose.json.flags", "wpm",
+                             "parse",
+                             "Error: invalid JSON diagnostic options.\n");
+            wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                             "Usage: wpm --diagnose --json "
+                             "[--offline] [--dry-run]\n");
+            return 1;
+        }
+        wpm_set_readonly(1);
+        return print_diagnostics_json();
     }
 
     if (show_version) {
@@ -2065,7 +2172,7 @@ void print_usage(Command c) {
         "      Control semantic output styling; default is auto\n\n");
 
     wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
-                     "  --diagnose\n");
+                     "  --diagnose [--json]\n");
     wpm_event_printf(
         WPM_EVENT_INFO, "wpm.info", "wpm", "command",
         "      Display runtime mode and resolved WPM locations\n\n");

@@ -877,3 +877,28 @@ declarations, document bounds, and valid JSON presentation equivalents. Original
 failures retain repository/public-key inputs and expected results without private
 key files. Targeted x86/x64 evidence passed; full findings, persistent policy,
 quality profiles, and full REQ-0017.005/I-09 acceptance remain open.
+
+Next compatible slice: optional --diagnose --json for the existing runtime
+location/TLS configuration query. Human defaults and native path bytes remain
+unchanged; shared collection feeds both renderers, safe UTF-8 fields become null
+on serialization failure, and valid machine output stays free of prose/color.
+Invalid machine-mode shapes fail before initialization. This does not add CPU,
+repository, trust-store, archive, or deployment health certification, nor replace
+the proposed wpm.output.v1 envelope. REQ-0018.008/.009/I-08 remain partial.
+
+Release 1.2.44 run 38314968608 retained an ARM64 TC-0035 PowerShell internal CLR
+error (0x80131506) at out/release-1.2.44-check/failed.log. Its signing fixture and
+x86/x64 suites passed. The failed job passed its single retry without moving the
+tag or relaxing gates, following the earlier 1.2.33 runner failure disposition.
+
+1.2.46 implements the optional runtime diagnostic JSON slice from the shared
+location/TLS query, preserving human presentation and native path semantics.
+Fixtures cover forced-color redirection, repeated deterministic output, backend
+selection/configuration errors, absent roots/logs, relative/long/ANSI paths,
+redaction, invalid CLI shapes, and a copied executable's managed-mode heuristic.
+Targeted x86/x64 tests pass. Native query run 38314833741 separately passed 1000
+cases per architecture at 751a312eb533b5d1e22b1d666d57106f1c7e485f, with
+downloaded source/harness/corpus evidence checked. Full I-08/I-10 remain open.
+
+The runtime fixture runs each subprocess from its owned temporary root so
+relative-root writes would be captured by its before/after snapshot.

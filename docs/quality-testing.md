@@ -177,3 +177,10 @@ manual physical/ACL/deployment coverage. REQ-0020/I-10 remains partial: enduranc
 full signatures/archives/paths/configuration, injected lifecycle faults, media,
 nightly scheduling, complete environment/resource controls, and the full 2.0
 release-candidate quality gate remain open.
+
+Native manual run 38314833741 passed 1000 cases each on x86, x64, and ARM64,
+seed 20045, at 751a312eb533b5d1e22b1d666d57106f1c7e485f. Downloaded reports
+record clean source state and distinct binary hashes; saved harness/corpus bytes
+match their recorded SHA-256 values. Evidence and the local verification record
+are retained under out/quality-native-38314833741. This repeats the bounded
+structural query subset and does not close the broader quality requirements.
