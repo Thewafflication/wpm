@@ -225,6 +225,8 @@ be waived by an undocumented emergency.
 
 The maintainer's standing instruction of 2026-10-11 is to commit and push
 completed work. Each completed roadmap increment is committed, pushed, tagged,
-and released after required verification. Changes to the unattended command
-contract ship as 2.0 prereleases until final 2.0 readiness is complete. This
-instruction does not bypass commit hooks or required release verification.
+and released after required verification. The maintainer subsequently specified that compatible changes ship on the main
+1.x release line. Preserve existing defaults, schemas, runtime support, and
+valid workflows; introduce safety options explicitly. A breaking change requires
+a major-version prerelease. This instruction does not bypass commit hooks or
+required release verification.

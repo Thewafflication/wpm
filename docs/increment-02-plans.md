@@ -55,3 +55,12 @@ The signed x64 candidate then passed a real local upgrade from 1.2.10 after the
 fixture explicitly opted in for WPM. The corrected delivery tag is
 `2.0.0-alpha.1.1`; alpha.1 remains an unpublished failed tag. The fixture opt-in
 changes disposable test state only and preserves stable users' default policy.
+
+## 1.x compatibility disposition
+
+The maintainer requested compatible stable delivery after the alpha prototype.
+The `1.2.11` backport makes shared immutable approval opt-in with `--confirm` and
+keeps legacy install/remove/selected-upgrade defaults, upgrade-all approval, and
+normal unknown-key trust prompts. Dry-run remains an explicit new option. The
+strict default 2.0 contract is demonstrated by the I-02 alpha but is not silently
+introduced into stable 1.x. Parent requirement acceptance remains future work.

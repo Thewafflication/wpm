@@ -508,37 +508,40 @@ Useful local presets:
 - Test one case through CTest: `test-tc-0001-x86-debug` through
   `test-tc-0007-x86-debug`
 
-## 2.0 increment preview: shared operation approval
+## Operation plans and dry-run (1.2.11)
 
-Install, remove, selected upgrade, and upgrade-all now print a complete package
-plan before deployment or staging. Plans include identity, architecture, old/new
-version, repository/input, trust, controlled roots, package scripts, retention,
-and deferred self-upgrade completion. The plan digest binds approval to archive
-content and package/trust/configuration state. Changes require a new plan.
+Existing 1.x command defaults are preserved. Install, remove, and selected
+upgrade continue without a new lifecycle confirmation prompt. Upgrade-all keeps
+its existing summary and confirmation; `--yes`/`-y` bypass that prompt. Normal
+signature validation retains its existing interactive unknown-key trust flow.
+Package/index/signature formats and supported runtime platforms are unchanged.
 
-Use `--yes` or `-y` on each lifecycle command for unattended operation. Empty
-input, EOF, and anything except `y`/`yes` cancel safely. Cancellation exits zero;
-invalidated plans exit nonzero. Unknown signing keys require independent
-verification and `wpm trust add` before planning. Uncached web inputs require a
-separate cache preparation plan/approval before retrieval; full deployment
-approval follows package validation. Operational logging begins only after
-deployment approval. `--yes` approves both preparation and deployment.
+Add `--confirm` to install, remove, selected upgrade, or upgrade-all for an
+immutable operation plan and explicit approval. Plans show identity, architecture,
+version transition, source/input, trust, controlled roots, scripts, retention,
+and deferred completion. Archive and package/trust/configuration state changes
+invalidate approval. Empty input and EOF cancel; invalidated plans fail. This
+opt-in mode requires known trusted keys; add independently verified keys with
+`wpm trust add` before planning. Uncached web inputs have separate preparation
+approval before cache writes, followed by deployment approval after validation.
 
-Add `--dry-run` to install, remove, selected upgrade, or upgrade-all to validate
-and print the same plan without approval, writes, scripts, or self-upgrade
-handoff. Local sources are read directly. Web indexes and packages must already
-be cached; a missing input produces an actionable error instead of fetching it.
-Dry-run ignores configured log file/directory destinations and creates no data
-root. Unsupported commands and `--dry-run --yes` combinations fail before any
-initialization. Repository/trust/configuration mutations do not support dry-run.
-
-Examples:
+Add `--dry-run` to the same lifecycle commands to validate and print the plan
+without writes, scripts, downloads, or handoff. Local sources are read directly;
+web inputs must already be cached. No data root or external log is created.
+Unsupported mutating commands and contradictory `--dry-run`, `--confirm`, or
+`--yes` combinations fail before initialization.
 
 ```text
+wpm install package
+wpm remove package-any-1.0.0
+wpm upgrade package
+wpm upgrade --all --yes
+wpm install package --confirm
+wpm upgrade --all --confirm
 wpm install .\package-any-1.0.0.zip --dry-run --allow-unsigned
-wpm install package --dry-run --offline
-wpm remove package-any-1.0.0 --dry-run
 wpm upgrade --all --dry-run --offline
 ```
 
-These changes ship as 2.0 alpha increments while 1.2.10 remains stable.
+I-02's 2.0 alpha demonstrated confirmation by default. The maintainer requested
+compatible 1.x delivery, so the stable backport enables the new contract only
+through these explicit options. Broader 2.0 default changes remain proposed.

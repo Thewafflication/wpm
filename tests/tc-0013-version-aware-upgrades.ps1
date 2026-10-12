@@ -405,8 +405,7 @@ try {
         'Reject unsigned upgrade before script execut' +
         'ion'
     ) `
-        -Arguments @('upgrade', '--yes', `
-            $packages.Architecture, '--offline') -Assert {
+        -Arguments @('upgrade', $packages.Architecture, '--offline') -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -eq 0 -or $Output -notmatch '(?i)unsigned|signature') {
  `
@@ -423,7 +422,7 @@ try {
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name (
         'Upgrade all installed specific architectures' +
         ' and ignore any candidate'
-    ) -Arguments @('upgrade', '--yes', $packages.Architecture, '--offline', `
+    ) -Arguments @('upgrade', $packages.Architecture, '--offline', `
             '--allow-unsigned') -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -ne 0) {

@@ -69,3 +69,15 @@ dependency in the selective verification target. The target now builds and runs
 all new component tests before the fresh full suite. The corrected I-03 delivery
 tag is `2.0.0-alpha.2.2`. Native release verification must use that exact source,
 including argument-order no-write regressions and the selective build path.
+
+## Compatible stable delivery
+
+The maintainer's subsequent instruction requires a 1.x release when compatibility
+is preserved. Stable delivery is therefore `1.2.11`, superseding the planned
+alpha.2.2 tag. Existing install/remove/selected-upgrade automation, upgrade-all
+confirmation and `--yes`, normal caching/logging, and interactive unknown-key
+trust remain on their legacy paths. Shared immutable plans are opt-in through
+`--confirm`; read-only plans use `--dry-run`. The capability boundaries and tests
+remain active. No package, index, signature, CPU/platform, or ABI format changes
+are introduced. Integration tests prove legacy EOF execution and opt-in EOF
+cancellation separately. The future 2.0 default contract remains Proposed.

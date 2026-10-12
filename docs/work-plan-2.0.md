@@ -15,7 +15,7 @@
 **Delivery record:** I-00 is complete for planning in
 [the baseline inventory](increment-00-baseline.md). Product requirement states
 remain separate from increment delivery. I-01 is released as 1.2.10; I-02
-is tagged as 2.0.0-alpha.1.1 with shared plans; I-03 implements mutation-free dry runs.
+is tagged as 2.0.0-alpha.1.1 with shared plans; I-03 implements mutation-free dry runs with compatible stable delivery in 1.2.11.
 
 I-01 implementation and verification allocation are recorded in
 [current command presentation](increment-01-presentation.md).

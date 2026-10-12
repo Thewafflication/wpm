@@ -133,6 +133,7 @@ with tempfile.TemporaryDirectory(prefix="wpm-dry-run-") as directory:
     env["WPM_LOG_FILE"] = str(root / "external" / "never-created.log")
     for command in (
         ("install", new, "--allow-unsigned", "--yes"),
+        ("install", new, "--allow-unsigned", "--confirm"),
         ("build", source),
         ("trust", "add", new),
         ("update",),

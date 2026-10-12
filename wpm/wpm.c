@@ -174,12 +174,12 @@ static void print_usage_line(Command command) {
             WPM_EVENT_INFO, "wpm.info", "wpm", "command",
             "Usage: wpm install <package...> [--arch <arch>] [--version "
             "<semver>] [--offline] [--allow-unsigned] [-y|--yes] "
-            "[--dry-run]\n");
+            "[--confirm|--dry-run]\n");
         break;
     case CMD_REMOVE:
-        wpm_event_printf(
-            WPM_EVENT_INFO, "wpm.info", "wpm", "command",
-            "Usage: wpm remove <package...> [-y|--yes] [--dry-run]\n");
+        wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                         "Usage: wpm remove <package...> [-y|--yes] "
+                         "[--confirm|--dry-run]\n");
         break;
     case CMD_REPO:
         wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
@@ -211,7 +211,8 @@ static void print_usage_line(Command command) {
         wpm_event_printf(
             WPM_EVENT_INFO, "wpm.info", "wpm", "command",
             "Usage: wpm upgrade <package...> [--arch <arch>] [--version "
-            "<semver>] | --all [--arch <arch>] [-y|--yes] [--dry-run]\n");
+            "<semver>] | --all [--arch <arch>] [-y|--yes] "
+            "[--confirm|--dry-run]\n");
         break;
     default:
         wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
@@ -233,7 +234,7 @@ static int command_option_is_known(Command command, const char *option) {
     if ((command == CMD_INSTALL || command == CMD_REMOVE ||
          command == CMD_UPGRADE) &&
         (!strcmp(option, "--yes") || !strcmp(option, "-y") ||
-         !strcmp(option, "--dry-run"))) {
+         !strcmp(option, "--dry-run") || !strcmp(option, "--confirm"))) {
         return 1;
     }
     if (strcmp(option, "--verbose") == 0) {
@@ -619,6 +620,7 @@ static void print_windows_dependency_version(const char *display_name,
 int main(int argc, char *argv[]) {
     int verbose = 0;
     int plan_yes = 0;
+    int plan_confirm = 0;
     int dry_run = 0;
     int offline = 0;
     int command_index = -1;
@@ -865,8 +867,14 @@ int main(int argc, char *argv[]) {
     }
     if (cmd == CMD_INSTALL || cmd == CMD_REMOVE || cmd == CMD_UPGRADE) {
         for (int i = command_index + 1; i < argc; i++) {
-            if (!strcmp(argv[i], "--yes") || !strcmp(argv[i], "-y")) {
-                plan_yes = 1;
+            if (!strcmp(argv[i], "--confirm")) {
+                plan_confirm = 1;
+            }
+            if (!strcmp(argv[i], "--yes") || !strcmp(argv[i], "-y") ||
+                !strcmp(argv[i], "--confirm")) {
+                if (strcmp(argv[i], "--confirm")) {
+                    plan_yes = 1;
+                }
                 for (int j = i; j + 1 < argc; j++) {
                     argv[j] = argv[j + 1];
                 }
@@ -874,10 +882,11 @@ int main(int argc, char *argv[]) {
                 i--;
             }
         }
-        if (dry_run && plan_yes) {
-            wpm_event_printf(
-                WPM_EVENT_ERROR, "plan.flags", "plan", "parse",
-                "Error: --dry-run cannot be combined with --yes/-y.\n");
+        if ((dry_run && (plan_yes || plan_confirm)) ||
+            (plan_confirm && plan_yes)) {
+            wpm_event_printf(WPM_EVENT_ERROR, "plan.flags", "plan", "parse",
+                             "Error: --dry-run, --confirm, and --yes/-y are "
+                             "mutually exclusive.\n");
             print_usage_line(cmd);
             return 1;
         }
@@ -890,7 +899,9 @@ int main(int argc, char *argv[]) {
                 i--;
             }
         }
-        wpm_operation_begin(plan_yes);
+        if (dry_run || plan_confirm) {
+            wpm_operation_begin(plan_yes);
+        }
     }
     wpm_set_verbose(verbose);
     SetEnvironmentVariableA("WPM_VERBOSE", verbose ? "1" : NULL);
@@ -1240,7 +1251,8 @@ operation_dispatch:
 
     case CMD_UPGRADE: {
         const char *names[128];
-        int name_count = 0, all = 0, allow_unsigned = 0, assume_yes = plan_yes;
+        int name_count = 0, all = 0, allow_unsigned = 0,
+            assume_yes = plan_yes || plan_confirm;
         const char *selected_arch = NULL;
         const char *selected_version = NULL;
         for (int i = command_index + 1; i < argc; i++) {
@@ -1600,9 +1612,13 @@ void print_usage(Command c) {
                      "      Allow installation of an unsigned package\n\n");
     wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
                      "  -y, --yes\n");
-    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
-                     "      Approve lifecycle plans without prompting\n\n");
+    wpm_event_printf(
+        WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+        "      Bypass upgrade-all confirmation without prompting\n\n");
 
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  --confirm\n      Preview and approve an immutable "
+                     "lifecycle plan\n\n");
     wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
                      "  --dry-run\n      Validate lifecycle plans without "
                      "writes or scripts\n\n");

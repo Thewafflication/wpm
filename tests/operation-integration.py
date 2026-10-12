@@ -45,7 +45,13 @@ with tempfile.TemporaryDirectory(prefix="wpm-operation-") as directory:
     assert result.returncode == 0, result.stdout
     archive = root / "plan-test-any-1.0.0.zip"
     for answer in ("", "\n", "n\n", "maybe\n"):
-        result = run("install", archive, "--allow-unsigned", input_text=answer)
+        result = run(
+            "install",
+            archive,
+            "--allow-unsigned",
+            "--confirm",
+            input_text=answer,
+        )
         assert result.returncode == 0, result.stdout
         for text in ("Operation plan:", "Plan digest:", "cancelled"):
             assert text in result.stdout, result.stdout
@@ -55,7 +61,7 @@ with tempfile.TemporaryDirectory(prefix="wpm-operation-") as directory:
     # Change config after the prompt but before approval. The typed error must
     # reject the stale plan before staging or a package script can run.
     process = subprocess.Popen(
-        [wpm, "install", str(archive), "--allow-unsigned"],
+        [wpm, "install", str(archive), "--allow-unsigned", "--confirm"],
         env=env,
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
@@ -73,20 +79,40 @@ with tempfile.TemporaryDirectory(prefix="wpm-operation-") as directory:
     assert b"recompute and approve" in output, output
     assert not installed.exists()
 
-    result = run("install", archive, "--allow-unsigned", "--yes")
+    result = run("install", archive, "--allow-unsigned")
     assert result.returncode == 0, result.stdout
     assert installed.exists()
+    assert "Proceed with" not in result.stdout
     assert "Result: plan-test any installed" in result.stdout
     for answer in ("", "\n", "no\n"):
-        result = run("remove", "plan-test-any-1.0.0", input_text=answer)
+        result = run(
+            "remove", "plan-test-any-1.0.0", "--confirm", input_text=answer
+        )
         assert result.returncode == 0, result.stdout
         assert "1.0.0 -> removed" in result.stdout
         assert "cancelled" in result.stdout
         assert not removed.exists()
-    result = run("remove", "plan-test-any-1.0.0", "-y")
+    result = run("remove", "plan-test-any-1.0.0")
     assert result.returncode == 0, result.stdout
     assert removed.exists()
+    assert "Proceed with" not in result.stdout
     assert not list((data / "packages").glob("*.zip"))
+
+    # Normal 1.x installs retain their interactive unknown-key trust flow.
+    private = root / "compat.private"
+    public = root / "compat.public"
+    assert run("keygen", private, public).returncode == 0
+    assert run("build", source, root, "--sign", private).returncode == 0
+    installed.unlink()
+    result = run("install", archive, "--confirm", input_text="y\n")
+    assert result.returncode != 0, result.stdout
+    assert not installed.exists()
+    assert not list((data / "trust").glob("*.pub"))
+    result = run("install", archive, input_text="y\n")
+    assert result.returncode == 0, result.stdout
+    assert "Trust it? [y/N]" in result.stdout, result.stdout
+    assert installed.exists()
+    assert list((data / "trust").glob("*.pub"))
 
 print(
     "PASS: complete plans, safe cancellation, --yes, and stale-state rejection"

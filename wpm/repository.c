@@ -2222,7 +2222,7 @@ int wpm_repo_upgrade(const char **package_names, int package_count, int all,
                                  package_count, all, arch, version);
     if (all && !wpm_operation_collecting()) {
         int planned = print_upgrade_plan(installed, ic, entries, ec, arch);
-        if (planned && !confirm_upgrade_plan(1)) {
+        if (planned && !confirm_upgrade_plan(assume_yes)) {
             wpm_event_printf(WPM_EVENT_INFO, "repository.info", "repository",
                              "command",
                              "Upgrade cancelled; no packages were changed.\n");
