@@ -6,6 +6,7 @@
 #include <limits.h>
 #include <stdarg.h>
 #include <windows.h>
+#include "sodium.h"
 #ifdef __TINYC__
 #include "tcc_support/urlmon.h"
 #else
@@ -2617,98 +2618,117 @@ static int author_catalog_fields(const char *text) {
     return fields == 3;
 }
 
-int wpm_repo_verify(const char *directory, int allow_unsigned) {
-    char root[PATH_SIZE], path[PATH_SIZE], signing_key[65];
-    char *text = NULL;
-    package_entry *entries = NULL;
-    HANDLE catalog = INVALID_HANDLE_VALUE, archive = INVALID_HANDLE_VALUE;
-    DWORD attributes, size, high, read;
-    const char *p, *phase = "read catalog";
-    int count = 0, success = 0;
-    wpm_set_readonly(1);
-    if (is_web_repository(directory) ||
-        !repository_normalize(directory, root, sizeof(root), 1)) {
-        goto done;
-    }
+static int author_read_catalog(const char *root, HANDLE *catalog, char **text,
+                               package_entry *entries, int *count,
+                               const char **array_end) {
+    char path[PATH_SIZE];
+    DWORD attributes, size, high = 0, read;
+    const char *p;
+    *count = 0;
     attributes = GetFileAttributesA(root);
     if (attributes == INVALID_FILE_ATTRIBUTES ||
         !(attributes & FILE_ATTRIBUTE_DIRECTORY) ||
         (attributes & FILE_ATTRIBUTE_REPARSE_POINT) ||
         !author_file(root, "index.json", path, sizeof(path))) {
-        goto done;
+        return 0;
     }
-    catalog = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, NULL,
-                          OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-    if (catalog == INVALID_HANDLE_VALUE) {
-        goto done;
+    *catalog = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, NULL,
+                           OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (*catalog == INVALID_HANDLE_VALUE) {
+        return 0;
     }
-    size = GetFileSize(catalog, &high);
+    size = GetFileSize(*catalog, &high);
     if (high || size < 2 || size > 4 * 1024 * 1024) {
-        goto done;
+        return 0;
     }
-    text = malloc((size_t)size + 1);
-    entries = calloc(MAX_PACKAGES, sizeof(*entries));
-    if (!text || !entries || !ReadFile(catalog, text, size, &read, NULL) ||
+    *text = malloc((size_t)size + 1);
+    if (!*text || !ReadFile(*catalog, *text, size, &read, NULL) ||
         read != size) {
-        goto done;
+        return 0;
     }
-    text[size] = 0;
-    phase = "validate catalog";
-    if (memchr(text, 0, size) || !json_document_valid(text) ||
-        !index_version_supported(text) || !author_catalog_fields(text)) {
-        goto done;
+    (*text)[size] = 0;
+    if (memchr(*text, 0, size) || !json_document_valid(*text) ||
+        !index_version_supported(*text) || !author_catalog_fields(*text)) {
+        return 0;
     }
-    p = index_field(text, "packages");
+    p = index_field(*text, "packages");
     if (!p || *p++ != '[') {
-        goto done;
+        return 0;
     }
     while (*(p = skip_ws(p)) != ']') {
-        if (count == MAX_PACKAGES || !author_entry(&p, &entries[count])) {
-            goto done;
+        if (*count == MAX_PACKAGES || !author_entry(&p, &entries[*count])) {
+            return 0;
         }
-        for (int i = 0; i < count; i++) {
-            if (!_stricmp(entries[i].name, entries[count].name) &&
-                !_stricmp(entries[i].arch, entries[count].arch) &&
-                !strcmp(entries[i].version, entries[count].version)) {
-                goto done;
+        for (int i = 0; i < *count; i++) {
+            if (!_stricmp(entries[i].name, entries[*count].name) &&
+                !_stricmp(entries[i].arch, entries[*count].arch) &&
+                !strcmp(entries[i].version, entries[*count].version)) {
+                return 0;
             }
         }
-        count++;
+        (*count)++;
         p = skip_ws(p);
         if (*p == ',') {
             p++;
         } else if (*p != ']') {
-            goto done;
+            return 0;
         }
     }
-    phase = "validate archive path, identity, integrity, and trust";
+    *array_end = p;
+    return 1;
+}
+
+static int author_verify_entries(const char *root, package_entry *entries,
+                                 int count, int allow_unsigned) {
+    char path[PATH_SIZE], signing_key[65];
     for (int i = 0; i < count; i++) {
         wpm_package_info info;
+        HANDLE archive;
+        int valid;
         if (!author_file(root, entries[i].url, path, sizeof(path))) {
-            goto done;
+            return 0;
         }
         archive = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, NULL,
                               OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-        if (archive == INVALID_HANDLE_VALUE ||
-            !wpm_archive_validate_readonly(path, allow_unsigned, signing_key,
-                                           sizeof(signing_key)) ||
-            !wpm_archive_inspect(path, &info) ||
-            strcmp(info.name, entries[i].name) ||
-            strcmp(info.version, entries[i].version) ||
-            _stricmp(info.arch, entries[i].arch)) {
-            goto done;
+        if (archive == INVALID_HANDLE_VALUE) {
+            return 0;
         }
+        valid = wpm_archive_validate_readonly(path, allow_unsigned, signing_key,
+                                              sizeof(signing_key));
+        valid = valid && wpm_archive_inspect(path, &info) &&
+                !strcmp(info.name, entries[i].name) &&
+                !strcmp(info.version, entries[i].version) &&
+                !_stricmp(info.arch, entries[i].arch);
         CloseHandle(archive);
-        archive = INVALID_HANDLE_VALUE;
+        if (!valid) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+int wpm_repo_verify(const char *directory, int allow_unsigned) {
+    char root[PATH_SIZE], *text = NULL;
+    const char *array_end, *phase = "read and validate catalog";
+    package_entry *entries = calloc(MAX_PACKAGES, sizeof(*entries));
+    HANDLE catalog = INVALID_HANDLE_VALUE;
+    int count = 0, success = 0;
+    wpm_set_readonly(1);
+    if (!entries || is_web_repository(directory) ||
+        !repository_normalize(directory, root, sizeof(root), 1) ||
+        !author_read_catalog(root, &catalog, &text, entries, &count,
+                             &array_end)) {
+        goto done;
+    }
+    phase = "validate archive path, identity, integrity, and trust";
+    if (!author_verify_entries(root, entries, count, allow_unsigned)) {
+        goto done;
     }
     wpm_event_printf(WPM_EVENT_RESULT, "repository.verified", "repository",
                      "verify", "Result: repository verified (%d packages)\n",
                      count);
     success = 1;
 done:
-    if (archive != INVALID_HANDLE_VALUE) {
-        CloseHandle(archive);
-    }
     if (catalog != INVALID_HANDLE_VALUE) {
         CloseHandle(catalog);
     }
@@ -2720,6 +2740,334 @@ done:
                          "Error: repository verification failed: %s.\n"
                          "Check schema-1 entries, contained local archives, "
                          "matching identities, and existing signing trust.\n",
+                         phase);
+    }
+    return success;
+}
+
+static int author_hash(HANDLE input, char *hex, size_t capacity) {
+    crypto_generichash_state hash;
+    unsigned char buffer[65536], digest[32];
+    DWORD count;
+    LARGE_INTEGER expected;
+    uint64_t received = 0;
+    if (SetFilePointer(input, 0, NULL, FILE_BEGIN) ==
+            INVALID_SET_FILE_POINTER ||
+        !GetFileSizeEx(input, &expected) || expected.QuadPart < 0 ||
+        sodium_init() < 0 || crypto_generichash_init(&hash, NULL, 0, 32)) {
+        return 0;
+    }
+    for (;;) {
+        if (!ReadFile(input, buffer, sizeof(buffer), &count, NULL)) {
+            return 0;
+        }
+        if (!count) {
+            break;
+        }
+        if (crypto_generichash_update(&hash, buffer, count)) {
+            return 0;
+        }
+        if (received > (uint64_t)expected.QuadPart ||
+            count > (uint64_t)expected.QuadPart - received) {
+            return 0;
+        }
+        received += count;
+    }
+    return received == (uint64_t)expected.QuadPart &&
+           !crypto_generichash_final(&hash, digest, sizeof(digest)) &&
+           sodium_bin2hex(hex, capacity, digest, sizeof(digest)) != NULL;
+}
+
+static int author_copy(HANDLE input, const char *candidate) {
+    HANDLE output = INVALID_HANDLE_VALUE;
+    unsigned char buffer[65536];
+    DWORD count, written;
+    LARGE_INTEGER expected;
+    uint64_t received = 0;
+    int success = 0;
+    if (!wpm_require_capability(WPM_CAP_WRITE, "publish package archive") ||
+        SetFilePointer(input, 0, NULL, FILE_BEGIN) ==
+            INVALID_SET_FILE_POINTER ||
+        !GetFileSizeEx(input, &expected) || expected.QuadPart < 0) {
+        return 0;
+    }
+    output = CreateFileA(candidate, GENERIC_WRITE, 0, NULL, CREATE_NEW,
+                         FILE_ATTRIBUTE_NORMAL, NULL);
+    if (output == INVALID_HANDLE_VALUE) {
+        return 0;
+    }
+    for (;;) {
+        if (!ReadFile(input, buffer, sizeof(buffer), &count, NULL)) {
+            goto done;
+        }
+        if (!count) {
+            break;
+        }
+        if (!WriteFile(output, buffer, count, &written, NULL) ||
+            written != count) {
+            goto done;
+        }
+        if (received > (uint64_t)expected.QuadPart ||
+            count > (uint64_t)expected.QuadPart - received) {
+            goto done;
+        }
+        received += count;
+    }
+    success = received == (uint64_t)expected.QuadPart &&
+              FlushFileBuffers(output) != 0;
+done:
+    CloseHandle(output);
+    if (!success) {
+        DeleteFileA(candidate);
+    }
+    return success;
+}
+
+static int author_json_string(char *output, size_t capacity,
+                              const char *value) {
+    static const char digits[] = "0123456789abcdef";
+    size_t length = 0;
+    if (capacity < 3) {
+        return 0;
+    }
+    output[length++] = '"';
+    for (; *value; value++) {
+        unsigned char c = (unsigned char)*value;
+        if (length + 7 >= capacity) {
+            return 0;
+        }
+        if (c < 0x20) {
+            output[length++] = '\\';
+            output[length++] = 'u';
+            output[length++] = '0';
+            output[length++] = '0';
+            output[length++] = digits[c >> 4];
+            output[length++] = digits[c & 15];
+        } else {
+            if (c == '"' || c == '\\') {
+                output[length++] = '\\';
+            }
+            output[length++] = (char)c;
+        }
+    }
+    output[length++] = '"';
+    output[length] = 0;
+    return 1;
+}
+
+int wpm_repo_add_package(const char *directory, const char *source,
+                         int allow_unsigned, int dry_run) {
+    char root[PATH_SIZE], archive_path[PATH_SIZE], packages[PATH_SIZE];
+    char index[PATH_SIZE], candidate[PATH_SIZE], lock_path[PATH_SIZE];
+    char artifact[PATH_SIZE], artifact_candidate[PATH_SIZE], item[96];
+    char digest[65], existing_digest[65], signing_key[65];
+    char name[800], version[400], arch[120], entry[1600];
+    char *text = NULL, *updated = NULL;
+    const char *array_end, *phase = "validate source and repository layout";
+    package_entry *entries = calloc(MAX_PACKAGES, sizeof(*entries));
+    wpm_package_info info;
+    HANDLE catalog = INVALID_HANDLE_VALUE, input = INVALID_HANDLE_VALUE;
+    HANDLE lock = INVALID_HANDLE_VALUE, output = INVALID_HANDLE_VALUE;
+    HANDLE published = INVALID_HANDLE_VALUE;
+    DWORD attributes, written, source_length;
+    int count = 0, success = 0, candidate_owned = 0, artifact_owned = 0;
+    size_t prefix, entry_size, text_size;
+    if (dry_run) {
+        wpm_set_readonly(1);
+    } else if (!wpm_require_capability(WPM_CAP_WRITE,
+                                       "add repository package")) {
+        goto done;
+    }
+    source_length =
+        GetFullPathNameA(source, sizeof(archive_path), archive_path, NULL);
+    if (!entries || is_web_repository(directory) ||
+        !repository_normalize(directory, root, sizeof(root), 1) ||
+        !source_length || source_length >= sizeof(archive_path) ||
+        !join_path(packages, sizeof(packages), root, "packages") ||
+        !join_path(index, sizeof(index), root, "index.json") ||
+        !join_path(candidate, sizeof(candidate), root, ".index.json.new") ||
+        !join_path(lock_path, sizeof(lock_path), root, ".wpm-publish.lock")) {
+        goto done;
+    }
+    attributes = GetFileAttributesA(packages);
+    if (attributes == INVALID_FILE_ATTRIBUTES ||
+        !(attributes & FILE_ATTRIBUTE_DIRECTORY) ||
+        (attributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
+        goto done;
+    }
+    attributes = GetFileAttributesA(root);
+    if (attributes == INVALID_FILE_ATTRIBUTES ||
+        !(attributes & FILE_ATTRIBUTE_DIRECTORY) ||
+        (attributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
+        goto done;
+    }
+    if (!dry_run) {
+        phase = "acquire exclusive publication lock";
+        lock = CreateFileA(lock_path, GENERIC_WRITE | DELETE, 0, NULL,
+                           CREATE_NEW, FILE_FLAG_DELETE_ON_CLOSE, NULL);
+        if (lock == INVALID_HANDLE_VALUE) {
+            goto done;
+        }
+    }
+    phase = "validate existing catalog and archives";
+    if (!author_read_catalog(root, &catalog, &text, entries, &count,
+                             &array_end) ||
+        count == MAX_PACKAGES ||
+        !author_verify_entries(root, entries, count, allow_unsigned)) {
+        goto done;
+    }
+    phase = "validate new archive identity, integrity, and existing trust";
+    input = CreateFileA(archive_path, GENERIC_READ, FILE_SHARE_READ, NULL,
+                        OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (input == INVALID_HANDLE_VALUE ||
+        !wpm_archive_validate_readonly(archive_path, allow_unsigned,
+                                       signing_key, sizeof(signing_key)) ||
+        !wpm_archive_inspect(archive_path, &info) || !info.name[0] ||
+        (_stricmp(info.arch, "any") && _stricmp(info.arch, "x86") &&
+         _stricmp(info.arch, "x64") && _stricmp(info.arch, "arm64")) ||
+        !wpm_repo_version_is_valid(info.version) ||
+        !author_hash(input, digest, sizeof(digest))) {
+        goto done;
+    }
+    phase = "reject duplicate package identity";
+    for (int i = 0; i < count; i++) {
+        if (!_stricmp(entries[i].name, info.name) &&
+            !_stricmp(entries[i].arch, info.arch) &&
+            !strcmp(entries[i].version, info.version)) {
+            goto done;
+        }
+    }
+    snprintf(item, sizeof(item), "packages/%s.zip", digest);
+    if (!join_path(artifact, sizeof(artifact), root, item) ||
+        snprintf(artifact_candidate, sizeof(artifact_candidate), "%s.new",
+                 artifact) >= (int)sizeof(artifact_candidate) ||
+        !author_json_string(name, sizeof(name), info.name) ||
+        !author_json_string(version, sizeof(version), info.version) ||
+        !author_json_string(arch, sizeof(arch), info.arch)) {
+        goto done;
+    }
+    entry_size = (size_t)snprintf(entry, sizeof(entry),
+                                  "%s{\"name\":%s,\"version\":%s,\"arch\":%s,"
+                                  "\"url\":\"%s\"}",
+                                  count ? "," : "", name, version, arch, item);
+    text_size = strlen(text);
+    prefix = (size_t)(array_end - text);
+    if (entry_size >= sizeof(entry) ||
+        text_size + entry_size > 4 * 1024 * 1024) {
+        goto done;
+    }
+    updated = malloc(text_size + entry_size + 1);
+    if (!updated) {
+        goto done;
+    }
+    memcpy(updated, text, prefix);
+    memcpy(updated + prefix, entry, entry_size);
+    memcpy(updated + prefix + entry_size, text + prefix,
+           text_size - prefix + 1);
+    phase = "protect existing publication candidates and archive bytes";
+    if (GetFileAttributesA(candidate) != INVALID_FILE_ATTRIBUTES ||
+        GetFileAttributesA(artifact_candidate) != INVALID_FILE_ATTRIBUTES) {
+        goto done;
+    }
+    attributes = GetFileAttributesA(artifact);
+    if (attributes != INVALID_FILE_ATTRIBUTES) {
+        if (!author_file(root, item, artifact, sizeof(artifact))) {
+            goto done;
+        }
+        published = CreateFileA(artifact, GENERIC_READ, FILE_SHARE_READ, NULL,
+                                OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+        if (published == INVALID_HANDLE_VALUE ||
+            !author_hash(published, existing_digest, sizeof(existing_digest)) ||
+            strcmp(digest, existing_digest)) {
+            goto done;
+        }
+    }
+    if (dry_run) {
+        wpm_event_printf(WPM_EVENT_RESULT, "repository.publication.planned",
+                         "repository", "plan",
+                         "Result: package publication planned\n"
+                         "Repository: %s\nArchive: %s\n"
+                         "Catalog: schema 1, %d packages\n",
+                         root, item, count + 1);
+        success = 1;
+        goto done;
+    }
+    phase = "copy and publish immutable archive";
+    if (published == INVALID_HANDLE_VALUE) {
+        if (!author_copy(input, artifact_candidate)) {
+            goto done;
+        }
+        artifact_owned = 1;
+        if (!MoveFileA(artifact_candidate, artifact)) {
+            goto done;
+        }
+        artifact_owned = 0;
+        published = CreateFileA(artifact, GENERIC_READ, FILE_SHARE_READ, NULL,
+                                OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+        if (published == INVALID_HANDLE_VALUE ||
+            !author_hash(published, existing_digest, sizeof(existing_digest)) ||
+            strcmp(digest, existing_digest)) {
+            goto done;
+        }
+    }
+    phase = "flush and atomically publish catalog";
+    output = CreateFileA(candidate, GENERIC_WRITE, 0, NULL, CREATE_NEW,
+                         FILE_ATTRIBUTE_NORMAL, NULL);
+    if (output == INVALID_HANDLE_VALUE) {
+        goto done;
+    }
+    candidate_owned = 1;
+    if (!WriteFile(output, updated, (DWORD)(text_size + entry_size), &written,
+                   NULL) ||
+        written != text_size + entry_size || !FlushFileBuffers(output)) {
+        goto done;
+    }
+    CloseHandle(output);
+    output = INVALID_HANDLE_VALUE;
+    CloseHandle(catalog);
+    catalog = INVALID_HANDLE_VALUE;
+    if (!MoveFileExA(candidate, index,
+                     MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+        goto done;
+    }
+    candidate_owned = 0;
+    wpm_event_printf(WPM_EVENT_RESULT, "repository.package.published",
+                     "repository", "publish",
+                     "Result: repository package published (%d packages)\n",
+                     count + 1);
+    success = 1;
+done:
+    if (output != INVALID_HANDLE_VALUE) {
+        CloseHandle(output);
+    }
+    if (candidate_owned) {
+        DeleteFileA(candidate);
+    }
+    if (artifact_owned) {
+        DeleteFileA(artifact_candidate);
+    }
+    if (published != INVALID_HANDLE_VALUE) {
+        CloseHandle(published);
+    }
+    if (input != INVALID_HANDLE_VALUE) {
+        CloseHandle(input);
+    }
+    if (catalog != INVALID_HANDLE_VALUE) {
+        CloseHandle(catalog);
+    }
+    if (lock != INVALID_HANDLE_VALUE) {
+        CloseHandle(lock);
+    }
+    free(entries);
+    free(text);
+    free(updated);
+    if (!success) {
+        wpm_event_printf(WPM_EVENT_ERROR, "repository.publication.failed",
+                         "repository", "publish",
+                         "Error: package publication failed: %s.\n"
+                         "Check source integrity/trust, unique identity, "
+                         "layout, write access, and active publication locks; "
+                         "then retry.\n",
                          phase);
     }
     return success;

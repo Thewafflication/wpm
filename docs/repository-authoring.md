@@ -68,6 +68,50 @@ absent data/log roots, trust rejection and revocation, identity mismatches,
 malformed/duplicate/missing entries, archive tampering, unsigned opt-in, invalid
 flags, and complete filesystem snapshots with no script execution.
 
-This is a partial I-09 delivery. Package publication, deterministic index
-regeneration, repository signatures, and remaining media/network matrix
-evidence stay open. Breaking changes remain reserved for 2.x.
+## Immutable package publication (1.2.27)
+
+`wpm repo add-package <directory> <archive> [--allow-unsigned] [--dry-run]`
+appends a validated package to an initialized filesystem repository. Existing
+catalog entries and the new archive must pass the same identity, integrity,
+and existing-trust checks as `repo verify`. No package scripts run. Duplicate
+name/architecture/version identities are refused; publication does not replace
+an existing version. The 96-entry catalog and 4 MiB index bounds still apply.
+
+Published archives use `packages/<BLAKE2b-256-of-archive>.zip` paths. These ASCII
+content-addressed names avoid transport ambiguity for names containing spaces
+or URL punctuation. Existing files at that path are reused only when their
+complete bytes match; different bytes and existing candidates are protected.
+Copies are exclusive, checked against source size and digest, flushed, and
+renamed without replacement. Source handles deny writes/deletion during use.
+
+The new schema-1 entry is inserted into the existing packages array. Bytes
+outside that insertion, including extension fields, formatting, and linked
+roots, are preserved. Links are preserved without following them. Catalog
+publication uses an exclusive `.index.json.new`, flush, and atomic replacement;
+failed publication retains the prior catalog. A completed but unreferenced
+archive is retained for safe retry if catalog publication fails.
+
+An exclusive `.wpm-publish.lock` serializes cooperating publishers and is removed
+by Windows when its handle closes, including process termination. Keep other
+catalog editors and directory changes quiescent during publication. The lock
+does not coordinate external writers or create a filesystem isolation boundary.
+Existing lock/candidate files are never automatically removed. Inspect retained
+candidates and ensure no publisher is active before handling interrupted work.
+
+`--dry-run` checks and previews the target archive/catalog without locks, copies,
+catalog updates, data/trust/cache/log writes, or scripts. It supports placement
+before the command or among action operands/options. A preview does not prove
+future write permissions or exclude a later concurrent change. Publication
+does not configure a repository or distribute/add signing keys automatically.
+Consume it with `repo add`, `update --offline`, and the existing named install
+workflow; `repo verify` provides a read-only post-publication check.
+
+`tests/repository-publish-integration.py` covers signed and unsigned opt-in,
+dry-run snapshots, unknown trust, duplicate identities, owned candidate/lock
+collisions, archive-byte conflicts, exact extension/link preservation, second
+versions, real catalog locking with safe retry/reuse, junction rejection, and
+installation through the unchanged schema-1 resolver.
+
+This remains a partial I-09 delivery. Deterministic full index regeneration,
+repository signatures, and remaining media/network matrix evidence stay open.
+Breaking changes remain reserved for 2.x.

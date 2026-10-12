@@ -14,6 +14,10 @@ int wpm_repo_init(const char *directory, int dry_run);
 /** Verify one filesystem catalog and its archives using existing trust only.
  * Performs no managed writes, web retrieval, extraction, or scripts. */
 int wpm_repo_verify(const char *directory, int allow_unsigned);
+/** Append a validated archive to a filesystem catalog without overwriting
+ * package identities. Dry-run performs no managed writes. */
+int wpm_repo_add_package(const char *directory, const char *archive,
+                         int allow_unsigned, int dry_run);
 /** Add or reprioritize a supported repository locator. */
 int wpm_repo_add(const char *url, int priority, int allow_insecure_http);
 /** List configured repositories in resolution order. */

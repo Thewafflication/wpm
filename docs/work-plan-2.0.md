@@ -696,3 +696,9 @@ remain supported; refresh-cache retention and read-only diagnosis are covered.
 completeness, identity matching, existing trust/revocation, explicit unsigned
 opt-in, and complete filesystem snapshots cover this additive command. The
 legacy install resolver remains compatible; I-09 publication/signing stays open.
+
+1.2.27 adds validated immutable package publication with dry-run, exclusive
+cooperating-writer locks, content-addressed archives, and atomic schema-1 catalog
+updates preserving extensions/links. Real locked-catalog retention and retry,
+collision protection, and existing resolver consumption provide evidence.
+Full regeneration, repository signing, and physical environment gates stay open.

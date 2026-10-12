@@ -167,3 +167,5 @@ docs/repository-diagnostics.md) and suggested next actions.
 Create a fresh repository with `wpm repo init <directory> [--dry-run]` and check
 its catalog/archives with `wpm repo verify <directory>`; see
 [repository authoring](docs/repository-authoring.md).
+Publish validated packages with
+`wpm repo add-package <directory> <archive> [--dry-run]`.

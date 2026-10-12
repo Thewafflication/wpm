@@ -563,6 +563,19 @@ if(BUILD_TESTING)
       wpm-capability-test "${CMAKE_CURRENT_BINARY_DIR}/capability-test.tmp"
   )
   add_test(
+    NAME repository-publish-integration
+    COMMAND
+      "${Python3_EXECUTABLE}"
+      "${CMAKE_SOURCE_DIR}/tests/repository-publish-integration.py" --wpm
+      $<TARGET_FILE:wpm>
+  )
+  set_tests_properties(
+    repository-publish-integration
+    PROPERTIES
+      TIMEOUT
+        120
+  )
+  add_test(
     NAME repository-verify-integration
     COMMAND
       "${Python3_EXECUTABLE}"
@@ -1047,6 +1060,7 @@ if(BUILD_TESTING)
       "linked-repository-integration|repository-health-integration|"
       "http-length-integration|repository-init-integration|"
       "repository-verify-integration|"
+      "repository-publish-integration|"
       "presentation-integration|dry-run-integration)$"
     )
     add_custom_target(

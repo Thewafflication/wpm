@@ -2,6 +2,7 @@
 
 import ctypes
 from ctypes import wintypes
+from contextlib import contextmanager
 import struct
 
 kernel = ctypes.WinDLL("kernel32", use_last_error=True)
@@ -27,6 +28,18 @@ kernel.DeviceIoControl.argtypes = [
     ctypes.c_void_p,
 ]
 kernel.DeviceIoControl.restype = wintypes.BOOL
+
+
+@contextmanager
+def read_lock(path):
+    """Hold a read handle that denies writes and replacement."""
+    handle = kernel.CreateFileW(str(path), 0x80000000, 1, None, 3, 0, None)
+    if handle == wintypes.HANDLE(-1).value:
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        yield
+    finally:
+        kernel.CloseHandle(handle)
 
 
 def junction(link, target):
