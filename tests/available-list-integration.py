@@ -215,14 +215,21 @@ with tempfile.TemporaryDirectory(prefix="wpm-available-list-") as directory:
         os.utime(web_cache, (stale, stale))
         text = run("list", "--available", succeeds=False)
         assert "stale cache" in text and "catalog issues: 1" in text
-        now = time.time()
+        # Python's precise clock may lead the legacy Windows API clock briefly.
+        # Keep the fresh fixture in the past; future timestamps stay stale.
+        now = time.time() - 1
+        os.utime(web_cache, (now, now))
+        future = time.time() + 120
+        os.utime(web_cache, (future, future))
+        text = run("list", "--available", succeeds=False)
+        assert "stale cache" in text and "catalog issues: 1" in text, text
         os.utime(web_cache, (now, now))
         child_bytes = child_cache.read_bytes()
         child_cache.unlink()
         text = run("list", "--available", succeeds=False)
         assert (
             "6 matching catalog records" in text and "catalog issues: 1" in text
-        )
+        ), text
         text = run("show", "alpha", succeeds=False)
         assert "retained: 1; catalog: 5; complete: no" in text, text
         text = run("show", "unknown", succeeds=False)

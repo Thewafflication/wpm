@@ -134,7 +134,20 @@ with tempfile.TemporaryDirectory(prefix="wpm-presentation-") as directory:
     # assignments, or caller-controlled terminal escapes, even before logging.
     for value, secret in (
         ("https://private-user:private-pass@example.invalid/", "private-pass"),
+        (
+            "https://private-user:private@tail-secret@example.invalid/",
+            "tail-secret",
+        ),
         ("token=private-token", "private-token"),
+        ("TOKEN=private-upper-token", "private-upper-token"),
+        ("ToKeN=private-mixed-token", "private-mixed-token"),
+        ("PASSWORD=private-password", "private-password"),
+        ("ACCESS_TOKEN=private-access-token", "private-access-token"),
+        ("API_KEY=private-api-key", "private-api-key"),
+        ("SECRET-KEY=private-upper-key", "private-upper-key"),
+        ('PASSWORD="private quoted password"', "private quoted password"),
+        ("ToKeN='private quoted token'", "private quoted token"),
+        ('API_KEY="private\\"escaped secret"', "escaped secret"),
         ("secret-key=private-key", "private-key"),
         ("bad\x1b[31mcommand", "\x1b"),
         ("bad\x1b]0;injected-title\a", "injected-title"),
@@ -163,6 +176,11 @@ with tempfile.TemporaryDirectory(prefix="wpm-presentation-") as directory:
         log
     )
     assert "\x1b" not in log, log
+    marker = "generated-private-path-secret"
+    private = root / f"API_KEY={marker}.priv"
+    output = run("keygen", str(private), str(root / "case-public.pub"), env=env)
+    assert marker not in output
+    assert marker not in (root / "operational.log").read_text()
     binary = Path(wpm).read_bytes()
     offset = int.from_bytes(binary[0x3C:0x40], "little")
     machine = int.from_bytes(binary[offset + 4 : offset + 6], "little")

@@ -301,6 +301,26 @@ static void wpm_report_failure_log(void) {
 
 /* Filter once before any renderer sees an event. CSI/OSC/control bytes must
    not reach logs or allow caller-controlled diagnostics to alter a terminal. */
+static char *wpm_find_protected_field(char *text, const char *field) {
+    size_t length = strlen(field);
+    for (; *text; text++) {
+        size_t i;
+        for (i = 0; i < length && text[i]; i++) {
+            unsigned char c = (unsigned char)text[i];
+            if (c >= 'A' && c <= 'Z') {
+                c = (unsigned char)(c + 'a' - 'A');
+            }
+            if (c != (unsigned char)field[i]) {
+                break;
+            }
+        }
+        if (i == length) {
+            return text;
+        }
+    }
+    return NULL;
+}
+
 static void wpm_safe_event_text(char *text) {
     char *read = text, *write = text;
     static const char *protected_fields[] = {
@@ -342,7 +362,15 @@ static void wpm_safe_event_text(char *text) {
     while ((read = strstr(read, "://")) != NULL) {
         char *authority = read + 3;
         char *end = authority + strcspn(authority, "/?# \t\r\n");
-        char *at = memchr(authority, '@', (size_t)(end - authority));
+        char *at = NULL, *cursor = authority;
+        while (cursor < end) {
+            char *next = memchr(cursor, '@', (size_t)(end - cursor));
+            if (!next) {
+                break;
+            }
+            at = next;
+            cursor = next + 1;
+        }
         if (at) {
             memmove(authority, at + 1, strlen(at + 1) + 1);
         }
@@ -351,9 +379,22 @@ static void wpm_safe_event_text(char *text) {
     for (i = 0; i < sizeof(protected_fields) / sizeof(protected_fields[0]);
          i++) {
         read = text;
-        while ((read = strstr(read, protected_fields[i])) != NULL) {
+        while ((read = wpm_find_protected_field(read, protected_fields[i])) !=
+               NULL) {
             char *value = read + strlen(protected_fields[i]);
-            char *end = value + strcspn(value, "& \t\r\n\"'");
+            char *end = value;
+            if (*end == '"' || *end == '\'') {
+                char quote = *end++;
+                value = end;
+                while (*end && *end != quote) {
+                    if (*end == '\\' && end[1]) {
+                        end++;
+                    }
+                    end++;
+                }
+            } else {
+                end += strcspn(end, "& \t\r\n\"'");
+            }
             /* Shorten in place; never expand or truncate the remaining message.
              */
             if (end > value) {

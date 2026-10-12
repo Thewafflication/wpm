@@ -737,7 +737,7 @@ preserves session PATH entries such as setup-python. A fixture reproduces the
 observed exit-zero/missing-tool failure, bounded retry, nonzero exit rejection,
 and session PATH preservation without installing any system package.
 
-1.2.30 adds read-only available-catalog inventory through local/cached linked
+1.2.31 adds read-only available-catalog inventory through local/cached linked
 roots, exact selectors, semantic ordering, and prerelease policy labels. Shared
 bounded catalog reads preserve authoring behavior. Loopback zero-request and
 snapshot fixtures cover duplicates, missing/stale/locked/corrupt metadata,
@@ -748,3 +748,10 @@ selectors, complete/partial status, explicit no-match handling, and all source
 choices retained. Snapshots and zero-request fixtures cover unknown packages,
 ambiguity, incomplete sources, and no script execution. Broader trust/deployment
 health and machine output remain open.
+
+The attempted 1.2.30 release did not publish after a precision-dependent cache
+fixture failed. Fresh fixture timestamps now trail the precise clock, and
+explicit future timestamps remain stale; runtime freshness policy is unchanged.
+1.2.31 also masks protected ASCII fields case-insensitively, including quoted
+values/escaped quotes, and removes URI user information through the final `@`.
+Synthetic console and real operational-log fixtures cover the redaction gaps.

@@ -37,7 +37,7 @@ queries, full integrity/trust assessment, conflicts, upgrade/recovery context,
 and general machine output remain open. Existing operation defaults and package
 formats remain compatible; breaking changes stay reserved for 2.x.
 
-## Available catalog inventory (1.2.30)
+## Available catalog inventory (1.2.31)
 
 `wpm list --available [package] [--arch <arch>] [--version <semver>]` reads
 configured filesystem catalogs and existing web caches, following bounded linked
