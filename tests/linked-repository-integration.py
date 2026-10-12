@@ -222,6 +222,63 @@ with tempfile.TemporaryDirectory(prefix="wpm-linked-refresh-") as directory:
                 root_cache.stat().st_mtime_ns,
             ) == before
             assert not list((data / "cache").rglob("*.candidate*"))
+        # Grammar-invalid but balanced documents must retain the known cache.
+        # The validator must also handle arbitrary legal extension values and
+        # deep nesting without consuming the native call stack.
+        malformed = (
+            '{"version":1,"packages":[],}',
+            '{"version":1 "packages":[]}',
+            '{"version":1,"packages":[,]}',
+            '{"version":1,"packages":[true,]}',
+            '{"version":1,"packages":[]] }',
+            '{"version":1,"packages":[],"extra":undefined}',
+            '{"version":1,"packages":[],"extra":01}',
+            '{"version":1,"packages":[],"extra":1.}',
+            '{"version":1,"packages":[],"extra":1e+}',
+            '{"version":1,"packages":[],"extra":tru}',
+            '{"version":1,"packages":[],"extra":"bad\x01control"}',
+            '{"version":1,"packages":[]}\x00hidden',
+            '{"version":1,\x0b"packages":[]}',
+            '{"version":1,"packages":[]} {}',
+        )
+        for contents in malformed:
+            (repository / "index.json").write_bytes(contents.encode())
+            requests.clear()
+            text = run("update")
+            assert requests == expected, (contents, requests)
+            assert "previous cache was retained" in text, text
+            assert (
+                root_cache.read_bytes(),
+                root_cache.stat().st_mtime_ns,
+            ) == before
+        valid_extension = {
+            "long-extension-key-" * 10: [
+                True,
+                False,
+                None,
+                0,
+                -2,
+                1.25,
+                1e50,
+                "escaped\nvalue\x00",
+            ],
+            "version": 1,
+            "packages": [],
+            "repositories": ["previous"],
+        }
+        for contents in (
+            json.dumps(valid_extension),
+            '{"extension":'
+            + "[" * 4096
+            + "0"
+            + "]" * 4096
+            + ',"version":1,"packages":[],"repositories":["previous"]}',
+        ):
+            (repository / "index.json").write_text(contents)
+            requests.clear()
+            run("update")
+            assert requests == expected, requests
+        before = (root_cache.read_bytes(), root_cache.stat().st_mtime_ns)
         for key in (
             r"vers\qion",
             r"vers\u0000ion",

@@ -656,3 +656,7 @@ and command defaults remain unchanged.
 1.2.17 stages refreshed indexes and checks schema admission and completeness
 before atomic cache publication. Rejected web/local indexes preserve previous
 caches; established web fallback and local fail-closed behavior are retained.
+
+1.2.18 shares iterative JSON grammar checks across refreshed, cached, and
+direct local indexes. A bounded negative corpus, legal extension values, deep
+nesting, cache retention, and read-only snapshots provide compatibility evidence.

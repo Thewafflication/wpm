@@ -92,3 +92,20 @@ cached fallback; invalid local sources fail closed. Rejected candidates are
 removed without changing prior cache bytes or modification time, and rejected
 links are never followed. The loopback and local-media integration fixtures
 verify these behaviors and absence of leftover candidate files.
+
+## JSON grammar validation (1.2.18)
+
+Refreshed, cached, and directly consumed local indexes share JSON grammar
+validation before catalog entries or linked roots are used. Invalid delimiters,
+commas, literals, number forms, control characters, raw NUL bytes, and trailing
+data are rejected. Prior web caches survive rejected refreshes; malformed local
+dry-run sources fail without writes. Existing legal extension values, long
+unknown keys, numeric schema-1 forms, and escaped strings remain supported.
+
+The grammar state machine is iterative and allocates its state buffer from the
+already bounded input length (4 MiB maximum), avoiding native call-stack depth
+limits. Integration fixtures include 4,096 nested arrays, long extension keys,
+legal Boolean/null/number/string values, a negative grammar corpus, cache-byte
+and timestamp preservation, and complete dry-run filesystem snapshots. These
+checks validate JSON grammar, not every future package/index schema obligation
+or the Windows filesystem encoding contract.

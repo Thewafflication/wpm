@@ -1193,7 +1193,7 @@ int wpm_repo_update(int offline) {
 }
 
 static const char *skip_ws(const char *p) {
-    while (*p && isspace((unsigned char)*p)) {
+    while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') {
         p++;
     }
     return p;
@@ -1262,7 +1262,7 @@ static int json_string(const char **source, char *output, size_t size) {
                 break;
             case 'u': {
                 unsigned long low;
-                if (!json_hex4(&p, &codepoint) || !codepoint) {
+                if (!json_hex4(&p, &codepoint) || (!codepoint && output)) {
                     return 0;
                 }
                 if (codepoint >= 0xd800 && codepoint <= 0xdbff) {
@@ -1302,7 +1302,9 @@ static int json_string(const char **source, char *output, size_t size) {
                 if (length >= size || n >= size - length) {
                     return 0;
                 }
-                memcpy(output + n, bytes, length);
+                if (output) {
+                    memcpy(output + n, bytes, length);
+                }
                 n += length;
                 continue;
             }
@@ -1313,12 +1315,17 @@ static int json_string(const char **source, char *output, size_t size) {
         if (n + 1 >= size) {
             return 0;
         }
-        output[n++] = (char)codepoint;
+        if (output) {
+            output[n] = (char)codepoint;
+        }
+        n++;
     }
     if (*p != '"') {
         return 0;
     }
-    output[n] = '\0';
+    if (output) {
+        output[n] = '\0';
+    }
     *source = p + 1;
     return 1;
 }
@@ -1361,6 +1368,138 @@ static const char *json_content(const char *text) {
     }
     return skip_ws(text);
 }
+/* Iterative grammar validation: depth is bounded only by the 4 MiB input,
+ * not by the C call stack. Unknown extension values remain valid JSON. */
+static int json_document_valid(const char *text) {
+    enum {
+        ROOT_VALUE,
+        ROOT_END,
+        OBJECT_FIRST,
+        OBJECT_KEY,
+        OBJECT_COLON,
+        OBJECT_VALUE,
+        OBJECT_END,
+        ARRAY_FIRST,
+        ARRAY_VALUE,
+        ARRAY_END
+    };
+    const char *p = json_content(text);
+    size_t depth = 0, capacity = strlen(p) + 1;
+    unsigned char *states = malloc(capacity);
+    int valid = 0;
+    if (!states) {
+        return 0;
+    }
+    states[0] = ROOT_VALUE;
+    for (;;) {
+        unsigned char state = states[depth];
+        while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') {
+            p++;
+        }
+        if (state == ROOT_END) {
+            valid = !*p;
+            break;
+        }
+        if (state == OBJECT_FIRST || state == OBJECT_KEY) {
+            if (state == OBJECT_FIRST && *p == '}') {
+                p++;
+                depth--;
+                continue;
+            }
+            if (!json_string(&p, NULL, (size_t)-1)) {
+                break;
+            }
+            states[depth] = OBJECT_COLON;
+            continue;
+        }
+        if (state == OBJECT_COLON) {
+            if (*p != ':') {
+                break;
+            }
+            p++;
+            states[depth] = OBJECT_VALUE;
+            continue;
+        }
+        if (state == OBJECT_END || state == ARRAY_END) {
+            if (*p == (state == OBJECT_END ? '}' : ']')) {
+                p++;
+                depth--;
+                continue;
+            }
+            if (*p != ',') {
+                break;
+            }
+            p++;
+            states[depth] = state == OBJECT_END ? OBJECT_KEY : ARRAY_VALUE;
+            continue;
+        }
+        if (state == ARRAY_FIRST && *p == ']') {
+            p++;
+            depth--;
+            continue;
+        }
+        states[depth] = state == ROOT_VALUE     ? ROOT_END
+                        : state == OBJECT_VALUE ? OBJECT_END
+                                                : ARRAY_END;
+        if (*p == '{' || *p == '[') {
+            if (depth + 1 >= capacity) {
+                break;
+            }
+            states[++depth] = *p++ == '{' ? OBJECT_FIRST : ARRAY_FIRST;
+            continue;
+        }
+        if (*p == '"') {
+            if (!json_string(&p, NULL, (size_t)-1)) {
+                break;
+            }
+        } else if (*p == '-' || (*p >= '0' && *p <= '9')) {
+            if (*p == '-') {
+                p++;
+            }
+            if (*p == '0') {
+                p++;
+            } else {
+                if (*p < '1' || *p > '9') {
+                    break;
+                }
+                do {
+                    p++;
+                } while (*p >= '0' && *p <= '9');
+            }
+            if (*p == '.') {
+                p++;
+                if (*p < '0' || *p > '9') {
+                    break;
+                }
+                do {
+                    p++;
+                } while (*p >= '0' && *p <= '9');
+            }
+            if (*p == 'e' || *p == 'E') {
+                p++;
+                if (*p == '+' || *p == '-') {
+                    p++;
+                }
+                if (*p < '0' || *p > '9') {
+                    break;
+                }
+                do {
+                    p++;
+                } while (*p >= '0' && *p <= '9');
+            }
+        } else if (!strncmp(p, "true", 4)) {
+            p += 4;
+        } else if (!strncmp(p, "false", 5)) {
+            p += 5;
+        } else if (!strncmp(p, "null", 4)) {
+            p += 4;
+        } else {
+            break;
+        }
+    }
+    free(states);
+    return valid;
+}
 /* Find root fields without confusing package metadata with index metadata. */
 static const char *index_field(const char *text, const char *wanted) {
     const char *p = json_content(text);
@@ -1370,7 +1509,15 @@ static const char *index_field(const char *text, const char *wanted) {
     p++;
     while (*(p = skip_ws(p)) && *p != '}') {
         char key[32];
-        if (!json_string(&p, key, sizeof(key)) || *(p = skip_ws(p)) != ':') {
+        if (!json_string(&p, key, sizeof(key))) {
+            /* A long or NUL-containing unknown key need not fit our key buffer.
+             */
+            if (!json_string(&p, NULL, (size_t)-1)) {
+                return NULL;
+            }
+            key[0] = 0;
+        }
+        if (*(p = skip_ws(p)) != ':') {
             return NULL;
         }
         p = skip_ws(p + 1);
@@ -1401,7 +1548,7 @@ static int index_version_supported(const char *text) {
 static int index_file_supported(const char *path) {
     FILE *input = wpm_fopen(path, "rb");
     char *text = NULL;
-    const char *packages, *document_end;
+    const char *packages;
     long size;
     int supported = 0;
     if (!input) {
@@ -1417,9 +1564,8 @@ static int index_file_supported(const char *path) {
     }
     text[size] = 0;
     packages = index_field(text, "packages");
-    document_end = json_content(text);
-    supported = index_version_supported(text) && packages && *packages == '[' &&
-                json_value_end(&document_end) && !*skip_ws(document_end);
+    supported = !memchr(text, 0, (size_t)size) && json_document_valid(text) &&
+                index_version_supported(text) && packages && *packages == '[';
 cleanup:
     free(text);
     fclose(input);
@@ -1428,7 +1574,8 @@ cleanup:
             WPM_EVENT_WARNING, "repository.index.rejected", "repository",
             "refresh",
             "Warning: refreshed repository index has unsupported schema or "
-            "missing top-level packages array or incomplete document; "
+            "missing top-level packages array or malformed/incomplete "
+            "document; "
             "the previous cache was retained.\n");
     }
     return supported;
@@ -1465,6 +1612,13 @@ static int parse_index(const char *path, repository *repo,
     }
     fclose(f);
     text[size] = '\0';
+    if (memchr(text, 0, (size_t)size) || !json_document_valid(text)) {
+        wpm_event_printf(WPM_EVENT_WARNING, "repository.index.invalid",
+                         "repository", "resolve",
+                         "Warning: malformed repository JSON: %s\n", repo->url);
+        free(text);
+        return 0;
+    }
     version_ok = index_version_supported(text);
     p = index_field(text, "packages");
     if (!version_ok) {
@@ -1505,7 +1659,10 @@ static int parse_index(const char *path, repository *repo,
             char key[32];
             p = skip_ws(p);
             if (!json_string(&p, key, sizeof(key))) {
-                break;
+                if (!json_string(&p, NULL, (size_t)-1)) {
+                    break;
+                }
+                key[0] = 0;
             }
             p = skip_ws(p);
             if (*p != ':') {
@@ -1559,37 +1716,15 @@ static int parse_index(const char *path, repository *repo,
             MAX_PACKAGES, repo->url);
     }
     /* Optional schema-1 links are repository roots, not package URLs. */
-    p = json_content(text);
-    if (*p == '{') {
+    p = index_field(text, "repositories");
+    if (p && *p == '[') {
         p++;
-        while (*(p = skip_ws(p)) && *p != '}') {
-            char key[32];
-            if (!json_string(&p, key, sizeof(key)) ||
-                *(p = skip_ws(p)) != ':') {
+        while (*(p = skip_ws(p)) && *p != ']') {
+            char link[PATH_SIZE];
+            if (!json_string(&p, link, sizeof(link))) {
                 break;
             }
-            p = skip_ws(p + 1);
-            if (strcmp(key, "repositories") == 0 && *p == '[') {
-                p++;
-                while (*(p = skip_ws(p)) && *p != ']') {
-                    char link[PATH_SIZE];
-                    if (!json_string(&p, link, sizeof(link))) {
-                        break;
-                    }
-                    append_repository_link(repositories, repository_count, repo,
-                                           link);
-                    p = skip_ws(p);
-                    if (*p != ',') {
-                        break;
-                    }
-                    p++;
-                }
-                if (*p == ']') {
-                    p++;
-                }
-            } else {
-                json_value_end(&p);
-            }
+            append_repository_link(repositories, repository_count, repo, link);
             p = skip_ws(p);
             if (*p != ',') {
                 break;

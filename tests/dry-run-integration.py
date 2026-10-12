@@ -136,6 +136,16 @@ with tempfile.TemporaryDirectory(prefix="wpm-dry-run-") as directory:
     assert (root / "script-ran").exists()
     run("remove", old.stem)
     (root / "script-ran").unlink()
+    # Direct read-only sources use the same grammar validation as refresh.
+    saved_index = (root / "index.json").read_bytes()
+    (root / "index.json").write_text(
+        '{"version":1,"packages":[],"repositories":["previous"],}'
+    )
+    before = snapshot(root)
+    text = run("install", "dry-test", "--dry-run", "--offline", expected=1)
+    assert "malformed repository JSON" in text, text
+    assert snapshot(root) == before
+    (root / "index.json").write_bytes(saved_index)
     shutil.copyfile(old, data / "packages" / old.name)
     for command in (
         ("install", "dry-test", "--allow-unsigned"),
