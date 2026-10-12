@@ -1186,23 +1186,122 @@ static const char *skip_ws(const char *p) {
     }
     return p;
 }
+static int json_hex4(const char **source, unsigned long *value) {
+    const char *p = *source;
+    unsigned long result = 0;
+    for (int i = 0; i < 4; i++) {
+        unsigned char c = (unsigned char)*p;
+        unsigned long digit;
+        if (c >= '0' && c <= '9') {
+            digit = c - '0';
+        } else if (c >= 'a' && c <= 'f') {
+            digit = c - 'a' + 10;
+        } else if (c >= 'A' && c <= 'F') {
+            digit = c - 'A' + 10;
+        } else {
+            return 0;
+        }
+        result = (result << 4) | digit;
+        p++;
+    }
+    *source = p;
+    *value = result;
+    return 1;
+}
 static int json_string(const char **source, char *output, size_t size) {
     const char *p = skip_ws(*source);
     size_t n = 0;
-    if (*p++ != '"') {
+    if (*p != '"') {
         return 0;
     }
+    p++;
     while (*p && *p != '"') {
-        if (*p == '\\') {
-            p++;
-            if (!*p) {
+        unsigned long codepoint = (unsigned char)*p++;
+        unsigned char bytes[4];
+        size_t length = 1;
+        if (codepoint < 0x20) {
+            return 0;
+        }
+        if (codepoint == '\\') {
+            switch (*p++) {
+            case '"':
+                codepoint = '"';
+                break;
+            case '\\':
+                codepoint = '\\';
+                break;
+            case '/':
+                codepoint = '/';
+                break;
+            case 'b':
+                codepoint = '\b';
+                break;
+            case 'f':
+                codepoint = '\f';
+                break;
+            case 'n':
+                codepoint = '\n';
+                break;
+            case 'r':
+                codepoint = '\r';
+                break;
+            case 't':
+                codepoint = '\t';
+                break;
+            case 'u': {
+                unsigned long low;
+                if (!json_hex4(&p, &codepoint) || !codepoint) {
+                    return 0;
+                }
+                if (codepoint >= 0xd800 && codepoint <= 0xdbff) {
+                    if (*p != '\\' || p[1] != 'u') {
+                        return 0;
+                    }
+                    p += 2;
+                    if (!json_hex4(&p, &low) || low < 0xdc00 || low > 0xdfff) {
+                        return 0;
+                    }
+                    codepoint =
+                        0x10000 + ((codepoint - 0xd800) << 10) + low - 0xdc00;
+                } else if (codepoint >= 0xdc00 && codepoint <= 0xdfff) {
+                    return 0;
+                }
+                if (codepoint < 0x80) {
+                    bytes[0] = (unsigned char)codepoint;
+                } else if (codepoint < 0x800) {
+                    length = 2;
+                    bytes[0] = (unsigned char)(0xc0 | (codepoint >> 6));
+                    bytes[1] = (unsigned char)(0x80 | (codepoint & 0x3f));
+                } else if (codepoint < 0x10000) {
+                    length = 3;
+                    bytes[0] = (unsigned char)(0xe0 | (codepoint >> 12));
+                    bytes[1] =
+                        (unsigned char)(0x80 | ((codepoint >> 6) & 0x3f));
+                    bytes[2] = (unsigned char)(0x80 | (codepoint & 0x3f));
+                } else {
+                    length = 4;
+                    bytes[0] = (unsigned char)(0xf0 | (codepoint >> 18));
+                    bytes[1] =
+                        (unsigned char)(0x80 | ((codepoint >> 12) & 0x3f));
+                    bytes[2] =
+                        (unsigned char)(0x80 | ((codepoint >> 6) & 0x3f));
+                    bytes[3] = (unsigned char)(0x80 | (codepoint & 0x3f));
+                }
+                if (length >= size || n >= size - length) {
+                    return 0;
+                }
+                memcpy(output + n, bytes, length);
+                n += length;
+                continue;
+            }
+            default:
                 return 0;
             }
         }
         if (n + 1 >= size) {
             return 0;
         }
-        output[n++] = *p++;
+        output[n++] = (char)codepoint;
     }
     if (*p != '"') {
         return 0;

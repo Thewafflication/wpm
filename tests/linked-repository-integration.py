@@ -168,6 +168,35 @@ with tempfile.TemporaryDirectory(prefix="wpm-linked-refresh-") as directory:
             requests.clear()
             run("update")
             assert requests == expected, (contents, requests)
+        # Valid JSON escapes in both keys and links must decode before lookup
+        # and containment checks. Unknown Unicode fields remain skippable.
+        escaped_indexes = (
+            r'{"vers\u0069on":1,"packages":[],'
+            r'"repositories":["\u0070revious"]}',
+            r'{"\u00e9":0,"\u20ac":0,"\ud83d\ude00":0,"version":1,'
+            r'"packages":[],"repositories":["previous"]}',
+            r'{"quote\"slash\\tab\t":0,"version":1,'
+            r'"packages":[],"repositories":'
+            r'["previous","\u002e\u002e/escape"]}',
+        )
+        for contents in escaped_indexes:
+            (repository / "index.json").write_text(contents)
+            requests.clear()
+            run("update")
+            assert requests == expected, (contents, requests)
+        for key in (
+            r"vers\qion",
+            r"vers\u0000ion",
+            r"vers\uD800ion",
+            r"vers\uDC00ion",
+            r"vers\uD800\u0041ion",
+            r"vers\u12",
+        ):
+            contents = '{"' + key + '":1,"packages":[]}'
+            (repository / "index.json").write_text(contents)
+            requests.clear()
+            run("update", succeeds=False)
+            assert requests == ["/index.json"], requests
         for invalid_index in (
             {"version": 10, "packages": [], "repositories": ["previous"]},
             {"metadata": {"version": 1}, "packages": []},

@@ -648,3 +648,7 @@ close the remaining I-04/I-05 physical media and network environment evidence.
 1.2.15 fixes top-level repository schema recognition, supports whitespace and
 UTF-8 BOM indexes, and rejects misleading nested schema fields. Valid schema-1
 layouts and optional linked roots remain compatible.
+
+1.2.16 adds bounded standard JSON escape decoding for repository strings and
+linked roots, retaining containment checks after decoding. Valid 1.x schemas
+and command defaults remain unchanged.

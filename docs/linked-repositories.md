@@ -69,3 +69,14 @@ top-level `packages` array. Existing schema-1 numeric representations, unknown
 extension fields, package ordering, and optional links remain supported.
 The linked-repository integration test covers these forms using real index
 retrieval and verifies that unsupported catalogs cannot introduce linked roots.
+
+## Escaped JSON strings (1.2.16)
+
+Index field names, package strings, and linked roots now decode standard JSON
+escapes, including Unicode escapes and paired UTF-16 surrogates converted to
+UTF-8. Decoded paths undergo the existing containment checks; escaped traversal
+cannot introduce a linked root. Invalid escapes, unpaired surrogates, embedded
+NUL escapes, and unescaped control characters are rejected by string decoding.
+This does not change the supported Windows filesystem path encoding.
+The loopback integration test covers escaped field names and links, unknown
+Unicode fields, escaped traversal, and malformed escape sequences.
