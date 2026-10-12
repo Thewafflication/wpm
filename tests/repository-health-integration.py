@@ -122,6 +122,13 @@ with tempfile.TemporaryDirectory(prefix="wpm-repo-health-") as directory:
         source_index.write_text('{"version":1,"packages":[],}')
         text = run("repo", "diagnose")
         assert "invalid: 1" in text and "check index/read access" in text, text
+        for number in (
+            "1.0000000000000000000000001",
+            "0.9999999999999999999999999",
+        ):
+            source_index.write_text('{"version":' + number + ',"packages":[]}')
+            text = run("repo", "diagnose")
+            assert "invalid: 1" in text, text
         source_index.write_text(valid)
 
         removed_source = root / "disconnected"

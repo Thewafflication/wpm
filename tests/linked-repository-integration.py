@@ -326,6 +326,45 @@ with tempfile.TemporaryDirectory(prefix="wpm-linked-refresh-") as directory:
             run("update")
             assert requests == expected, requests
         before = (root_cache.read_bytes(), root_cache.stat().st_mtime_ns)
+        # Schema equality must be decimal-exact, not rounded through double.
+        for number in (
+            "1e0",
+            "10e-1",
+            "0.1e1",
+            "100.00e-2",
+            "1.000e+0",
+            "1e" + "0" * 256,
+            "1" + "0" * 1024 + "e-1024",
+        ):
+            contents = (
+                '{"version":'
+                + number
+                + ',"packages":[],"repositories":["previous"]}'
+            )
+            (repository / "index.json").write_text(contents)
+            requests.clear()
+            run("update")
+            assert requests == expected, (number, requests)
+        before = (root_cache.read_bytes(), root_cache.stat().st_mtime_ns)
+        for number in (
+            "1.0000000000000000000000001",
+            "0.9999999999999999999999999",
+            "100.0000000000000000001e-2",
+            "1e999999999999999999",
+            "1e-999999999999999999",
+            "0e999999999999999999",
+        ):
+            (repository / "index.json").write_text(
+                '{"version":' + number + ',"packages":[]}'
+            )
+            requests.clear()
+            text = run("update")
+            assert requests == expected, (number, requests)
+            assert "unsupported schema" in text, text
+            assert (
+                root_cache.read_bytes(),
+                root_cache.stat().st_mtime_ns,
+            ) == before
         for key in (
             r"vers\qion",
             r"vers\u0000ion",

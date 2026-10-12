@@ -109,3 +109,12 @@ legal Boolean/null/number/string values, a negative grammar corpus, cache-byte
 and timestamp preservation, and complete dry-run filesystem snapshots. These
 checks validate JSON grammar, not every future package/index schema obligation
 or the Windows filesystem encoding contract.
+
+## Exact schema numbers (1.2.25)
+
+Schema admission compares the decimal JSON number exactly with 1. Decimal
+values just above or below 1 cannot become supported versions through floating
+point rounding. Equivalent forms such as `1.0`, `10e-1`, and `0.1e1` remain
+supported, including long zero mantissas and exponents within the input bound.
+Rejected refreshes preserve cache bytes and timestamps; direct local diagnosis
+reports unsupported versions without writes.

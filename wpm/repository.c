@@ -1823,15 +1823,63 @@ static const char *index_field(const char *text, const char *wanted) {
     return NULL;
 }
 static int index_version_supported(const char *text) {
-    const char *value = index_field(text, "version");
-    char *end;
-    double version;
-    if (!value || !isdigit((unsigned char)*value)) {
+    const char *value = index_field(text, "version"), *p = value;
+    int position = 0, integer_digits = 0, nonzero = -1;
+    int exponent = 0, exponent_sign = 1;
+    if (!p || *p < '0' || *p > '9') {
         return 0;
     }
-    version = strtod(value, &end);
-    end = (char *)skip_ws(end);
-    return version == 1.0 && (*end == ',' || *end == '}');
+    while (*p >= '0' && *p <= '9') {
+        if (*p != '0') {
+            if (*p != '1' || nonzero >= 0) {
+                return 0;
+            }
+            nonzero = position;
+        }
+        position++;
+        integer_digits++;
+        p++;
+    }
+    if (integer_digits > 1 && *value == '0') {
+        return 0;
+    }
+    if (*p == '.') {
+        p++;
+        if (*p < '0' || *p > '9') {
+            return 0;
+        }
+        while (*p >= '0' && *p <= '9') {
+            if (*p != '0') {
+                if (*p != '1' || nonzero >= 0) {
+                    return 0;
+                }
+                nonzero = position;
+            }
+            position++;
+            p++;
+        }
+    }
+    if (*p == 'e' || *p == 'E') {
+        p++;
+        if (*p == '-' || *p == '+') {
+            exponent_sign = *p++ == '-' ? -1 : 1;
+        }
+        if (*p < '0' || *p > '9') {
+            return 0;
+        }
+        while (*p >= '0' && *p <= '9') {
+            int digit = *p++ - '0';
+            /* A 4 MiB token cannot balance an exponent larger than this. */
+            if (exponent > (4 * 1024 * 1024 - digit) / 10) {
+                return 0;
+            }
+            exponent = exponent * 10 + digit;
+        }
+    }
+    p = skip_ws(p);
+    return nonzero >= 0 &&
+           integer_digits - nonzero - 1 + exponent_sign * exponent == 0 &&
+           (*p == ',' || *p == '}');
 }
 /* Validate schema admission before replacing a previous cached catalog. */
 static int index_file_supported(const char *path, int report) {

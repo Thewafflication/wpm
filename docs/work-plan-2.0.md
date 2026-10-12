@@ -687,3 +687,7 @@ no overwrite, source-layout checks, and complete dry-run snapshots. Global
 `--dry-run` placement is recognized; unknown and unsupported commands fail
 before managed-state initialization.
 I-09 publication/signing work and physical media evidence remain open.
+
+1.2.25 compares schema numbers exactly, rejecting near-1 decimal versions that
+floating point rounding previously admitted. Equivalent decimal/exponent forms
+remain supported; refresh-cache retention and read-only diagnosis are covered.
