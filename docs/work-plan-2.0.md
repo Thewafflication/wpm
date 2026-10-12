@@ -708,3 +708,8 @@ query's checks, redaction, read-only boundary, and graph bounds. Actual parser,
 status/count/parent, invalid-config, forced-color, and loopback/snapshot evidence
 cover the format. Broader installed health and general I-08 machine output stay
 open; existing human output remains the default.
+
+1.2.29 reports excess configuration entries in repository diagnosis instead
+of returning healthy after silently stopping at 32 roots. Human/JSON counts,
+comments, malformed trailing entries, and read-only snapshots are verified;
+normal resolver selection and capacity remain compatible.

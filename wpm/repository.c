@@ -530,7 +530,8 @@ static int load_repositories(repository *result, int *count, int *invalid_count,
     REPO_VERBOSE("configuration: %s", path);
     input = wpm_fopen(path, "r");
     if (input) {
-        while (*count < MAX_REPOSITORIES && fgets(line, sizeof(line), input)) {
+        while ((invalid_count || *count < MAX_REPOSITORIES) &&
+               fgets(line, sizeof(line), input)) {
             char *url;
             int priority, allow_http;
             if (parse_entry(line, &priority, &url, &allow_http)) {
@@ -563,6 +564,10 @@ static int load_repositories(repository *result, int *count, int *invalid_count,
                             "repository locator. Remove or re-add it with "
                             "'wpm repo'.\n");
                     }
+                    continue;
+                }
+                if (*count == MAX_REPOSITORIES) {
+                    (*invalid_count)++;
                     continue;
                 }
                 {

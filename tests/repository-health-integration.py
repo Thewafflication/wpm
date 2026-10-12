@@ -304,6 +304,17 @@ with tempfile.TemporaryDirectory(prefix="wpm-repo-health-") as directory:
         assert "Inspected roots: 32; link issues: 6" in text, text
         assert machine(links=True)["summary"]["link_issues"] == 6
         source_index.write_text(valid)
+        full_config = "".join(f"1\t{source / node}\n" for node in nodes[:32])
+        config.write_text(full_config + "# comment\n\n")
+        report = machine(succeeds=True)
+        assert report["summary"]["configured_roots"] == 32
+        config.write_text(full_config + f"1\t{source / nodes[32]}\ninvalid\n")
+        report = machine()
+        assert report["summary"]["inspected_roots"] == 32
+        assert report["summary"]["invalid_configuration"] == 2
+        text = run("repo", "diagnose")
+        assert "invalid configuration: 2" in text, text
+        config.write_text(entries)
         for arguments in (
             ("repo", "diagnose", "extra"),
             ("repo", "diagnose", "--priority", "10"),
