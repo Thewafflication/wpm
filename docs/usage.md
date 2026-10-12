@@ -230,6 +230,11 @@ Filesystem/UNC reads use the caller's Windows access and may involve OS network
 access. The command adds no WPM web retrieval. Default staged verification and
 its trust workflow remain unchanged.
 
+Signature envelopes require a numeric root version exactly equal to one in
+both staged and read-only modes. Decimal/exponent equivalents such as `1.0` and
+`10e-1` remain supported; prefixes like `10`, values merely rounded to one,
+and a version found only in nested metadata do not declare the supported schema.
+
 The authoring fixture also exercises this public command with an absent data
 and external-log root, multiple archives/options, unknown/trusted/revoked keys,
 unsigned opt-in, payload hash tampering, unindexed content, a locked source,

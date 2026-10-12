@@ -21,6 +21,7 @@
 #include "operation.h"
 #include "progress.h"
 #include "json_output.h"
+#include "json_input.h"
 
 #define PATH_SIZE 4096
 #define MAX_REPOSITORIES 32
@@ -1831,8 +1832,8 @@ static const char *index_field(const char *text, const char *wanted) {
     }
     return NULL;
 }
-static int index_version_supported(const char *text) {
-    const char *value = index_field(text, "version"), *p = value;
+int wpm_json_version_one(const char *text) {
+    const char *value = text ? index_field(text, "version") : NULL, *p = value;
     int position = 0, integer_digits = 0, nonzero = -1;
     int exponent = 0, exponent_sign = 1;
     if (!p || *p < '0' || *p > '9') {
@@ -1911,7 +1912,7 @@ static int index_file_supported(const char *path, int report) {
     text[size] = 0;
     packages = index_field(text, "packages");
     supported = !memchr(text, 0, (size_t)size) && json_document_valid(text) &&
-                index_version_supported(text) && packages && *packages == '[';
+                wpm_json_version_one(text) && packages && *packages == '[';
 cleanup:
     free(text);
     fclose(input);
@@ -1968,7 +1969,7 @@ static int parse_index(const char *path, repository *repo,
         free(text);
         return 0;
     }
-    version_ok = index_version_supported(text);
+    version_ok = wpm_json_version_one(text);
     p = index_field(text, "packages");
     if (!version_ok) {
         wpm_event_printf(
@@ -2104,7 +2105,7 @@ static int diagnose_links(const char *path, repository *repositories,
     }
     text[size] = 0;
     if (memchr(text, 0, (size_t)size) || !json_document_valid(text) ||
-        !index_version_supported(text)) {
+        !wpm_json_version_one(text)) {
         goto cleanup;
     }
     p = index_field(text, "repositories");
@@ -2696,7 +2697,7 @@ static int query_catalog_document(const char *path, HANDLE *catalog,
     }
     (*text)[size] = 0;
     if (memchr(*text, 0, size) || !json_document_valid(*text) ||
-        !index_version_supported(*text) || !author_catalog_fields(*text)) {
+        !wpm_json_version_one(*text) || !author_catalog_fields(*text)) {
         return 0;
     }
     return 1;

@@ -12,6 +12,7 @@
 #include "sodium.h"
 #include "archive.h"
 #include "signing.h"
+#include "json_input.h"
 #include "logging.h"
 #include "capability.h"
 #include "helpers.h"
@@ -539,7 +540,7 @@ int wpm_validate_signature_bytes(const char *signature,
         occurrences(signature, "\"key_id\"") != 1 ||
         occurrences(signature, "\"public_key\"") != 1 ||
         occurrences(signature, "\"signature\"") != 1 ||
-        !strstr(signature, "\"version\": 1") ||
+        !wpm_json_version_one(signature) ||
         !strstr(signature, "\"algorithm\": \"ed25519\"") ||
         !field(signature, "\"key_id\": \"", id, sizeof(id)) ||
         !field(signature, "\"public_key\": \"", public_text,
@@ -622,7 +623,7 @@ int wpm_validate_package_signature(const char *stage, int allow,
         occurrences((char *)text, "\"key_id\"") != 1 ||
         occurrences((char *)text, "\"public_key\"") != 1 ||
         occurrences((char *)text, "\"signature\"") != 1 ||
-        strstr((char *)text, "\"version\": 1") == NULL ||
+        !wpm_json_version_one((char *)text) ||
         strstr((char *)text, "\"algorithm\": \"ed25519\"") == NULL ||
         !field((char *)text, "\"key_id\": \"", id, sizeof(id)) ||
         !field((char *)text, "\"public_key\": \"", pub64, sizeof(pub64)) ||

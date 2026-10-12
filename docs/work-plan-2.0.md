@@ -814,3 +814,13 @@ sources, symbolic leaves, and snapshot preservation. Broader I-08/I-06 stays ope
 The native query quality workflow run 38285246573 passed 1000 cases each on
 x86, x64, and ARM64 at 7f1f18aa120a8769b7cf2194023239b7293254bb;
 this remains the documented structural query subset rather than the full gate.
+
+The 1.2.38 validation slice also corrects a reproduced signature-version prefix
+bug: `10` was accepted as `1` while retaining a valid index signature. Both
+staged and read-only readers now share exact root-number recognition with the
+repository reader, reject unsupported/rounded/nested versions, and preserve
+numeric equivalents of one. The original failing output and synthetic archive/
+public-trust inputs remain under `out/failures/archive-verify-*` and the focused
+version regression is promoted to the native suite. No private key is copied
+into that failure evidence. This fixes unsupported schema admission without
+changing archive/index/signature formats or supported version-1 defaults.

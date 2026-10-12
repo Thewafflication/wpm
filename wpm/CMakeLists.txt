@@ -39,6 +39,7 @@ set(
   "logging.h"
   "json_output.c"
   "json_output.h"
+  "json_input.h"
   "capability.c"
   "capability.h"
   "operation.c"

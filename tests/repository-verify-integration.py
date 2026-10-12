@@ -4,6 +4,8 @@ import argparse
 import hashlib
 import json
 import os
+import shutil
+import uuid
 from pathlib import Path
 import subprocess
 import tempfile
@@ -59,6 +61,36 @@ with tempfile.TemporaryDirectory(prefix="wpm-repo-verify-") as directory:
             capture_output=True,
             timeout=30,
         )
+        if (result.returncode == 0) != succeeds and "--read-only" in arguments:
+            evidence = (
+                Path(__file__).resolve().parent.parent / "out" / "failures"
+            )
+            evidence = evidence / ("archive-verify-" + uuid.uuid4().hex)
+            evidence.mkdir(parents=True)
+            (evidence / "stdout.txt").write_text(
+                result.stdout, encoding="utf-8"
+            )
+            (evidence / "stderr.txt").write_text(
+                result.stderr, encoding="utf-8"
+            )
+            for number, argument in enumerate(arguments):
+                candidate = Path(argument)
+                if candidate.suffix == ".zip" and candidate.is_file():
+                    shutil.copy2(candidate, evidence / f"archive-{number}.zip")
+            if (data / "trust").is_dir():
+                shutil.copytree(data / "trust", evidence / "data" / "trust")
+            (evidence / "result.json").write_text(
+                json.dumps(
+                    dict(
+                        command=list(map(str, arguments)),
+                        returncode=result.returncode,
+                        expected_success=succeeds,
+                        material="synthetic fixture/public trust",
+                    )
+                ),
+                encoding="utf-8",
+            )
+            print(f"Retained archive/public-trust evidence: {evidence}")
         assert (result.returncode == 0) == succeeds, result.stdout
         if readonly:
             assert snapshot(root) == before
@@ -160,6 +192,49 @@ with tempfile.TemporaryDirectory(prefix="wpm-repo-verify-") as directory:
     run("verify", "--read-only", archive, readonly=True)
     run("verify", archive, "--read-only", "--verbose", readonly=True)
     run("verify", archive, archive, "--read-only", readonly=True)
+    # Signature envelopes declare a numeric root version, not a text prefix.
+    signed_original = archive.read_bytes()
+    with zipfile.ZipFile(archive) as package:
+        signed_entries = [
+            (item, package.read(item.filename)) for item in package.infolist()
+        ]
+    for version_text in (
+        "10",
+        "1.000000000000000001",
+        "0.999999999999999999",
+        "true",
+        "-1",
+        "1e-1",
+    ):
+        with zipfile.ZipFile(archive, "w") as package:
+            for item, entry_bytes in signed_entries:
+                if item.filename == ".wpm/signature.json":
+                    entry_bytes = entry_bytes.replace(
+                        b'"version": 1', b'"version": ' + version_text.encode()
+                    )
+                package.writestr(item, entry_bytes)
+        run("verify", archive, "--read-only", succeeds=False, readonly=True)
+        run("verify", archive, succeeds=False)
+    for version_text in ("1", "1.0", "10e-1", "0.1e1", "1.000000e+0"):
+        with zipfile.ZipFile(archive, "w") as package:
+            for item, entry_bytes in signed_entries:
+                if item.filename == ".wpm/signature.json":
+                    entry_bytes = entry_bytes.replace(
+                        b'"version": 1', b'"version": ' + version_text.encode()
+                    )
+                package.writestr(item, entry_bytes)
+        run("verify", archive, "--read-only", readonly=True)
+        run("verify", archive)
+    with zipfile.ZipFile(archive, "w") as package:
+        for item, entry_bytes in signed_entries:
+            if item.filename == ".wpm/signature.json":
+                entry_bytes = entry_bytes.replace(
+                    b'"version": 1', b'"extension": {"version": 1}'
+                )
+            package.writestr(item, entry_bytes)
+    run("verify", archive, "--read-only", succeeds=False, readonly=True)
+    run("verify", archive, succeeds=False)
+    archive.write_bytes(signed_original)
     symbolic = repository / "archive-link.zip"
     try:
         os.symlink(archive, symbolic)
