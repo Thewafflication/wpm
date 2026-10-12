@@ -48,8 +48,8 @@ every row that is not `Verified` or lacks objective evidence.
 | REQ-0017.004 | TC-0017 | Automated signing test and security inspection | Planned | Not yet produced |
 | REQ-0017.005 | TC-0017 | Automated validation test | Planned | Not yet produced |
 | REQ-0017.006 | TC-0017 | Automated plan/dry-run test | Planned | Not yet produced |
-| REQ-0017.007 | TC-0017 | Automated copy/read-only test and demonstration | Planned | Not yet produced |
-| REQ-0017.008 | TC-0017 | Documentation inspection and journey demonstration | Planned | Not yet produced |
+| REQ-0017.007 | TC-0017 | Automated copy/read-only test and demonstration | Planned | Partial: repository-sign-integration copies, verifies, and consumes a signed tree; physical/read-only media evidence remains open |
+| REQ-0017.008 | TC-0017 | Documentation inspection and journey demonstration | Planned | Partial: repository-authoring documents the native copied-tree journey; full environment demonstration remains open |
 | REQ-0018.001 | TC-0018 | Automated health-state test | Planned | Not yet produced |
 | REQ-0018.002 | TC-0018 | Automated condition/remediation test | Planned | Not yet produced |
 | REQ-0018.003 | TC-0018 | Automated installed-state test | Planned | Not yet produced |

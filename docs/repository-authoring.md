@@ -253,3 +253,11 @@ From 1.2.41, selected private/public key files must contain a complete supported
 version-1 header token; a `v10` or longer suffix is not interpreted as `v1`.
 Generated version-1 key files and LF/CRLF line endings remain supported. This
 schema check does not make a repository-distributed key an independent authority.
+
+The 1.2.42 native journey copies a complete signed repository into a fresh
+distribution directory, verifies it with an independently selected index key,
+then configures that copy and installs its signed package offline using relative
+locators. The consumer trusts the package key separately. Repository bytes and
+modification times remain unchanged during verification and consumption.
+This fixture demonstrates filesystem-copy portability; physical removable media,
+network shares, and access-control/read-only media evidence remain open.

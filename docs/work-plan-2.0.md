@@ -851,3 +851,10 @@ and LF/CRLF endings. A retained original failing catalog-sign dry-run demonstrat
 the issue; normal and public-only dry-run fixtures reject unsupported headers.
 This rejects unsupported formats without changing valid v1 key material or
 introducing a new trust role/default policy.
+
+1.2.42 extends the signed-authoring fixture with a complete copied-distribution
+journey: independent index verification, separate package trust, configuration,
+offline catalog update, and signed installation from relative locators. The
+copy stays byte/mtime unchanged and only the authorized install runs its script.
+This is partial REQ-0017.007/.008 evidence; physical media, ACL/read-only media,
+network-share execution, and full I-09 completion remain open.

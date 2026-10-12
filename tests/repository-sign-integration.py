@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import os
+import shutil
 from pathlib import Path
 import subprocess
 import tempfile
@@ -35,7 +36,7 @@ with tempfile.TemporaryDirectory(prefix="wpm-repository-sign-") as directory:
     for variable in ("WPM_LOG_FILE", "WPM_LOG_DIR", "WPM_LOG_LEVEL"):
         env.pop(variable, None)
 
-    def run(*arguments, succeeds=True, readonly=False):
+    def run(*arguments, succeeds=True, readonly=False, script=False):
         before = snapshot(root) if readonly else None
         result = subprocess.run(
             [wpm, *map(str, arguments)],
@@ -48,7 +49,7 @@ with tempfile.TemporaryDirectory(prefix="wpm-repository-sign-") as directory:
         assert (result.returncode == 0) == succeeds, result.stdout
         if readonly:
             assert snapshot(root) == before
-        assert not (root / "script-ran").exists()
+        assert (root / "script-ran").exists() == script
         return result.stdout
 
     private, public = root / "package.private", root / "package.public"
@@ -255,6 +256,23 @@ with tempfile.TemporaryDirectory(prefix="wpm-repository-sign-") as directory:
     ):
         run(*arguments, succeeds=False, readonly=True)
     verify()
+    # Complete copied layout verifies with the independent index key, then
+    # legacy consumption installs from relative package locators unchanged.
+    copied = root / "copied-distribution"
+    shutil.copytree(repository, copied, copy_function=shutil.copy2)
+    copied_before = snapshot(copied)
+    env["WPM_DATA_DIR"] = str(root / "consumer-data")
+    run("trust", "add", public)
+    run("repo", "verify", copied, "--index-key", index_public, readonly=True)
+    run("repo", "add", copied, "--priority", "1000")
+    run("update", "--offline")
+    run("install", "signed-catalog", "--offline", script=True)
+    assert snapshot(copied) == copied_before
+    assert (
+        root / "consumer-data" / "packages" / "signed-catalog-any-1.0.0.zip"
+    ).exists()
+    (root / "script-ran").unlink()
+    env["WPM_DATA_DIR"] = str(data)
     run("trust", "revoke", next((data / "trust").glob("*.pub")).stem)
     verify(succeeds=False)
     verify("--allow-unsigned", succeeds=False)
