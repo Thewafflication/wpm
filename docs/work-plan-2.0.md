@@ -660,3 +660,7 @@ caches; established web fallback and local fail-closed behavior are retained.
 1.2.18 shares iterative JSON grammar checks across refreshed, cached, and
 direct local indexes. A bounded negative corpus, legal extension values, deep
 nesting, cache retention, and read-only snapshots provide compatibility evidence.
+
+1.2.19 binds optional confirmation plans to archive volume/file identity,
+rejecting byte-identical file substitution after preview. Stable approval and
+legacy default workflows remain covered; physical media demonstrations stay open.

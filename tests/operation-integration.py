@@ -79,6 +79,41 @@ with tempfile.TemporaryDirectory(prefix="wpm-operation-") as directory:
     assert b"recompute and approve" in output, output
     assert not installed.exists()
 
+    # Replace the approved input with byte-identical contents. A digest alone
+    # cannot detect this file/media identity substitution after the preview.
+    original = archive.read_bytes()
+    process = subprocess.Popen(
+        [wpm, "install", str(archive), "--allow-unsigned", "--confirm"],
+        env=env,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    output = bytearray()
+    while not output.endswith(b"[y/N]: "):
+        byte = process.stdout.read(1)
+        assert byte, output.decode(errors="replace")
+        output.extend(byte)
+    held_original = root / "held-original.zip"
+    archive.rename(held_original)
+    archive.write_bytes(original)
+    assert archive.read_bytes() == held_original.read_bytes()
+    remainder, _ = process.communicate(b"y\n", timeout=20)
+    output.extend(remainder)
+    assert process.returncode != 0, output
+    assert b"recompute and approve" in output, output
+    assert not installed.exists()
+    held_original.unlink()
+    # A stable file identity still permits explicit approval and execution.
+    result = run(
+        "install", archive, "--allow-unsigned", "--confirm", input_text="y\n"
+    )
+    assert result.returncode == 0, result.stdout
+    assert installed.exists()
+    assert run("remove", archive.stem).returncode == 0
+    installed.unlink()
+    removed.unlink()
+
     result = run("install", archive, "--allow-unsigned")
     assert result.returncode == 0, result.stdout
     assert installed.exists()

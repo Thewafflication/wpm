@@ -20,6 +20,7 @@ typedef struct plan_item {
     wpm_package_info identity;
     unsigned char fingerprint[32];
     HANDLE input;
+    DWORD file_identity[3];
     int consumed;
 } plan_item;
 
@@ -63,6 +64,29 @@ done:
     return success;
 }
 
+static int read_file_identity(HANDLE input, DWORD identity[3]) {
+    BY_HANDLE_FILE_INFORMATION info;
+    if (!GetFileInformationByHandle(input, &info)) {
+        return 0;
+    }
+    identity[0] = info.dwVolumeSerialNumber;
+    identity[1] = info.nFileIndexHigh;
+    identity[2] = info.nFileIndexLow;
+    return 1;
+}
+static int file_identity_matches(const plan_item *item) {
+    DWORD identity[3];
+    HANDLE input = CreateFileA(item->archive, GENERIC_READ,
+                               FILE_SHARE_READ | FILE_SHARE_DELETE, NULL,
+                               OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    int matches = input != INVALID_HANDLE_VALUE &&
+                  read_file_identity(input, identity) &&
+                  !memcmp(identity, item->file_identity, sizeof(identity));
+    if (input != INVALID_HANDLE_VALUE) {
+        CloseHandle(input);
+    }
+    return matches;
+}
 static int compare_names(const void *left, const void *right) {
     return strcmp(*(const char *const *)left, *(const char *const *)right);
 }
@@ -306,6 +330,10 @@ int wpm_operation_archive(const char *action, const char *archive,
         if (item.input == INVALID_HANDLE_VALUE) {
             return changed();
         }
+        if (!read_file_identity(item.input, item.file_identity)) {
+            CloseHandle(item.input);
+            return changed();
+        }
         grown = realloc(items, (item_count + 1) * sizeof(*items));
         if (!grown) {
             CloseHandle(item.input);
@@ -324,7 +352,8 @@ int wpm_operation_archive(const char *action, const char *archive,
             !_stricmp(item->archive, full) &&
             !strcmp(item->source, source && *source ? source : full) &&
             !strcmp(item->old_version, old_version ? old_version : "none") &&
-            !memcmp(item->fingerprint, fingerprint, sizeof(fingerprint))) {
+            !memcmp(item->fingerprint, fingerprint, sizeof(fingerprint)) &&
+            file_identity_matches(item)) {
             item->consumed = 1;
             executing = item;
             return 1;
@@ -359,6 +388,8 @@ int wpm_operation_confirm(void) {
         }
         crypto_generichash_update(&hash, item->fingerprint,
                                   sizeof(item->fingerprint));
+        crypto_generichash_update(&hash, (unsigned char *)item->file_identity,
+                                  sizeof(item->file_identity));
         wpm_event_printf(
             WPM_EVENT_INFO, "plan.item", "plan", "preview",
             "  %s %s %s %s -> %s\n  Source: %s\n  Input: %s\n  Trust: %s\n"
@@ -412,7 +443,8 @@ int wpm_operation_confirm(void) {
     }
     for (size_t i = 0; i < item_count; i++) {
         unsigned char fingerprint[32];
-        if (!hash_file(items[i].archive, fingerprint) ||
+        if (!file_identity_matches(&items[i]) ||
+            !hash_file(items[i].archive, fingerprint) ||
             memcmp(fingerprint, items[i].fingerprint, sizeof(fingerprint))) {
             changed();
             return -1;
@@ -435,7 +467,8 @@ int wpm_operation_before_script(void) {
     if (!active) {
         return 1;
     }
-    if (collecting || !executing || !hash_file(executing->archive, digest) ||
+    if (collecting || !executing || !file_identity_matches(executing) ||
+        !hash_file(executing->archive, digest) ||
         memcmp(digest, executing->fingerprint, sizeof(digest)) ||
         !state_digest(state) || memcmp(state, approved_state, sizeof(state))) {
         return changed();

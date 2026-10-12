@@ -34,3 +34,20 @@ Controlled removable and optical media demonstrations, source identity across
 media substitution, and deterministic partial-read fault injection remain open.
 UNC authentication/disconnection and opted-in HTTP transport evidence belongs
 to I-05. Breaking changes stay reserved for 2.x; compatible slices ship on 1.x.
+
+## Optional confirmation source identity (1.2.19)
+
+Plans capture the opened archive's Windows volume serial and file identifier,
+include them in the approval digest, and recheck the selected path before
+approval, execution replay, and package scripts. Replacing an archive with a
+byte-identical copy after preview therefore invalidates the plan. Existing
+content fingerprints and state/trust checks remain in force. Default 1.x
+commands retain their behavior; these checks apply to the explicit `--confirm`
+workflow and read-only plan construction.
+
+The operation integration fixture performs a real Windows rename and replacement
+while the preview is waiting for approval, confirms equal archive bytes, and
+requires rejection before installation. A stable replacement file can then be
+planned and approved normally. Dry-run snapshots verify no new writes.
+This deterministic file identity test does not close the remaining physical
+removable/optical media demonstrations or platform-specific SMB identity work.
