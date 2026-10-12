@@ -76,6 +76,22 @@ with tempfile.TemporaryDirectory(prefix="wpm-quality-harness-") as directory:
             (passed / "quality-query-corpus.json").read_bytes()
         ).hexdigest()
     )
+    runtime = root / "runtime-baselines"
+    run(args.wpm, runtime, cases=4)
+    runtime_report = json.loads(
+        (runtime / "report.json").read_text(encoding="utf-8")
+    )
+    assert [case["family"] for case in runtime_report["cases"]] == [
+        "audit",
+        "catalog",
+        "retained",
+        "runtime",
+    ]
+    for case in runtime_report["cases"]:
+        assert case["input_copy_complete"] and case["input_copy_intact"]
+        assert Path(case["working_directory"]).parent == runtime
+    runtime_case = runtime_report["cases"][-1]
+    assert runtime_case["environment"]["WPM_TLS_CA_FILE"] is None
     # Python rejects WPM-only flags before loading any script. This wrong binary
     # gives a real failed subprocess without patching harness internals.
     failed = root / "failed"
@@ -88,6 +104,15 @@ with tempfile.TemporaryDirectory(prefix="wpm-quality-harness-") as directory:
     assert (first / "input-manifest.json").is_file()
     assert (first / "stderr.bin").read_bytes()
     assert json.loads((first / "result.json").read_text())["status"] == "fail"
+    preserved = Path(report["cases"][0]["input_copy"])
+    assert report["cases"][0]["input_copy_complete"]
+    assert report["cases"][0]["input_copy_intact"]
+    original = next((first / "data" / "audit").glob("*.txt"))
+    original_bytes = original.read_bytes()
+    original.write_bytes(b"changed after the failure")
+    assert (
+        preserved / original.relative_to(first)
+    ).read_bytes() == original_bytes
     before = snapshot(root)
     run(args.wpm, failed, succeeds=False)
     assert snapshot(root) == before, "existing failure evidence overwritten"

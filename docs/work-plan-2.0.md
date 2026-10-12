@@ -902,3 +902,27 @@ downloaded source/harness/corpus evidence checked. Full I-08/I-10 remain open.
 
 The runtime fixture runs each subprocess from its owned temporary root so
 relative-root writes would be captured by its before/after snapshot.
+
+Next compatible quality slice: add the runtime configuration family, preserve
+prepared input copies before execution, run queries from owned case directories,
+and check root timestamps and file attributes. Keep existing two-element input
+manifest values and the three-case minimum; add environment/attribute/copy
+evidence as report fields. Verify copies survive working-input corruption and
+refused reruns. No product formats/defaults change; full I-10 remains open.
+
+1.2.47 implements the quality slice above with recorded runtime expectations,
+owned working directories, prepared input copies, root timestamps, and separate
+attribute evidence. Targeted x86/x64 harness self-tests and 120-case preview runs
+pass. Case/report fields are additive; legacy baseline minimum and input-value
+shapes remain supported. Full quality profiles and REQ-0020/I-10 remain partial.
+
+The expanded x64 1000-case run retained an Inconclusive duration-limit record
+after 498 cases; x86 completed 120. Measured per-case time was 56 seconds of
+120 seconds elapsed. Checkpointing the growing report every 16 cases reduces
+whole-history rewrites while preserving every staged case result and final/
+failure reports. Original bounded evidence is retained before repeat testing.
+
+The checkpointed x64 repeat completed all 1000 cases in 111 seconds under an
+explicit 300-second local budget, with all prepared copies complete/intact, at
+out/quality-runtime-checkpoint-x64-20047. Default duration remains 120 seconds;
+the original bounded run is not replaced or reclassified.

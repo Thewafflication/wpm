@@ -184,3 +184,30 @@ record clean source state and distinct binary hashes; saved harness/corpus bytes
 match their recorded SHA-256 values. Evidence and the local verification record
 are retained under out/quality-native-38314833741. This repeats the bounded
 structural query subset and does not close the broader quality requirements.
+
+From 1.2.47, a fourth family exercises runtime configuration JSON: backend/CA
+selection, invalid combinations, unavailable/long locations, existing Windows
+native text, terminal cleanup, and redaction. The three-case minimum remains;
+three-case runs retain the original audit/catalog/retained baselines and runs
+with four or more cases add the valid runtime baseline before mutations.
+
+Each candidate runs from its owned case directory. Root directory timestamps
+and file attributes supplement existing byte/mtime snapshots. Existing input
+manifest values retain their two-element shape; additional attributes and
+working-directory/environment expectations are separate report fields. Only
+generated environment overrides are recorded, not the inherited environment.
+
+Before execution, the harness copies prepared fixtures into a separate
+`inputs/case-*` tree, checks byte/time/attribute equality, and records copy
+completion and post-process integrity. A process failure leaves those inputs
+available even if the working fixture changed. Copies count toward artifact
+usage, and existing evidence directories are still refused. Fast tests alter
+a failed working input and confirm its preserved copy survives unchanged.
+These cooperative checks and copies do not establish an OS security sandbox.
+
+Per-case results remain flushed/staged after every case. The growing run report
+is checkpointed every 16 cases and always on failure or termination, avoiding
+repeated serialization of the whole history. Interrupted running reports may
+lag per-case evidence; they do not establish completion. The original local
+1000-case x64 attempt reached its 120-second bound after 498 cases and remains
+Inconclusive at out/quality-runtime-tracked-x64-20047; its evidence is retained.

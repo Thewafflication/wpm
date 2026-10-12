@@ -14,7 +14,11 @@
         "Failure fields, duplicates, NULs, capacities, exit-code overflow",
         "Unicode, invalid UTF-8, terminal text, and credentials"
       ],
-      "requirements": ["REQ-0019.002", "REQ-0019.009", "REQ-0018.009"]
+      "requirements": [
+        "REQ-0019.002",
+        "REQ-0019.009",
+        "REQ-0018.009"
+      ]
     },
     {
       "id": "catalog",
@@ -22,7 +26,11 @@
         "Schemas, grammar, duplicate fields, types, bounds, links, versions",
         "Unicode and invalid text"
       ],
-      "requirements": ["REQ-0018.005", "REQ-0018.008", "REQ-0018.009"]
+      "requirements": [
+        "REQ-0018.005",
+        "REQ-0018.008",
+        "REQ-0018.009"
+      ]
     },
     {
       "id": "retained",
@@ -30,7 +38,22 @@
         "ZIP metadata, unsupported identities, versions, NULs",
         "Oversize entries and truncated archives"
       ],
-      "requirements": ["REQ-0018.003", "REQ-0018.008", "REQ-0018.009"]
+      "requirements": [
+        "REQ-0018.003",
+        "REQ-0018.008",
+        "REQ-0018.009"
+      ]
+    },
+    {
+      "id": "runtime",
+      "purpose": [
+        "Runtime backend/CA selection, locations, and native text",
+        "Redaction, owned working directories, and state snapshots"
+      ],
+      "requirements": [
+        "REQ-0018.008",
+        "REQ-0018.009"
+      ]
     }
   ],
   "limitations": [

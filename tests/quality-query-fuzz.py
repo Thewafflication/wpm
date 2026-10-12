@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import platform
 import random
+import shutil
 import subprocess
 import threading
 import time
@@ -23,7 +24,9 @@ def digest(path):
 
 
 def snapshot(root):
-    result = {}
+    root_info = root.lstat()
+    assert not getattr(root_info, "st_file_attributes", 0) & 0x400
+    result = {".": ("directory", root_info.st_mtime_ns)}
     pending = [root]
     while pending:
         for path in sorted(pending.pop().iterdir()):
@@ -48,6 +51,26 @@ def snapshot(root):
     return result
 
 
+def attributes_snapshot(root, entries):
+    return {
+        name: getattr((root / name).lstat(), "st_file_attributes", 0)
+        for name in entries
+    }
+
+
+def preserve_inputs(case, destination):
+    """Copy exact prepared inputs before launching the candidate executable."""
+    before = snapshot(case)
+    attributes = attributes_snapshot(case, before)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(case, destination, copy_function=shutil.copy2)
+    assert snapshot(destination) == before, (
+        "input copy differs before execution"
+    )
+    assert attributes_snapshot(destination, before) == attributes
+    return before, attributes
+
+
 def write_json(path, value):
     candidate = path.with_name(path.name + ".new")
     with candidate.open("x", encoding="utf-8") as stream:
@@ -57,11 +80,12 @@ def write_json(path, value):
     candidate.replace(path)
 
 
-def bounded_process(argv, env, timeout, limit=256 * 1024):
+def bounded_process(argv, env, timeout, limit=256 * 1024, *, cwd=None):
     """Bound captured output and process lifetime, retaining the first bytes."""
     process = subprocess.Popen(
         argv,
         env=env,
+        cwd=cwd,
         stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -243,10 +267,69 @@ def installed_case(case, data, rng, baseline, secret):
     return ["list"], "retained"
 
 
-def verify_document(document, family, returncode):
+def runtime_case(case, data, rng, baseline, secret):
+    environment = {
+        "WPM_DATA_DIR": str(data),
+        "WPM_HTTPS_BACKEND": "bundled",
+        "WPM_TLS_CA_FILE": None,
+    }
+    expected = {
+        "backend": "bundled_mbedtls",
+        "trust_source": "embedded_mozilla_bundle",
+        "complete": True,
+    }
+    mutation = -1 if baseline else rng.randrange(9)
+    if mutation in (0, 1):
+        environment["WPM_HTTPS_BACKEND"] = (
+            "unsupported" if mutation == 0 else "urlmon"
+        )
+        expected.update(
+            backend="invalid" if mutation == 0 else "urlmon",
+            trust_source=None if mutation == 0 else "windows_store",
+            complete=mutation == 1,
+        )
+    elif mutation in (2, 3):
+        environment["WPM_TLS_CA_FILE"] = str(case / ("token=" + secret))
+        if mutation == 2:
+            environment["WPM_HTTPS_BACKEND"] = "urlmon"
+            expected.update(
+                backend="invalid", trust_source=None, complete=False
+            )
+        else:
+            expected["trust_source"] = "configured_ca_file"
+    elif mutation == 4:
+        environment["WPM_DATA_DIR"] = str(case / ("x" * 280))
+        expected["complete"] = False
+    elif mutation == 5:
+        environment["WPM_DATA_DIR"] = str(case / ("token=" + secret))
+    elif mutation == 6:
+        environment["WPM_DATA_DIR"] = str(case / "caf\u00e9")
+        expected["complete"] = None  # Existing Windows ANSI selection varies.
+    elif mutation == 7:
+        environment["WPM_TLS_CA_FILE"] = str(case / ("x" * 4096))
+        expected.update(backend="invalid", trust_source=None, complete=False)
+    elif mutation == 8:
+        environment["WPM_DATA_DIR"] = str(case / "\x1b[31mroot\x1b[0m")
+    return ["--diagnose"], "runtime", environment, expected
+
+
+def verify_document(document, family, returncode, expected=None):
     assert document["exit_code"] == returncode
     assert isinstance(document["complete"], bool)
-    if family == "audit":
+    if family == "runtime":
+        assert document["schema"] == "wpm.runtime-diagnose.v1"
+        assert document["inspection"] == "runtime_configuration"
+        assert document["https"] == {
+            "backend": expected["backend"],
+            "trust_source": expected["trust_source"],
+        }
+        assert type(document["serialization_issues"]) is int
+        assert document["serialization_issues"] >= 0
+        if expected["complete"] is not None:
+            assert document["complete"] == expected["complete"]
+        if document["serialization_issues"]:
+            assert not document["complete"]
+    elif family == "audit":
         assert document["schema"] == "wpm.recovery-list.v1"
         assert document["authenticated"] is False
         assert document["external_state_known"] is False
@@ -325,7 +408,7 @@ def main():
         stream_limit_bytes=256 * 1024,
         cases=[],
     )
-    generators = (audit_case, catalog_case, installed_case)
+    generators = (audit_case, catalog_case, installed_case, runtime_case)
     failure = None
     bounded = False
     run_started = time.monotonic()
@@ -351,9 +434,10 @@ def main():
         case.mkdir()
         data = case / "data"
         secret = "QUALITY_SYNTHETIC_SECRET"
-        command, family = generators[number % 3](
-            case, data, rng, number < 3, secret
+        command, family, *context = generators[number % len(generators)](
+            case, data, rng, number < len(generators), secret
         )
+        overrides, expected = context if context else ({}, None)
         argv = [str(wpm), "--color", "always", *command, "--json", "--offline"]
         env = dict(
             os.environ,
@@ -362,13 +446,40 @@ def main():
             WPM_LOG_DIR=str(case / "external-logs"),
             WPM_HTTPS_BACKEND="invalid",
         )
+        for name, value in overrides.items():
+            if value is None:
+                env.pop(name, None)
+            else:
+                env[name] = value
+        if overrides:
+            write_json(case / "environment.json", overrides)
         before = snapshot(case)
         write_json(case / "input-manifest.json", before)
         before = snapshot(case)
         started = time.monotonic()
         stdout, stderr, returncode = b"", b"", None
-        outcome = dict(number=number, family=family, command=argv)
+        outcome = dict(
+            number=number,
+            family=family,
+            command=argv,
+            working_directory=str(case),
+            environment=overrides,
+            expected=expected,
+        )
+        input_copy = output / "inputs" / case.name
+        outcome.update(
+            input_copy=str(input_copy),
+            input_copy_complete=False,
+            input_copy_intact=None,
+        )
         try:
+            before, before_attributes = preserve_inputs(case, input_copy)
+            outcome["attributes_before"] = before_attributes
+            outcome["input_copy_complete"] = True
+            outcome["case_root_before"] = before["."]
+            outcome["input_manifest_sha256"] = digest(
+                case / "input-manifest.json"
+            )
             budget = min(
                 args.timeout, args.duration - (time.monotonic() - run_started)
             )
@@ -377,14 +488,22 @@ def main():
                 report["reason"] = "duration_limit"
                 raise AssertionError("duration_limit")
             returncode, stdout, stderr, termination = bounded_process(
-                argv, env, budget
+                argv, env, budget, cwd=case
             )
+            intact = snapshot(input_copy) == before and (
+                attributes_snapshot(input_copy, before) == before_attributes
+            )
+            outcome["input_copy_intact"] = intact
+            assert intact, "preserved input copy changed"
             if termination == "timeout" and budget < args.timeout:
                 bounded = True
                 report["reason"] = "duration_limit"
                 raise AssertionError("duration_limit")
             assert termination is None, termination
             assert snapshot(case) == before, "read-only filesystem changed"
+            assert attributes_snapshot(case, before) == before_attributes, (
+                "read-only file attributes changed"
+            )
             assert returncode in (0, 1), (
                 f"unexpected process status {returncode}"
             )
@@ -395,9 +514,9 @@ def main():
                 "synthetic secret leaked"
             )
             verify_document(
-                json.loads(stdout.decode("utf-8")), family, returncode
+                json.loads(stdout.decode("utf-8")), family, returncode, expected
             )
-            if number < 3:
+            if number < len(generators):
                 assert returncode == 0, "valid baseline query failed"
             outcome["status"] = "pass"
         except subprocess.TimeoutExpired as error:
@@ -424,9 +543,15 @@ def main():
             complete=not failure and number + 1 == args.cases,
             status="fail" if failure else "running",
         )
-        write_json(output / "report.json", report)
+        # Every case has its own durable result; checkpoint the growing index
+        # periodically instead of rewriting all preceding evidence every time.
+        if failure or (number + 1) % 16 == 0 or number + 1 == args.cases:
+            write_json(output / "report.json", report)
         artifact_bytes += sum(
-            path.stat().st_size for path in case.rglob("*") if path.is_file()
+            path.stat().st_size
+            for directory in (case, input_copy)
+            for path in directory.rglob("*")
+            if path.is_file()
         )
         report["artifact_bytes"] = (
             artifact_bytes + (output / "report.json").stat().st_size
