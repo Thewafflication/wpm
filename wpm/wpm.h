@@ -11,20 +11,21 @@
 
 /** Commands accepted by the WPM command-line parser. */
 typedef enum {
-    CMD_UNKNOWN, /**< Unrecognized command text. */
-    CMD_INIT,    /**< Initialize package sources. */
-    CMD_BUILD,   /**< Build a package archive. */
-    CMD_VERIFY,  /**< Verify a package archive. */
-    CMD_INSTALL, /**< Install a package. */
-    CMD_REMOVE,  /**< Remove a package. */
-    CMD_REPO,    /**< Manage repositories. */
-    CMD_KEYGEN,  /**< Generate a signing-key pair. */
-    CMD_TRUST,   /**< Manage trusted signing keys. */
-    CMD_KEY,     /**< Manage signing-key configuration. */
-    CMD_CONFIG,  /**< Manage WPM configuration. */
-    CMD_UPDATE,  /**< Refresh repository metadata. */
-    CMD_UPGRADE, /**< Upgrade installed packages. */
-    CMD_RECOVERY /**< Inspect recorded operation failures. */
+    CMD_UNKNOWN,  /**< Unrecognized command text. */
+    CMD_INIT,     /**< Initialize package sources. */
+    CMD_BUILD,    /**< Build a package archive. */
+    CMD_VERIFY,   /**< Verify a package archive. */
+    CMD_INSTALL,  /**< Install a package. */
+    CMD_REMOVE,   /**< Remove a package. */
+    CMD_REPO,     /**< Manage repositories. */
+    CMD_KEYGEN,   /**< Generate a signing-key pair. */
+    CMD_TRUST,    /**< Manage trusted signing keys. */
+    CMD_KEY,      /**< Manage signing-key configuration. */
+    CMD_CONFIG,   /**< Manage WPM configuration. */
+    CMD_UPDATE,   /**< Refresh repository metadata. */
+    CMD_UPGRADE,  /**< Upgrade installed packages. */
+    CMD_RECOVERY, /**< Inspect recorded operation failures. */
+    CMD_LIST      /**< List retained installed package records. */
 } Command;
 
 /**

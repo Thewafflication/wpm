@@ -3333,6 +3333,152 @@ static int load_installed(installed_entry *result, int *count) {
     FindClose(find);
     return 1;
 }
+typedef struct {
+    installed_entry identity;
+    char file[MAX_PATH];
+} installed_record;
+
+static int installed_record_order(const void *left, const void *right) {
+    const installed_record *a = left, *b = right;
+    int order = _stricmp(a->identity.name, b->identity.name), valid;
+    if (!order) {
+        order = _stricmp(a->identity.arch, b->identity.arch);
+    }
+    if (!order) {
+        order =
+            -semver_compare(a->identity.version, b->identity.version, &valid);
+    }
+    if (!order) {
+        order = strcmp(a->identity.version, b->identity.version);
+    }
+    return order ? order : _stricmp(a->file, b->file);
+}
+
+int wpm_repo_list_installed(const char *name, const char *arch,
+                            const char *version) {
+    char root[PATH_SIZE], store[PATH_SIZE], path[PATH_SIZE];
+    installed_record *records = calloc(MAX_INSTALLED, sizeof(*records));
+    WIN32_FIND_DATAA found;
+    HANDLE search = INVALID_HANDLE_VALUE;
+    DWORD attributes, failure;
+    int count = 0, scanned = 0, issues = 0, limited = 0, matched = 0;
+    int success = 0;
+    wpm_set_readonly(1);
+    if (!records || !wpm_get_data_root(root, sizeof(root)) || !*root ||
+        !join_path(store, sizeof(store), root, "packages")) {
+        goto done;
+    }
+    attributes = GetFileAttributesA(store);
+    if (attributes == INVALID_FILE_ATTRIBUTES) {
+        failure = GetLastError();
+        if (failure == ERROR_FILE_NOT_FOUND ||
+            failure == ERROR_PATH_NOT_FOUND) {
+            success = 1;
+            goto report;
+        }
+        goto done;
+    }
+    if (!(attributes & FILE_ATTRIBUTE_DIRECTORY) ||
+        (attributes & FILE_ATTRIBUTE_REPARSE_POINT) ||
+        !join_path(path, sizeof(path), store, "*.zip")) {
+        goto done;
+    }
+    search = FindFirstFileA(path, &found);
+    if (search == INVALID_HANDLE_VALUE) {
+        if (GetLastError() == ERROR_FILE_NOT_FOUND) {
+            success = 1;
+            goto report;
+        }
+        goto done;
+    }
+    do {
+        wpm_package_info info;
+        HANDLE input;
+        int valid;
+        if (scanned == MAX_INSTALLED) {
+            limited = 1;
+            break;
+        }
+        scanned++;
+        if ((found.dwFileAttributes &
+             (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) ||
+            !join_path(path, sizeof(path), store, found.cFileName)) {
+            issues++;
+            continue;
+        }
+        input = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, NULL,
+                            OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+        if (input == INVALID_HANDLE_VALUE) {
+            issues++;
+            continue;
+        }
+        valid = wpm_archive_inspect(path, &info) && info.name[0] &&
+                wpm_repo_version_is_valid(info.version) &&
+                (!_stricmp(info.arch, "any") || !_stricmp(info.arch, "x86") ||
+                 !_stricmp(info.arch, "x64") || !_stricmp(info.arch, "arm64"));
+        CloseHandle(input);
+        if (!valid) {
+            issues++;
+            continue;
+        }
+        installed_record *record = &records[count++];
+        strcpy_s(record->identity.name, sizeof(record->identity.name),
+                 info.name);
+        strcpy_s(record->identity.version, sizeof(record->identity.version),
+                 info.version);
+        strcpy_s(record->identity.arch, sizeof(record->identity.arch),
+                 info.arch);
+        strcpy_s(record->file, sizeof(record->file), found.cFileName);
+    } while (FindNextFileA(search, &found));
+    if (!limited && GetLastError() != ERROR_NO_MORE_FILES) {
+        issues++;
+    }
+    success = !issues && !limited;
+report:
+    qsort(records, (size_t)count, sizeof(*records), installed_record_order);
+    wpm_event_printf(WPM_EVENT_INFO, "query.installed.start", "list", "query",
+                     "Retained installed package records (read-only):\n"
+                     "  Metadata only; trust and deployed software are not "
+                     "verified by this query.\n");
+    for (int i = 0; i < count; i++) {
+        installed_entry *identity = &records[i].identity;
+        if ((name && _stricmp(identity->name, name)) ||
+            (arch && _stricmp(identity->arch, arch)) ||
+            (version && strcmp(identity->version, version))) {
+            continue;
+        }
+        matched++;
+        wpm_event_printf(WPM_EVENT_INFO, "query.installed.item", "list",
+                         "query", "  %s %s %s\n    Archive: %s\n",
+                         identity->name, identity->arch, identity->version,
+                         records[i].file);
+    }
+    wpm_event_printf(WPM_EVENT_RESULT, "query.installed.summary", "list",
+                     "query",
+                     "Result: %d matching retained records; "
+                     "record issues: %d; limited: %s\n",
+                     matched, issues, limited ? "yes" : "no");
+    if (issues || limited) {
+        wpm_event_printf(
+            WPM_EVENT_INFO, "query.installed.next", "list", "query",
+            "Next action: inspect package-store access, archive metadata, "
+            "and retained history before changing records. The query is "
+            "partial and does not delete or repair state.\n");
+    }
+done:
+    if (search != INVALID_HANDLE_VALUE) {
+        FindClose(search);
+    }
+    free(records);
+    if (!success && !issues && !limited) {
+        wpm_event_printf(WPM_EVENT_ERROR, "query.installed.failed", "list",
+                         "query",
+                         "Error: package records could not be read. "
+                         "Check data-root/packages access and layout.\n");
+    }
+    return fflush(stdout) == 0 && !ferror(stdout) && success;
+}
+
 static int better_candidate(package_entry *candidate, package_entry *selected) {
     int valid, c;
     if (!selected) {

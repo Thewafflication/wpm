@@ -42,28 +42,39 @@ jobs:
       - name: Install documentation toolchain
         shell: pwsh
         run: |
+          $documentationSessionPath = $env:Path
           function Install-ChocolateyPackage {
-            param([Parameter(Mandatory)][string]$Name)
+            param(
+              [Parameter(Mandatory)][string]$Name,
+              [Parameter(Mandatory)][string[]]$Commands
+            )
             for ($attempt = 1; $attempt -le 3; $attempt++) {
               choco install $Name --yes --no-progress
-              if ($LASTEXITCODE -eq 0) { return }
+              $installationExitCode = $LASTEXITCODE
+              $machinePath = [Environment]::GetEnvironmentVariable('Path',
+                  'Machine')
+              $userPath = [Environment]::GetEnvironmentVariable('Path',
+                  'User')
+              $env:Path = "$machinePath;$userPath;$documentationSessionPath"
+              $missingCommands = @($Commands | Where-Object {
+                -not (Get-Command $_ -CommandType Application `
+                    -ErrorAction SilentlyContinue)
+              })
+              if ($installationExitCode -eq 0 -and
+                  $missingCommands.Count -eq 0) { return }
               if ($attempt -eq 3) {
                 throw (
                     "Chocolatey failed to install " +
-                    "$Name after 3 attempts."
+                    "$Name after 3 attempts (exit $installationExitCode; " +
+                    "missing commands: $($missingCommands -join ', '))."
                 )
               }
               Start-Sleep -Seconds 15
             }
           }
-          Install-ChocolateyPackage pandoc
-          Install-ChocolateyPackage miktex
-          Install-ChocolateyPackage poppler
-          $machinePath = [Environment]::GetEnvironmentVariable('Path', `
-              'Machine')
-          $userPath = [Environment]::GetEnvironmentVariable('Path', `
-              'User')
-          $env:Path = "$machinePath;$userPath"
+          Install-ChocolateyPackage pandoc -Commands pandoc
+          Install-ChocolateyPackage miktex -Commands initexmf,pdflatex
+          Install-ChocolateyPackage poppler -Commands pdftoppm
           "PATH=$env:Path" | Out-File $env:GITHUB_ENV -Encoding utf8 `
               -Append
           initexmf --admin --set-config-value=[MPM]AutoInstall=1

@@ -567,6 +567,31 @@ if(BUILD_TESTING)
       wpm-capability-test "${CMAKE_CURRENT_BINARY_DIR}/capability-test.tmp"
   )
   add_test(
+    NAME documentation-installation
+    COMMAND
+      "${WPM_POWERSHELL_EXECUTABLE}" -NoProfile -File
+      "${CMAKE_SOURCE_DIR}/tests/verify-documentation-install.ps1"
+  )
+  set_tests_properties(
+    documentation-installation
+    PROPERTIES
+      TIMEOUT
+        60
+  )
+  add_test(
+    NAME installed-list-integration
+    COMMAND
+      "${Python3_EXECUTABLE}"
+      "${CMAKE_SOURCE_DIR}/tests/installed-list-integration.py" --wpm
+      $<TARGET_FILE:wpm>
+  )
+  set_tests_properties(
+    installed-list-integration
+    PROPERTIES
+      TIMEOUT
+        120
+  )
+  add_test(
     NAME recovery-integration
     COMMAND
       "${Python3_EXECUTABLE}"
@@ -1079,6 +1104,8 @@ if(BUILD_TESTING)
       "repository-verify-integration|"
       "repository-publish-integration|"
       "recovery-integration|"
+      "installed-list-integration|"
+      "documentation-installation|"
       "presentation-integration|dry-run-integration)$"
     )
     add_custom_target(

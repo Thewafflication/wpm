@@ -725,3 +725,14 @@ caught a libsodium header macro changing later WinInet calling conventions.
 1.2.28 isolates hashing in its own module so transport declarations retain
 their native Windows ABI. It incorporates the completed authoring,
 JSON/capacity diagnosis, and recovery-query slices after full native gates.
+
+1.2.29 adds read-only retained installed-package listing with exact selectors,
+deterministic semantic ordering, bounded/partial-query status, and metadata-only
+interpretation. Real install/retained-history, snapshots, corruption/locking,
+credential, and junction fixtures cover the query; broader I-08 work stays open.
+
+The documentation bootstrap also checks expected executable availability after
+Chocolatey instead of trusting exit zero, retries incomplete installs, and
+preserves session PATH entries such as setup-python. A fixture reproduces the
+observed exit-zero/missing-tool failure, bounded retry, nonzero exit rejection,
+and session PATH preservation without installing any system package.

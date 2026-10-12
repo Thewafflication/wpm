@@ -22,6 +22,11 @@ int wpm_repo_add_package(const char *directory, const char *archive,
 int wpm_repo_add(const char *url, int priority, int allow_insecure_http);
 /** List configured repositories in resolution order. */
 int wpm_repo_list(void);
+/** List retained installed-package metadata without writes or extraction.
+ * Optional identity selectors are exact; this does not verify trust/deployment.
+ */
+int wpm_repo_list_installed(const char *name, const char *arch,
+                            const char *version);
 /** Remove a configured repository. */
 int wpm_repo_remove(const char *url);
 /** Inspect configured catalog health without managed writes or web retrieval.

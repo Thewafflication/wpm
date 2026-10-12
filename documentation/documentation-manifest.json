@@ -88,6 +88,7 @@
     "docs/ts-0001-test-strategy.md",
     "docs/quality-testing.md",
     "docs/increment-06-recovery-audits.md",
+    "docs/package-queries.md",
     "docs/tc-0014-command-output-and-help.tex",
     "docs/tc-0015-safer-package-changes.tex",
     "docs/tc-0016-repository-transports.tex",
