@@ -762,3 +762,10 @@ records; partial results remain explicit and do not imply newest-N selection.
 Fixtures cover larger complete queries, reduced limits, malformed/overflow
 values, duplicate options, and unchanged filesystem snapshots. I-06 remains
 partial; guarded recovery actions and breaking contracts stay deferred.
+
+1.2.33 adds optional catalog repository ordinal filtering to available list
+and show. The shared collector retains graph-wide health and bounds; show keeps
+retained records visible. Present empty sources, absent ordinals, configured
+and linked sources, invalid selectors, and read-only snapshots are covered.
+This is partial REQ-0018.005/I-08 delivery; eligibility selection and general
+machine output remain open, with breaking contracts reserved for 2.x.

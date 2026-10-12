@@ -134,6 +134,9 @@ with tempfile.TemporaryDirectory(prefix="wpm-available-list-") as directory:
             ("show", "alpha", "--yes"),
             ("show", "alpha", "--json"),
             ("show", "alpha", "--dry-run"),
+            ("show", "alpha", "--repo", "33"),
+            ("list", "--available", "--repo", "0"),
+            ("list", "--repo", "1"),
         ):
             run(*arguments, succeeds=False)
         assert not data.exists()
@@ -177,6 +180,23 @@ with tempfile.TemporaryDirectory(prefix="wpm-available-list-") as directory:
             "alpha any " + version
             for version in ("10.0.0", "3.0.0-beta.1", "2.0.0", "2.0.0", "1.0.0")
         ], rows
+        for ordinal, count in ((1, 3), (2, 2), (3, 0), (4, 1), (5, 1)):
+            text = run("list", "--available", "--repo", ordinal)
+            assert f"{count} matching catalog records" in text, text
+            for line in text.splitlines():
+                if "Repository:" in line:
+                    assert f"Repository: {ordinal};" in line, text
+        text = run("list", "--available", "--repo", "04", "alpha")
+        assert "alpha any 1.0.0" in text, text
+        text = run("list", "--available", "--repo", "32", succeeds=False)
+        assert "ordinal 32 is absent" in text, text
+        assert "0 matching catalog records" in text, text
+        for value in ("0", "33", "99999999999999999", "1x", "+1", "-1", ""):
+            run("list", "--available", "--repo", value, succeeds=False)
+            run("show", "alpha", "--repo", value, succeeds=False)
+        run("list", "--repo", "1", succeeds=False)
+        run("list", "--available", "--repo", succeeds=False)
+        run("show", "alpha", "--repo", "1", "--repo", "2", succeeds=False)
         store = data / "packages"
         store.mkdir()
         marker = root / "show-script-ran"
@@ -192,6 +212,11 @@ with tempfile.TemporaryDirectory(prefix="wpm-available-list-") as directory:
         text = run("show", "ALPHA")
         assert "retained: 1; catalog: 6; complete: yes" in text, text
         assert "Multiple matching records" in text and "0.5.0" in text, text
+        text = run("show", "alpha", "--repo", "4")
+        assert "retained: 1; catalog: 1; complete: yes" in text, text
+        assert "0.5.0" in text and "1.0.0" in text, text
+        text = run("show", "alpha", "--repo", "32", succeeds=False)
+        assert "retained: 1; catalog: 0; complete: no" in text, text
         text = run("show", "alpha", "--arch", "x86", "--offline")
         assert "retained: 0; catalog: 1; complete: yes" in text, text
         text = run("show", "alpha", "--version", "2.0.0")
@@ -226,6 +251,10 @@ with tempfile.TemporaryDirectory(prefix="wpm-available-list-") as directory:
         os.utime(web_cache, (now, now))
         child_bytes = child_cache.read_bytes()
         child_cache.unlink()
+        # A source filter never hides health problems elsewhere in the graph.
+        text = run("list", "--available", "--repo", "1", succeeds=False)
+        assert "3 matching catalog records" in text, text
+        assert "catalog issues: 1" in text, text
         text = run("list", "--available", succeeds=False)
         assert (
             "6 matching catalog records" in text and "catalog issues: 1" in text

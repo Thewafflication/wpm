@@ -192,12 +192,13 @@ static void print_usage_line(Command command) {
         wpm_event_printf(
             WPM_EVENT_INFO, "wpm.info", "wpm", "command",
             "Usage: wpm list [--available] [package] [--arch <arch>] "
-            "[--version <semver>] [--offline]\n");
+            "[--version <semver>] [--repo <ordinal>] [--offline]\n");
         break;
     case CMD_SHOW:
-        wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
-                         "Usage: wpm show <package> [--arch <arch>] "
-                         "[--version <semver>] [--offline]\n");
+        wpm_event_printf(
+            WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+            "Usage: wpm show <package> [--repo <ordinal>] [--arch <arch>] "
+            "[--version <semver>] [--offline]\n");
         break;
     case CMD_RECOVERY:
         wpm_event_printf(
@@ -254,6 +255,8 @@ static int command_option_takes_value(Command command, const char *option) {
              strcmp(option, "--version") == 0)) ||
            (command == CMD_REPO && strcmp(option, "--priority") == 0) ||
            (command == CMD_RECOVERY && strcmp(option, "--limit") == 0) ||
+           ((command == CMD_LIST || command == CMD_SHOW) &&
+            strcmp(option, "--repo") == 0) ||
            (command == CMD_CONFIG && strcmp(option, "--package") == 0);
 }
 
@@ -482,6 +485,35 @@ static int invalid_action_shape(Command command, const char *detail) {
     return 0;
 }
 
+/* Options have already passed shape validation before this bounded parse. */
+static int command_bounded_option(int argc, char **argv, int command_index,
+                                  const char *option, unsigned maximum,
+                                  unsigned *result) {
+    int seen = 0;
+    for (int i = command_index + 1; i < argc; i++) {
+        if (strcmp(argv[i], option)) {
+            continue;
+        }
+        const char *p = argv[++i];
+        unsigned value = 0;
+        if (seen++ || !*p) {
+            return 0;
+        }
+        while (*p) {
+            unsigned digit = (unsigned char)*p++ - '0';
+            if (digit > 9 || value > (maximum - digit) / 10) {
+                return 0;
+            }
+            value = value * 10 + digit;
+        }
+        if (!value) {
+            return 0;
+        }
+        *result = value;
+    }
+    return 1;
+}
+
 static int validate_command_actions(Command command, int argc, char **argv,
                                     int command_index) {
     const char *operands[8];
@@ -489,27 +521,22 @@ static int validate_command_actions(Command command, int argc, char **argv,
                                          operands, 8);
     const char *action = count > 0 ? operands[0] : "list";
 
+    if (command == CMD_LIST || command == CMD_SHOW) {
+        unsigned ordinal = 0;
+        if (!command_bounded_option(argc, argv, command_index, "--repo", 32,
+                                    &ordinal)) {
+            return invalid_action_shape(command, "invalid --repo");
+        }
+        if (ordinal && command == CMD_LIST &&
+            !command_has_option(argc, argv, command_index, "--available")) {
+            return invalid_action_shape(command, "--repo requires --available");
+        }
+    }
     if (command == CMD_RECOVERY) {
-        int seen = 0;
-        for (int i = command_index + 1; i < argc; i++) {
-            if (strcmp(argv[i], "--limit")) {
-                continue;
-            }
-            const char *p = argv[++i];
-            unsigned limit = 0;
-            if (seen++ || !*p) {
-                return invalid_action_shape(command, "invalid --limit");
-            }
-            while (*p) {
-                unsigned digit = (unsigned char)*p++ - '0';
-                if (digit > 9 || limit > (4096 - digit) / 10) {
-                    return invalid_action_shape(command, "invalid --limit");
-                }
-                limit = limit * 10 + digit;
-            }
-            if (!limit) {
-                return invalid_action_shape(command, "invalid --limit");
-            }
+        unsigned limit = 128;
+        if (!command_bounded_option(argc, argv, command_index, "--limit", 4096,
+                                    &limit)) {
+            return invalid_action_shape(command, "invalid --limit");
         }
         if (!count || (count == 1 && !strcmp(action, "list"))) {
             return 1;
@@ -1423,6 +1450,7 @@ operation_dispatch:
     case CMD_LIST:
     case CMD_SHOW: {
         const char *operands[1], *arch = NULL, *version = NULL;
+        unsigned ordinal = 0;
         int count = collect_command_operands(cmd, argc, argv, command_index,
                                              operands, 1);
         for (int i = command_index + 1; i < argc; i++) {
@@ -1430,13 +1458,16 @@ operation_dispatch:
                 arch = argv[++i];
             } else if (!strcmp(argv[i], "--version")) {
                 version = argv[++i];
+            } else if (!strcmp(argv[i], "--repo")) {
+                ordinal = (unsigned)atoi(argv[++i]);
             }
         }
         int complete =
-            cmd == CMD_SHOW ? wpm_repo_show(operands[0], arch, version)
+            cmd == CMD_SHOW
+                ? wpm_repo_show_from(operands[0], arch, version, ordinal)
             : command_has_option(argc, argv, command_index, "--available")
-                ? wpm_repo_list_available(count ? operands[0] : NULL, arch,
-                                          version)
+                ? wpm_repo_list_available_from(count ? operands[0] : NULL, arch,
+                                               version, ordinal)
                 : wpm_repo_list_installed(count ? operands[0] : NULL, arch,
                                           version);
         if (!complete) {
@@ -1728,7 +1759,7 @@ void print_usage(Command c) {
                 "\nInspect retained installed-package metadata without "
                 "extraction or writes.\n\nExamples:\n  wpm list\n  "
                 "wpm list my-package --arch x64\n  "
-                "wpm list --available my-package\n");
+                "wpm list --available my-package --repo 1\n");
             return;
         case CMD_SHOW:
             print_usage_line(c);
@@ -1736,7 +1767,9 @@ void print_usage(Command c) {
                 WPM_EVENT_INFO, "wpm.info", "wpm", "command",
                 "\nInspect all matching retained and local/cached catalog "
                 "metadata without selecting a candidate or making changes.\n"
-                "\nExample:\n  wpm show my-package --arch x64\n");
+                "\n--repo narrows catalog rows by the displayed repository "
+                "ordinal.\n"
+                "\nExample:\n  wpm show my-package --arch x64 --repo 1\n");
             return;
         case CMD_RECOVERY:
             print_usage_line(c);

@@ -53,6 +53,7 @@ with tempfile.TemporaryDirectory(prefix="wpm-recovery-") as directory:
     for arguments in (
         ("recovery",),
         ("recovery", "list"),
+        ("recovery", "list", "--limit", "04096"),
         ("--verbose", "recovery", "list"),
         ("recovery", "--verbose", "list", "--offline"),
     ):

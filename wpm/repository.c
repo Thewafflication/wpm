@@ -3312,7 +3312,8 @@ static int available_record_order(const void *left, const void *right) {
 }
 
 static int query_available_records(const char *name, const char *arch,
-                                   const char *version, int *matches) {
+                                   const char *version, unsigned ordinal,
+                                   int *matches) {
     repository *roots = calloc(MAX_REPOSITORIES, sizeof(*roots));
     package_entry *records = calloc(MAX_PACKAGES, sizeof(*records));
     int parents[MAX_REPOSITORIES] = {0}, stale[MAX_REPOSITORIES] = {0};
@@ -3324,7 +3325,7 @@ static int query_available_records(const char *name, const char *arch,
     }
     wpm_set_readonly(1);
     repository_verbose = 0;
-    if (!roots || !records ||
+    if (ordinal > MAX_REPOSITORIES || !roots || !records ||
         !load_repositories(roots, &root_count, &issues, 0)) {
         goto done;
     }
@@ -3387,6 +3388,14 @@ static int query_available_records(const char *name, const char *arch,
             CloseHandle(input);
         }
     }
+    if (ordinal > (unsigned)root_count) {
+        issues++;
+        wpm_event_printf(WPM_EVENT_ERROR, "query.available.selector", "list",
+                         "query",
+                         "Error: repository ordinal %u is absent from the "
+                         "inspected graph. Use 'wpm repo diagnose --links'.\n",
+                         ordinal);
+    }
     qsort(records, (size_t)count, sizeof(*records), available_record_order);
     wpm_event_printf(
         WPM_EVENT_INFO, "query.available.start", "list", "query",
@@ -3395,7 +3404,8 @@ static int query_available_records(const char *name, const char *arch,
     for (int i = 0; i < count; i++) {
         package_entry *record = &records[i];
         const char *policy;
-        if ((name && _stricmp(record->name, name)) ||
+        if ((ordinal && (unsigned)(record->order + 1) != ordinal) ||
+            (name && _stricmp(record->name, name)) ||
             (arch && _stricmp(record->arch, arch)) ||
             (version && strcmp(record->version, version))) {
             continue;
@@ -3448,7 +3458,12 @@ done:
 
 int wpm_repo_list_available(const char *name, const char *arch,
                             const char *version) {
-    return query_available_records(name, arch, version, NULL);
+    return wpm_repo_list_available_from(name, arch, version, 0);
+}
+
+int wpm_repo_list_available_from(const char *name, const char *arch,
+                                 const char *version, unsigned ordinal) {
+    return query_available_records(name, arch, version, ordinal, NULL);
 }
 
 static int load_installed(installed_entry *result, int *count) {
@@ -3658,6 +3673,11 @@ int wpm_repo_list_installed(const char *name, const char *arch,
 }
 
 int wpm_repo_show(const char *name, const char *arch, const char *version) {
+    return wpm_repo_show_from(name, arch, version, 0);
+}
+
+int wpm_repo_show_from(const char *name, const char *arch, const char *version,
+                       unsigned ordinal) {
     int retained = 0, catalog = 0, retained_complete, catalog_complete,
         complete;
     wpm_set_readonly(1);
@@ -3670,7 +3690,8 @@ int wpm_repo_show(const char *name, const char *arch, const char *version) {
     wpm_event_printf(WPM_EVENT_INFO, "query.show.start", "show", "query",
                      "Package metadata: %s\n", name);
     retained_complete = query_installed_records(name, arch, version, &retained);
-    catalog_complete = query_available_records(name, arch, version, &catalog);
+    catalog_complete =
+        query_available_records(name, arch, version, ordinal, &catalog);
     complete = retained_complete && catalog_complete;
     if (!retained && !catalog) {
         wpm_event_printf(

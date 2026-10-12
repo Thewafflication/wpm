@@ -31,9 +31,16 @@ int wpm_repo_list_installed(const char *name, const char *arch,
  * Reports prerelease policy; does not fetch or validate package archives. */
 int wpm_repo_list_available(const char *name, const char *arch,
                             const char *version);
+/** Narrow catalog rows to a displayed ordinal (1..32); zero selects all.
+ * Health and graph bounds still apply to the entire inspected graph. */
+int wpm_repo_list_available_from(const char *name, const char *arch,
+                                 const char *version, unsigned ordinal);
 /** Show all matching retained/catalog metadata without selecting or mutating.
  * Returns nonzero only for complete metadata with at least one match. */
 int wpm_repo_show(const char *name, const char *arch, const char *version);
+/** Narrow the catalog portion of show; retained metadata remains visible. */
+int wpm_repo_show_from(const char *name, const char *arch, const char *version,
+                       unsigned ordinal);
 /** Remove a configured repository. */
 int wpm_repo_remove(const char *url);
 /** Inspect configured catalog health without managed writes or web retrieval.

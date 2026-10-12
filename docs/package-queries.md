@@ -95,3 +95,24 @@ duplicate choices, unknown packages under healthy and incomplete sources,
 verbose/offline placement, zero loopback requests, full snapshots, and scripts
 that never run. Detailed archive trust/integrity, deployed state, selected
 candidate plans, and general machine output remain open in the broader I-08 work.
+
+## Catalog source selector (1.2.33)
+
+`wpm list --available [package] --repo <ordinal>` and
+`wpm show <package> --repo <ordinal>` narrow catalog rows to one displayed
+repository ordinal. Values are decimal 1..32; leading zeros are accepted.
+Use `list --available` or `repo diagnose --links` to identify configured and
+linked roots. Ordinals describe the current graph and may change when
+configuration or links change; they are not persistent repository identities.
+
+The entire graph is still inspected under the same bounds. Missing, stale,
+invalid, or limited sources remain partial even when filtered rows are readable.
+An ordinal absent from the inspected graph returns 1 and never broadens the
+result. A present empty source is a complete empty catalog query. `show` keeps
+retained metadata visible because retained archives have no catalog ordinal.
+The option is rejected for installed-only `list`; no source is selected for
+installation, and existing resolver defaults remain unchanged.
+
+Snapshot and loopback fixtures cover configured/linked/empty source selection,
+combined retained views, absent ordinals, malformed and duplicate selectors,
+and health errors outside the selected source without writes or web retrieval.
