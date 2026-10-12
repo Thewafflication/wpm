@@ -6,4 +6,7 @@
  * Returns nonzero for a complete query, including an empty audit directory. */
 int wpm_recovery_list(void);
 
+/** Examine between 1 and 4096 matching entries; defaults remain unchanged. */
+int wpm_recovery_list_limit(unsigned limit);
+
 #endif

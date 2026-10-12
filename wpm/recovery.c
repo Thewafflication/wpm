@@ -134,14 +134,20 @@ static int recovery_order(const void *left, const void *right) {
     return _stricmp(b->file, a->file);
 }
 
-int wpm_recovery_list(void) {
+int wpm_recovery_list(void) { return wpm_recovery_list_limit(RECOVERY_LIMIT); }
+
+int wpm_recovery_list_limit(unsigned limit) {
     char root[RECOVERY_PATH], directory[RECOVERY_PATH], path[RECOVERY_PATH];
-    failure_record *records = calloc(RECOVERY_LIMIT, sizeof(*records));
+    failure_record *records;
     WIN32_FIND_DATAA found;
     HANDLE search = INVALID_HANDLE_VALUE;
     DWORD attributes, failure;
     int count = 0, scanned = 0, invalid = 0, limited = 0, success = 0;
     wpm_set_readonly(1);
+    if (!limit || limit > 4096) {
+        return 0;
+    }
+    records = calloc(limit, sizeof(*records));
     if (!records || !wpm_get_data_root(root, sizeof(root)) || !*root ||
         !recovery_join(directory, sizeof(directory), root, "audit")) {
         goto done;
@@ -170,7 +176,7 @@ int wpm_recovery_list(void) {
         goto done;
     }
     do {
-        if (scanned == RECOVERY_LIMIT) {
+        if ((unsigned)scanned == limit) {
             limited = 1;
             break;
         }

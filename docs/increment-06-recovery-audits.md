@@ -1,6 +1,6 @@
 # Recorded upgrade failure inspection (1.2.28)
 
-`wpm recovery [list] [--offline]` lists existing `*.upgrade-failed.txt` records
+`wpm recovery [list] [--limit <1..4096>] [--offline]` lists existing `*.upgrade-failed.txt` records
 in the active data root's audit directory. It reports the audit filename,
 package/architecture, old/new versions, recorded phase/exit code, and archive
 reference. Descending filename order places ordinary generated timestamps
@@ -16,7 +16,12 @@ inaccessible/unsupported layout.
 
 The reader checks required field completeness, duplicates, failed status,
 architecture, archive leaf references, NULs, field capacities, and 32-bit exit
-codes. Each record is at most 16 KiB; at most 128 entries are examined. Invalid
+codes. Each record is at most 16 KiB; by default at most 128 entries are examined.
+The optional `--limit` accepts decimal values from 1 to 4096, including
+leading zeros. It bounds examined entries, including invalid records; it does
+not select the newest N records across a larger directory. A bounded subset
+is sorted after enumeration. Raise the limit to inspect a larger directory;
+exceeding the selected limit remains a partial query with exit status 1. Invalid
 records are counted without raw contents; exceeding the bound is explicit.
 Directory/record reparse points are rejected. Credential/terminal filtering
 applies to displayed text. Read handles deny writes/deletion during parsing.

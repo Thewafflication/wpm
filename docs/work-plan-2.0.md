@@ -755,3 +755,10 @@ explicit future timestamps remain stale; runtime freshness policy is unchanged.
 1.2.31 also masks protected ASCII fields case-insensitively, including quoted
 values/escaped quotes, and removes URI user information through the final `@`.
 Synthetic console and real operational-log fixtures cover the redaction gaps.
+
+1.2.32 adds optional recovery `--limit` (1..4096), retaining the default 128
+examined entries and existing read-only behavior. Bounds include invalid
+records; partial results remain explicit and do not imply newest-N selection.
+Fixtures cover larger complete queries, reduced limits, malformed/overflow
+values, duplicate options, and unchanged filesystem snapshots. I-06 remains
+partial; guarded recovery actions and breaking contracts stay deferred.

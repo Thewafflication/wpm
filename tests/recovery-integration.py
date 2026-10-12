@@ -162,6 +162,25 @@ with tempfile.TemporaryDirectory(prefix="wpm-recovery-") as directory:
         copies.append(copy)
     text = run("recovery", "list", succeeds=False, readonly=True)
     assert "limited: yes" in text, text
+    text = run("recovery", "--limit", "129", "list", readonly=True)
+    assert "129 recorded upgrade failures" in text, text
+    assert "limited: no" in text, text
+    text = run(
+        "recovery", "list", "--limit", "1", succeeds=False, readonly=True
+    )
+    assert "1 recorded upgrade failures" in text, text
+    for value in ("0", "4097", "99999999999999999", "1x", "+1", "-1", ""):
+        run("recovery", "list", "--limit", value, succeeds=False, readonly=True)
+    run(
+        "recovery",
+        "--limit",
+        "1",
+        "--limit",
+        "2",
+        succeeds=False,
+        readonly=True,
+    )
+    run("recovery", "--limit", succeeds=False, readonly=True)
     for copy in copies:
         copy.unlink()
     audit_dir = data / "audit"
