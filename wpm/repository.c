@@ -1242,6 +1242,49 @@ static int json_value_end(const char **source) {
     *source = p;
     return 1;
 }
+static const char *json_content(const char *text) {
+    const unsigned char *bytes = (const unsigned char *)text;
+    if (bytes[0] == 0xef && bytes[1] == 0xbb && bytes[2] == 0xbf) {
+        text += 3;
+    }
+    return skip_ws(text);
+}
+/* Find root fields without confusing package metadata with index metadata. */
+static const char *index_field(const char *text, const char *wanted) {
+    const char *p = json_content(text);
+    if (*p != '{') {
+        return NULL;
+    }
+    p++;
+    while (*(p = skip_ws(p)) && *p != '}') {
+        char key[32];
+        if (!json_string(&p, key, sizeof(key)) || *(p = skip_ws(p)) != ':') {
+            return NULL;
+        }
+        p = skip_ws(p + 1);
+        if (strcmp(key, wanted) == 0) {
+            return p;
+        }
+        json_value_end(&p);
+        p = skip_ws(p);
+        if (*p != ',') {
+            return NULL;
+        }
+        p++;
+    }
+    return NULL;
+}
+static int index_version_supported(const char *text) {
+    const char *value = index_field(text, "version");
+    char *end;
+    double version;
+    if (!value || !isdigit((unsigned char)*value)) {
+        return 0;
+    }
+    version = strtod(value, &end);
+    end = (char *)skip_ws(end);
+    return version == 1.0 && (*end == ',' || *end == '}');
+}
 static int append_repository_link(repository *repositories, int *count,
                                   const repository *parent, const char *link);
 static int parse_index(const char *path, repository *repo,
@@ -1274,26 +1317,8 @@ static int parse_index(const char *path, repository *repo,
     }
     fclose(f);
     text[size] = '\0';
-    version_ok = strstr(text, "\"version\":1") != NULL ||
-                 strstr(text, "\"version\": 1") != NULL;
-    p = text;
-    while ((p = strchr(p, '"')) != NULL) {
-        char key[32];
-        const char *value;
-        if (!json_string(&p, key, sizeof(key))) {
-            break;
-        }
-        p = skip_ws(p);
-        if (*p++ != ':') {
-            continue;
-        }
-        value = skip_ws(p);
-        if (strcmp(key, "packages") == 0 && *value == '[') {
-            p = value + 1;
-            break;
-        }
-        json_value_end(&p);
-    }
+    version_ok = index_version_supported(text);
+    p = index_field(text, "packages");
     if (!version_ok) {
         wpm_event_printf(
             WPM_EVENT_WARNING, "repository.warning", "repository", "command",
@@ -1302,14 +1327,32 @@ static int parse_index(const char *path, repository *repo,
         free(text);
         return 0;
     }
+    if (!p || *p != '[') {
+        wpm_event_printf(WPM_EVENT_WARNING, "repository.index.invalid",
+                         "repository", "resolve",
+                         "Warning: repository index needs a top-level "
+                         "packages array: %s\n",
+                         repo->url);
+        free(text);
+        return 0;
+    }
+    p++;
     while (*p && *p != ']') {
         char name[128] = "", version[64] = "", arch[16] = "",
              url[PATH_SIZE] = "";
         p = skip_ws(p);
-        if (*p++ != '{') {
+        if (!*p || *p == ']') {
+            break;
+        }
+        if (*p != '{') {
+            json_value_end(&p);
+            if (*p != ',') {
+                break;
+            }
             p++;
             continue;
         }
+        p++;
         while (*p && *p != '}') {
             char key[32];
             p = skip_ws(p);
@@ -1317,9 +1360,10 @@ static int parse_index(const char *path, repository *repo,
                 break;
             }
             p = skip_ws(p);
-            if (*p++ != ':') {
+            if (*p != ':') {
                 break;
             }
+            p++;
             if (strcmp(key, "name") == 0) {
                 json_string(&p, name, sizeof(name));
             } else if (strcmp(key, "version") == 0) {
@@ -1367,7 +1411,7 @@ static int parse_index(const char *path, repository *repo,
             MAX_PACKAGES, repo->url);
     }
     /* Optional schema-1 links are repository roots, not package URLs. */
-    p = skip_ws(text);
+    p = json_content(text);
     if (*p == '{') {
         p++;
         while (*(p = skip_ws(p)) && *p != '}') {

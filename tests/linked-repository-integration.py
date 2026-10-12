@@ -140,6 +140,45 @@ with tempfile.TemporaryDirectory(prefix="wpm-linked-refresh-") as directory:
         ], requests
         assert "repository link capacity (32)" in text, text
         assert "unsafe repository link" in text, text
+        # Schema recognition reads the root field, accepts JSON whitespace and
+        # a UTF-8 BOM, and cannot be authorized by nested/string metadata.
+        valid_indexes = (
+            '{"version":\n  1, "packages": [], "repositories":["previous"]}',
+            json.dumps(
+                {
+                    "metadata": {"version": 10, "note": 'quote " and }'},
+                    "packages": [],
+                    "version": 1,
+                    "repositories": ["previous"],
+                },
+                indent=2,
+            ),
+            "\ufeff"
+            + json.dumps(
+                {
+                    "version": 1,
+                    "packages": [],
+                    "repositories": ["previous"],
+                }
+            ),
+            '{"version":1.0,"packages":[],"repositories":["previous"]}',
+        )
+        for contents in valid_indexes:
+            (repository / "index.json").write_text(contents, encoding="utf-8")
+            requests.clear()
+            run("update")
+            assert requests == expected, (contents, requests)
+        for invalid_index in (
+            {"version": 10, "packages": [], "repositories": ["previous"]},
+            {"metadata": {"version": 1}, "packages": []},
+            {"version": "1", "packages": []},
+            {"version": 1, "metadata": {"packages": []}},
+        ):
+            (repository / "index.json").write_text(json.dumps(invalid_index))
+            requests.clear()
+            text = run("update", succeeds=False)
+            assert requests == ["/index.json"], requests
+            assert "unsupported schema" in text or "top-level" in text, text
     finally:
         server.shutdown()
         server.server_close()

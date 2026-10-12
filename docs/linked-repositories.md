@@ -59,3 +59,13 @@ backend to keep its network traffic confined to the loopback server.
 This compatible fix makes an explicit update visit each root once; previously
 linked roots could remain stale until their normal freshness period expired.
 Package verification and trust rules are unchanged.
+
+## Index schema recognition (1.2.15)
+
+Schema recognition now reads the top-level `version` field, accepting JSON
+whitespace and a UTF-8 BOM. Nested package/extension versions, strings, or
+version 10 cannot accidentally authorize schema 1. The catalog must provide a
+top-level `packages` array. Existing schema-1 numeric representations, unknown
+extension fields, package ordering, and optional links remain supported.
+The linked-repository integration test covers these forms using real index
+retrieval and verifies that unsupported catalogs cannot introduce linked roots.

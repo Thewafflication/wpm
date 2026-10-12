@@ -644,3 +644,7 @@ work. I-04 stays open until the broader media identity demonstrations pass.
 loopback integration evidence for freshness, offline behavior, cycles, graph
 limits, and failed-refresh cache retention. This compatible delivery does not
 close the remaining I-04/I-05 physical media and network environment evidence.
+
+1.2.15 fixes top-level repository schema recognition, supports whitespace and
+UTF-8 BOM indexes, and rejects misleading nested schema fields. Valid schema-1
+layouts and optional linked roots remain compatible.
