@@ -833,6 +833,39 @@ static int http_redirect_url(const char *initial, const char *location,
     return written > 0 && (size_t)written < size;
 }
 
+static int http_content_length(const char *text, unsigned long long *length) {
+    int count = 0;
+    for (;;) {
+        unsigned long long value = 0;
+        while (*text == ' ' || *text == '\t') {
+            text++;
+        }
+        if (*text < '0' || *text > '9') {
+            return 0;
+        }
+        do {
+            unsigned int digit = (unsigned int)(*text++ - '0');
+            if (value > (ULLONG_MAX - digit) / 10) {
+                return 0;
+            }
+            value = value * 10 + digit;
+        } while (*text >= '0' && *text <= '9');
+        if (count && value != *length) {
+            return 0;
+        }
+        *length = value;
+        count++;
+        while (*text == ' ' || *text == '\t') {
+            text++;
+        }
+        if (!*text) {
+            return 1;
+        }
+        if (*text++ != ',') {
+            return 0;
+        }
+    }
+}
 static int http_download(const char *url, const char *destination,
                          const char *label) {
     if (!wpm_require_capability(WPM_CAP_WRITE | WPM_CAP_NETWORK,
@@ -856,7 +889,10 @@ static int http_download(const char *url, const char *destination,
     unsigned long long received = 0;
     DWORD status = 0;
     DWORD status_size;
-    DWORD content_length = 0;
+    unsigned long long content_length = 0;
+    char length_header[PATH_SIZE];
+    DWORD failure = ERROR_SUCCESS;
+    int length_known = 0;
     DWORD content_length_size;
     DWORD location_size;
     DWORD read;
@@ -921,11 +957,26 @@ static int http_download(const char *url, const char *destination,
     if (!request || status < 200 || status >= 300) {
         goto cleanup;
     }
-    content_length_size = sizeof(content_length);
-    if (!query_info(request,
-                    WPM_HTTP_QUERY_CONTENT_LENGTH | WPM_HTTP_QUERY_FLAG_NUMBER,
-                    &content_length, &content_length_size, NULL)) {
-        content_length = 0;
+    content_length_size = sizeof(length_header);
+    length_known = query_info(request, WPM_HTTP_QUERY_CONTENT_LENGTH,
+                              length_header, &content_length_size, NULL) != 0;
+    if (length_known) {
+        if (content_length_size >= sizeof(length_header)) {
+            SetLastError(ERROR_INVALID_DATA);
+            goto cleanup;
+        }
+        length_header[content_length_size] = 0;
+        if (!http_content_length(length_header, &content_length)) {
+            wpm_event_printf(WPM_EVENT_ERROR, "repository.http.length.invalid",
+                             "repository", "read",
+                             "Error: HTTP Content-Length is invalid.\n");
+            SetLastError(ERROR_INVALID_DATA);
+            goto cleanup;
+        }
+        REPO_VERBOSE("HTTP response length: %llu bytes", content_length);
+    } else if (GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
+        SetLastError(ERROR_INVALID_DATA);
+        goto cleanup;
     }
     DeleteFileA(temporary);
     output = wpm_fopen(temporary, "wb");
@@ -933,23 +984,27 @@ static int http_download(const char *url, const char *destination,
         goto cleanup;
     }
     wpm_progress_start(&progress, "Downloading", "Download", "Downloaded",
-                       label, (unsigned long long)content_length);
+                       label, content_length);
     progress_started = 1;
     do {
         if (!read_file(request, buffer, sizeof(buffer), &read) ||
             (read && fwrite(buffer, 1, read, output) != read)) {
             goto cleanup;
         }
+        if (received > ULLONG_MAX - read) {
+            SetLastError(ERROR_INVALID_DATA);
+            goto cleanup;
+        }
         received += read;
-        wpm_progress_set(&progress, received,
-                         (unsigned long long)content_length);
+        wpm_progress_set(&progress, received, content_length);
     } while (read);
-    if (content_length && received != content_length) {
+    if (length_known && received != content_length) {
         wpm_event_printf(
             WPM_EVENT_ERROR, "repository.error", "repository", "command",
-            "Error: HTTP response was incomplete (expected %lu bytes, "
+            "Error: HTTP response was incomplete (expected %llu bytes, "
             "received %llu).\n",
-            (unsigned long)content_length, received);
+            content_length, received);
+        SetLastError(ERROR_HANDLE_EOF);
         goto cleanup;
     }
     if (fclose(output)) {
@@ -959,6 +1014,7 @@ static int http_download(const char *url, const char *destination,
     output = NULL;
     succeeded = MoveFileExA(temporary, destination, MOVEFILE_REPLACE_EXISTING);
 cleanup:
+    failure = GetLastError();
     if (output) {
         fclose(output);
     }
@@ -979,7 +1035,7 @@ cleanup:
             WPM_EVENT_ERROR, "repository.error", "repository", "command",
             "Error: insecure HTTP read failed (status %lu, Windows error "
             "%lu): %s\n",
-            (unsigned long)status, (unsigned long)GetLastError(), current);
+            (unsigned long)status, (unsigned long)failure, current);
         if (temporary[0]) {
             DeleteFileA(temporary);
         }

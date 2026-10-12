@@ -677,3 +677,7 @@ I-06/I-08 health and machine-readable obligations remain open.
 1.2.22 extends read-only repository diagnosis through optional `--links`,
 sharing resolver normalization and bounds. Nested/cyclic/offline graph fixtures,
 invalid links, missing/stale catalogs, and snapshots cover the additive mode.
+
+1.2.23 extends HTTP Content-Length to 64-bit framing, preserves transport error
+codes through cleanup, and adds real loopback short/invalid/unknown/chunked
+response coverage with cache retention and retry. I-05 remains partially open.
