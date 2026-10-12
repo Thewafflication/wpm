@@ -1170,26 +1170,9 @@ static int refresh(repository *repo, int offline, int required) {
 }
 static int report_available_updates(int offline);
 int wpm_repo_update(int offline) {
-    repository repositories[MAX_REPOSITORIES];
-    int count, i, refreshed = 0;
     wpm_event_printf(WPM_EVENT_INFO, "repository.info", "repository", "command",
                      "Updating repositories...\n");
-    if (!load_repositories(repositories, &count)) {
-        return 0;
-    }
-    if (!count) {
-        wpm_event_printf(WPM_EVENT_INFO, "repository.info", "repository",
-                         "command", "No repositories configured.\n");
-        wpm_event_printf(WPM_EVENT_RESULT, "repository.result", "repository",
-                         "command", "Result: repositories updated\n");
-        return 1;
-    }
-    for (i = 0; i < count; i++) {
-        if (refresh(&repositories[i], offline, 1)) {
-            refreshed = 1;
-        }
-    }
-    if (!refreshed || !report_available_updates(offline)) {
+    if (!report_available_updates(offline)) {
         return 0;
     }
     wpm_event_printf(WPM_EVENT_RESULT, "repository.result", "repository",
@@ -1830,7 +1813,8 @@ int wpm_config_prerelease_unset(const char *package_name) {
 }
 
 static int load_entries(repository *repositories, int *repository_count,
-                        package_entry *entries, int *entry_count, int offline) {
+                        package_entry *entries, int *entry_count, int offline,
+                        int force_refresh) {
     char cached[PATH_SIZE];
     int usable = 0;
     *entry_count = 0;
@@ -1861,7 +1845,7 @@ static int load_entries(repository *repositories, int *repository_count,
             }
             continue;
         }
-        if (refresh(&repositories[i], offline, 0) &&
+        if (refresh(&repositories[i], offline, force_refresh) &&
             cache_path(repositories[i].url, cached, sizeof(cached))) {
             if (parse_index(cached, &repositories[i], entries, entry_count,
                             repositories, repository_count)) {
@@ -2104,7 +2088,7 @@ int wpm_repo_install(const char *package_name, const char *arch,
                          arch);
         return 0;
     }
-    if (!load_entries(repositories, &rc, entries, &ec, offline)) {
+    if (!load_entries(repositories, &rc, entries, &ec, offline, 0)) {
         return 0;
     }
     selected = select_candidate(entries, ec, package_name, arch, version, 1);
@@ -2292,7 +2276,7 @@ static int report_available_updates(int offline) {
     installed_entry installed[MAX_INSTALLED];
     int rc, ec, ic, count;
     if (!load_installed(installed, &ic) ||
-        !load_entries(repositories, &rc, entries, &ec, offline)) {
+        !load_entries(repositories, &rc, entries, &ec, offline, 1)) {
         return 0;
     }
     count = print_upgrade_plan(installed, ic, entries, ec, NULL);
@@ -2325,7 +2309,7 @@ int wpm_repo_upgrade(const char **package_names, int package_count, int all,
         return 0;
     }
     if (!load_installed(installed, &ic) ||
-        !load_entries(repositories, &rc, entries, &ec, offline)) {
+        !load_entries(repositories, &rc, entries, &ec, offline, 0)) {
         return 0;
     }
     progress_total =

@@ -30,8 +30,8 @@ Package signatures and trust decisions remain independent of repository links.
 Linked roots inherit the parent priority and are appended after configured roots.
 Roots are deduplicated, including cycles, before access. The graph is bounded by
 32 total roots and 96 package entries; capacity exhaustion emits a warning.
-A missing linked index leaves readable roots available. `wpm update` prepares
-linked web indexes; offline resolution uses cached web indexes. Dry-run and
+A missing linked index leaves readable roots available. `wpm update` refreshes every discovered linked web index, even inside the
+normal cache freshness window; offline resolution uses cached web indexes. Dry-run and
 confirmation execution never retrieve missing indexes during read-only planning.
 
 ## Verification
@@ -45,3 +45,17 @@ upgrade from the previous stable release before publishing.
 
 This is an additive 1.x delivery. Broader transport work in I-04/I-05 remains
 open; breaking defaults or schemas stay reserved for 2.x.
+
+## Explicit refresh verification (1.2.14)
+
+`tests/linked-repository-integration.py` exercises a real loopback HTTP server
+with repository-scoped opt-in. It verifies nested root refresh during both
+`update` and `repo update`, fresh-cache reuse for ordinary resolution, no
+requests for offline/dry-run resolution, cycles and duplicate roots, failed
+linked refresh fallback, and the bounded 32-root graph. Unsafe traversal and
+cross-origin HTTP links are rejected. The fixture disables the built-in HTTPS
+backend to keep its network traffic confined to the loopback server.
+
+This compatible fix makes an explicit update visit each root once; previously
+linked roots could remain stale until their normal freshness period expired.
+Package verification and trust rules are unchanged.

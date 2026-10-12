@@ -639,3 +639,8 @@ mark the corresponding change package complete in the roadmap and link its evide
 actionable retry diagnostics, cache preservation, and signed read-only source
 verification. See `docs/increment-04-local-media.md` for evidence and remaining
 work. I-04 stays open until the broader media identity demonstrations pass.
+
+1.2.14 extends linked repositories with complete explicit graph refresh and
+loopback integration evidence for freshness, offline behavior, cycles, graph
+limits, and failed-refresh cache retention. This compatible delivery does not
+close the remaining I-04/I-05 physical media and network environment evidence.
