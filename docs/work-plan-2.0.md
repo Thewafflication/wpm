@@ -794,3 +794,12 @@ The query-specific schema does not complete the planned general envelope or
 candidate/trust/deployment obligations. REQ-0018.008/.009/I-08 remain partial.
 The 1.2.33 ARM64 gate initially retained a PowerShell internal CLR crash in
 TC-0026; its failed-job rerun passed without relaxing gates or moving the tag.
+
+1.2.37 adds an isolated seeded read-only query corpus with retained first-failure
+inputs/output, immutable run directories, staged reports, exact harness/corpus
+copies, declared provenance, output/time/artifact bounds, and native manual CI.
+Fast self-tests exercise baseline acceptance, real wrong-binary failure,
+refusal to overwrite evidence, duration, noisy output, and timeout termination.
+Local x64 passed 1000 cases; x86/x64 passed 120 cases. Catalog policy is read once
+per row for both human and JSON rendering. This is partial REQ-0020/I-10 delivery;
+full quality profiles and 2.0 release-candidate evidence remain open.

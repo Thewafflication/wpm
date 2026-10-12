@@ -95,3 +95,85 @@ Before a major release candidate, complete and record at least:
 - self-upgrade interruption and recovery scenarios;
 - removable-media and unavailable-repository scenarios; and
 - a review of new crashes, hangs, data-loss risks, and security findings.
+
+## Read-only query corpus (1.2.37)
+
+`tests/quality-query-fuzz.py` provides bounded seeded audit, catalog, and retained
+ZIP metadata cases against WPM 1.2.36 or later. It uses fresh explicit roots,
+local sources, cached default catalog metadata, synthetic credentials, invalid
+HTTPS backend selection, and offline read-only commands. It never installs,
+upgrades, removes, extracts, signs, or replays scripts. This is a structural
+query corpus, not a replacement for strict invalid-input regression tests or
+full archive/trust/transport/recovery testing.
+
+Run from a source checkout using a matching built binary and a fresh output
+path. Existing output directories are rejected; the runner never deletes prior
+evidence. For example, in PowerShell:
+
+```powershell
+python tests/quality-query-fuzz.py `
+  --wpm bin/x64/Debug/wpm.exe `
+  --output out/quality-local-x64-20040 `
+  --cases 1000 --seed 20040 --duration 120 `
+  --timeout 10 --max-artifacts-mb 64 `
+  --source-revision (git rev-parse HEAD) --source-state dirty
+```
+
+Use the actual clean/dirty source state, or leave it unknown. Supplied source
+revision/state is declared provenance, not proof that a binary was built from
+that tree. The binary SHA-256 identifies the tested executable; retain its
+matching runtime and collect `wpm --version` plus pinned dependency/toolchain
+baselines separately for a complete controlled execution record.
+
+The first three cases are valid baselines. Later cases deterministically mutate
+fields/types, grammar/schema, links, record counts, versions, Unicode/invalid
+UTF-8, terminal text, synthetic credentials, audit capacities/exit codes, ZIP
+metadata size, and truncation. Cases check coherent JSON/exit/count/metadata-only
+flags, no stderr or terminal contamination, no synthetic secret leakage, and
+unchanged file contents/hierarchy/timestamps. Snapshot walking rejects reparse
+points and files beyond its 2 MiB fixture bound; hashes stream through memory.
+
+The version-controlled `tests/quality-query-corpus.json` records generator,
+default seed, family purposes, expected structural invariants, origin, affected
+requirements, and limitations. A run retains exact harness/corpus source copies,
+a normalized corpus manifest, binary/harness/corpus hashes, platform/Python,
+seed, declared source state, command, timing, counts, status, and per-case input
+manifests, original fixtures, stdout/stderr bytes, and result records.
+`report.json` uses `wpm.quality-query-run.v1`. Reports are staged and flushed
+before replacing the previous report; a failed write leaves its candidate for
+inspection. Partial setup failures may retain only the last report/inputs.
+
+A failure stops at the first failing case and returns 1 without removing its
+evidence. Reproduce with the preserved `harness.py` and adjacent corpus file,
+matching executable/runtime, same seed/case count, and a new output directory.
+Then minimize the responsible input, file a finding, and promote confirmed
+semantic defects into the normal deterministic regression suite. Never replace
+an original failed run with a later passing report.
+
+Iteration bounds are 3..10000 cases. Per-process timeout is 1..120 seconds;
+whole-run duration is 1..3600 seconds. Captured stdout and stderr are each capped
+at 256 KiB and a noisy process is terminated. Timeouts/pipe failures retain the
+captured prefix and fail. Duration or artifact budget exhaustion is inconclusive
+with exit 1, never Pass. Duration is checked before cases and constrains process
+waits; termination/pipe cleanup has bounded additional waits. Artifact budgets
+are 1..1024 MiB, checked between cases, so retained evidence may exceed a selected
+budget by one bounded case and its final manifest. Defaults are 120 cases,
+10 seconds per process, 120 seconds overall, and 64 MiB. These are runner bounds,
+not OS-wide RAM/disk quotas or descendant-process containment.
+
+The manual `Quality query corpus` workflow (`quality-queries.yml`) builds and
+executes native x86, x64, and ARM64 cases separately on disposable Windows
+runners, retaining dependency/runtime/build/query evidence for 90 days. Inputs
+are passed as environment values rather than interpolated shell source. A rerun
+gets a distinct artifact name containing run ID and attempt. It adds no nightly
+schedule and does not relax ordinary release gates. Only the small
+`quality-query-harness` self-test joins fast CTest: it proves valid baselines,
+real failed subprocess evidence, refusal to overwrite evidence, duration limits,
+output caps, and timeout termination.
+
+Local x64 evidence passed a 1000-case seeded run, and x86/x64 each passed
+120-case runs and harness self-tests. Native CI evidence remains separate from
+manual physical/ACL/deployment coverage. REQ-0020/I-10 remains partial: endurance,
+full signatures/archives/paths/configuration, injected lifecycle faults, media,
+nightly scheduling, complete environment/resource controls, and the full 2.0
+release-candidate quality gate remain open.

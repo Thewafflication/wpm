@@ -620,6 +620,19 @@ if(BUILD_TESTING)
         120
   )
   add_test(
+    NAME quality-query-harness
+    COMMAND
+      "${Python3_EXECUTABLE}"
+      "${CMAKE_SOURCE_DIR}/tests/verify-quality-query-harness.py" --wpm
+      $<TARGET_FILE:wpm>
+  )
+  set_tests_properties(
+    quality-query-harness
+    PROPERTIES
+      TIMEOUT
+        120
+  )
+  add_test(
     NAME repository-publish-integration
     COMMAND
       "${Python3_EXECUTABLE}"
@@ -1119,6 +1132,7 @@ if(BUILD_TESTING)
       "repository-verify-integration|"
       "repository-publish-integration|"
       "recovery-integration|"
+      "quality-query-harness|"
       "installed-list-integration|"
       "available-list-integration|"
       "documentation-installation|"

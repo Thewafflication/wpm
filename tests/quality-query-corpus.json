@@ -1,0 +1,41 @@
+{
+  "schema": "wpm.quality-query-corpus.v1",
+  "generator": "tests/quality-query-fuzz.py",
+  "defaultSeed": 20037,
+  "origin": "Generated disposable fixtures; only synthetic credentials",
+  "expected": [
+    "No crash, hang, secret leak, scripts, or filesystem mutation",
+    "Coherent UTF-8 JSON and exit status"
+  ],
+  "families": [
+    {
+      "id": "audit",
+      "purpose": [
+        "Failure fields, duplicates, NULs, capacities, exit-code overflow",
+        "Unicode, invalid UTF-8, terminal text, and credentials"
+      ],
+      "requirements": ["REQ-0019.002", "REQ-0019.009", "REQ-0018.009"]
+    },
+    {
+      "id": "catalog",
+      "purpose": [
+        "Schemas, grammar, duplicate fields, types, bounds, links, versions",
+        "Unicode and invalid text"
+      ],
+      "requirements": ["REQ-0018.005", "REQ-0018.008", "REQ-0018.009"]
+    },
+    {
+      "id": "retained",
+      "purpose": [
+        "ZIP metadata, unsupported identities, versions, NULs",
+        "Oversize entries and truncated archives"
+      ],
+      "requirements": ["REQ-0018.003", "REQ-0018.008", "REQ-0018.009"]
+    }
+  ],
+  "limitations": [
+    "Structural read-only properties; not full archive trust",
+    "Not strict invalid-input, transport/media, or replay certification",
+    "Not the complete release-candidate gate"
+  ]
+}

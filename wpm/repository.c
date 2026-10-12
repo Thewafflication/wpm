@@ -3432,10 +3432,11 @@ static int query_available_records(const char *name, const char *arch,
             (version && strcmp(record->version, version))) {
             continue;
         }
-        policy = !is_prerelease(record->version) ? "stable"
-                 : prerelease_effective(record->name, NULL)
-                     ? "prerelease allowed"
-                     : "prerelease excluded";
+        int prerelease = is_prerelease(record->version);
+        int allowed = prerelease && prerelease_effective(record->name, NULL);
+        policy = !prerelease ? "stable"
+                 : allowed   ? "prerelease allowed"
+                             : "prerelease excluded";
         matched++;
         if (json) {
             fputs(matched > 1 ? ",{" : "{", stdout);
@@ -3445,10 +3446,9 @@ static int query_available_records(const char *name, const char *arch,
                     ",\"repository\":%d,\"priority\":%d,"
                     "\"policy\":\"%s\",\"stale\":%s,\"parent\":",
                     record->order + 1, record->priority,
-                    !is_prerelease(record->version) ? "stable"
-                    : prerelease_effective(record->name, NULL)
-                        ? "prerelease_allowed"
-                        : "prerelease_excluded",
+                    !prerelease ? "stable"
+                    : allowed   ? "prerelease_allowed"
+                                : "prerelease_excluded",
                     stale[record->order] ? "true" : "false");
             if (parents[record->order]) {
                 fprintf(stdout, "%d}", parents[record->order]);

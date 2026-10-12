@@ -1,0 +1,102 @@
+name: Quality query corpus
+
+on:
+  workflow_dispatch:
+    inputs:
+      cases:
+        description: Cases per native architecture (3..10000)
+        default: '1000'
+        required: true
+      seed:
+        description: Integer corpus seed
+        default: '20040'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  query-corpus:
+    name: Native ${{ matrix.arch }} query corpus
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86
+            runner: windows-2022
+          - arch: x64
+            runner: windows-2022
+          - arch: arm64
+            runner: windows-11-arm
+    env:
+      QUALITY_CASES: ${{ inputs.cases }}
+      QUALITY_SEED: ${{ inputs.seed }}
+      QUALITY_EVIDENCE: out/quality-${{ matrix.arch }}
+    steps:
+      - name: Check out exact source and pinned dependencies
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          submodules: recursive
+      - name: Fetch dependency tags
+        shell: pwsh
+        run: git submodule foreach --recursive 'git fetch --tags --force'
+      - name: Set up compiler and runtime
+        uses: ./.github/actions/setup-tinycc
+        with:
+          architecture: ${{ matrix.arch }}
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Record dependency baseline
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path $env:QUALITY_EVIDENCE | Out-Null
+          tests/export-dependency-metadata.ps1 -GitHubOutput `
+            "$env:QUALITY_EVIDENCE/dependencies.txt"
+      - name: Configure native Debug build
+        shell: pwsh
+        run: |
+          cmake --preset ${{ matrix.arch }}-debug `
+            "-DCMAKE_MAKE_PROGRAM=$env:WPM_NINJA" `
+            -DBUILD_TESTING=OFF -DWPM_BUILD_TEST_REPORTS=OFF `
+            -DWPM_RUN_TESTS_AFTER_BUILD=OFF
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build native query executable
+        shell: pwsh
+        run: |
+          cmake --build out/build/${{ matrix.arch }}-debug 2>&1 |
+            Tee-Object -FilePath "$env:QUALITY_EVIDENCE/build.log"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Record binary runtime baseline
+        shell: pwsh
+        run: |
+          $env:WPM_DATA_DIR = "$env:QUALITY_EVIDENCE/runtime-data"
+          $env:WPM_LOG_DIR = "$env:QUALITY_EVIDENCE/runtime-logs"
+          & bin/${{ matrix.arch }}/Debug/wpm.exe --color never --version |
+            Set-Content "$env:QUALITY_EVIDENCE/binary-version.txt"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Run bounded native corpus
+        shell: pwsh
+        run: |
+          git diff --quiet
+          if ($LASTEXITCODE -ne 0) { throw 'Build changed tracked source.' }
+          python tests/quality-query-fuzz.py `
+            --wpm bin/${{ matrix.arch }}/Debug/wpm.exe `
+            --output "$env:QUALITY_EVIDENCE/corpus" `
+            --cases $env:QUALITY_CASES --seed $env:QUALITY_SEED `
+            --duration 120 --timeout 10 --max-artifacts-mb 64 `
+            --source-revision $env:GITHUB_SHA --source-state clean
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Preserve original quality evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: quality-queries-${{ matrix.arch }}-${{ github.run_id }}-${{
+            github.run_attempt }}
+          path: out/quality-${{ matrix.arch }}/
+          if-no-files-found: warn
+          retention-days: 90

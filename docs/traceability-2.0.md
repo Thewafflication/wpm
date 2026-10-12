@@ -68,11 +68,11 @@ every row that is not `Verified` or lacks objective evidence.
 | REQ-0019.007 | TC-0019 | Documentation inspection and restore demonstration | Planned | `docs/lifecycle-data.md`; `tests/recovery-integration.py` quiescent explicit-root restore; ACL/deployment/pending/physical evidence open |
 | REQ-0019.008 | TC-0019 | Architecture-matrix test and evidence inspection | Planned | Not yet produced |
 | REQ-0019.009 | TC-0019 | Failure-message inspection | Planned | Not yet produced |
-| REQ-0020.001 | TC-0020 | Harness isolation self-test | Planned | Not yet produced |
-| REQ-0020.002 | TC-0020 | Execution-record schema inspection | Planned | Not yet produced |
-| REQ-0020.003 | TC-0020 | Corpus metadata validation | Planned | Not yet produced |
-| REQ-0020.004 | TC-0020 | Resource-bound and workflow inspection | Planned | Not yet produced |
-| REQ-0020.005 | TC-0020 | Controlled failure/rerun demonstration | Planned | Not yet produced |
+| REQ-0020.001 | TC-0020 | Harness isolation self-test | Planned | `tests/quality-query-fuzz.py`; isolated read-only subset; broader profiles open |
+| REQ-0020.002 | TC-0020 | Execution-record schema inspection | Planned | Query run records/hashes/source copies; complete environment baseline open |
+| REQ-0020.003 | TC-0020 | Corpus metadata validation | Planned | `tests/quality-query-corpus.json`; generated query subset; broader corpus open |
+| REQ-0020.004 | TC-0020 | Resource-bound and workflow inspection | Planned | Harness output/time/artifact bounds and manual native workflow; OS quotas open |
+| REQ-0020.005 | TC-0020 | Controlled failure/rerun demonstration | Planned | `tests/verify-quality-query-harness.py`; retained first-failure/overwrite checks; finding triage open |
 | REQ-0020.006 | TC-0020 | Synthetic release-gate test | Planned | Not yet produced |
 | REQ-0020.007 | TC-0020 | Matrix metadata and environment inspection | Planned | Not yet produced |
 | REQ-0021.001 | TC-0021 | Strict C99 compilation | Planned | Not yet produced |
