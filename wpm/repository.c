@@ -2492,6 +2492,239 @@ int wpm_repo_version_is_valid(const char *version) {
     return version && semver_parse(version, &parsed);
 }
 
+/* Author verification is stricter than the compatibility resolver: no entry
+ * may be silently skipped and every required identity field occurs once. */
+static int author_entry(const char **source, package_entry *entry) {
+    const char *p = skip_ws(*source);
+    unsigned fields = 0;
+    memset(entry, 0, sizeof(*entry));
+    if (*p++ != '{') {
+        return 0;
+    }
+    while (*(p = skip_ws(p)) != '}') {
+        char key[32];
+        char *value = NULL;
+        size_t capacity = 0;
+        unsigned field = 0;
+        if (!json_string(&p, key, sizeof(key))) {
+            if (!json_string(&p, NULL, (size_t)-1)) {
+                return 0;
+            }
+            key[0] = 0;
+        }
+        p = skip_ws(p);
+        if (*p++ != ':') {
+            return 0;
+        }
+        if (!strcmp(key, "name")) {
+            value = entry->name;
+            capacity = sizeof(entry->name);
+            field = 1;
+        } else if (!strcmp(key, "version")) {
+            value = entry->version;
+            capacity = sizeof(entry->version);
+            field = 2;
+        } else if (!strcmp(key, "arch")) {
+            value = entry->arch;
+            capacity = sizeof(entry->arch);
+            field = 4;
+        } else if (!strcmp(key, "url")) {
+            value = entry->url;
+            capacity = sizeof(entry->url);
+            field = 8;
+        }
+        if (value) {
+            if ((fields & field) || !json_string(&p, value, capacity) ||
+                !*value) {
+                return 0;
+            }
+            fields |= field;
+        } else if (!json_value_end(&p)) {
+            return 0;
+        }
+        p = skip_ws(p);
+        if (*p == ',') {
+            p++;
+        } else if (*p != '}') {
+            return 0;
+        }
+    }
+    *source = p + 1;
+    return fields == 15 && wpm_repo_version_is_valid(entry->version) &&
+           (!_stricmp(entry->arch, "any") || !_stricmp(entry->arch, "x86") ||
+            !_stricmp(entry->arch, "x64") || !_stricmp(entry->arch, "arm64"));
+}
+
+static int author_file(const char *root, const char *item, char *path,
+                       size_t capacity) {
+    char *p;
+    DWORD attributes;
+    size_t prefix = strlen(root);
+    if (!safe_relative_item(item) || !join_path(path, capacity, root, item)) {
+        return 0;
+    }
+    for (p = path + prefix + 1;; p++) {
+        char separator;
+        if (*p && *p != '/' && *p != '\\') {
+            continue;
+        }
+        separator = *p;
+        *p = 0;
+        attributes = GetFileAttributesA(path);
+        *p = separator;
+        if (attributes == INVALID_FILE_ATTRIBUTES ||
+            (attributes & FILE_ATTRIBUTE_REPARSE_POINT) ||
+            (!!(attributes & FILE_ATTRIBUTE_DIRECTORY) != !!separator)) {
+            return 0;
+        }
+        if (!separator) {
+            return 1;
+        }
+    }
+}
+
+static int author_catalog_fields(const char *text) {
+    const char *p = json_content(text);
+    unsigned fields = 0;
+    if (*p++ != '{') {
+        return 0;
+    }
+    while (*(p = skip_ws(p)) != '}') {
+        char key[32];
+        unsigned field;
+        if (!json_string(&p, key, sizeof(key))) {
+            if (!json_string(&p, NULL, (size_t)-1)) {
+                return 0;
+            }
+            key[0] = 0;
+        }
+        field = !strcmp(key, "version") ? 1 : !strcmp(key, "packages") ? 2 : 0;
+        if (fields & field) {
+            return 0;
+        }
+        fields |= field;
+        p = skip_ws(p);
+        if (*p++ != ':' || !json_value_end(&p)) {
+            return 0;
+        }
+        p = skip_ws(p);
+        if (*p == ',') {
+            p++;
+        } else if (*p != '}') {
+            return 0;
+        }
+    }
+    return fields == 3;
+}
+
+int wpm_repo_verify(const char *directory, int allow_unsigned) {
+    char root[PATH_SIZE], path[PATH_SIZE], signing_key[65];
+    char *text = NULL;
+    package_entry *entries = NULL;
+    HANDLE catalog = INVALID_HANDLE_VALUE, archive = INVALID_HANDLE_VALUE;
+    DWORD attributes, size, high, read;
+    const char *p, *phase = "read catalog";
+    int count = 0, success = 0;
+    wpm_set_readonly(1);
+    if (is_web_repository(directory) ||
+        !repository_normalize(directory, root, sizeof(root), 1)) {
+        goto done;
+    }
+    attributes = GetFileAttributesA(root);
+    if (attributes == INVALID_FILE_ATTRIBUTES ||
+        !(attributes & FILE_ATTRIBUTE_DIRECTORY) ||
+        (attributes & FILE_ATTRIBUTE_REPARSE_POINT) ||
+        !author_file(root, "index.json", path, sizeof(path))) {
+        goto done;
+    }
+    catalog = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, NULL,
+                          OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (catalog == INVALID_HANDLE_VALUE) {
+        goto done;
+    }
+    size = GetFileSize(catalog, &high);
+    if (high || size < 2 || size > 4 * 1024 * 1024) {
+        goto done;
+    }
+    text = malloc((size_t)size + 1);
+    entries = calloc(MAX_PACKAGES, sizeof(*entries));
+    if (!text || !entries || !ReadFile(catalog, text, size, &read, NULL) ||
+        read != size) {
+        goto done;
+    }
+    text[size] = 0;
+    phase = "validate catalog";
+    if (memchr(text, 0, size) || !json_document_valid(text) ||
+        !index_version_supported(text) || !author_catalog_fields(text)) {
+        goto done;
+    }
+    p = index_field(text, "packages");
+    if (!p || *p++ != '[') {
+        goto done;
+    }
+    while (*(p = skip_ws(p)) != ']') {
+        if (count == MAX_PACKAGES || !author_entry(&p, &entries[count])) {
+            goto done;
+        }
+        for (int i = 0; i < count; i++) {
+            if (!_stricmp(entries[i].name, entries[count].name) &&
+                !_stricmp(entries[i].arch, entries[count].arch) &&
+                !strcmp(entries[i].version, entries[count].version)) {
+                goto done;
+            }
+        }
+        count++;
+        p = skip_ws(p);
+        if (*p == ',') {
+            p++;
+        } else if (*p != ']') {
+            goto done;
+        }
+    }
+    phase = "validate archive path, identity, integrity, and trust";
+    for (int i = 0; i < count; i++) {
+        wpm_package_info info;
+        if (!author_file(root, entries[i].url, path, sizeof(path))) {
+            goto done;
+        }
+        archive = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, NULL,
+                              OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+        if (archive == INVALID_HANDLE_VALUE ||
+            !wpm_archive_validate_readonly(path, allow_unsigned, signing_key,
+                                           sizeof(signing_key)) ||
+            !wpm_archive_inspect(path, &info) ||
+            strcmp(info.name, entries[i].name) ||
+            strcmp(info.version, entries[i].version) ||
+            _stricmp(info.arch, entries[i].arch)) {
+            goto done;
+        }
+        CloseHandle(archive);
+        archive = INVALID_HANDLE_VALUE;
+    }
+    wpm_event_printf(WPM_EVENT_RESULT, "repository.verified", "repository",
+                     "verify", "Result: repository verified (%d packages)\n",
+                     count);
+    success = 1;
+done:
+    if (archive != INVALID_HANDLE_VALUE) {
+        CloseHandle(archive);
+    }
+    if (catalog != INVALID_HANDLE_VALUE) {
+        CloseHandle(catalog);
+    }
+    free(entries);
+    free(text);
+    if (!success) {
+        wpm_event_printf(WPM_EVENT_ERROR, "repository.verify.failed",
+                         "repository", "verify",
+                         "Error: repository verification failed: %s.\n"
+                         "Check schema-1 entries, contained local archives, "
+                         "matching identities, and existing signing trust.\n",
+                         phase);
+    }
+    return success;
+}
+
 static int prerelease_path(char *path, size_t size) {
     char root[PATH_SIZE];
     return wpm_get_data_root(root, sizeof(root)) &&

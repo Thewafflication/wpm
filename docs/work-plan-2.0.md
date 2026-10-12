@@ -691,3 +691,8 @@ I-09 publication/signing work and physical media evidence remain open.
 1.2.25 compares schema numbers exactly, rejecting near-1 decimal versions that
 floating point rounding previously admitted. Equivalent decimal/exponent forms
 remain supported; refresh-cache retention and read-only diagnosis are covered.
+
+1.2.26 adds read-only local author catalog/archive verification. Strict entry
+completeness, identity matching, existing trust/revocation, explicit unsigned
+opt-in, and complete filesystem snapshots cover this additive command. The
+legacy install resolver remains compatible; I-09 publication/signing stays open.

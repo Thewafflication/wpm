@@ -11,6 +11,9 @@ void wpm_repo_set_verbose(int enabled);
 /** Create a fresh schema-1 filesystem repository without replacing an index.
  * A dry run disables mutation and previews the target layout. */
 int wpm_repo_init(const char *directory, int dry_run);
+/** Verify one filesystem catalog and its archives using existing trust only.
+ * Performs no managed writes, web retrieval, extraction, or scripts. */
+int wpm_repo_verify(const char *directory, int allow_unsigned);
 /** Add or reprioritize a supported repository locator. */
 int wpm_repo_add(const char *url, int priority, int allow_insecure_http);
 /** List configured repositories in resolution order. */

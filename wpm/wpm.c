@@ -182,9 +182,9 @@ static void print_usage_line(Command command) {
                          "[--confirm|--dry-run]\n");
         break;
     case CMD_REPO:
-        wpm_event_printf(
-            WPM_EVENT_INFO, "wpm.info", "wpm", "command",
-            "Usage: wpm repo <init|add|list|remove|update|diagnose> ...\n");
+        wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                         "Usage: wpm repo "
+                         "<init|verify|add|list|remove|update|diagnose> ...\n");
         break;
     case CMD_KEYGEN:
         wpm_event_printf(
@@ -252,6 +252,7 @@ static int command_option_is_known(Command command, const char *option) {
                strcmp(option, "--offline") == 0;
     case CMD_REPO:
         return strcmp(option, "--dry-run") == 0 ||
+               strcmp(option, "--allow-unsigned") == 0 ||
                strcmp(option, "--links") == 0 ||
                strcmp(option, "--allow-insecure-http") == 0 ||
                strcmp(option, "--offline") == 0;
@@ -444,6 +445,24 @@ static int validate_command_actions(Command command, int argc, char **argv,
     const char *action = count > 0 ? operands[0] : "list";
 
     if (command == CMD_REPO) {
+        if (command_has_option(argc, argv, command_index, "--allow-unsigned") &&
+            strcmp(action, "verify")) {
+            return invalid_action_shape(command,
+                                        "--allow-unsigned requires verify");
+        }
+        if (!strcmp(action, "verify")) {
+            if (count == 2 &&
+                !command_has_option(argc, argv, command_index, "--priority") &&
+                !command_has_option(argc, argv, command_index,
+                                    "--allow-insecure-http") &&
+                !command_has_option(argc, argv, command_index, "--offline") &&
+                !command_has_option(argc, argv, command_index, "--links") &&
+                !command_has_option(argc, argv, command_index, "--dry-run")) {
+                return 1;
+            }
+            return invalid_action_shape(command,
+                                        "verify requires one directory");
+        }
         if (command_has_option(argc, argv, command_index, "--dry-run") &&
             strcmp(action, "init")) {
             return invalid_action_shape(command,
@@ -962,9 +981,14 @@ int main(int argc, char *argv[]) {
             wpm_operation_begin(plan_yes);
         }
     }
-    if (cmd == CMD_REPO && command_index + 1 < argc &&
-        !strcmp(argv[command_index + 1], "diagnose")) {
-        wpm_set_readonly(1);
+    if (cmd == CMD_REPO) {
+        const char *operands[8];
+        int count = collect_command_operands(cmd, argc, argv, command_index,
+                                             operands, 8);
+        if (count && (!strcmp(operands[0], "diagnose") ||
+                      !strcmp(operands[0], "verify"))) {
+            wpm_set_readonly(1);
+        }
     }
     wpm_set_verbose(verbose);
     SetEnvironmentVariableA("WPM_VERBOSE", verbose ? "1" : NULL);
@@ -1143,8 +1167,16 @@ operation_dispatch:
     }
 
     case CMD_REPO: {
+        const char *operands[8];
+        int count = collect_command_operands(CMD_REPO, argc, argv,
+                                             command_index, operands, 8);
         const char *action =
             command_index + 1 < argc ? argv[command_index + 1] : "list";
+        if (count && (!strcmp(operands[0], "verify") ||
+                      !strcmp(operands[0], "diagnose") ||
+                      !strcmp(operands[0], "init"))) {
+            action = operands[0];
+        }
         if (strcmp(action, "list") == 0 &&
             (command_index + 2 == argc ||
              (command_index + 3 == argc &&
@@ -1157,6 +1189,15 @@ operation_dispatch:
             collect_command_operands(CMD_REPO, argc, argv, command_index,
                                      operands, 3);
             if (!wpm_repo_init(operands[1], dry_run)) {
+                return 1;
+            }
+        } else if (strcmp(action, "verify") == 0) {
+            const char *operands[3];
+            collect_command_operands(CMD_REPO, argc, argv, command_index,
+                                     operands, 3);
+            if (!wpm_repo_verify(operands[1],
+                                 command_has_option(argc, argv, command_index,
+                                                    "--allow-unsigned"))) {
                 return 1;
             }
         } else if (strcmp(action, "diagnose") == 0) {
@@ -1206,7 +1247,8 @@ operation_dispatch:
         } else {
             wpm_event_printf(
                 WPM_EVENT_INFO, "wpm.info", "wpm", "command",
-                "Usage: wpm repo <init|add|list|remove|update|diagnose> ...\n");
+                "Usage: wpm repo "
+                "<init|verify|add|list|remove|update|diagnose> ...\n");
             return 1;
         }
         break;
@@ -1521,7 +1563,8 @@ void print_usage(Command c) {
                 "\nManage package repositories.\n\nExamples:\n  wpm repo "
                 "add .\\repository --priority 10\n  wpm repo list\n  wpm "
                 "repo update --offline\n  wpm repo diagnose [--links]\n  "
-                "wpm repo init .\\repository [--dry-run]\n");
+                "wpm repo init .\\repository [--dry-run]\n  "
+                "wpm repo verify .\\repository [--allow-unsigned]\n");
             return;
         case CMD_KEYGEN:
             print_usage_line(c);
@@ -1603,8 +1646,9 @@ void print_usage(Command c) {
     wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
                      "      Remove one or more packages\n\n");
 
-    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
-                     "  repo <init|add|list|remove|update|diagnose> ...\n");
+    wpm_event_printf(
+        WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+        "  repo <init|verify|add|list|remove|update|diagnose> ...\n");
     wpm_event_printf(
         WPM_EVENT_INFO, "wpm.info", "wpm", "command",
         "      Configure HTTPS, opted-in HTTP, local, or UNC package "
