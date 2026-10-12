@@ -631,3 +631,11 @@ Update this plan when evidence changes scope, dependencies, risk, or verificatio
 material changes in version control and update requirements, ADR/DFS content, test
 allocation, and traceability together. Do not silently delete a prompt after work lands;
 mark the corresponding change package complete in the roadmap and link its evidence.
+
+## Compatible repository continuation
+
+1.2.12 adds optional schema-1 links from current to previous release roots.
+1.2.13 delivers the first I-04 media-failure slice: complete local copies,
+actionable retry diagnostics, cache preservation, and signed read-only source
+verification. See `docs/increment-04-local-media.md` for evidence and remaining
+work. I-04 stays open until the broader media identity demonstrations pass.

@@ -967,68 +967,103 @@ cleanup:
 static int copy_local(const char *source, const char *destination,
                       const char *label) {
     char temporary[PATH_SIZE];
-    HANDLE input, output;
+    HANDLE input = INVALID_HANDLE_VALUE, output = INVALID_HANDLE_VALUE;
     unsigned char buffer[65536];
-    DWORD count;
+    DWORD count, failure = ERROR_SUCCESS;
     LARGE_INTEGER size;
-    int succeeded = 1;
+    unsigned long long copied = 0;
+    int succeeded = 0, progress_started = 0;
+    const char *phase = "open source";
     wpm_progress progress;
-    if (snprintf(temporary, sizeof(temporary), "%s.download", destination) <
-        0) {
+    int length =
+        snprintf(temporary, sizeof(temporary), "%s.download", destination);
+    if (length < 0 || (size_t)length >= sizeof(temporary)) {
         return 0;
     }
     DeleteFileA(temporary);
     input = CreateFileA(source, GENERIC_READ, FILE_SHARE_READ, NULL,
                         OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (input == INVALID_HANDLE_VALUE) {
-        return 0;
+        goto cleanup;
     }
+    phase = "read source size";
+    if (!GetFileSizeEx(input, &size) || size.QuadPart < 0) {
+        goto cleanup;
+    }
+    phase = "create cache copy";
     output = CreateFileA(temporary, GENERIC_WRITE, 0, NULL, CREATE_NEW,
                          FILE_ATTRIBUTE_NORMAL, NULL);
     if (output == INVALID_HANDLE_VALUE) {
-        CloseHandle(input);
-        return 0;
+        goto cleanup;
     }
-    wpm_progress_start(
-        &progress, "Copying", "Copy", "Copied", label,
-        GetFileSizeEx(input, &size) ? (unsigned long long)size.QuadPart : 0);
+    wpm_progress_start(&progress, "Copying", "Copy", "Copied", label,
+                       (unsigned long long)size.QuadPart);
+    progress_started = 1;
     for (;;) {
         DWORD written;
+        phase = "read source";
         if (!ReadFile(input, buffer, sizeof(buffer), &count, NULL)) {
-            succeeded = 0;
-            break;
+            goto cleanup;
         }
         if (!count) {
             break;
         }
-        if (!WriteFile(output, buffer, count, &written, NULL) ||
-            written != count) {
-            succeeded = 0;
-            break;
+        phase = "write cache copy";
+        if (!WriteFile(output, buffer, count, &written, NULL)) {
+            goto cleanup;
         }
+        if (written != count) {
+            SetLastError(ERROR_WRITE_FAULT);
+            goto cleanup;
+        }
+        copied += count;
         wpm_progress_add(&progress, count);
     }
+    phase = "verify complete source read";
+    if (copied != (unsigned long long)size.QuadPart) {
+        SetLastError(ERROR_HANDLE_EOF);
+        goto cleanup;
+    }
+    phase = "flush cache copy";
     if (!FlushFileBuffers(output)) {
-        succeeded = 0;
+        goto cleanup;
     }
+    phase = "close cache copy";
     if (!CloseHandle(output)) {
-        succeeded = 0;
+        output = INVALID_HANDLE_VALUE;
+        goto cleanup;
     }
-    CloseHandle(input);
-    wpm_progress_finish(&progress, succeeded);
+    output = INVALID_HANDLE_VALUE;
+    phase = "publish cache copy";
+    if (!SetFileAttributesA(temporary, FILE_ATTRIBUTE_NORMAL) ||
+        !MoveFileExA(temporary, destination, MOVEFILE_REPLACE_EXISTING)) {
+        goto cleanup;
+    }
+    succeeded = 1;
+cleanup:
+    failure = GetLastError();
+    if (output != INVALID_HANDLE_VALUE) {
+        CloseHandle(output);
+    }
+    if (input != INVALID_HANDLE_VALUE) {
+        CloseHandle(input);
+    }
+    if (progress_started) {
+        wpm_progress_finish(&progress, succeeded);
+    }
     if (!succeeded) {
         DeleteFileA(temporary);
-        return 0;
+        wpm_event_printf(
+            WPM_EVENT_ERROR, "repository.source.unavailable", "repository",
+            "copy",
+            "Error: filesystem repository copy failed during %s "
+            "(Windows error %lu): %s\n"
+            "  Retry: reconnect the original repository media at the "
+            "configured path, check read access, then rerun the command. "
+            "The previous cache was retained.\n",
+            phase, (unsigned long)failure, source);
     }
-    if (!SetFileAttributesA(temporary, FILE_ATTRIBUTE_NORMAL)) {
-        DeleteFileA(temporary);
-        return 0;
-    }
-    if (!MoveFileExA(temporary, destination, MOVEFILE_REPLACE_EXISTING)) {
-        DeleteFileA(temporary);
-        return 0;
-    }
-    return 1;
+    return succeeded;
 }
 static int retrieve(const char *source, const char *destination,
                     const char *label, int allow_insecure_http) {
