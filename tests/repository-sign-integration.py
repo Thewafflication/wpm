@@ -5,6 +5,8 @@ import hashlib
 import json
 import os
 import shutil
+import stat
+from contextlib import contextmanager
 from pathlib import Path
 import subprocess
 import tempfile
@@ -24,9 +26,28 @@ def snapshot(root):
             if path.is_dir()
             else hashlib.sha256(path.read_bytes()).hexdigest(),
             path.stat().st_mtime_ns,
+            path.stat().st_file_attributes,
         )
         for path in sorted(root.rglob("*"))
     }
+
+
+@contextmanager
+def readonly_files(directory):
+    """Set Windows file read-only attributes and restore them for cleanup."""
+    modes = {
+        path: path.stat().st_mode
+        for path in directory.rglob("*")
+        if path.is_file()
+    }
+    try:
+        for path in modes:
+            path.chmod(stat.S_IREAD)
+            assert path.stat().st_file_attributes & stat.FILE_ATTRIBUTE_READONLY
+        yield
+    finally:
+        for path, mode in modes.items():
+            path.chmod(mode)
 
 
 with tempfile.TemporaryDirectory(prefix="wpm-repository-sign-") as directory:
@@ -260,18 +281,26 @@ with tempfile.TemporaryDirectory(prefix="wpm-repository-sign-") as directory:
     # legacy consumption installs from relative package locators unchanged.
     copied = root / "copied-distribution"
     shutil.copytree(repository, copied, copy_function=shutil.copy2)
-    copied_before = snapshot(copied)
-    env["WPM_DATA_DIR"] = str(root / "consumer-data")
-    run("trust", "add", public)
-    run("repo", "verify", copied, "--index-key", index_public, readonly=True)
-    run("repo", "add", copied, "--priority", "1000")
-    run("update", "--offline")
-    run("install", "signed-catalog", "--offline", script=True)
-    assert snapshot(copied) == copied_before
-    assert (
-        root / "consumer-data" / "packages" / "signed-catalog-any-1.0.0.zip"
-    ).exists()
-    (root / "script-ran").unlink()
+    with readonly_files(copied):
+        try:
+            with (copied / "index.json").open("r+b"):
+                raise AssertionError("read-only catalog allowed write access")
+        except PermissionError:
+            pass
+        copied_before = snapshot(copied)
+        env["WPM_DATA_DIR"] = str(root / "consumer-data")
+        run("trust", "add", public)
+        run(
+            "repo", "verify", copied, "--index-key", index_public, readonly=True
+        )
+        run("repo", "add", copied, "--priority", "1000")
+        run("update", "--offline")
+        run("install", "signed-catalog", "--offline", script=True)
+        assert snapshot(copied) == copied_before
+        assert (
+            root / "consumer-data" / "packages" / "signed-catalog-any-1.0.0.zip"
+        ).exists()
+        (root / "script-ran").unlink()
     env["WPM_DATA_DIR"] = str(data)
     run("trust", "revoke", next((data / "trust").glob("*.pub")).stem)
     verify(succeeds=False)

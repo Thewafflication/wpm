@@ -864,3 +864,9 @@ independent public-key provisioning, private keys outside the tree, explicit
 catalog verification before configuration, a separate writable consumer root,
 offline update/install, and the unchanged legacy index-policy boundary. Physical
 media demonstrations and full REQ-0017/I-09 acceptance remain open.
+
+1.2.44 extends copied-tree evidence with Windows read-only file attributes, a
+negative catalog write-access probe, attribute/byte/mtime snapshots, and the
+existing independent verification and offline install journey. Targeted x86/x64
+tests pass. No runtime or format changes; physical media, ACL/read-only volumes,
+and network-share demonstrations remain open under REQ-0017.007/I-09.

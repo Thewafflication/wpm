@@ -316,3 +316,10 @@ and resolver rules; they do not persist the index-key selection or enforce
 `index.sig`. Installation executes the package's existing authorized scripts.
 Offline mode prohibits managed web retrieval but does not certify package script
 network behavior. This journey does not claim physical-media or ACL evidence.
+
+From 1.2.44, the copied-distribution fixture sets Windows read-only attributes
+on every repository file, confirms catalog write access is rejected, and runs
+the verification/offline consumption journey against that copy. Snapshots cover
+attributes as well as bytes and modification times. Attributes are restored only
+for fixture cleanup. This demonstrates read-only files on a writable filesystem;
+it does not replace ACL, read-only volume, optical, USB, or network-share evidence.
