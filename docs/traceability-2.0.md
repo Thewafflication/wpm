@@ -46,7 +46,7 @@ every row that is not `Verified` or lacks objective evidence.
 | REQ-0017.002 | TC-0017 | Automated negative and fault test | Planned | Not yet produced |
 | REQ-0017.003 | TC-0017 | Automated determinism and atomicity test | Planned | Not yet produced |
 | REQ-0017.004 | TC-0017 | Automated signing test and security inspection | Planned | Not yet produced |
-| REQ-0017.005 | TC-0017 | Automated validation test | Planned | Not yet produced |
+| REQ-0017.005 | TC-0017 | Automated validation test | Planned | Partial: native repository verification and 37 signature-document variants; complete findings and persistent signer policy remain open |
 | REQ-0017.006 | TC-0017 | Automated plan/dry-run test | Planned | Not yet produced |
 | REQ-0017.007 | TC-0017 | Automated copy/read-only test and demonstration | Planned | Partial: repository-sign-integration copies, verifies, and consumes a signed tree with Windows read-only file attributes; physical/ACL media evidence remains open |
 | REQ-0017.008 | TC-0017 | Documentation inspection and journey demonstration | Planned | Partial: repository-authoring documents the native copied-tree journey; full environment demonstration remains open |

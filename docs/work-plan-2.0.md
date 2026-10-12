@@ -870,3 +870,10 @@ negative catalog write-access probe, attribute/byte/mtime snapshots, and the
 existing independent verification and offline install journey. Targeted x86/x64
 tests pass. No runtime or format changes; physical media, ACL/read-only volumes,
 and network-share demonstrations remain open under REQ-0017.007/I-09.
+
+1.2.45 promotes 37 bounded catalog-signature document variants into the native
+signing fixture, covering required root-field identity, malformed/altered crypto
+declarations, document bounds, and valid JSON presentation equivalents. Original
+failures retain repository/public-key inputs and expected results without private
+key files. Targeted x86/x64 evidence passed; full findings, persistent policy,
+quality profiles, and full REQ-0017.005/I-09 acceptance remain open.

@@ -1,6 +1,7 @@
 """Catalog signer authority, exact bytes, atomic writes, and dry-run."""
 
 import argparse
+import base64
 import hashlib
 import json
 import os
@@ -241,6 +242,87 @@ with tempfile.TemporaryDirectory(prefix="wpm-repository-sign-") as directory:
     )
     verify(succeeds=False)
     signature.write_bytes(current)
+
+    # A bounded corpus exercises root-field identity independently of crypto.
+    def document_case(label, document, succeeds):
+        signature.write_bytes(document)
+        try:
+            verify(succeeds=succeeds)
+        except (AssertionError, subprocess.TimeoutExpired) as error:
+            evidence_root = (
+                Path(__file__).resolve().parents[1]
+                / "out"
+                / "failures"
+                / "signature-documents"
+            )
+            evidence_root.mkdir(parents=True, exist_ok=True)
+            evidence = Path(
+                tempfile.mkdtemp(prefix=label + "-", dir=evidence_root)
+            )
+            shutil.copytree(repository, evidence / "repository")
+            shutil.copy2(index_public, evidence / "index.public")
+            shutil.copy2(public, evidence / "package.public")
+            (evidence / "expected.json").write_text(
+                json.dumps(
+                    {
+                        "case": label,
+                        "succeeds": succeeds,
+                        "error": str(error),
+                    }
+                ),
+                encoding="utf-8",
+            )
+            raise
+        finally:
+            signature.write_bytes(current)
+
+    descriptor = json.loads(current)
+    for field, value in descriptor.items():
+        missing = dict(descriptor)
+        del missing[field]
+        document_case("missing-" + field, json.dumps(missing).encode(), False)
+        # Escaped duplicate names resolve to the same root field.
+        escaped = "\\u%04x%s" % (ord(field[0]), field[1:])
+        duplicate = (
+            current.rstrip()[:-1]
+            + (', "' + escaped + '": ' + json.dumps(value) + "}").encode()
+        )
+        document_case("duplicate-" + field, duplicate, False)
+        wrong_type = dict(descriptor, **{field: []})
+        document_case("type-" + field, json.dumps(wrong_type).encode(), False)
+        nested = dict(missing, extension={field: value})
+        document_case("nested-" + field, json.dumps(nested).encode(), False)
+    for field, value in (
+        ("key_id", "0" * 64),
+        ("key_id", descriptor["key_id"].upper()),
+        ("public_key", base64.b64encode(bytes(32)).decode()),
+        ("signature", base64.b64encode(bytes(64)).decode()),
+        ("public_key", descriptor["public_key"] + "!"),
+        ("signature", descriptor["signature"][:-1]),
+    ):
+        changed = dict(descriptor, **{field: value})
+        document_case("altered-" + field, json.dumps(changed).encode(), False)
+    reordered = dict(reversed(list(descriptor.items())))
+    reordered["extension"] = {"version": 10, "signature": [None, False]}
+    document_case("formatted", json.dumps(reordered, indent=4).encode(), True)
+    document_case("bom", b"\xef\xbb\xbf" + current, True)
+    for value in (b"1.0", b"10e-1", b"0.1e1"):
+        document_case(
+            "version-one",
+            current.replace(b'"version": 1,', b'"version": ' + value + b","),
+            True,
+        )
+    escaped_fields = (
+        "{"
+        + ",".join(
+            '"\\u%04x%s":%s' % (ord(key[0]), key[1:], json.dumps(value))
+            for key, value in descriptor.items()
+        )
+        + "}"
+    )
+    document_case("escaped-fields", escaped_fields.encode(), True)
+    oversized = dict(descriptor, extension="x" * 16384)
+    document_case("oversized", json.dumps(oversized).encode(), False)
     for flag, value in (
         ("--sign", index_private),
         ("--index-key", index_public),

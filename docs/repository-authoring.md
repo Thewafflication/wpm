@@ -323,3 +323,12 @@ the verification/offline consumption journey against that copy. Snapshots cover
 attributes as well as bytes and modification times. Attributes are restored only
 for fixture cleanup. This demonstrates read-only files on a writable filesystem;
 it does not replace ACL, read-only volume, optical, USB, or network-share evidence.
+
+The 1.2.45 signature-document corpus checks 37 additional bounded variants:
+missing, escaped-duplicate, wrong-type, and nested-only required fields; altered
+key identities/public material/signatures; invalid encodings and oversized
+documents; and supported reordered, BOM, escaped-field, and version-one numeric
+forms. These documents still verify the same exact catalog bytes. Unexpected
+failures retain unique repository/public-key inputs and expected results under
+`out/failures/signature-documents`, with no private-key files. This is focused
+native regression coverage, not the complete quality or authoring contract.
