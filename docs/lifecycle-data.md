@@ -112,7 +112,9 @@ current policy, validate archive integrity/signatures against intended trusted
 keys, and confirm externally deployed versions with package-specific guidance.
 `repo verify <directory>` validates an authored local repository without scripts
 or managed writes. Existing `verify <archive>` performs full archive validation
-using managed staging; it is not the metadata-only, mutation-free query above.
+using managed staging. From 1.2.38, `verify <archive> --read-only` validates
+existing archive integrity/metadata/trust without staging, writes, or prompts.
+It does not certify deployed software or authorize replay of a failed script.
 Do not add a key merely to make a restored archive pass verification.
 
 Pending self-upgrade material and audit references are historical inputs, not

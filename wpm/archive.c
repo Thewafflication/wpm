@@ -3304,6 +3304,71 @@ int wpm_archive_inspect(const char *archive_path, wpm_package_info *info) {
     return 1;
 }
 
+int wpm_archive_verify_readonly(const char *archive_path, int allow_unsigned) {
+    char full[WPM_PATH_SIZE], signer[65] = "";
+    wpm_package_info info;
+    BY_HANDLE_FILE_INFORMATION before, after;
+    HANDLE input = INVALID_HANDLE_VALUE, check = INVALID_HANDLE_VALUE;
+    DWORD attributes;
+    int success = 0;
+    wpm_set_readonly(1);
+    if (!archive_path ||
+        !normalized_full_path(archive_path, full, sizeof(full)) ||
+        !_strnicmp(full, "\\\\.\\", 4) || !_strnicmp(full, "\\\\?\\", 4)) {
+        goto done;
+    }
+    attributes = GetFileAttributesA(full);
+    if (attributes == INVALID_FILE_ATTRIBUTES ||
+        (attributes &
+         (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT))) {
+        goto done;
+    }
+    input =
+        CreateFileA(full, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING,
+                    FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT, NULL);
+    if (input == INVALID_HANDLE_VALUE || GetFileType(input) != FILE_TYPE_DISK ||
+        !GetFileInformationByHandle(input, &before) ||
+        (before.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) ||
+        !wpm_archive_validate_readonly(full, allow_unsigned, signer,
+                                       sizeof(signer)) ||
+        !wpm_archive_inspect(full, &info)) {
+        goto done;
+    }
+    check =
+        CreateFileA(full, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING,
+                    FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT, NULL);
+    if (check == INVALID_HANDLE_VALUE ||
+        !GetFileInformationByHandle(check, &after) ||
+        before.dwVolumeSerialNumber != after.dwVolumeSerialNumber ||
+        before.nFileIndexHigh != after.nFileIndexHigh ||
+        before.nFileIndexLow != after.nFileIndexLow) {
+        goto done;
+    }
+    success = 1;
+done:
+    if (check != INVALID_HANDLE_VALUE) {
+        CloseHandle(check);
+    }
+    if (input != INVALID_HANDLE_VALUE) {
+        CloseHandle(input);
+    }
+    if (!success) {
+        wpm_event_printf(WPM_EVENT_ERROR, "archive.verify.readonly.failed",
+                         "verify", "validate",
+                         "Error: read-only archive verification failed. "
+                         "Check source access, metadata, integrity, and "
+                         "existing trust.\n");
+        return 0;
+    }
+    wpm_event_printf(WPM_EVENT_SUCCESS, "archive.verify.readonly.success",
+                     "verify", "validate",
+                     "Verified package (read-only): %s (%s %s %s; "
+                     "signing key %s)\n",
+                     path_basename(full), info.name, info.arch, info.version,
+                     *signer ? signer : "unsigned");
+    return fflush(stdout) == 0 && !ferror(stdout);
+}
+
 int wpm_archive_verify(const char *archive_path) {
     char archive_full_path[WPM_PATH_SIZE];
     char data_root[WPM_PATH_SIZE], temp_root[WPM_PATH_SIZE],

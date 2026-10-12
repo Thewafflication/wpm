@@ -803,3 +803,14 @@ refusal to overwrite evidence, duration, noisy output, and timeout termination.
 Local x64 passed 1000 cases; x86/x64 passed 120 cases. Catalog policy is read once
 per row for both human and JSON rendering. This is partial REQ-0020/I-10 delivery;
 full quality profiles and 2.0 release-candidate evidence remain open.
+
+1.2.38 exposes existing read-only archive validation through optional
+`verify --read-only`, retaining default staged verification. The source is held
+against writes/deletion, leaf reparse/device/non-disk inputs are rejected, and
+file identity is rechecked. Existing trust only, no prompts/writes/scripts, and
+explicit existing unsigned authorization remain enforced. Fixtures cover absent
+roots/logs, trust states, batches/options, tampering/unindexed content, locked
+sources, symbolic leaves, and snapshot preservation. Broader I-08/I-06 stays open.
+The native query quality workflow run 38285246573 passed 1000 cases each on
+x86, x64, and ARM64 at 7f1f18aa120a8769b7cf2194023239b7293254bb;
+this remains the documented structural query subset rather than the full gate.

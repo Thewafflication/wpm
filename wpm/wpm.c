@@ -174,7 +174,8 @@ static void print_usage_line(Command command) {
         break;
     case CMD_VERIFY:
         wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
-                         "Usage: wpm verify <package...>\n");
+                         "Usage: wpm verify <package...> "
+                         "[--read-only [--allow-unsigned]]\n");
         break;
     case CMD_INSTALL:
         wpm_event_printf(
@@ -276,6 +277,9 @@ static int command_option_is_known(Command command, const char *option) {
     switch (command) {
     case CMD_BUILD:
         return strcmp(option, "--no-index") == 0;
+    case CMD_VERIFY:
+        return strcmp(option, "--read-only") == 0 ||
+               strcmp(option, "--allow-unsigned") == 0;
     case CMD_INSTALL:
         return strcmp(option, "--allow-unsigned") == 0 ||
                strcmp(option, "--offline") == 0;
@@ -523,6 +527,13 @@ static int validate_command_actions(Command command, int argc, char **argv,
     int count = collect_command_operands(command, argc, argv, command_index,
                                          operands, 8);
     const char *action = count > 0 ? operands[0] : "list";
+
+    if (command == CMD_VERIFY &&
+        command_has_option(argc, argv, command_index, "--allow-unsigned") &&
+        !command_has_option(argc, argv, command_index, "--read-only")) {
+        return invalid_action_shape(command,
+                                    "--allow-unsigned requires --read-only");
+    }
 
     if (command == CMD_LIST || command == CMD_SHOW) {
         unsigned ordinal = 0;
@@ -1126,6 +1137,10 @@ int main(int argc, char *argv[]) {
     if (cmd == CMD_RECOVERY || cmd == CMD_LIST || cmd == CMD_SHOW) {
         wpm_set_readonly(1);
     }
+    if (cmd == CMD_VERIFY &&
+        command_has_option(argc, argv, command_index, "--read-only")) {
+        wpm_set_readonly(1);
+    }
     SetEnvironmentVariableA("WPM_VERBOSE", verbose ? "1" : NULL);
     wpm_repo_set_verbose(verbose);
     if (verbose) {
@@ -1205,12 +1220,20 @@ operation_dispatch:
 
     case CMD_VERIFY: {
         int package_count = 0;
+        int readonly =
+            command_has_option(argc, argv, command_index, "--read-only");
+        int allow_unsigned =
+            command_has_option(argc, argv, command_index, "--allow-unsigned");
         for (int i = command_index + 1; i < argc; i++) {
-            if (strcmp(argv[i], "--verbose") == 0) {
+            if (!strcmp(argv[i], "--verbose") ||
+                !strcmp(argv[i], "--read-only") ||
+                !strcmp(argv[i], "--allow-unsigned")) {
                 continue;
             }
             package_count++;
-            if (!wpm_archive_verify(argv[i])) {
+            if (!(readonly
+                      ? wpm_archive_verify_readonly(argv[i], allow_unsigned)
+                      : wpm_archive_verify(argv[i]))) {
                 return 1;
             }
         }
@@ -1734,7 +1757,10 @@ void print_usage(Command c) {
             print_usage_line(c);
             wpm_event_printf(
                 WPM_EVENT_INFO, "wpm.info", "wpm", "command",
-                "\nValidate packages without installing them.\n\nExample:\n "
+                "\nValidate packages without installing them.\n"
+                "--read-only checks existing trust without extraction, writes, "
+                "or prompts. --allow-unsigned requires that mode and the "
+                "existing authorization policy.\n\nExample:\n "
                 " wpm verify .\\dist\\my-package-any-1.0.0.zip\n");
             return;
         case CMD_INSTALL:

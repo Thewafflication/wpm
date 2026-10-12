@@ -9,7 +9,7 @@ import subprocess
 import tempfile
 import zipfile
 
-from repository_test_helpers import junction
+from repository_test_helpers import junction, read_lock
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--wpm", required=True)
@@ -50,7 +50,7 @@ with tempfile.TemporaryDirectory(prefix="wpm-repo-verify-") as directory:
         env.pop(variable, None)
 
     def run(*arguments, succeeds=True, readonly=False):
-        before = snapshot(root)
+        before = snapshot(root) if readonly else None
         result = subprocess.run(
             [wpm, *map(str, arguments)],
             env=env,
@@ -75,6 +75,47 @@ with tempfile.TemporaryDirectory(prefix="wpm-repo-verify-") as directory:
             readonly=True,
         )
 
+    # Build an unsigned fixture using a separate root, then verify it with an
+    # absent target data/log root. The selected query must never initialize it.
+    env["WPM_DATA_DIR"] = str(root / "builder-data")
+    run("build", source, repository)
+    initial_archive = repository / "verify-check-any-1.0.0.zip"
+    env["WPM_DATA_DIR"] = str(data)
+    env["WPM_LOG_FILE"] = str(root / "readonly-external.log")
+    env["WPM_LOG_DIR"] = str(root / "readonly-external-logs")
+    run("verify", initial_archive, "--read-only", succeeds=False, readonly=True)
+    text = run(
+        "verify",
+        "--read-only",
+        initial_archive,
+        "--allow-unsigned",
+        readonly=True,
+    )
+    assert "Verified package (read-only)" in text, text
+    run(
+        "--verbose",
+        "verify",
+        "--read-only",
+        "--allow-unsigned",
+        initial_archive,
+        initial_archive,
+        readonly=True,
+    )
+    for arguments in (
+        ("verify", "--read-only"),
+        ("verify", initial_archive, "--allow-unsigned"),
+        ("verify", initial_archive, "--read-only", "--json"),
+        ("verify", initial_archive, "--read-only", "--dry-run"),
+        ("verify", repository, "--read-only"),
+        ("verify", "missing.zip", "--read-only"),
+        ("verify", r"\\.\NUL", "--read-only"),
+    ):
+        run(*arguments, succeeds=False, readonly=True)
+    assert not data.exists()
+    assert not (root / "readonly-external.log").exists()
+    assert not (root / "readonly-external-logs").exists()
+    for variable in ("WPM_LOG_FILE", "WPM_LOG_DIR"):
+        env.pop(variable)
     index = repository / "index.json"
     index.write_text('{"version":1,"packages":[]}')
     assert "verified (0 packages)" in verify()
@@ -104,8 +145,37 @@ with tempfile.TemporaryDirectory(prefix="wpm-repo-verify-") as directory:
     catalog([entry])
     verify(False)  # Unknown keys never trigger an interactive trust addition.
     verify(False, "--allow-unsigned")  # Cannot bypass a signed unknown key.
+    text = run("verify", archive, "--read-only", succeeds=False, readonly=True)
+    assert "Trust it?" not in text, text
+    run(
+        "verify",
+        archive,
+        "--read-only",
+        "--allow-unsigned",
+        succeeds=False,
+        readonly=True,
+    )
     run("trust", "add", public)
     assert "verified (1 packages)" in verify()
+    run("verify", "--read-only", archive, readonly=True)
+    run("verify", archive, "--read-only", "--verbose", readonly=True)
+    run("verify", archive, archive, "--read-only", readonly=True)
+    symbolic = repository / "archive-link.zip"
+    try:
+        os.symlink(archive, symbolic)
+    except OSError:
+        print("SKIP: fixture cannot create an archive symbolic link")
+    else:
+        try:
+            run(
+                "verify", symbolic, "--read-only", succeeds=False, readonly=True
+            )
+        finally:
+            symbolic.unlink()
+    before = snapshot(root)
+    with read_lock(archive, share=0):
+        run("verify", archive, "--read-only", succeeds=False)
+    assert snapshot(root) == before
     run("--verbose", "repo", "verify", repository, readonly=True)
     for field, value in (
         ("name", "other"),
@@ -148,9 +218,22 @@ with tempfile.TemporaryDirectory(prefix="wpm-repo-verify-") as directory:
     verify()
     catalog([entry])
     original = archive.read_bytes()
+    with zipfile.ZipFile(archive) as package:
+        contents = [
+            (item, package.read(item.filename)) for item in package.infolist()
+        ]
+    with zipfile.ZipFile(archive, "w") as package:
+        for item, contents_bytes in contents:
+            package.writestr(
+                item,
+                b"tampered" if item.filename == "payload" else contents_bytes,
+            )
+    run("verify", archive, "--read-only", succeeds=False, readonly=True)
+    archive.write_bytes(original)
     with zipfile.ZipFile(archive, "a") as package:
         package.writestr("unindexed", "must reject")
     verify(False)
+    run("verify", archive, "--read-only", succeeds=False, readonly=True)
     archive.write_bytes(original)
     verify()
     outside = root / "outside"
@@ -169,6 +252,15 @@ with tempfile.TemporaryDirectory(prefix="wpm-repo-verify-") as directory:
     with zipfile.ZipFile(archive) as package:
         key_id = json.loads(package.read(".wpm/signature.json"))["key_id"]
     run("trust", "revoke", key_id)
+    run("verify", archive, "--read-only", succeeds=False, readonly=True)
+    run(
+        "verify",
+        archive,
+        "--read-only",
+        "--allow-unsigned",
+        succeeds=False,
+        readonly=True,
+    )
     verify(False)
     # Unsigned archives require the explicit opt-in and the existing data rule.
     unsigned = root / "unsigned"
@@ -178,6 +270,7 @@ with tempfile.TemporaryDirectory(prefix="wpm-repo-verify-") as directory:
     archive.write_bytes((unsigned / archive.name).read_bytes())
     verify(False)
     verify(True, "--allow-unsigned")
+    run("verify", archive, "--read-only", "--allow-unsigned", readonly=True)
     for options in (
         ("--offline",),
         ("--links",),

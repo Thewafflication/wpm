@@ -192,11 +192,49 @@ wpm verify <package...>
 
 Validates each package's trusted Ed25519 signature, complete package index,
 payload, and metadata without running installation scripts or retaining the
-archive. Unsigned packages are always rejected by this command.
+archive. The default mode uses managed verification staging and rejects
+unsigned packages.
 
 ```text
 wpm verify ./dist/my_project-any-1.2.3.zip
 ```
+
+### Read-only archive verification (1.2.38)
+
+```text
+wpm verify ./dist/my_project-any-1.2.3.zip --read-only
+wpm verify ./dist/legacy-package.zip --read-only --allow-unsigned
+```
+
+The optional mode validates ordinary filesystem/UNC archives against existing
+trust without managed initialization, staging, extraction, scripts, logs, trust
+changes, or prompts. It checks paths, CRCs, index hashes/completeness under the
+existing signature/index rules, and existing package metadata syntax. Unknown,
+revoked, or invalid signed keys fail; `--allow-unsigned` cannot bypass a bad
+signed archive. Unsigned input requires that explicit flag and the existing
+explicit-data-root/elevated authorization rule. The flag is rejected without
+`--read-only` before initialization.
+
+Multiple archives and verbose placement are supported. Verification stops at
+the first failure and returns 1; all verified inputs return 0. No archive is
+retained or deployed. This checks current archive integrity/trust, not candidate
+eligibility, external deployed software, authenticated recovery state, or safe
+script replay. Generic metadata validation retains existing version/architecture
+rules rather than adding repository-selection constraints.
+
+Read handles deny source writes/deletion while validation runs. Leaf reparse
+points, directories, device namespaces, and non-disk inputs are rejected, and
+file identity is rechecked before success. Keep parent paths/namespace mappings
+stable; this is not a sandbox against uncooperative directory or volume changes.
+Filesystem/UNC reads use the caller's Windows access and may involve OS network
+access. The command adds no WPM web retrieval. Default staged verification and
+its trust workflow remain unchanged.
+
+The authoring fixture also exercises this public command with an absent data
+and external-log root, multiple archives/options, unknown/trusted/revoked keys,
+unsigned opt-in, payload hash tampering, unindexed content, a locked source,
+a symbolic leaf when supported, invalid shapes, and no script execution. Full
+snapshots prove read-only calls preserve existing state and absent roots.
 
 ### Remove packages
 

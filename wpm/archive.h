@@ -72,6 +72,11 @@ int wpm_archive_extract(const char *archive_path, const char *destination_dir);
  */
 int wpm_archive_verify(const char *archive_path);
 
+/** Validate current archive integrity/metadata/existing trust without writes,
+ * extraction, scripts, or trust prompts. Unsigned input requires explicit
+ * authorization under the existing data-root policy. */
+int wpm_archive_verify_readonly(const char *archive_path, int allow_unsigned);
+
 /**
  * Validate and install an archive.
  * @param[in] archive_path Archive to install.
