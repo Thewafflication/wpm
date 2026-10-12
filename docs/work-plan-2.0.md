@@ -769,3 +769,11 @@ retained records visible. Present empty sources, absent ordinals, configured
 and linked sources, invalid selectors, and read-only snapshots are covered.
 This is partial REQ-0018.005/I-08 delivery; eligibility selection and general
 machine output remain open, with breaking contracts reserved for 2.x.
+
+1.2.34 adds optional recovery `--json` over the same bounded parsed records.
+A shared JSON string serializer reuses event redaction, escapes text, retains
+valid UTF-8, and reports unavailable fields as null/partial without rewriting
+legacy bytes. Empty, bounded, invalid, unavailable, Unicode, malformed encoding,
+color, credential, and snapshot cases are covered. This optional audit schema
+does not complete general machine output or the authenticated recovery record;
+I-06/I-08 remain partial and breaking contracts remain reserved for 2.x.

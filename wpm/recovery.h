@@ -9,4 +9,7 @@ int wpm_recovery_list(void);
 /** Examine between 1 and 4096 matching entries; defaults remain unchanged. */
 int wpm_recovery_list_limit(unsigned limit);
 
+/** Render the same bounded query as UTF-8 wpm.recovery-list.v1 JSON. */
+int wpm_recovery_list_json(unsigned limit);
+
 #endif

@@ -37,6 +37,8 @@ set(
   "wpm.c"
   "logging.c"
   "logging.h"
+  "json_output.c"
+  "json_output.h"
   "capability.c"
   "capability.h"
   "operation.c"

@@ -42,14 +42,39 @@ with tempfile.TemporaryDirectory(prefix="wpm-recovery-") as directory:
             env=env,
             input="",
             text=True,
+            encoding="utf-8" if "--json" in arguments else None,
             capture_output=True,
             timeout=30,
         )
         assert (result.returncode == 0) == succeeds, result.stdout
+        if "--json" in arguments:
+            assert result.stderr == "", result.stderr
         if readonly:
             assert snapshot(root) == before
         return result.stdout
 
+    def machine(*arguments, succeeds=True):
+        text = run(
+            "recovery",
+            "list",
+            "--json",
+            *arguments,
+            succeeds=succeeds,
+            readonly=True,
+        )
+        assert text.endswith("\n") and "\x1b" not in text, text
+        value = json.loads(text)
+        assert value["schema"] == "wpm.recovery-list.v1", value
+        assert value["exit_code"] == (0 if succeeds else 1), value
+        assert value["authenticated"] is False, value
+        assert value["external_state_known"] is False, value
+        assert value["automatic_retry_supported"] is False, value
+        return value
+
+    value = machine()
+    assert value["records"] == [] and value["status"] == "complete", value
+    assert value["summary"]["limit"] == 128, value
+    run("recovery", "--json", "--verbose", succeeds=False, readonly=True)
     for arguments in (
         ("recovery",),
         ("recovery", "list"),
@@ -66,7 +91,6 @@ with tempfile.TemporaryDirectory(prefix="wpm-recovery-") as directory:
         ("recovery", "list", "extra"),
         ("recovery", "list", "--yes"),
         ("recovery", "list", "--dry-run"),
-        ("recovery", "list", "--json"),
     ):
         run(*arguments, succeeds=False, readonly=True)
     for variable in ("WPM_LOG_FILE", "WPM_LOG_DIR"):
@@ -126,6 +150,16 @@ with tempfile.TemporaryDirectory(prefix="wpm-recovery-") as directory:
     assert "install-script; exit code: 7" in text, text
     assert "1.0.0 -> 1.0.1" in text and audit.name in text, text
     assert "does not retry or clean up" in text, text
+    value = machine()
+    record = value["records"][0]
+    assert record["record"] == audit.name, value
+    assert record["name"] == "recovery-check" and record["exit_code"] == 7
+    assert record["phase"] == "install-script", value
+    assert value["summary"]["serialization_issues"] == 0, value
+    value = json.loads(
+        run("--color", "always", "recovery", "--json", readonly=True)
+    )
+    assert value["complete"] is True, value
     original = audit.read_bytes()
     secret = b"DO_NOT_LEAK_AUDIT_CREDENTIAL"
     audit.write_bytes(
@@ -136,6 +170,43 @@ with tempfile.TemporaryDirectory(prefix="wpm-recovery-") as directory:
     )
     text = run("recovery", "list", readonly=True)
     assert secret.decode() not in text
+    assert secret.decode() not in json.dumps(machine())
+    label = '\u540d\U0001f4a1 "quoted"\\path\ttail'
+    audit.write_bytes(
+        original.replace(
+            b"name=recovery-check", b"name=" + label.encode("utf-8")
+        )
+    )
+    assert machine()["records"][0]["name"] == label
+    audit.write_bytes(
+        original.replace(
+            b"name=recovery-check", b"name=before\x1b[31mred\x1b[0mafter"
+        )
+    )
+    assert machine()["records"][0]["name"] == "beforeredafter"
+    for invalid_utf8 in (
+        b"\x80",
+        b"\xc0\xaf",
+        b"\xe0\x80\xaf",
+        b"\xf0\x80\x80\xaf",
+        b"\xed\xa0\x80",
+        b"\xf4\x90\x80\x80",
+        b"\xe2\x82",
+        b"\xf5\x80",
+    ):
+        audit.write_bytes(
+            original.replace(b"name=recovery-check", b"name=" + invalid_utf8)
+        )
+        value = machine(succeeds=False)
+        assert value["records"][0]["name"] is None, value
+        assert value["status"] == "partial", value
+        assert value["summary"]["serialization_issues"] == 1, value
+    audit.write_bytes(
+        original.replace(
+            b"name=recovery-check", b'name=TOKEN="DO_NOT_LEAK_MACHINE token"'
+        )
+    )
+    assert "DO_NOT_LEAK_MACHINE" not in json.dumps(machine())
     audit.write_bytes(original.rstrip(b"\n"))
     run("recovery", "list", readonly=True)
     for changed in (
@@ -150,6 +221,9 @@ with tempfile.TemporaryDirectory(prefix="wpm-recovery-") as directory:
         audit.write_bytes(changed)
         text = run("recovery", "list", succeeds=False, readonly=True)
         assert "invalid/unreadable records: 1" in text, text
+        value = machine(succeeds=False)
+        assert value["records"] == [], value
+        assert value["summary"]["invalid_or_unreadable"] == 1, value
     audit.write_bytes(original)
     before = snapshot(root)
     with read_lock(audit, share=0):
@@ -182,6 +256,12 @@ with tempfile.TemporaryDirectory(prefix="wpm-recovery-") as directory:
         readonly=True,
     )
     run("recovery", "--limit", succeeds=False, readonly=True)
+    value = machine("--limit", "129")
+    names = [record["record"] for record in value["records"]]
+    assert names == sorted(names, key=str.casefold, reverse=True), names
+    assert value["summary"]["records"] == 129, value
+    value = machine("--limit", "1", succeeds=False)
+    assert value["summary"]["limited"] is True, value
     for copy in copies:
         copy.unlink()
     audit_dir = data / "audit"
@@ -190,6 +270,8 @@ with tempfile.TemporaryDirectory(prefix="wpm-recovery-") as directory:
     if junction(audit_dir, saved_dir):
         try:
             run("recovery", "list", succeeds=False, readonly=True)
+            value = machine(succeeds=False)
+            assert value["status"] == "unavailable", value
         finally:
             audit_dir.rmdir()
     else:

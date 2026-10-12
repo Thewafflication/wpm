@@ -8,6 +8,7 @@
 #include "capability.h"
 #include "logging.h"
 #include "recovery.h"
+#include "json_output.h"
 
 #define RECOVERY_PATH 4096
 #define RECOVERY_LIMIT 128
@@ -134,9 +135,54 @@ static int recovery_order(const void *left, const void *right) {
     return _stricmp(b->file, a->file);
 }
 
+static int recovery_json(const failure_record *records, int count, int invalid,
+                         int limited, int complete, unsigned limit) {
+    int encoding_issues = 0;
+    const char *status;
+    fputs("{\"schema\":\"wpm.recovery-list.v1\",\"records\":[", stdout);
+    for (int i = 0; i < count; i++) {
+        const failure_record *record = &records[i];
+        const char *keys[] = {"record",      "name",        "arch",
+                              "old_version", "new_version", "archive_reference",
+                              "phase"};
+        const char *values[] = {record->file,        record->name,
+                                record->arch,        record->old_version,
+                                record->new_version, record->archive,
+                                record->phase};
+        fputs(i ? ",{" : "{", stdout);
+        for (unsigned j = 0; j < sizeof(keys) / sizeof(keys[0]); j++) {
+            fprintf(stdout, "%s\"%s\":", j ? "," : "", keys[j]);
+            if (!wpm_json_string(values[j])) {
+                encoding_issues++;
+            }
+        }
+        fprintf(stdout, ",\"exit_code\":%lu}",
+                (unsigned long)record->exit_code);
+    }
+    status = complete && !encoding_issues        ? "complete"
+             : !complete && !invalid && !limited ? "unavailable"
+                                                 : "partial";
+    complete = complete && !encoding_issues;
+    fprintf(stdout,
+            "],\"summary\":{\"records\":%d,\"invalid_or_unreadable\":%d,"
+            "\"limited\":%s,\"limit\":%u,\"serialization_issues\":%d},"
+            "\"status\":\"%s\",\"complete\":%s,\"exit_code\":%d,"
+            "\"authenticated\":false,\"external_state_known\":false,"
+            "\"automatic_retry_supported\":false}\n",
+            count, invalid, limited ? "true" : "false", limit, encoding_issues,
+            status, complete ? "true" : "false", complete ? 0 : 1);
+    return complete;
+}
+
+static int recovery_query(unsigned limit, int json);
+
 int wpm_recovery_list(void) { return wpm_recovery_list_limit(RECOVERY_LIMIT); }
 
-int wpm_recovery_list_limit(unsigned limit) {
+int wpm_recovery_list_limit(unsigned limit) { return recovery_query(limit, 0); }
+
+int wpm_recovery_list_json(unsigned limit) { return recovery_query(limit, 1); }
+
+static int recovery_query(unsigned limit, int json) {
     char root[RECOVERY_PATH], directory[RECOVERY_PATH], path[RECOVERY_PATH];
     failure_record *records;
     WIN32_FIND_DATAA found;
@@ -199,6 +245,9 @@ int wpm_recovery_list_limit(unsigned limit) {
     success = !invalid && !limited;
 report:
     qsort(records, (size_t)count, sizeof(*records), recovery_order);
+    if (json) {
+        goto done;
+    }
     wpm_event_printf(WPM_EVENT_INFO, "recovery.audit.start", "recovery", "list",
                      "Recorded upgrade failures (read-only):\n");
     for (int i = 0; i < count; i++) {
@@ -230,8 +279,12 @@ done:
     if (search != INVALID_HANDLE_VALUE) {
         FindClose(search);
     }
+    if (json) {
+        success =
+            recovery_json(records, count, invalid, limited, success, limit);
+    }
     free(records);
-    if (!success && !invalid && !limited) {
+    if (!json && !success && !invalid && !limited) {
         wpm_event_printf(WPM_EVENT_ERROR, "recovery.audit.failed", "recovery",
                          "list",
                          "Error: failure audits could not be read. "

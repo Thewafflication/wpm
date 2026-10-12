@@ -22,6 +22,10 @@ int wpm_event_printf(wpm_event_class kind, const char *code,
                      const char *operation, const char *phase,
                      const char *format, ...);
 
+/** Apply the shared terminal/credential filter to mutable NUL-terminated text.
+ * Filtering only shortens text; callers retain ownership of the buffer. */
+void wpm_redact_text(char *text);
+
 /**
  * Open the configured WSP operational log in append mode.
  * @return Nonzero on success; zero if the log directory or file cannot open.

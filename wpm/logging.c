@@ -321,7 +321,7 @@ static char *wpm_find_protected_field(char *text, const char *field) {
     return NULL;
 }
 
-static void wpm_safe_event_text(char *text) {
+void wpm_redact_text(char *text) {
     char *read = text, *write = text;
     static const char *protected_fields[] = {
         "secret-key=", "password=", "token=", "access_token=", "api_key="};
@@ -428,7 +428,7 @@ int wpm_event_printf(wpm_event_class kind, const char *code,
     if (result < 0 || result >= (int)sizeof(message)) {
         return -1;
     }
-    wpm_safe_event_text(message);
+    wpm_redact_text(message);
     result = wpm_write_console_message(message, styles[kind]);
     if (wpm_logger_initialized && !wpm_is_readonly() && message[0]) {
         size_t length = strlen(message);
@@ -469,7 +469,7 @@ int wpm_vprintf(const char *format, va_list arguments) {
         return -1;
     }
     message[sizeof(message) - 1] = '\0';
-    wpm_safe_event_text(message);
+    wpm_redact_text(message);
     result = wpm_write_console_message(message, wpm_message_style_for(message));
     if (wpm_logger_initialized && !wpm_is_readonly()) {
         length = strlen(message);
