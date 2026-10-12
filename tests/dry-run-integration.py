@@ -88,6 +88,54 @@ with tempfile.TemporaryDirectory(prefix="wpm-dry-run-") as directory:
             }
         )
     )
+    # Linked schema-1 roots expose historical versions without copying their
+    # catalog or archives. Duplicate/unsafe links cannot redirect package roots.
+    previous = root / "previous"
+    previous.mkdir()
+    shutil.copyfile(old, previous / old.name)
+    (previous / "index.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "packages": [
+                    {
+                        "name": "dry-test",
+                        "version": "1.0.0",
+                        "arch": "any",
+                        "url": old.name,
+                    }
+                ],
+                "repositories": ["../", "https://invalid.example/ignored"],
+            }
+        )
+    )
+    index = json.loads((root / "index.json").read_text())
+    index["repositories"] = ["previous", "previous", "../outside"]
+    (root / "index.json").write_text(json.dumps(index))
+    before = snapshot(root)
+    text = run(
+        "install",
+        "dry-test",
+        "--version",
+        "1.0.0",
+        "--allow-unsigned",
+        "--dry-run",
+        "--offline",
+    )
+    assert str(previous) in text and "1.0.0" in text, text
+    assert "unsafe repository link" in text, text
+    assert snapshot(root) == before
+    run(
+        "install",
+        "dry-test",
+        "--version",
+        "1.0.0",
+        "--allow-unsigned",
+        "--offline",
+    )
+    assert (root / "script-ran").exists()
+    run("remove", old.stem)
+    (root / "script-ran").unlink()
     shutil.copyfile(old, data / "packages" / old.name)
     for command in (
         ("install", "dry-test", "--allow-unsigned"),
@@ -191,6 +239,19 @@ with tempfile.TemporaryDirectory(prefix="wpm-dry-run-") as directory:
                 ],
             }
         )
+    )
+    # Cached web links form a cycle and include an insecure downgrade. Neither
+    # cycles nor links may grant network/write capabilities in a dry-run.
+    linked_web = "https://github.com/example/dry-run/releases/download/old"
+    index_path = cache / f"{value:08x}.json"
+    index = json.loads(index_path.read_text())
+    index["repositories"] = [linked_web, "http://invalid.example/unsafe"]
+    index_path.write_text(json.dumps(index))
+    linked_hash = 2166136261
+    for byte in linked_web.encode():
+        linked_hash = ((linked_hash ^ byte) * 16777619) & 0xFFFFFFFF
+    (cache / f"{linked_hash:08x}.json").write_text(
+        json.dumps({"version": 1, "packages": [], "repositories": [web]})
     )
     before = snapshot(root)
     text = run(

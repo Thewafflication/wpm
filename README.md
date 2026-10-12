@@ -157,3 +157,6 @@ wpm trust add wpm-release.public
 ```
 
 WPM does not automatically trust keys distributed by package repositories.
+
+Repository indexes can link to earlier release repositories using the optional
+[schema-1 linked repository layout](docs/linked-repositories.md).

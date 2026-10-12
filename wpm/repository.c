@@ -1133,7 +1133,7 @@ static int refresh(repository *repo, int offline, int required) {
         "Warning: could not retrieve repository index: %s\n", repo->url);
     return 0;
 }
-static int report_available_updates(void);
+static int report_available_updates(int offline);
 int wpm_repo_update(int offline) {
     repository repositories[MAX_REPOSITORIES];
     int count, i, refreshed = 0;
@@ -1154,7 +1154,7 @@ int wpm_repo_update(int offline) {
             refreshed = 1;
         }
     }
-    if (!refreshed || !report_available_updates()) {
+    if (!refreshed || !report_available_updates(offline)) {
         return 0;
     }
     wpm_event_printf(WPM_EVENT_RESULT, "repository.result", "repository",
@@ -1200,9 +1200,10 @@ static int json_value_end(const char **source) {
         if (quote) {
             if (*p == '\\' && p[1]) {
                 p += 2;
-            } else if (*p++ == '"') {
-                quote = 0;
             } else {
+                if (*p == '"') {
+                    quote = 0;
+                }
                 p++;
             }
             continue;
@@ -1223,8 +1224,11 @@ static int json_value_end(const char **source) {
     *source = p;
     return 1;
 }
+static int append_repository_link(repository *repositories, int *count,
+                                  const repository *parent, const char *link);
 static int parse_index(const char *path, repository *repo,
-                       package_entry *packages, int *count) {
+                       package_entry *packages, int *count,
+                       repository *repositories, int *repository_count) {
     FILE *f = wpm_fopen(path, "rb");
     long size;
     char *text;
@@ -1344,6 +1348,45 @@ static int parse_index(const char *path, repository *repo,
             "reading %s; later entries or repositories may be unavailable.\n",
             MAX_PACKAGES, repo->url);
     }
+    /* Optional schema-1 links are repository roots, not package URLs. */
+    p = skip_ws(text);
+    if (*p == '{') {
+        p++;
+        while (*(p = skip_ws(p)) && *p != '}') {
+            char key[32];
+            if (!json_string(&p, key, sizeof(key)) ||
+                *(p = skip_ws(p)) != ':') {
+                break;
+            }
+            p = skip_ws(p + 1);
+            if (strcmp(key, "repositories") == 0 && *p == '[') {
+                p++;
+                while (*(p = skip_ws(p)) && *p != ']') {
+                    char link[PATH_SIZE];
+                    if (!json_string(&p, link, sizeof(link))) {
+                        break;
+                    }
+                    append_repository_link(repositories, repository_count, repo,
+                                           link);
+                    p = skip_ws(p);
+                    if (*p != ',') {
+                        break;
+                    }
+                    p++;
+                }
+                if (*p == ']') {
+                    p++;
+                }
+            } else {
+                json_value_end(&p);
+            }
+            p = skip_ws(p);
+            if (*p != ',') {
+                break;
+            }
+            p++;
+        }
+    }
     free(text);
     return 1;
 }
@@ -1396,6 +1439,37 @@ static int package_source(const char *root, const char *item, char *result,
     return join_path(result, size, root, item);
 }
 
+/* Bound the complete graph and deduplicate roots before fetching links. */
+static int append_repository_link(repository *repositories, int *count,
+                                  const repository *parent, const char *link) {
+    char source[PATH_SIZE], normalized[PATH_SIZE];
+    if (!package_source(parent->url, link, source, sizeof(source)) ||
+        !repository_normalize(source, normalized, sizeof(normalized), 0)) {
+        wpm_event_printf(WPM_EVENT_WARNING, "repository.link.invalid",
+                         "repository", "resolve",
+                         "Warning: ignoring unsafe repository link in %s.\n",
+                         parent->url);
+        return 0;
+    }
+    for (int i = 0; i < *count; i++) {
+        if (_stricmp(repositories[i].url, normalized) == 0) {
+            return 1;
+        }
+    }
+    if (*count >= MAX_REPOSITORIES) {
+        wpm_event_printf(WPM_EVENT_WARNING, "repository.link.capacity",
+                         "repository", "resolve",
+                         "Warning: repository link capacity (%d) reached.\n",
+                         MAX_REPOSITORIES);
+        return 0;
+    }
+    repository *child = &repositories[*count];
+    *child = *parent;
+    child->order = *count;
+    strcpy_s(child->url, sizeof(child->url), normalized);
+    (*count)++;
+    return 1;
+}
 typedef struct {
     unsigned long long major, minor, patch;
     const char *prerelease;
@@ -1738,7 +1812,8 @@ static int load_entries(repository *repositories, int *repository_count,
                     : index_source(repositories[i].url, cached, sizeof(cached));
             if (available &&
                 GetFileAttributesA(cached) != INVALID_FILE_ATTRIBUTES &&
-                parse_index(cached, &repositories[i], entries, entry_count)) {
+                parse_index(cached, &repositories[i], entries, entry_count,
+                            repositories, repository_count)) {
                 usable = 1;
             } else {
                 wpm_event_printf(
@@ -1753,7 +1828,8 @@ static int load_entries(repository *repositories, int *repository_count,
         }
         if (refresh(&repositories[i], offline, 0) &&
             cache_path(repositories[i].url, cached, sizeof(cached))) {
-            if (parse_index(cached, &repositories[i], entries, entry_count)) {
+            if (parse_index(cached, &repositories[i], entries, entry_count,
+                            repositories, repository_count)) {
                 usable = 1;
             }
         }
@@ -2175,13 +2251,13 @@ static int count_upgrade_candidates(installed_entry *installed,
     return count;
 }
 
-static int report_available_updates(void) {
+static int report_available_updates(int offline) {
     repository repositories[MAX_REPOSITORIES];
     package_entry entries[MAX_PACKAGES];
     installed_entry installed[MAX_INSTALLED];
     int rc, ec, ic, count;
     if (!load_installed(installed, &ic) ||
-        !load_entries(repositories, &rc, entries, &ec, 1)) {
+        !load_entries(repositories, &rc, entries, &ec, offline)) {
         return 0;
     }
     count = print_upgrade_plan(installed, ic, entries, ec, NULL);

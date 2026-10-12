@@ -230,3 +230,6 @@ and released after required verification. The maintainer subsequently specified 
 valid workflows; introduce safety options explicitly. A breaking change requires
 a major-version prerelease. This instruction does not bypass commit hooks or
 required release verification.
+
+Compatible increments continue on 1.x with periodic verified releases. Reserve
+breaking changes for 2.x; optional features must preserve existing valid flows.

@@ -510,6 +510,8 @@ jobs:
           path: release-documentation
 
       - name: Create release package index
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
           $packages = Get-ChildItem -LiteralPath release/packages `
@@ -528,7 +530,30 @@ jobs:
               "Expected three release packages," +
               " found $($packages.Count)."
           ) }
-          [ordered]@{ version = 1; packages = @($packages) } |
+          $endpoint = "repos/${{ github.repository }}/releases?per_page=100"
+          $releases = gh api $endpoint |
+            ConvertFrom-Json
+          $currentVersion = [version]'${{ github.ref_name }}'.Split('-')[0]
+          $previous = $releases | Where-Object {
+            -not $_.draft -and -not $_.prerelease -and
+            $_.tag_name -match '^\d+\.\d+\.\d+$' -and
+            $_.tag_name -ne '${{ github.ref_name }}' -and
+            [version]$_.tag_name -lt $currentVersion -and
+            @($_.assets | Where-Object name -eq 'index.json').Count -eq 1
+          } | Sort-Object { [version]$_.tag_name } -Descending |
+            Select-Object -First 1
+          $links = @()
+          if ($previous) {
+            $links += (
+              "https://github.com/${{ github.repository }}/releases/" +
+              "download/$($previous.tag_name)"
+            )
+          }
+          [ordered]@{
+            version = 1
+            packages = @($packages)
+            repositories = $links
+          } |
             ConvertTo-Json -Depth 3 |
             Set-Content -LiteralPath release/index.json -Encoding utf8
 
