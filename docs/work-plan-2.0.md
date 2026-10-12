@@ -858,3 +858,9 @@ offline catalog update, and signed installation from relative locators. The
 copy stays byte/mtime unchanged and only the authorized install runs its script.
 This is partial REQ-0017.007/.008 evidence; physical media, ACL/read-only media,
 network-share execution, and full I-09 completion remain open.
+
+1.2.43 documents the repeatable copied-distribution command sequence with
+independent public-key provisioning, private keys outside the tree, explicit
+catalog verification before configuration, a separate writable consumer root,
+offline update/install, and the unchanged legacy index-policy boundary. Physical
+media demonstrations and full REQ-0017/I-09 acceptance remain open.

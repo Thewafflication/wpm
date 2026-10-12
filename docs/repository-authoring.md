@@ -261,3 +261,58 @@ locators. The consumer trusts the package key separately. Repository bytes and
 modification times remain unchanged during verification and consumption.
 This fixture demonstrates filesystem-copy portability; physical removable media,
 network shares, and access-control/read-only media evidence remain open.
+
+## Repeatable copied-distribution journey (1.2.43)
+
+These PowerShell examples assume an existing signed `demo.zip` whose package
+name is `demo`, a separately verified package public key, and a matching index
+private/public pair. Key files stay outside both distribution trees. Select
+keys through your existing independent authorization process; copying a key
+from the distribution alone does not establish authority.
+
+In the author's shell, start with fresh `repository` and `distribution-copy`
+destinations beneath the current directory. Check every command succeeds before
+continuing; stop on a nonzero WPM exit code or a copy error.
+
+```powershell
+$packageKey = '.\keys\package.public'
+$indexPrivate = '.\keys\index.private'
+$indexPublic = '.\keys\index.public'
+wpm trust add $packageKey
+wpm repo init .\repository
+wpm repo add-package .\repository .\demo.zip
+wpm repo index .\repository --dry-run
+wpm repo index .\repository
+wpm repo sign .\repository --sign $indexPrivate --index-key $indexPublic
+wpm repo verify .\repository --index-key $indexPublic
+Copy-Item -LiteralPath .\repository -Destination .\distribution-copy -Recurse
+wpm repo verify .\distribution-copy --index-key $indexPublic
+```
+
+Copy the entire tree, including `index.json`, `index.sig`, and `packages`;
+retain relative package paths. The copy destination can be an optical-mastering
+directory before an external utility writes the medium. If catalog bytes change
+later, explicitly re-sign using `--replace-signature` and verify again.
+
+In a fresh consumer shell, use an explicit, separate writable data directory.
+Provision the public keys independently; the consumer needs no private key.
+The copied repository remains the read source, separate from consumer state.
+
+```powershell
+$env:WPM_DATA_DIR = "$PWD\consumer-data"
+$packageKey = '.\keys\package.public'
+$indexPublic = '.\keys\index.public'
+wpm trust add $packageKey
+wpm repo verify .\distribution-copy --index-key $indexPublic
+wpm repo add .\distribution-copy --priority 1000
+wpm update --offline
+wpm install demo --offline
+wpm list demo
+```
+
+The explicit verification checks catalog authority and package trust before
+configuration. Legacy update/install still use their existing package validation
+and resolver rules; they do not persist the index-key selection or enforce
+`index.sig`. Installation executes the package's existing authorized scripts.
+Offline mode prohibits managed web retrieval but does not certify package script
+network behavior. This journey does not claim physical-media or ACL evidence.
