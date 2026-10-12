@@ -184,7 +184,7 @@ static void print_usage_line(Command command) {
     case CMD_REPO:
         wpm_event_printf(
             WPM_EVENT_INFO, "wpm.info", "wpm", "command",
-            "Usage: wpm repo <add|list|remove|update|diagnose> ...\n");
+            "Usage: wpm repo <init|add|list|remove|update|diagnose> ...\n");
         break;
     case CMD_KEYGEN:
         wpm_event_printf(
@@ -251,7 +251,8 @@ static int command_option_is_known(Command command, const char *option) {
         return strcmp(option, "--allow-unsigned") == 0 ||
                strcmp(option, "--offline") == 0;
     case CMD_REPO:
-        return strcmp(option, "--links") == 0 ||
+        return strcmp(option, "--dry-run") == 0 ||
+               strcmp(option, "--links") == 0 ||
                strcmp(option, "--allow-insecure-http") == 0 ||
                strcmp(option, "--offline") == 0;
     case CMD_KEYGEN:
@@ -443,6 +444,23 @@ static int validate_command_actions(Command command, int argc, char **argv,
     const char *action = count > 0 ? operands[0] : "list";
 
     if (command == CMD_REPO) {
+        if (command_has_option(argc, argv, command_index, "--dry-run") &&
+            strcmp(action, "init")) {
+            return invalid_action_shape(command,
+                                        "--dry-run requires repo init");
+        }
+        if (!strcmp(action, "init")) {
+            if (count == 2 &&
+                !command_has_option(argc, argv, command_index, "--priority") &&
+                !command_has_option(argc, argv, command_index,
+                                    "--allow-insecure-http") &&
+                !command_has_option(argc, argv, command_index, "--offline") &&
+                !command_has_option(argc, argv, command_index, "--links")) {
+                return 1;
+            }
+            return invalid_action_shape(command,
+                                        "init requires one directory operand");
+        }
         if (command_has_option(argc, argv, command_index, "--links") &&
             strcmp(action, "diagnose")) {
             return invalid_action_shape(command, "--links requires diagnose");
@@ -785,6 +803,8 @@ int main(int argc, char *argv[]) {
             verbose = 1;
         } else if (strcmp(argv[i], "--offline") == 0) {
             offline = 1;
+        } else if (strcmp(argv[i], "--dry-run") == 0) {
+            /* Read-only capabilities were already applied before parsing. */
         } else if (strcmp(argv[i], "--version") == 0 && command_index == -1) {
             show_version = 1;
         } else if ((strcmp(argv[i], "--help") == 0 ||
@@ -859,6 +879,13 @@ int main(int argc, char *argv[]) {
     }
 
     if (command_index == -1) {
+        if (dry_run) {
+            wpm_event_printf(
+                WPM_EVENT_ERROR, "command.required", "wpm", "parse",
+                "Error: --dry-run requires a supported command.\n");
+            print_usage(0);
+            return 1;
+        }
         print_version();
         if (verbose) {
             print_runtime_mode();
@@ -868,6 +895,23 @@ int main(int argc, char *argv[]) {
     }
 
     Command cmd = parse_command(argv[command_index]);
+    if (cmd == CMD_UNKNOWN) {
+        wpm_event_printf(WPM_EVENT_ERROR, "command.unknown", "wpm", "parse",
+                         "Error: unknown command: %s.\n", argv[command_index]);
+        print_usage_line(cmd);
+        return 1;
+    }
+    if (dry_run && cmd != CMD_INSTALL && cmd != CMD_REMOVE &&
+        cmd != CMD_UPGRADE &&
+        !(cmd == CMD_REPO && command_index + 1 < argc &&
+          !strcmp(argv[command_index + 1], "init"))) {
+        wpm_event_printf(WPM_EVENT_ERROR, "command.dryrun.unsupported", "wpm",
+                         "parse",
+                         "Error: this command does not support "
+                         "--dry-run.\n");
+        print_usage_line(cmd);
+        return 1;
+    }
     if (cmd != CMD_UNKNOWN &&
         !validate_command_options(cmd, argc, argv, command_index)) {
         return 1;
@@ -1108,6 +1152,13 @@ operation_dispatch:
             if (!wpm_repo_list()) {
                 return 1;
             }
+        } else if (strcmp(action, "init") == 0) {
+            const char *operands[3];
+            collect_command_operands(CMD_REPO, argc, argv, command_index,
+                                     operands, 3);
+            if (!wpm_repo_init(operands[1], dry_run)) {
+                return 1;
+            }
         } else if (strcmp(action, "diagnose") == 0) {
             int healthy =
                 command_has_option(argc, argv, command_index, "--links")
@@ -1155,7 +1206,7 @@ operation_dispatch:
         } else {
             wpm_event_printf(
                 WPM_EVENT_INFO, "wpm.info", "wpm", "command",
-                "Usage: wpm repo <add|list|remove|update|diagnose> ...\n");
+                "Usage: wpm repo <init|add|list|remove|update|diagnose> ...\n");
             return 1;
         }
         break;
@@ -1469,7 +1520,8 @@ void print_usage(Command c) {
                 WPM_EVENT_INFO, "wpm.info", "wpm", "command",
                 "\nManage package repositories.\n\nExamples:\n  wpm repo "
                 "add .\\repository --priority 10\n  wpm repo list\n  wpm "
-                "repo update --offline\n  wpm repo diagnose [--links]\n");
+                "repo update --offline\n  wpm repo diagnose [--links]\n  "
+                "wpm repo init .\\repository [--dry-run]\n");
             return;
         case CMD_KEYGEN:
             print_usage_line(c);
@@ -1552,7 +1604,7 @@ void print_usage(Command c) {
                      "      Remove one or more packages\n\n");
 
     wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
-                     "  repo <add|list|remove|update|diagnose> ...\n");
+                     "  repo <init|add|list|remove|update|diagnose> ...\n");
     wpm_event_printf(
         WPM_EVENT_INFO, "wpm.info", "wpm", "command",
         "      Configure HTTPS, opted-in HTTP, local, or UNC package "

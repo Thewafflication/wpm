@@ -8,16 +8,20 @@ int wpm_repo_version_is_valid(const char *version);
 
 /** Enable or disable detailed repository diagnostics. */
 void wpm_repo_set_verbose(int enabled);
+/** Create a fresh schema-1 filesystem repository without replacing an index.
+ * A dry run disables mutation and previews the target layout. */
+int wpm_repo_init(const char *directory, int dry_run);
 /** Add or reprioritize a supported repository locator. */
 int wpm_repo_add(const char *url, int priority, int allow_insecure_http);
 /** List configured repositories in resolution order. */
 int wpm_repo_list(void);
 /** Remove a configured repository. */
 int wpm_repo_remove(const char *url);
-/** Inspect configured catalog health without writes or network access.
+/** Inspect configured catalog health without managed writes or web retrieval.
  * Returns nonzero only when all configured catalogs are usable and fresh. */
 int wpm_repo_diagnose(void);
-/** Inspect configured and linked catalog health without writes or networking.
+/** Inspect configured and linked catalog health without managed writes or web
+ * retrieval.
  */
 int wpm_repo_diagnose_links(void);
 /** Refresh repository indexes, optionally using cached data only. */

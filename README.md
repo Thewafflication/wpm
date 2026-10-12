@@ -163,3 +163,6 @@ Repository indexes can link to earlier release repositories using the optional
 
 Use `wpm repo diagnose` for a [read-only repository health report](
 docs/repository-diagnostics.md) and suggested next actions.
+
+Create a fresh repository with `wpm repo init <directory> [--dry-run]`; see
+[repository authoring](docs/repository-authoring.md).

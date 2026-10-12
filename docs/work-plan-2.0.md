@@ -681,3 +681,9 @@ invalid links, missing/stale catalogs, and snapshots cover the additive mode.
 1.2.23 extends HTTP Content-Length to 64-bit framing, preserves transport error
 codes through cleanup, and adds real loopback short/invalid/unknown/chunked
 response coverage with cache retention and retry. I-05 remains partially open.
+
+1.2.24 adds fresh filesystem `repo init` with exclusive/atomic index creation,
+no overwrite, source-layout checks, and complete dry-run snapshots. Global
+`--dry-run` placement is recognized; unknown and unsupported commands fail
+before managed-state initialization.
+I-09 publication/signing work and physical media evidence remain open.

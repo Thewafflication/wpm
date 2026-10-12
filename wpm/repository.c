@@ -297,6 +297,199 @@ static int repository_normalize(const char *source, char *result, size_t size,
     }
     return 1;
 }
+static int author_attributes(const char *path, DWORD *attributes) {
+    DWORD error;
+    *attributes = GetFileAttributesA(path);
+    if (*attributes != INVALID_FILE_ATTRIBUTES) {
+        return 1;
+    }
+    error = GetLastError();
+    if (error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND) {
+        return 1;
+    }
+    wpm_event_printf(WPM_EVENT_ERROR, "repository.author.inspect.failed",
+                     "repository", "inspect",
+                     "Error: cannot inspect repository target "
+                     "(Windows error %lu): %s\n",
+                     (unsigned long)error, path);
+    return 0;
+}
+static int author_directory(const char *path) {
+    DWORD attributes;
+    if (!wpm_require_capability(WPM_CAP_WRITE, "create repository directory")) {
+        return 0;
+    }
+    attributes = GetFileAttributesA(path);
+    if (attributes == INVALID_FILE_ATTRIBUTES &&
+        !CreateDirectoryA(path, NULL) &&
+        GetLastError() != ERROR_ALREADY_EXISTS) {
+        return 0;
+    }
+    attributes = GetFileAttributesA(path);
+    if (attributes == INVALID_FILE_ATTRIBUTES) {
+        return 0;
+    }
+    if (!(attributes & FILE_ATTRIBUTE_DIRECTORY)) {
+        SetLastError(ERROR_DIRECTORY);
+        return 0;
+    }
+    if (attributes & FILE_ATTRIBUTE_REPARSE_POINT) {
+        SetLastError(ERROR_ACCESS_DENIED);
+        return 0;
+    }
+    return 1;
+}
+int wpm_repo_init(const char *directory, int dry_run) {
+    static const char body[] = "{\n  \"version\": 1,\n  \"packages\": []\n}\n";
+    char root[PATH_SIZE], index[PATH_SIZE], candidate[PATH_SIZE];
+    char packages[PATH_SIZE], keys[PATH_SIZE], parent[PATH_SIZE];
+    HANDLE output = INVALID_HANDLE_VALUE;
+    DWORD attributes, written, failure;
+    int created = 0, success = 0;
+    const char *phase = "create repository directories";
+    if (dry_run) {
+        wpm_set_readonly(1);
+    } else if (!wpm_require_capability(WPM_CAP_WRITE,
+                                       "initialize repository")) {
+        return 0;
+    }
+    if (!directory || is_web_repository(directory) ||
+        strstr(directory, "://") ||
+        !repository_normalize(directory, root, sizeof(root), 1)) {
+        wpm_event_printf(WPM_EVENT_ERROR, "repository.author.target.invalid",
+                         "repository", "init",
+                         "Error: repository initialization requires a "
+                         "filesystem directory.\n");
+        return 0;
+    }
+    if (!join_path(index, sizeof(index), root, "index.json") ||
+        !join_path(candidate, sizeof(candidate), root, ".index.json.new") ||
+        !join_path(packages, sizeof(packages), root, "packages") ||
+        !join_path(keys, sizeof(keys), root, "keys")) {
+        return 0;
+    }
+    DWORD index_attributes, candidate_attributes;
+    if (!author_attributes(index, &index_attributes) ||
+        !author_attributes(candidate, &candidate_attributes)) {
+        return 0;
+    }
+    if (index_attributes != INVALID_FILE_ATTRIBUTES ||
+        candidate_attributes != INVALID_FILE_ATTRIBUTES) {
+        wpm_event_printf(WPM_EVENT_ERROR, "repository.author.exists",
+                         "repository", "init",
+                         "Error: index.json or its publication candidate "
+                         "already exists; initialization does not overwrite "
+                         "existing files.\n");
+        return 0;
+    }
+    const char *directories[] = {root, packages, keys};
+    for (size_t i = 0; i < sizeof(directories) / sizeof(directories[0]); i++) {
+        if (!author_attributes(directories[i], &attributes)) {
+            return 0;
+        }
+        if (attributes != INVALID_FILE_ATTRIBUTES &&
+            (!(attributes & FILE_ATTRIBUTE_DIRECTORY) ||
+             (attributes & FILE_ATTRIBUTE_REPARSE_POINT))) {
+            wpm_event_printf(WPM_EVENT_ERROR, "repository.author.path.invalid",
+                             "repository", "init",
+                             "Error: repository layout paths must be "
+                             "directories without reparse points.\n");
+            return 0;
+        }
+    }
+    if (GetFileAttributesA(root) == INVALID_FILE_ATTRIBUTES) {
+        char *separator;
+        strcpy_s(parent, sizeof(parent), root);
+        separator = strrchr(parent, '\\');
+        if (!separator) {
+            return 0;
+        }
+        if (separator == parent + 2 && parent[1] == ':') {
+            separator[1] = 0;
+        } else {
+            *separator = 0;
+        }
+        attributes = GetFileAttributesA(parent);
+        if (attributes == INVALID_FILE_ATTRIBUTES ||
+            !(attributes & FILE_ATTRIBUTE_DIRECTORY)) {
+            wpm_event_printf(WPM_EVENT_ERROR,
+                             "repository.author.parent.missing", "repository",
+                             "init",
+                             "Error: the repository parent directory must "
+                             "exist; create it before running repo init.\n");
+            return 0;
+        }
+    }
+    if (dry_run) {
+        wpm_event_printf(
+            WPM_EVENT_INFO, "repository.author.plan", "repository", "preview",
+            "Would create repository: %s\n"
+            "  Directories: %s; %s\n  Index: %s (schema 1, empty)\n",
+            root, packages, keys, index);
+        wpm_event_printf(
+            WPM_EVENT_RESULT, "repository.author.planned", "repository",
+            "preview", "Result: repository initialization planned (dry-run)\n");
+        return 1;
+    }
+    if (!wpm_require_capability(WPM_CAP_WRITE, "initialize repository")) {
+        return 0;
+    }
+    if (!author_directory(root) || !author_directory(packages) ||
+        !author_directory(keys)) {
+        goto cleanup;
+    }
+    phase = "create index candidate";
+    output = CreateFileA(candidate, GENERIC_WRITE, 0, NULL, CREATE_NEW,
+                         FILE_ATTRIBUTE_NORMAL, NULL);
+    if (output == INVALID_HANDLE_VALUE) {
+        goto cleanup;
+    }
+    created = 1;
+    phase = "write index candidate";
+    if (!WriteFile(output, body, (DWORD)(sizeof(body) - 1), &written, NULL)) {
+        goto cleanup;
+    }
+    if (written != sizeof(body) - 1) {
+        SetLastError(ERROR_WRITE_FAULT);
+        goto cleanup;
+    }
+    phase = "flush index candidate";
+    if (!FlushFileBuffers(output)) {
+        goto cleanup;
+    }
+    phase = "close index candidate";
+    if (!CloseHandle(output)) {
+        output = INVALID_HANDLE_VALUE;
+        goto cleanup;
+    }
+    output = INVALID_HANDLE_VALUE;
+    phase = "publish repository index";
+    if (!MoveFileA(candidate, index)) {
+        goto cleanup;
+    }
+    created = 0;
+    success = 1;
+cleanup:
+    failure = GetLastError();
+    if (output != INVALID_HANDLE_VALUE) {
+        CloseHandle(output);
+    }
+    if (created) {
+        DeleteFileA(candidate);
+    }
+    if (!success) {
+        wpm_event_printf(WPM_EVENT_ERROR, "repository.author.failed",
+                         "repository", "init",
+                         "Error: repository initialization failed during %s "
+                         "(Windows error %lu): %s\n",
+                         phase, (unsigned long)failure, root);
+        return 0;
+    }
+    wpm_event_printf(WPM_EVENT_RESULT, "repository.author.initialized",
+                     "repository", "init",
+                     "Result: repository initialized %s\n", root);
+    return 1;
+}
 static int parse_entry(char *line, int *priority, char **url, int *allow_http) {
     char *tab = strchr(line, '\t');
     char *option;

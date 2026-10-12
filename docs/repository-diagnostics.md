@@ -2,8 +2,9 @@
 
 Run `wpm repo diagnose` to inspect configured repository catalog health without
 refreshing indexes or downloading packages. `--offline` is accepted as an
-explicit reminder; the command always performs no network access. `--verbose`
-works before or after the command. No data directories, caches, operational
+explicit reminder; the command always reads web catalogs from existing caches. Filesystem sources
+use the caller's OS access, including UNC shares. `--verbose`
+works before or after the command. No WPM data directories, caches, operational
 logs, trust records, package state, scripts, or handoffs are created or changed.
 
 The report follows configured-root order (including the built-in repository)
@@ -48,6 +49,6 @@ The default report and existing public diagnosis function retain their behavior.
 
 The snapshot/loopback fixture covers nested local roots, cached web cycles,
 duplicates, missing/stale/corrupt descendants, unsafe references, capacity,
-credential safety, strict flag scope, and zero filesystem/network changes.
+credential safety, strict flag scope, and zero managed filesystem changes or web requests.
 Installed records, architecture conflicts, pending self-upgrade, trust
 assessment, and versioned machine output remain future work.
