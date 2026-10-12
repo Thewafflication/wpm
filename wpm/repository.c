@@ -1119,8 +1119,10 @@ static int index_source(const char *root, char *result, size_t size) {
                ? snprintf(result, size, "%s/index.json", root) > 0
                : join_path(result, size, root, "index.json");
 }
+static int index_file_supported(const char *path);
 static int refresh(repository *repo, int offline, int required) {
-    char cached[PATH_SIZE], url[PATH_SIZE];
+    char cached[PATH_SIZE], url[PATH_SIZE], candidate[PATH_SIZE];
+    int length, prepared = 0;
     if (!cache_path(repo->url, cached, sizeof(cached))) {
         return 0;
     }
@@ -1140,15 +1142,25 @@ static int refresh(repository *repo, int offline, int required) {
         REPO_VERBOSE("using fresh cached index");
         return 1;
     }
+    length = snprintf(candidate, sizeof(candidate), "%s.candidate", cached);
+    if (length < 0 || (size_t)length >= sizeof(candidate)) {
+        return 0;
+    }
     if (index_source(repo->url, url, sizeof(url)) &&
-        wpm_operation_prepare(url, cached) &&
+        (prepared = wpm_operation_prepare(url, cached)) &&
         wpm_initialize_data_directories() &&
         ensure_cache_directory("repositories") &&
-        retrieve(url, cached, "repository index", repo->allow_insecure_http)) {
+        retrieve(url, candidate, "repository index",
+                 repo->allow_insecure_http) &&
+        index_file_supported(candidate) &&
+        MoveFileExA(candidate, cached, MOVEFILE_REPLACE_EXISTING)) {
         wpm_event_printf(WPM_EVENT_INFO, "repository.info", "repository",
                          "command", "Updated repository index: %s\n",
                          repo->url);
         return 1;
+    }
+    if (prepared) {
+        DeleteFileA(candidate);
     }
     if (!is_web_repository(repo->url)) {
         wpm_event_printf(
@@ -1330,16 +1342,17 @@ static int json_value_end(const char **source) {
         } else if (*p == '{' || *p == '[') {
             depth++;
         } else if (*p == '}' || *p == ']') {
-            if (!depth--) {
+            if (!depth) {
                 break;
             }
+            depth--;
         } else if (*p == ',' && depth == 0) {
             break;
         }
         p++;
     }
     *source = p;
-    return 1;
+    return depth == 0 && !quote;
 }
 static const char *json_content(const char *text) {
     const unsigned char *bytes = (const unsigned char *)text;
@@ -1383,6 +1396,42 @@ static int index_version_supported(const char *text) {
     version = strtod(value, &end);
     end = (char *)skip_ws(end);
     return version == 1.0 && (*end == ',' || *end == '}');
+}
+/* Validate schema admission before replacing a previous cached catalog. */
+static int index_file_supported(const char *path) {
+    FILE *input = wpm_fopen(path, "rb");
+    char *text = NULL;
+    const char *packages, *document_end;
+    long size;
+    int supported = 0;
+    if (!input) {
+        return 0;
+    }
+    if (fseek(input, 0, SEEK_END) || (size = ftell(input)) < 2 ||
+        size > 4 * 1024 * 1024 || fseek(input, 0, SEEK_SET)) {
+        goto cleanup;
+    }
+    text = malloc((size_t)size + 1);
+    if (!text || fread(text, 1, (size_t)size, input) != (size_t)size) {
+        goto cleanup;
+    }
+    text[size] = 0;
+    packages = index_field(text, "packages");
+    document_end = json_content(text);
+    supported = index_version_supported(text) && packages && *packages == '[' &&
+                json_value_end(&document_end) && !*skip_ws(document_end);
+cleanup:
+    free(text);
+    fclose(input);
+    if (!supported) {
+        wpm_event_printf(
+            WPM_EVENT_WARNING, "repository.index.rejected", "repository",
+            "refresh",
+            "Warning: refreshed repository index has unsupported schema or "
+            "missing top-level packages array or incomplete document; "
+            "the previous cache was retained.\n");
+    }
+    return supported;
 }
 static int append_repository_link(repository *repositories, int *count,
                                   const repository *parent, const char *link);

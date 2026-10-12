@@ -104,6 +104,17 @@ with tempfile.TemporaryDirectory(prefix="wpm-local-media-") as directory:
     finally:
         kernel.CloseHandle(handle)
 
+    # Invalid local catalogs fail closed and cannot replace a previous cache.
+    original_index = index.read_bytes()
+    index.write_text('{"version":10,"packages":[]}')
+    try:
+        text = run("update", "--offline", succeeds=False)
+        assert "previous cache was retained" in text, text
+        assert cache_snapshot() == before
+        assert not list((data / "cache").rglob("*.candidate*"))
+    finally:
+        index.write_bytes(original_index)
+
     # Removed media cannot silently fall back to its old index for installation.
     disconnected = root / "disconnected"
     repository.rename(disconnected)

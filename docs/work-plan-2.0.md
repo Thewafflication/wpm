@@ -652,3 +652,7 @@ layouts and optional linked roots remain compatible.
 1.2.16 adds bounded standard JSON escape decoding for repository strings and
 linked roots, retaining containment checks after decoding. Valid 1.x schemas
 and command defaults remain unchanged.
+
+1.2.17 stages refreshed indexes and checks schema admission and completeness
+before atomic cache publication. Rejected web/local indexes preserve previous
+caches; established web fallback and local fail-closed behavior are retained.

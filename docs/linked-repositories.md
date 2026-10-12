@@ -80,3 +80,15 @@ NUL escapes, and unescaped control characters are rejected by string decoding.
 This does not change the supported Windows filesystem path encoding.
 The loopback integration test covers escaped field names and links, unknown
 Unicode fields, escaped traversal, and malformed escape sequences.
+
+## Cache publication admission (1.2.17)
+
+Refresh retrieves an index into a temporary candidate, checks supported
+schema-1 root metadata and document completeness, then atomically publishes it.
+Unsupported schema, missing catalog arrays, unterminated documents, and failed
+reads retain the previous cache. This admission check is not a replacement for
+a complete JSON/schema validator. Web repositories retain their established
+cached fallback; invalid local sources fail closed. Rejected candidates are
+removed without changing prior cache bytes or modification time, and rejected
+links are never followed. The loopback and local-media integration fixtures
+verify these behaviors and absence of leftover candidate files.

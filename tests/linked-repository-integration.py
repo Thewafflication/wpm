@@ -184,6 +184,44 @@ with tempfile.TemporaryDirectory(prefix="wpm-linked-refresh-") as directory:
             requests.clear()
             run("update")
             assert requests == expected, (contents, requests)
+        # A retrieved catalog must pass schema admission before publication.
+        # Rejection preserves exact cache bytes and mtime, then uses the known
+        # web fallback graph without following the rejected catalog's links.
+        root_cache = cached(url)
+        before = (root_cache.read_bytes(), root_cache.stat().st_mtime_ns)
+        (repository / "index.json").write_text(
+            json.dumps(
+                {
+                    "version": 10,
+                    "packages": [],
+                    "repositories": ["rejected-root"],
+                }
+            )
+        )
+        requests.clear()
+        text = run("update")
+        assert requests == expected, requests
+        assert "previous cache was retained" in text, text
+        assert (
+            root_cache.read_bytes(),
+            root_cache.stat().st_mtime_ns,
+        ) == before
+        assert not list((data / "cache").rglob("*.candidate*"))
+        for contents in (
+            '{"version":1,"packages":[',
+            '{"version":1,"packages":[]',
+            '{"version":1,"packages":[],"note":"unterminated',
+        ):
+            (repository / "index.json").write_text(contents)
+            requests.clear()
+            text = run("update")
+            assert requests == expected, requests
+            assert "incomplete document" in text, text
+            assert (
+                root_cache.read_bytes(),
+                root_cache.stat().st_mtime_ns,
+            ) == before
+            assert not list((data / "cache").rglob("*.candidate*"))
         for key in (
             r"vers\qion",
             r"vers\u0000ion",
@@ -194,9 +232,12 @@ with tempfile.TemporaryDirectory(prefix="wpm-linked-refresh-") as directory:
         ):
             contents = '{"' + key + '":1,"packages":[]}'
             (repository / "index.json").write_text(contents)
+            root_cache.unlink(missing_ok=True)
             requests.clear()
             run("update", succeeds=False)
             assert requests == ["/index.json"], requests
+            assert not root_cache.exists()
+            assert not list((data / "cache").rglob("*.candidate*"))
         for invalid_index in (
             {"version": 10, "packages": [], "repositories": ["previous"]},
             {"metadata": {"version": 1}, "packages": []},
@@ -204,10 +245,13 @@ with tempfile.TemporaryDirectory(prefix="wpm-linked-refresh-") as directory:
             {"version": 1, "metadata": {"packages": []}},
         ):
             (repository / "index.json").write_text(json.dumps(invalid_index))
+            root_cache.unlink(missing_ok=True)
             requests.clear()
             text = run("update", succeeds=False)
             assert requests == ["/index.json"], requests
             assert "unsupported schema" in text or "top-level" in text, text
+            assert not root_cache.exists()
+            assert not list((data / "cache").rglob("*.candidate*"))
     finally:
         server.shutdown()
         server.server_close()
