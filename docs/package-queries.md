@@ -116,3 +116,68 @@ installation, and existing resolver defaults remain unchanged.
 Snapshot and loopback fixtures cover configured/linked/empty source selection,
 combined retained views, absent ordinals, malformed and duplicate selectors,
 and health errors outside the selected source without writes or web retrieval.
+
+## JSON package metadata (1.2.36)
+
+Add `--json` to `list`, `list --available`, or `show` for the shared query's
+`wpm.package-query.v1` document. Existing selectors, sorting, graph-wide health,
+bounds, no-match semantics, and read-only behavior remain the same. A validly
+formed query emits one UTF-8 JSON document and terminating newline, with no
+color, prose, prompts, scripts, operational logs, or stderr diagnostics.
+`--verbose` cannot combine with `--json`; invalid CLI shapes retain human usage
+errors. This optional query contract is separate from the broader planned
+`wpm.output.v1` envelope, candidate selection, and deployment/trust assessment.
+
+| Member | Meaning |
+| --- | --- |
+| `schema` | Always `wpm.package-query.v1` |
+| `command` | `list` or `show` |
+| `mode` | `retained`, `catalog`, or `both` |
+| `selectors` | Safe `name`, `arch`, `version`, and `repository`; null for omitted selectors |
+| `retained` / `catalog` | Query object, or null when that view was not requested |
+| `serialization_issues` | Unavailable selector text fields |
+| `complete` | All requested queries and selector serialization are complete |
+| `status` | `complete`, `partial`, or `not_found` |
+| `exit_code` | Actual query status: 0 for success; otherwise 1 |
+| `metadata_only` | Always true |
+| `archive_integrity_verified` | Always false |
+| `signature_trust_verified` | Always false |
+| `deployed_state_known` | Always false |
+
+Each query object has `records`, `summary`, `readable`, and `complete`.
+`readable` means the store/configuration could be inspected, not that every
+archive or catalog was valid. `summary` has `matches`, `issues`, `limited`, and
+`serialization_issues`; catalog summary additionally has `configured_roots`
+and `inspected_roots`. Limits and issue counts retain the human query meanings.
+A source filter does not remove issues elsewhere in the inspected graph.
+
+Retained rows have safe `name`, `arch`, `version`, and `archive` leaf strings.
+Catalog rows have safe `name`, `arch`, and `version`, numeric `repository` and
+`priority`, `policy` (`stable`, `prerelease_allowed`, or `prerelease_excluded`),
+boolean `stale`, and numeric linked `parent` or null for configured roots.
+Repository locators and archive URLs are omitted. Policy is descriptive metadata,
+not a certified eligible installation candidate. Rows preserve the existing
+human ordering; no records are silently selected or merged.
+
+Strings share event credential/terminal filtering and JSON escaping with the
+recovery query. Valid UTF-8 is preserved. A field that cannot be serialized
+(invalid UTF-8 or allocation failure) becomes null and contributes a serialization
+issue and partial status. Existing archive metadata validation remains unchanged;
+invalid retained names can be rejected before serialization. No locale conversion
+rewrites legacy bytes. Human mode remains available for native-encoded text.
+Selectors are matched using their original values before safe display filtering.
+
+A complete list with no matches returns 0. A complete show with no matches has
+`complete: true`, `status: not_found`, and exit 1. Incomplete sources produce
+`partial` instead of concluding absence; readable matches remain in the arrays.
+Unsupported/unreadable layouts yield a query object with `readable: false`.
+A broken output destination returns nonzero but cannot be promised a complete
+JSON document. Consumers must tolerate new optional members; incompatible field
+types or meanings require a new schema.
+
+Native integration fixtures compare human/JSON match counts and source choices,
+empty and not-found views, complete/partial/unavailable and bounded results,
+Unicode/escaping/invalid text, credential redaction, forced color, source filters,
+zero loopback requests, filesystem snapshots, and scripts that never run. This
+is partial REQ-0018.008/.009/I-08 delivery; the broader machine envelope and
+trust/deployment/eligibility behavior remain open.

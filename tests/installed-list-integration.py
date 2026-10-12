@@ -2,6 +2,7 @@
 
 import argparse
 import hashlib
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -42,14 +43,33 @@ with tempfile.TemporaryDirectory(prefix="wpm-installed-list-") as directory:
             env=env,
             input="",
             text=True,
+            encoding="utf-8" if "--json" in arguments else None,
             capture_output=True,
             timeout=30,
         )
         assert (result.returncode == 0) == succeeds, result.stdout
+        if "--json" in arguments:
+            assert result.stderr == "", result.stderr
         if readonly:
             assert snapshot(root) == before
         return result.stdout
 
+    def machine(*arguments, succeeds=True):
+        text = run(*arguments, "--json", succeeds=succeeds, readonly=True)
+        assert "\x1b" not in text and text.endswith("\n"), text
+        value = json.loads(text)
+        assert value["schema"] == "wpm.package-query.v1", value
+        assert value["mode"] == "retained" and value["catalog"] is None
+        assert value["metadata_only"] is True, value
+        assert value["archive_integrity_verified"] is False, value
+        assert value["signature_trust_verified"] is False, value
+        assert value["deployed_state_known"] is False, value
+        assert value["exit_code"] == (0 if succeeds else 1), value
+        return value
+
+    value = machine("list")
+    assert value["retained"]["records"] == [] and value["complete"], value
+    run("list", "--json", "--verbose", succeeds=False, readonly=True)
     for arguments in (
         ("list",),
         ("list", "missing", "--offline"),
@@ -66,7 +86,6 @@ with tempfile.TemporaryDirectory(prefix="wpm-installed-list-") as directory:
         ("list", "--arch"),
         ("list", "--yes"),
         ("list", "--dry-run"),
-        ("list", "--json"),
     ):
         run(*arguments, succeeds=False, readonly=True)
     for variable in ("WPM_LOG_FILE", "WPM_LOG_DIR"):
@@ -123,12 +142,18 @@ with tempfile.TemporaryDirectory(prefix="wpm-installed-list-") as directory:
     ):
         text = run(*arguments, readonly=True)
         assert f"{count} matching retained records" in text, text
+        value = machine(*arguments)
+        assert len(value["retained"]["records"]) == count, value
+        assert value["retained"]["summary"]["matches"] == count, value
     run("list", "--verbose", readonly=True)
     assert not marker.exists()
     bad = store / "bad.zip"
     bad.write_text("invalid archive")
     text = run("list", succeeds=False, readonly=True)
     assert "record issues: 1" in text, text
+    value = machine("list", succeeds=False)
+    assert value["status"] == "partial", value
+    assert value["retained"]["summary"]["issues"] == 1, value
     bad.unlink()
     before = snapshot(root)
     with read_lock(store / original.name, share=0):
@@ -143,7 +168,17 @@ with tempfile.TemporaryDirectory(prefix="wpm-installed-list-") as directory:
         )
     text = run("list", succeeds=False, readonly=True)
     assert secret not in text
+    assert secret not in json.dumps(machine("list", succeeds=False))
     bad.unlink()
+    invalid_metadata = store / "invalid-text.zip"
+    with zipfile.ZipFile(invalid_metadata, "w") as package:
+        package.writestr(
+            ".wpm/package.txt", b"name=bad-\x80\nversion=1.0.0\narch=any\n"
+        )
+    value = machine("--color", "always", "list", succeeds=False)
+    assert value["retained"]["summary"]["issues"] == 1, value
+    assert value["retained"]["summary"]["serialization_issues"] == 0, value
+    invalid_metadata.unlink()
     copies = []
     for number in range(250):
         copy = store / f"fixture-{number:03d}.zip"
@@ -151,6 +186,8 @@ with tempfile.TemporaryDirectory(prefix="wpm-installed-list-") as directory:
         copies.append(copy)
     text = run("list", succeeds=False, readonly=True)
     assert "limited: yes" in text, text
+    value = machine("list", succeeds=False)
+    assert value["retained"]["summary"]["limited"] is True, value
     for copy in copies:
         copy.unlink()
     saved = data / "saved-packages"
@@ -158,6 +195,8 @@ with tempfile.TemporaryDirectory(prefix="wpm-installed-list-") as directory:
     if junction(store, saved):
         try:
             run("list", succeeds=False, readonly=True)
+            value = machine("list", succeeds=False)
+            assert value["retained"]["readable"] is False, value
         finally:
             store.rmdir()
     else:

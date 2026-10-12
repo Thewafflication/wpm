@@ -20,6 +20,7 @@
 #include "capability.h"
 #include "operation.h"
 #include "progress.h"
+#include "json_output.h"
 
 #define PATH_SIZE 4096
 #define MAX_REPOSITORIES 32
@@ -3311,15 +3312,31 @@ static int available_record_order(const void *left, const void *right) {
     return order ? order : strcmp(a->url, b->url);
 }
 
+static int query_json_identity(const char *name, const char *arch,
+                               const char *version) {
+    int issues = 0;
+    fputs("\"name\":", stdout);
+    issues += !wpm_json_string(name);
+    fputs(",\"arch\":", stdout);
+    issues += !wpm_json_string(arch);
+    fputs(",\"version\":", stdout);
+    issues += !wpm_json_string(version);
+    return issues;
+}
+
 static int query_available_records(const char *name, const char *arch,
                                    const char *version, unsigned ordinal,
-                                   int *matches) {
+                                   int *matches, int json) {
     repository *roots = calloc(MAX_REPOSITORIES, sizeof(*roots));
     package_entry *records = calloc(MAX_PACKAGES, sizeof(*records));
     int parents[MAX_REPOSITORIES] = {0}, stale[MAX_REPOSITORIES] = {0};
     char path[PATH_SIZE], source[PATH_SIZE];
     int root_count = 0, configured = 0, count = 0, issues = 0, limited = 0;
     int matched = 0, saved_verbose = repository_verbose, loaded = 0;
+    int encoding_issues = 0;
+    if (json) {
+        fputs("{\"records\":[", stdout);
+    }
     if (matches) {
         *matches = 0;
     }
@@ -3390,17 +3407,22 @@ static int query_available_records(const char *name, const char *arch,
     }
     if (ordinal > (unsigned)root_count) {
         issues++;
-        wpm_event_printf(WPM_EVENT_ERROR, "query.available.selector", "list",
-                         "query",
-                         "Error: repository ordinal %u is absent from the "
-                         "inspected graph. Use 'wpm repo diagnose --links'.\n",
-                         ordinal);
+        if (!json) {
+            wpm_event_printf(
+                WPM_EVENT_ERROR, "query.available.selector", "list", "query",
+                "Error: repository ordinal %u is absent from the "
+                "inspected graph. Use 'wpm repo diagnose --links'.\n",
+                ordinal);
+        }
     }
     qsort(records, (size_t)count, sizeof(*records), available_record_order);
-    wpm_event_printf(
-        WPM_EVENT_INFO, "query.available.start", "list", "query",
-        "Available catalog metadata (read-only):\n"
-        "  Archives, signing trust, and deployed software are not verified.\n");
+    if (!json) {
+        wpm_event_printf(WPM_EVENT_INFO, "query.available.start", "list",
+                         "query",
+                         "Available catalog metadata (read-only):\n"
+                         "  Archives, signing trust, and deployed software are "
+                         "not verified.\n");
+    }
     for (int i = 0; i < count; i++) {
         package_entry *record = &records[i];
         const char *policy;
@@ -3415,6 +3437,26 @@ static int query_available_records(const char *name, const char *arch,
                      ? "prerelease allowed"
                      : "prerelease excluded";
         matched++;
+        if (json) {
+            fputs(matched > 1 ? ",{" : "{", stdout);
+            encoding_issues += query_json_identity(record->name, record->arch,
+                                                   record->version);
+            fprintf(stdout,
+                    ",\"repository\":%d,\"priority\":%d,"
+                    "\"policy\":\"%s\",\"stale\":%s,\"parent\":",
+                    record->order + 1, record->priority,
+                    !is_prerelease(record->version) ? "stable"
+                    : prerelease_effective(record->name, NULL)
+                        ? "prerelease_allowed"
+                        : "prerelease_excluded",
+                    stale[record->order] ? "true" : "false");
+            if (parents[record->order]) {
+                fprintf(stdout, "%d}", parents[record->order]);
+            } else {
+                fputs("null}", stdout);
+            }
+            continue;
+        }
         wpm_event_printf(WPM_EVENT_INFO, "query.available.item", "list",
                          "query",
                          "  %s %s %s\n    Repository: %d; priority: %d; %s%s\n",
@@ -3427,12 +3469,14 @@ static int query_available_records(const char *name, const char *arch,
                              parents[record->order]);
         }
     }
-    wpm_event_printf(
-        WPM_EVENT_RESULT, "query.available.summary", "list", "query",
-        "Result: %d matching catalog records; configured roots: %d; "
-        "inspected roots: %d; catalog issues: %d; limited: %s\n",
-        matched, configured, root_count, issues, limited ? "yes" : "no");
-    if (issues || limited) {
+    if (!json) {
+        wpm_event_printf(
+            WPM_EVENT_RESULT, "query.available.summary", "list", "query",
+            "Result: %d matching catalog records; configured roots: %d; "
+            "inspected roots: %d; catalog issues: %d; limited: %s\n",
+            matched, configured, root_count, issues, limited ? "yes" : "no");
+    }
+    if (!json && (issues || limited)) {
         wpm_event_printf(
             WPM_EVENT_INFO, "query.available.next", "list", "query",
             "Next action: use 'wpm repo diagnose --links' to inspect sources, "
@@ -3446,14 +3490,25 @@ done:
     if (matches) {
         *matches = matched;
     }
-    if (!loaded) {
+    if (!json && !loaded) {
         wpm_event_printf(WPM_EVENT_ERROR, "query.available.failed", "list",
                          "query",
                          "Error: available catalogs could not be "
                          "read; check repository configuration.\n");
     }
-    return fflush(stdout) == 0 && !ferror(stdout) && loaded && !issues &&
-           !limited;
+    int complete = loaded && !issues && !limited && !encoding_issues;
+    if (json) {
+        fprintf(stdout,
+                "],\"summary\":{\"matches\":%d,"
+                "\"configured_roots\":%d,\"inspected_roots\":%d,"
+                "\"issues\":%d,\"limited\":%s,"
+                "\"serialization_issues\":%d},\"readable\":%s,"
+                "\"complete\":%s}",
+                matched, configured, root_count, issues,
+                limited ? "true" : "false", encoding_issues,
+                loaded ? "true" : "false", complete ? "true" : "false");
+    }
+    return fflush(stdout) == 0 && !ferror(stdout) && complete;
 }
 
 int wpm_repo_list_available(const char *name, const char *arch,
@@ -3463,7 +3518,7 @@ int wpm_repo_list_available(const char *name, const char *arch,
 
 int wpm_repo_list_available_from(const char *name, const char *arch,
                                  const char *version, unsigned ordinal) {
-    return query_available_records(name, arch, version, ordinal, NULL);
+    return query_available_records(name, arch, version, ordinal, NULL, 0);
 }
 
 static int load_installed(installed_entry *result, int *count) {
@@ -3537,14 +3592,18 @@ static int installed_record_order(const void *left, const void *right) {
 }
 
 static int query_installed_records(const char *name, const char *arch,
-                                   const char *version, int *matches) {
+                                   const char *version, int *matches,
+                                   int json) {
     char root[PATH_SIZE], store[PATH_SIZE], path[PATH_SIZE];
     installed_record *records = calloc(MAX_INSTALLED, sizeof(*records));
     WIN32_FIND_DATAA found;
     HANDLE search = INVALID_HANDLE_VALUE;
     DWORD attributes, failure;
     int count = 0, scanned = 0, issues = 0, limited = 0, matched = 0;
-    int success = 0;
+    int success = 0, readable = 0, encoding_issues = 0;
+    if (json) {
+        fputs("{\"records\":[", stdout);
+    }
     if (matches) {
         *matches = 0;
     }
@@ -3620,11 +3679,15 @@ static int query_installed_records(const char *name, const char *arch,
     }
     success = !issues && !limited;
 report:
+    readable = 1;
     qsort(records, (size_t)count, sizeof(*records), installed_record_order);
-    wpm_event_printf(WPM_EVENT_INFO, "query.installed.start", "list", "query",
-                     "Retained installed package records (read-only):\n"
-                     "  Metadata only; trust and deployed software are not "
-                     "verified by this query.\n");
+    if (!json) {
+        wpm_event_printf(WPM_EVENT_INFO, "query.installed.start", "list",
+                         "query",
+                         "Retained installed package records (read-only):\n"
+                         "  Metadata only; trust and deployed software are not "
+                         "verified by this query.\n");
+    }
     for (int i = 0; i < count; i++) {
         installed_entry *identity = &records[i].identity;
         if ((name && _stricmp(identity->name, name)) ||
@@ -3633,17 +3696,28 @@ report:
             continue;
         }
         matched++;
+        if (json) {
+            fputs(matched > 1 ? ",{" : "{", stdout);
+            encoding_issues += query_json_identity(
+                identity->name, identity->arch, identity->version);
+            fputs(",\"archive\":", stdout);
+            encoding_issues += !wpm_json_string(records[i].file);
+            fputc('}', stdout);
+            continue;
+        }
         wpm_event_printf(WPM_EVENT_INFO, "query.installed.item", "list",
                          "query", "  %s %s %s\n    Archive: %s\n",
                          identity->name, identity->arch, identity->version,
                          records[i].file);
     }
-    wpm_event_printf(WPM_EVENT_RESULT, "query.installed.summary", "list",
-                     "query",
-                     "Result: %d matching retained records; "
-                     "record issues: %d; limited: %s\n",
-                     matched, issues, limited ? "yes" : "no");
-    if (issues || limited) {
+    if (!json) {
+        wpm_event_printf(WPM_EVENT_RESULT, "query.installed.summary", "list",
+                         "query",
+                         "Result: %d matching retained records; "
+                         "record issues: %d; limited: %s\n",
+                         matched, issues, limited ? "yes" : "no");
+    }
+    if (!json && (issues || limited)) {
         wpm_event_printf(
             WPM_EVENT_INFO, "query.installed.next", "list", "query",
             "Next action: inspect package-store access, archive metadata, "
@@ -3655,7 +3729,7 @@ done:
         FindClose(search);
     }
     free(records);
-    if (!success && !issues && !limited) {
+    if (!json && !success && !issues && !limited) {
         wpm_event_printf(WPM_EVENT_ERROR, "query.installed.failed", "list",
                          "query",
                          "Error: package records could not be read. "
@@ -3664,12 +3738,21 @@ done:
     if (matches) {
         *matches = matched;
     }
+    success = success && !encoding_issues;
+    if (json) {
+        fprintf(stdout,
+                "],\"summary\":{\"matches\":%d,\"issues\":%d,"
+                "\"limited\":%s,\"serialization_issues\":%d},"
+                "\"readable\":%s,\"complete\":%s}",
+                matched, issues, limited ? "true" : "false", encoding_issues,
+                readable ? "true" : "false", success ? "true" : "false");
+    }
     return fflush(stdout) == 0 && !ferror(stdout) && success;
 }
 
 int wpm_repo_list_installed(const char *name, const char *arch,
                             const char *version) {
-    return query_installed_records(name, arch, version, NULL);
+    return query_installed_records(name, arch, version, NULL, 0);
 }
 
 int wpm_repo_show(const char *name, const char *arch, const char *version) {
@@ -3689,9 +3772,10 @@ int wpm_repo_show_from(const char *name, const char *arch, const char *version,
     }
     wpm_event_printf(WPM_EVENT_INFO, "query.show.start", "show", "query",
                      "Package metadata: %s\n", name);
-    retained_complete = query_installed_records(name, arch, version, &retained);
+    retained_complete =
+        query_installed_records(name, arch, version, &retained, 0);
     catalog_complete =
-        query_available_records(name, arch, version, ordinal, &catalog);
+        query_available_records(name, arch, version, ordinal, &catalog, 0);
     complete = retained_complete && catalog_complete;
     if (!retained && !catalog) {
         wpm_event_printf(
@@ -3713,6 +3797,55 @@ int wpm_repo_show_from(const char *name, const char *arch, const char *version,
             "and inspect source choices before making changes.\n");
     }
     return fflush(stdout) == 0 && !ferror(stdout) && complete;
+}
+
+int wpm_repo_query_json(const char *name, const char *arch, const char *version,
+                        unsigned ordinal, int available, int show) {
+    int retained = 0, catalog = 0, retained_complete = 1, catalog_complete = 1;
+    int encoding_issues, complete, success;
+    wpm_set_readonly(1);
+    fprintf(stdout,
+            "{\"schema\":\"wpm.package-query.v1\","
+            "\"command\":\"%s\",\"mode\":\"%s\",\"selectors\":{",
+            show ? "show" : "list",
+            show        ? "both"
+            : available ? "catalog"
+                        : "retained");
+    encoding_issues = query_json_identity(name, arch, version);
+    fputs(",\"repository\":", stdout);
+    if (ordinal) {
+        fprintf(stdout, "%u", ordinal);
+    } else {
+        fputs("null", stdout);
+    }
+    fputs("},\"retained\":", stdout);
+    if (show || !available) {
+        retained_complete =
+            query_installed_records(name, arch, version, &retained, 1);
+    } else {
+        fputs("null", stdout);
+    }
+    fputs(",\"catalog\":", stdout);
+    if (show || available) {
+        catalog_complete =
+            query_available_records(name, arch, version, ordinal, &catalog, 1);
+    } else {
+        fputs("null", stdout);
+    }
+    complete = retained_complete && catalog_complete && !encoding_issues;
+    success = complete && (!show || retained || catalog);
+    fprintf(stdout,
+            ",\"serialization_issues\":%d,\"complete\":%s,"
+            "\"status\":\"%s\",\"exit_code\":%d,\"metadata_only\":true,"
+            "\"archive_integrity_verified\":false,"
+            "\"signature_trust_verified\":false,"
+            "\"deployed_state_known\":false}\n",
+            encoding_issues, complete ? "true" : "false",
+            !complete ? "partial"
+            : success ? "complete"
+                      : "not_found",
+            success ? 0 : 1);
+    return fflush(stdout) == 0 && !ferror(stdout) && success;
 }
 
 static int better_candidate(package_entry *candidate, package_entry *selected) {

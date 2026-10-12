@@ -192,13 +192,13 @@ static void print_usage_line(Command command) {
         wpm_event_printf(
             WPM_EVENT_INFO, "wpm.info", "wpm", "command",
             "Usage: wpm list [--available] [package] [--arch <arch>] "
-            "[--version <semver>] [--repo <ordinal>] [--offline]\n");
+            "[--version <semver>] [--repo <ordinal>] [--json] [--offline]\n");
         break;
     case CMD_SHOW:
         wpm_event_printf(
             WPM_EVENT_INFO, "wpm.info", "wpm", "command",
             "Usage: wpm show <package> [--repo <ordinal>] [--arch <arch>] "
-            "[--version <semver>] [--offline]\n");
+            "[--version <semver>] [--json] [--offline]\n");
         break;
     case CMD_RECOVERY:
         wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
@@ -297,9 +297,11 @@ static int command_option_is_known(Command command, const char *option) {
                strcmp(option, "--json") == 0;
     case CMD_LIST:
         return strcmp(option, "--offline") == 0 ||
+               strcmp(option, "--json") == 0 ||
                strcmp(option, "--available") == 0;
     case CMD_SHOW:
-        return strcmp(option, "--offline") == 0;
+        return strcmp(option, "--offline") == 0 ||
+               strcmp(option, "--json") == 0;
     case CMD_UPGRADE:
         return strcmp(option, "--all") == 0 || strcmp(option, "-y") == 0 ||
                strcmp(option, "--yes") == 0 ||
@@ -1067,7 +1069,8 @@ int main(int argc, char *argv[]) {
         !validate_command_actions(cmd, argc, argv, command_index)) {
         return 1;
     }
-    if ((cmd == CMD_REPO || cmd == CMD_RECOVERY) &&
+    if ((cmd == CMD_REPO || cmd == CMD_RECOVERY || cmd == CMD_LIST ||
+         cmd == CMD_SHOW) &&
         command_has_option(argc, argv, command_index, "--json") && verbose) {
         invalid_action_shape(cmd, "--json and --verbose cannot combine");
         return 1;
@@ -1464,7 +1467,13 @@ operation_dispatch:
             }
         }
         int complete =
-            cmd == CMD_SHOW
+            command_has_option(argc, argv, command_index, "--json")
+                ? wpm_repo_query_json(
+                      count ? operands[0] : NULL, arch, version, ordinal,
+                      command_has_option(argc, argv, command_index,
+                                         "--available"),
+                      cmd == CMD_SHOW)
+            : cmd == CMD_SHOW
                 ? wpm_repo_show_from(operands[0], arch, version, ordinal)
             : command_has_option(argc, argv, command_index, "--available")
                 ? wpm_repo_list_available_from(count ? operands[0] : NULL, arch,

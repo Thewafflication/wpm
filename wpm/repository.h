@@ -41,6 +41,10 @@ int wpm_repo_show(const char *name, const char *arch, const char *version);
 /** Narrow the catalog portion of show; retained metadata remains visible. */
 int wpm_repo_show_from(const char *name, const char *arch, const char *version,
                        unsigned ordinal);
+/** Render shared retained/catalog queries as wpm.package-query.v1 JSON.
+ * Available selects catalog-only list; show combines both metadata views. */
+int wpm_repo_query_json(const char *name, const char *arch, const char *version,
+                        unsigned ordinal, int available, int show);
 /** Remove a configured repository. */
 int wpm_repo_remove(const char *url);
 /** Inspect configured catalog health without managed writes or web retrieval.

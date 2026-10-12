@@ -785,3 +785,12 @@ install/failed-upgrade fixture copies the complete explicit root and proves
 restored metadata, trust verification, and evidence remain usable without writes
 or script replay. ACL/deployment/physical/pending-work demonstrations remain open;
 REQ-0019.006/.007 and I-06 are partial, with unchanged 1.x removal defaults.
+
+1.2.36 adds optional list/show `--json` over the shared metadata collectors,
+with exact selectors/order, source/health/bound counts, explicit metadata-only
+flags, no-match versus partial status, and safe nullable UTF-8 fields. Fixtures
+compare human and JSON views and preserve no writes/web retrieval/scripts.
+The query-specific schema does not complete the planned general envelope or
+candidate/trust/deployment obligations. REQ-0018.008/.009/I-08 remain partial.
+The 1.2.33 ARM64 gate initially retained a PowerShell internal CLR crash in
+TC-0026; its failed-job rerun passed without relaxing gates or moving the tag.

@@ -77,10 +77,13 @@ with tempfile.TemporaryDirectory(prefix="wpm-available-list-") as directory:
             env=env,
             input="",
             text=True,
+            encoding="utf-8" if "--json" in arguments else None,
             capture_output=True,
             timeout=30,
         )
         assert (result.returncode == 0) == succeeds, result.stdout
+        if "--json" in arguments:
+            assert result.stderr == "", result.stderr
         if readonly:
             assert snapshot(root) == before
         assert not requests
@@ -88,6 +91,16 @@ with tempfile.TemporaryDirectory(prefix="wpm-available-list-") as directory:
         assert not (root / "external.log").exists()
         assert not (root / "external-logs").exists()
         return result.stdout
+
+    def machine(*arguments, succeeds=True):
+        text = run(*arguments, "--json", succeeds=succeeds)
+        assert "\x1b" not in text and text.endswith("\n"), text
+        value = json.loads(text)
+        assert value["schema"] == "wpm.package-query.v1", value
+        assert value["exit_code"] == (0 if succeeds else 1), value
+        assert value["metadata_only"] is True, value
+        assert value["signature_trust_verified"] is False, value
+        return value
 
     def cache(locator, catalog):
         value = 2166136261
@@ -124,6 +137,8 @@ with tempfile.TemporaryDirectory(prefix="wpm-available-list-") as directory:
         assert not data.exists()
         text = run("show", "unknown", succeeds=False)
         assert "metadata is incomplete" in text, text
+        value = machine("show", "unknown", succeeds=False)
+        assert value["status"] == "partial" and not value["complete"], value
         for arguments in (
             ("show",),
             ("show", ""),
@@ -132,7 +147,6 @@ with tempfile.TemporaryDirectory(prefix="wpm-available-list-") as directory:
             ("show", "alpha", "--version", "invalid"),
             ("show", "alpha", "--available"),
             ("show", "alpha", "--yes"),
-            ("show", "alpha", "--json"),
             ("show", "alpha", "--dry-run"),
             ("show", "alpha", "--repo", "33"),
             ("list", "--available", "--repo", "0"),
@@ -183,6 +197,12 @@ with tempfile.TemporaryDirectory(prefix="wpm-available-list-") as directory:
         for ordinal, count in ((1, 3), (2, 2), (3, 0), (4, 1), (5, 1)):
             text = run("list", "--available", "--repo", ordinal)
             assert f"{count} matching catalog records" in text, text
+            value = machine("list", "--available", "--repo", ordinal)
+            assert value["catalog"]["summary"]["matches"] == count, value
+            assert all(
+                record["repository"] == ordinal
+                for record in value["catalog"]["records"]
+            ), value
             for line in text.splitlines():
                 if "Repository:" in line:
                     assert f"Repository: {ordinal};" in line, text
@@ -197,6 +217,27 @@ with tempfile.TemporaryDirectory(prefix="wpm-available-list-") as directory:
         run("list", "--repo", "1", succeeds=False)
         run("list", "--available", "--repo", succeeds=False)
         run("show", "alpha", "--repo", "1", "--repo", "2", succeeds=False)
+        catalog_before = source_index.read_bytes()
+        label = '\u540d\U0001f4a1 "quoted"'
+        source_index.write_bytes(
+            json.dumps(
+                dict(version=1, packages=[entry(label, "1.0.0")]),
+                ensure_ascii=False,
+            ).encode("utf-8")
+        )
+        value = machine(
+            "--color", "always", "list", "--available", "--repo", "1"
+        )
+        assert value["catalog"]["records"][0]["name"] == label, value
+        source_index.write_bytes(
+            json.dumps(dict(version=1, packages=[entry("bad-byte", "1.0.0")]))
+            .encode()
+            .replace(b"bad-byte", b"bad-\x80")
+        )
+        value = machine("list", "--available", "--repo", "1", succeeds=False)
+        assert value["catalog"]["records"][0]["name"] is None, value
+        assert value["catalog"]["summary"]["serialization_issues"] == 1, value
+        source_index.write_bytes(catalog_before)
         store = data / "packages"
         store.mkdir()
         marker = root / "show-script-ran"
@@ -209,6 +250,17 @@ with tempfile.TemporaryDirectory(prefix="wpm-available-list-") as directory:
                 ".wpm/install.cmd",
                 f'@echo off\necho ran>"{marker}"\nexit /b 0\n',
             )
+        value = machine("show", "ALPHA")
+        assert value["mode"] == "both" and value["complete"], value
+        assert value["retained"]["summary"]["matches"] == 1, value
+        assert value["catalog"]["summary"]["matches"] == 6, value
+        value = machine("show", "alpha", "--repo", "4")
+        assert value["catalog"]["summary"]["matches"] == 1, value
+        value = machine("show", "alpha", "--repo", "32", succeeds=False)
+        assert value["status"] == "partial", value
+        value = machine("show", "unknown", succeeds=False)
+        assert value["status"] == "not_found" and value["complete"], value
+        run("show", "alpha", "--json", "--verbose", succeeds=False)
         text = run("show", "ALPHA")
         assert "retained: 1; catalog: 6; complete: yes" in text, text
         assert "Multiple matching records" in text and "0.5.0" in text, text
@@ -233,6 +285,9 @@ with tempfile.TemporaryDirectory(prefix="wpm-available-list-") as directory:
         ):
             text = run(*arguments)
             assert f"{count} matching catalog records" in text, text
+            value = machine(*arguments)
+            assert value["catalog"]["summary"]["matches"] == count, value
+            assert len(value["catalog"]["records"]) == count, value
         run("--verbose", "list", "--available", "--offline")
         (config.parent / "prerelease.txt").write_text("global=true\n")
         assert "prerelease allowed" in run("list", "--available", "alpha")
@@ -240,6 +295,8 @@ with tempfile.TemporaryDirectory(prefix="wpm-available-list-") as directory:
         os.utime(web_cache, (stale, stale))
         text = run("list", "--available", succeeds=False)
         assert "stale cache" in text and "catalog issues: 1" in text
+        value = machine("list", "--available", succeeds=False)
+        assert any(record["stale"] for record in value["catalog"]["records"])
         # Python's precise clock may lead the legacy Windows API clock briefly.
         # Keep the fresh fixture in the past; future timestamps stay stale.
         now = time.time() - 1
@@ -255,6 +312,9 @@ with tempfile.TemporaryDirectory(prefix="wpm-available-list-") as directory:
         text = run("list", "--available", "--repo", "1", succeeds=False)
         assert "3 matching catalog records" in text, text
         assert "catalog issues: 1" in text, text
+        value = machine("list", "--available", "--repo", "1", succeeds=False)
+        assert value["catalog"]["summary"]["matches"] == 3, value
+        assert not value["complete"], value
         text = run("list", "--available", succeeds=False)
         assert (
             "6 matching catalog records" in text and "catalog issues: 1" in text
