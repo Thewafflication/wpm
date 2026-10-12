@@ -132,6 +132,13 @@ with tempfile.TemporaryDirectory(prefix="wpm-local-media-") as directory:
     try:
         text = run("install", "media-check", "--offline", succeeds=False)
         assert str(archive) in text and "Retry:" in text, text
+        assert "invalid package URL" not in text, text
+        text = run(
+            "install", "media-check", "--offline", "--confirm", succeeds=False
+        )
+        assert "selected local package is unavailable" in text, text
+        assert "recompute the plan" in text, text
+        assert "invalid package URL" not in text, text
         assert not marker.exists()
         assert not list((data / "cache").rglob("*.download"))
     finally:

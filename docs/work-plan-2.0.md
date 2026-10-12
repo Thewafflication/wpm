@@ -664,3 +664,7 @@ nesting, cache retention, and read-only snapshots provide compatibility evidence
 1.2.19 binds optional confirmation plans to archive volume/file identity,
 rejecting byte-identical file substitution after preview. Stable approval and
 legacy default workflows remain covered; physical media demonstrations stay open.
+
+1.2.20 adds accurate package acquisition failures and cache-publication retry
+diagnostics, with real Windows destination locking, cache retention, and
+unlocked retry evidence. Existing invalid URL rejection and 1.x defaults remain.

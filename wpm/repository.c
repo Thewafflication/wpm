@@ -1119,6 +1119,24 @@ static int index_source(const char *root, char *result, size_t size) {
                ? snprintf(result, size, "%s/index.json", root) > 0
                : join_path(result, size, root, "index.json");
 }
+static int publish_repository_index(const char *candidate, const char *cached) {
+    DWORD error;
+    if (!wpm_require_capability(WPM_CAP_WRITE, "publish repository index")) {
+        return 0;
+    }
+    if (MoveFileExA(candidate, cached, MOVEFILE_REPLACE_EXISTING)) {
+        return 1;
+    }
+    error = GetLastError();
+    wpm_event_printf(
+        WPM_EVENT_WARNING, "repository.cache.publish.failed", "repository",
+        "publish",
+        "Warning: repository cache publication failed (Windows error %lu): "
+        "%s\n  Retry: close programs locking the cache file, check write "
+        "access, and rerun 'wpm update'. The previous cache was retained.\n",
+        (unsigned long)error, cached);
+    return 0;
+}
 static int index_file_supported(const char *path);
 static int refresh(repository *repo, int offline, int required) {
     char cached[PATH_SIZE], url[PATH_SIZE], candidate[PATH_SIZE];
@@ -1153,7 +1171,7 @@ static int refresh(repository *repo, int offline, int required) {
         retrieve(url, candidate, "repository index",
                  repo->allow_insecure_http) &&
         index_file_supported(candidate) &&
-        MoveFileExA(candidate, cached, MOVEFILE_REPLACE_EXISTING)) {
+        publish_repository_index(candidate, cached)) {
         wpm_event_printf(WPM_EVENT_INFO, "repository.info", "repository",
                          "command", "Updated repository index: %s\n",
                          repo->url);
@@ -2352,6 +2370,9 @@ static int obtain(repository *repositories, package_entry *selected,
                  root, selected->name, selected->version, selected->arch) < 0 ||
         snprintf(label, sizeof(label), "package %s %s %s", selected->name,
                  selected->version, selected->arch) < 0) {
+        wpm_event_printf(WPM_EVENT_ERROR, "repository.package.invalid",
+                         "repository", "resolve",
+                         "Error: invalid package URL in repository index.\n");
         return 0;
     }
     if (GetFileAttributesA(path) == INVALID_FILE_ATTRIBUTES &&
@@ -2359,8 +2380,17 @@ static int obtain(repository *repositories, package_entry *selected,
         strcpy_s(path, size, legacy);
     }
     if (wpm_operation_active() && !is_web_repository(repo->url)) {
-        return strcpy_s(path, size, source) == 0 &&
-               GetFileAttributesA(path) != INVALID_FILE_ATTRIBUTES;
+        if (strcpy_s(path, size, source) == 0 &&
+            GetFileAttributesA(path) != INVALID_FILE_ATTRIBUTES) {
+            return 1;
+        }
+        wpm_event_printf(
+            WPM_EVENT_ERROR, "plan.source.unavailable", "plan", "resolve",
+            "Error: selected local package is unavailable: %s\n"
+            "  Retry: reconnect the original repository media at the "
+            "configured path, check read access, and recompute the plan.\n",
+            source);
+        return 0;
     }
     if (wpm_is_readonly() &&
         GetFileAttributesA(path) == INVALID_FILE_ATTRIBUTES) {
@@ -2427,9 +2457,6 @@ int wpm_repo_install(const char *package_name, const char *arch,
         return 0;
     }
     if (!obtain(repositories, selected, offline, package, sizeof(package))) {
-        wpm_event_printf(WPM_EVENT_ERROR, "repository.error", "repository",
-                         "command",
-                         "Error: invalid package URL in repository index.\n");
         return 0;
     }
     if (!candidate_matches(package, selected)) {

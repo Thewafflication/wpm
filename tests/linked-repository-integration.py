@@ -1,6 +1,8 @@
 """Exercise linked graph refresh, cache reuse, cycles and failure fallback."""
 
 import argparse
+import ctypes
+from ctypes import wintypes
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import json
@@ -93,6 +95,51 @@ with tempfile.TemporaryDirectory(prefix="wpm-linked-refresh-") as directory:
         child_cache = cached(url + "/previous")
         nested_cache = cached(url + "/previous/grandchild")
         assert json.loads(child_cache.read_text())["marker"] == "old"
+
+        # A locked destination can reject publication even after a valid read.
+        # Preserve the previous graph and prove a later retry can publish.
+        publication_cache = cached(url)
+        original_cache = (
+            publication_cache.read_bytes(),
+            publication_cache.stat().st_mtime_ns,
+        )
+        kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel.CreateFileW.argtypes = [
+            wintypes.LPCWSTR,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            ctypes.c_void_p,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            wintypes.HANDLE,
+        ]
+        kernel.CreateFileW.restype = wintypes.HANDLE
+        kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+        kernel.CloseHandle.restype = wintypes.BOOL
+        handle = kernel.CreateFileW(
+            str(publication_cache), 0x80000000, 1, None, 3, 0, None
+        )
+        assert handle != wintypes.HANDLE(-1).value, ctypes.get_last_error()
+        index(repository / "index.json", ["previous"], "replacement")
+        requests.clear()
+        try:
+            text = run("update")
+            assert "cache publication failed" in text, text
+            assert "close programs locking" in text, text
+            assert requests == expected, requests
+            assert (
+                publication_cache.read_bytes(),
+                publication_cache.stat().st_mtime_ns,
+            ) == original_cache
+            assert not list((data / "cache").rglob("*.candidate*"))
+        finally:
+            kernel.CloseHandle(handle)
+        requests.clear()
+        run("update")
+        assert requests == expected, requests
+        assert (
+            json.loads(publication_cache.read_text())["marker"] == "replacement"
+        )
 
         index(previous / "index.json", ["grandchild", url], "new")
         index(grandchild / "index.json", [url], "nested-new")

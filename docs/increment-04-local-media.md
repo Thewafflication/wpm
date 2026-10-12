@@ -51,3 +51,17 @@ requires rejection before installation. A stable replacement file can then be
 planned and approved normally. Dry-run snapshots verify no new writes.
 This deterministic file identity test does not close the remaining physical
 removable/optical media demonstrations or platform-specific SMB identity work.
+
+## Acquisition and cache publication diagnostics (1.2.20)
+
+Named installation now reports invalid package URLs only for invalid index
+locators/identities. Missing local archives retain the source-specific copy
+error; optional confirmation names the unavailable selected package and asks
+for media reconnection, access checks, and a recomputed plan. Default command
+behavior and existing unsafe-locator rejection remain unchanged.
+
+A failed atomic index publication reports its Windows error, affected cache
+path, and a retry action to close locking programs or correct write access.
+The loopback fixture holds a real read handle that denies replacement, verifies
+exact cache bytes and modification time, requires candidate cleanup and cached
+graph fallback, then unlocks and proves retry publication succeeds.
