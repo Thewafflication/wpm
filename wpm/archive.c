@@ -3195,7 +3195,8 @@ static int run_package_script(const char *staging_dir, const char *script_name,
             added_clicolor_force = 1;
         }
     }
-    if (!CreateProcessA(NULL, command_line, NULL, NULL, TRUE, 0, NULL,
+    if (!wpm_operation_external_start("script") ||
+        !CreateProcessA(NULL, command_line, NULL, NULL, TRUE, 0, NULL,
                         staging_dir, &startup_info, &process_info)) {
         if (added_force_color) {
             SetEnvironmentVariableA("FORCE_COLOR", NULL);
@@ -3282,6 +3283,9 @@ static int run_package_script(const char *staging_dir, const char *script_name,
         fclose(handoff_log);
     }
     fclose(log);
+    if (!wpm_operation_script_result((unsigned long)exit_code)) {
+        return 0;
+    }
     if (exit_code != 0) {
         report_script_failure(action_name, exit_code, repository_url, log_path);
         return 0;
@@ -3609,7 +3613,9 @@ cleanup:
         return 0;
     }
 
-    wpm_operation_completed();
+    if (!wpm_operation_completed()) {
+        return 0;
+    }
     wpm_event_printf(WPM_EVENT_SUCCESS, "archive.success", "archive", "command",
                      "Installed package; archive stored at: %s\n",
                      stored_archive_path);
@@ -3822,7 +3828,8 @@ int wpm_archive_schedule_self_upgrade(const char *archive_path,
         SetEnvironmentVariableA("WPM_PACKAGE_REPOSITORY_URL",
                                 wpm_repository_url);
     }
-    process_created = CreateProcessA(handoff_exe, command, NULL, NULL, TRUE,
+    process_created = wpm_operation_external_start("handoff") &&
+                      CreateProcessA(handoff_exe, command, NULL, NULL, TRUE,
                                      CREATE_NEW_PROCESS_GROUP, NULL, NULL,
                                      &startup, &process);
     if (previous_repository_length > 0 &&
@@ -3868,7 +3875,9 @@ cleanup:
         result = 0;
     }
     if (result) {
-        wpm_operation_completed();
+        if (!wpm_operation_completed()) {
+            return 0;
+        }
     }
     return result;
 }
@@ -3989,7 +3998,9 @@ cleanup:
     if (!success) {
         return 0;
     }
-    wpm_operation_completed();
+    if (!wpm_operation_completed()) {
+        return 0;
+    }
     wpm_event_printf(WPM_EVENT_SUCCESS, "archive.success", "archive", "command",
                      "Upgraded %s %s %s to %s.\n", expected_name, expected_arch,
                      old_version, expected_version);
@@ -4112,7 +4123,9 @@ cleanup:
         return 0;
     }
 
-    wpm_operation_completed();
+    if (!wpm_operation_completed()) {
+        return 0;
+    }
     wpm_event_printf(WPM_EVENT_SUCCESS, "archive.success", "archive", "command",
                      "Removed package: %s\n", archive_name);
     wpm_event_printf(WPM_EVENT_RESULT, "archive.result", "archive", "command",

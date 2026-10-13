@@ -989,3 +989,38 @@ path ValueError as controlled failure. Reads are bounded even if file size
 changes between inspection and reading. Regression fixtures cover the actual
 malformed path partitions; mandatory/native checks provide corrective evidence.
 This is an unreleased gate-tool defect, not a passed candidate quality profile.
+
+
+## Durable recovery writer foundation
+
+Planned install, remove, upgrade, and self-upgrade now create additive
+`wpm.recovery.v1` JSON records beneath the WPM data root's `recovery`
+directory. This applies to the explicit `--confirm` plan path; legacy 1.x
+execution and existing failure-audit JSON retain their contracts. Directory
+bootstrap is required to host the first record; package staging, deployment,
+and retained-package changes start only after its atomic commit.
+
+The writer binds package/input identity and the approved plan digest, records
+UTC creation/update times, preserves exact observed script exits, and commits
+external-state uncertainty before process creation. A scheduled self-upgrade
+is pending, never completed. Shared UTF-8 encoding and credential redaction
+apply to recorded text. Native exclusive temporary-file writes, flush, and
+same-directory replacement preserve the last valid document on update failure.
+Canonical local-drive ancestors are held against rename during each write;
+reparse roots, unsupported namespaces, unknown objects, and locked/read-only
+record destinations fail closed. No recovery record grants mutation authority.
+
+The registered operation-integration foundation checks completed records,
+failed scripts, blocked initial writes, retained prior documents after failed
+updates, and abrupt termination of its isolated process tree. Dry-run and
+machine-output foundations continue to check no-write behavior. These tests
+are foundation evidence, not the complete TC-0019 quality/native acceptance.
+
+Remaining closure includes cache-preparation journaling, ordered phase/artifact
+inventories, retained-input inspection, current-state/trust revalidation and
+new confirmation for retry, guarded cleanup, whole-state restore, self-upgrade
+completion linkage, and the controlled native/fault profiles. Records currently
+advertise inspect only, with retryEligible false, no inferred artifact list,
+and explicit null for unknown phase history. The public legacy recovery list
+continues to enumerate legacy audits until the new reader is implemented.
+REQ-0019 and its traceability obligations remain Proposed/Planned.
