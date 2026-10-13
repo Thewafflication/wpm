@@ -49,6 +49,7 @@ int main(int argc, char **argv) {
     char root[MAX_PATH], target[MAX_PATH], child[MAX_PATH], moved[MAX_PATH];
     char canonical[MAX_PATH];
     wpm_path_guard *guard = NULL;
+    wpm_path_guard *nested = NULL;
     HANDLE writer = INVALID_HANDLE_VALUE, file = INVALID_HANDLE_VALUE;
     int success = 0;
     if (argc != 2 || !GetFullPathNameA(argv[1], sizeof(root), root, NULL) ||
@@ -96,6 +97,44 @@ int main(int argc, char **argv) {
     CloseHandle(file);
     file = INVALID_HANDLE_VALUE;
     if (!DeleteFileA(canonical)) {
+        goto done;
+    }
+    nested = wpm_path_guard_child(guard, ".wpm", 1);
+    if (!nested) {
+        goto done;
+    }
+    {
+        wpm_path_guard *unknown = wpm_path_guard_child(guard, ".wpm", 1);
+        if (unknown) {
+            wpm_path_guard_close(unknown);
+            goto done;
+        }
+    }
+    file = wpm_path_guard_file(nested, ".hidden", 1);
+    if (!file) {
+        goto done;
+    }
+    CloseHandle(file);
+    file = INVALID_HANDLE_VALUE;
+    wpm_path_guard_close(guard);
+    guard = NULL;
+    /* The child owns its ancestor handles, independently of the parent. */
+    file = wpm_path_guard_file(nested, ".hidden", 0);
+    if (!file) {
+        goto done;
+    }
+    CloseHandle(file);
+    file = INVALID_HANDLE_VALUE;
+    wpm_path_guard_close(nested);
+    nested = NULL;
+    snprintf(canonical, sizeof(canonical), "%s\\.wpm\\.hidden", child);
+    if (!DeleteFileA(canonical)) {
+        goto done;
+    }
+    snprintf(canonical, sizeof(canonical), "%s\\.wpm", child);
+    if (!RemoveDirectoryA(canonical) ||
+        wpm_path_guard_open(child, 0, canonical, sizeof(canonical), &guard) !=
+            WPM_PATH_OPEN) {
         goto done;
     }
     snprintf(canonical, sizeof(canonical), "%s\\outside.tmp", target);
@@ -155,6 +194,7 @@ int main(int argc, char **argv) {
     }
     success = 1;
 done:
+    wpm_path_guard_close(nested);
     wpm_path_guard_close(guard);
     if (writer != INVALID_HANDLE_VALUE) {
         CloseHandle(writer);

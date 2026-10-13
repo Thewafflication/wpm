@@ -849,6 +849,19 @@ if(BUILD_TESTING)
       "${CMAKE_SOURCE_DIR}/tests/operation-integration.py" --wpm
       $<TARGET_FILE:wpm>
   )
+  add_test(
+    NAME admitted-input-integration
+    COMMAND
+      "${Python3_EXECUTABLE}"
+      "${CMAKE_SOURCE_DIR}/tests/admitted-input-integration.py" --wpm
+      $<TARGET_FILE:wpm>
+  )
+  set_tests_properties(
+    admitted-input-integration
+    PROPERTIES
+      TIMEOUT
+        120
+  )
   set_tests_properties(
     operation-integration
     PROPERTIES
@@ -1248,6 +1261,7 @@ if(BUILD_TESTING)
       "^(https-.*|blake2b-simd|zlib-sse2|"
       "readonly-capabilities|guarded-directory-identity|"
       "operation-integration|local-media-integration|"
+      "admitted-input-integration|"
       "linked-repository-integration|repository-health-integration|"
       "http-length-integration|repository-init-integration|"
       "repository-verify-integration|"

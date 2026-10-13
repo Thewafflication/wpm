@@ -1119,3 +1119,32 @@ anchor-doc-original-fail.log, with the cause unclassified because its Pandoc
 log was not uploaded. Documentation CI now retains diagnostic logs even after
 failure rather than losing the tool-specific evidence. Later successful runs
 will not overwrite these original failures.
+
+Staging continuation found that retained approval bytes were not yet consumed
+by execution: archive readers and post-script archive retention reopened the
+original name. A real package script that moves that name and replaces it after
+launch caused the retained pre-fix x64 CI binary to store replacement bytes
+under the approved package identity. The original product failure is retained
+at staging-source-substitution-original-product-fail.log. The binary came from
+run 38417479630, source head 501409dde12fc58ad2c6041b65c7c5d2d0ba9e88,
+artifact wpm-test-report-windows-x64-debug; its SHA-256 is
+EB033EC53BBC26BD5744B623984C9390C56AF8257E496573AD959B98F0143FB7.
+This is a product failure, not the separate earlier fixture flag mistake.
+
+Active approved archive readers now consume the held recovery input. Planned
+package retention copies from that handle to a fresh operation-named temporary
+file, checks its complete size/digest, flushes it, and publishes by handle only
+to the canonical approved package-store destination. Changed selected state
+blocks retention; ordinary legacy execution preserves its behavior. A registered
+admitted-input-integration fixture checks actual source replacement, stored
+approved bytes, retained bytes, and recovery identity. The corrected targeted
+run is staging-source-substitution-rerun.log. The initial fixture combined
+mutually exclusive flags and is retained as staging-source-substitution-test.log;
+its corrected explicit-confirmation path exercises the product defect.
+
+Child directory admission now anchors fresh/open child access to a held parent
+and owns duplicated ancestors independently of parent lifetime. The registered
+probe checks unknown existing fresh destinations, hidden metadata names, child
+lifetime, and actual reparse containment. Staging inventories, source/state
+rechecks at other commit boundaries, guarded cleanup/retry/restore, and full
+controlled acceptance remain open; these foundations do not claim closure.

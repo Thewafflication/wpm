@@ -749,7 +749,8 @@ int wpm_operation_confirm(void) {
         char canonical_name[256];
         const char *basename = strrchr(item->archive, '\\');
         basename = basename ? basename + 1 : item->archive;
-        if (!strcmp(item->action, "install")) {
+        if (!strcmp(item->action, "install") ||
+            !strcmp(item->action, "upgrade")) {
             snprintf(canonical_name, sizeof(canonical_name), "%s-%s-%s.zip",
                      item->identity.name, item->identity.arch,
                      item->identity.version);
@@ -909,6 +910,123 @@ int wpm_operation_store_name(char *output, size_t size) {
     written = snprintf(output, size, "%s-%s-%s.zip", executing->identity.name,
                        executing->identity.arch, executing->identity.version);
     return written > 0 && (size_t)written < size ? 1 : -1;
+}
+
+int wpm_operation_input(const char *archive, void **input) {
+    char canonical[PLAN_PATH];
+    DWORD length;
+    if (!input) {
+        return -1;
+    }
+    *input = NULL;
+    if (!active || collecting || !executing) {
+        return 0;
+    }
+    if (!archive) {
+        return -1;
+    }
+    length = GetFullPathNameA(archive, sizeof(canonical), canonical, NULL);
+    if (!length || length >= sizeof(canonical)) {
+        return -1;
+    }
+    if (_stricmp(canonical, executing->archive) &&
+        _stricmp(canonical, executing->retained)) {
+        return 0;
+    }
+    if (executing->failed || executing->journal_failed ||
+        executing->retained_state != 2 ||
+        executing->retained_input == INVALID_HANDLE_VALUE) {
+        return -1;
+    }
+    *input = executing->retained_input;
+    return 1;
+}
+
+int wpm_operation_store_input(const char *destination) {
+    char supplied[PLAN_PATH], root[PLAN_PATH], expected[PLAN_PATH];
+    char canonical[PLAN_PATH], parent[PLAN_PATH], temporary[64], name[256];
+    char digest[65], approved[65];
+    unsigned char buffer[65536], state[32];
+    wpm_path_guard *guard = NULL;
+    HANDLE output = INVALID_HANDLE_VALUE;
+    LARGE_INTEGER size;
+    uint64_t received = 0;
+    DWORD read, written, length;
+    int success = 0;
+    if (!active) {
+        return 0;
+    }
+    if (!destination || collecting || !executing || executing->failed ||
+        executing->journal_failed || executing->retained_state != 2 ||
+        (!strcmp(executing->action, "remove")) ||
+        wpm_operation_store_name(name, sizeof(name)) != 1 ||
+        !wpm_get_data_root(supplied, sizeof(supplied)) ||
+        !state_digest(state) || memcmp(state, approved_state, sizeof(state))) {
+        return -1;
+    }
+    length = GetFullPathNameA(supplied, sizeof(root), root, NULL);
+    if (!length || length >= sizeof(root) ||
+        strlen(root) + strlen(name) + 12 >= sizeof(expected)) {
+        return -1;
+    }
+    while (length > 3 && root[length - 1] == '\\') {
+        root[--length] = 0;
+    }
+    snprintf(expected, sizeof(expected), "%s\\packages\\%s", root, name);
+    length = GetFullPathNameA(destination, sizeof(canonical), canonical, NULL);
+    if (!length || length >= sizeof(canonical) ||
+        _stricmp(canonical, expected)) {
+        return -1;
+    }
+    snprintf(parent, sizeof(parent), "%s\\packages", root);
+    if (wpm_path_guard_open(parent, 1, canonical, sizeof(canonical), &guard) !=
+        WPM_PATH_OPEN) {
+        goto done;
+    }
+    snprintf(temporary, sizeof(temporary), "%s.package.new",
+             executing->recovery_id);
+    output = wpm_path_guard_file(guard, temporary, 1);
+    if (!output) {
+        output = INVALID_HANDLE_VALUE;
+        goto done;
+    }
+    if (SetFilePointer(executing->retained_input, 0, NULL, FILE_BEGIN) ==
+            INVALID_SET_FILE_POINTER ||
+        !GetFileSizeEx(executing->retained_input, &size) || size.QuadPart < 0) {
+        goto done;
+    }
+    for (;;) {
+        if (!ReadFile(executing->retained_input, buffer, sizeof(buffer), &read,
+                      NULL)) {
+            goto done;
+        }
+        if (!read) {
+            break;
+        }
+        if (received > (uint64_t)size.QuadPart ||
+            read > (uint64_t)size.QuadPart - received ||
+            !WriteFile(output, buffer, read, &written, NULL) ||
+            written != read) {
+            goto done;
+        }
+        received += read;
+    }
+    sodium_bin2hex(approved, sizeof(approved), executing->fingerprint,
+                   sizeof(executing->fingerprint));
+    if (received != (uint64_t)size.QuadPart ||
+        !wpm_hash_open_file(output, digest, sizeof(digest)) ||
+        strcmp(digest, approved) || !FlushFileBuffers(output) ||
+        !wpm_path_guard_publish(guard, output, name, 1)) {
+        goto done;
+    }
+    success = CloseHandle(output) != 0;
+    output = INVALID_HANDLE_VALUE;
+done:
+    if (output != INVALID_HANDLE_VALUE) {
+        CloseHandle(output);
+    }
+    wpm_path_guard_close(guard);
+    return success ? 1 : -1;
 }
 
 int wpm_operation_phase_finish(const char *phase) {

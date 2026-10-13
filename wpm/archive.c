@@ -130,13 +130,27 @@ static mz_stream_vtbl archive_stream_interface = {NULL,
 static int archive_reader_open(void *reader, const char *path, HANDLE handle,
                                wpm_archive_stream *stream) {
     if (!handle) {
-        return mz_zip_reader_open_file(reader, path) == MZ_OK;
+        void *selected = NULL;
+        int controlled = wpm_operation_input(path, &selected);
+        if (controlled < 0) {
+            return 0;
+        }
+        if (!controlled) {
+            return mz_zip_reader_open_file(reader, path) == MZ_OK;
+        }
+        handle = selected;
     }
     memset(stream, 0, sizeof(*stream));
     stream->base.vtbl = &archive_stream_interface;
     stream->file = handle;
     return archive_stream_is_open(stream) == MZ_OK &&
            mz_zip_reader_open(reader, stream) == MZ_OK;
+}
+
+static int archive_store_input(const char *source, const char *destination) {
+    int controlled = wpm_operation_store_input(destination);
+    return controlled > 0 ||
+           (!controlled && CopyFileA(source, destination, FALSE));
 }
 
 typedef struct wpm_process_entry {
@@ -1989,7 +2003,8 @@ static int wpm_archive_extract_with_label(const char *archive_path,
     }
 
     reader = mz_zip_reader_create();
-    if (!reader || mz_zip_reader_open_file(reader, archive_path) != MZ_OK) {
+    wpm_archive_stream stream;
+    if (!reader || !archive_reader_open(reader, archive_path, NULL, &stream)) {
         wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
                          "Error: could not open package archive: %s\n",
                          archive_path);
@@ -3729,8 +3744,9 @@ int wpm_archive_install(const char *archive_path, int allow_unsigned) {
     if (_stricmp(archive_full_path, stored_archive_path) != 0) {
         verbose_log("Storing archive: %s", stored_archive_path);
     }
-    if (_stricmp(archive_full_path, stored_archive_path) != 0 &&
-        !CopyFileA(archive_full_path, stored_archive_path, FALSE)) {
+    if ((wpm_operation_active() ||
+         _stricmp(archive_full_path, stored_archive_path) != 0) &&
+        !archive_store_input(archive_full_path, stored_archive_path)) {
         wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
                          "Error: could not store package archive: %s\n",
                          stored_archive_path);
@@ -4072,6 +4088,9 @@ int wpm_archive_upgrade(const char *archive_path, int allow_unsigned,
         return 0;
     }
     strcpy_s(base, sizeof(base), path_basename(archive_full));
+    if (wpm_operation_store_name(base, sizeof(base)) < 0) {
+        return 0;
+    }
     if (!wpm_operation_phase_start("stage") ||
         !wpm_get_data_root(root, sizeof(root)) ||
         !join_path(temp, sizeof(temp), root, "temp") ||
@@ -4145,8 +4164,8 @@ int wpm_archive_upgrade(const char *archive_path, int allow_unsigned,
     if (!wpm_operation_phase_start("retain-archive")) {
         goto cleanup;
     }
-    if (_stricmp(archive_full, stored) != 0 &&
-        !CopyFileA(archive_full, stored, FALSE)) {
+    if ((wpm_operation_active() || _stricmp(archive_full, stored) != 0) &&
+        !archive_store_input(archive_full, stored)) {
         write_upgrade_audit(root, &metadata, old_version, base, signing_key, 1,
                             "archive-retention", 0);
         wpm_event_printf(
