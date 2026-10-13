@@ -145,3 +145,11 @@ TC files exist, WSP pin/release check is recorded, and validators pass. It does
 not require unimplemented I-01 through I-16 product gates to pass. For subsequent
 increments, retain an increment record identifying exact evidence and unresolved
 requirements rather than claiming a planning allocation is an implementation.
+
+## Current reconciliation
+
+The original table above records the 1.2.8 planning baseline. For current
+implementation and retained 1.3.0 native evidence, see
+[the 1.3.0 reconciliation](reconciliation-2.0-1.3.0.md) and
+[the current matrix](traceability-2.0.md). Historical missing implementations
+are not current product status.

@@ -966,7 +966,243 @@ static void print_windows_dependency_version(const char *display_name,
     free(version_data);
 }
 
+/* Machine queries share the existing parsers and result serializers. Events
+ * are captured before any rendering, never reconstructed from console prose. */
+static int machine_query(int argc, char **argv) {
+    char **arguments = calloc((size_t)argc + 2, sizeof(*arguments));
+    int count = 1, outputs = 0, valid = arguments != NULL;
+    int diagnostic = 0, command_index = -1, result_code = 1;
+    int available = 0, show = 0, links = 0, has_result = 0;
+    unsigned ordinal = 0, limit = 128;
+    const char *name = NULL, *arch = NULL, *version = NULL;
+    const char *operation = NULL;
+    Command command = CMD_UNKNOWN;
+    const char *operands[8];
+    int operand_count = 0;
+    unsigned issues = 0;
+    wpm_set_readonly(1);
+    wpm_json_events_begin();
+    if (!arguments) {
+        wpm_event_printf(WPM_EVENT_ERROR, "output.memory", "query", "parse",
+                         "Cannot allocate bounded query arguments.");
+    } else {
+        arguments[0] = argv[0];
+        for (int i = 1; i < argc; i++) {
+            if (!strcmp(argv[i], "--output") ||
+                !strncmp(argv[i], "--output=", 9)) {
+                const char *value = argv[i] + 9;
+                if (!strcmp(argv[i], "--output")) {
+                    value = i + 1 < argc ? argv[++i] : "";
+                }
+                if (++outputs != 1 || strcmp(value, "json")) {
+                    valid = 0;
+                    wpm_event_printf(WPM_EVENT_ERROR, "output.format", "query",
+                                     "parse", "Use --output json once.");
+                }
+                continue;
+            }
+            if (!strcmp(argv[i], "--color") ||
+                !strncmp(argv[i], "--color=", 8)) {
+                const char *value = argv[i] + 8;
+                if (!strcmp(argv[i], "--color")) {
+                    value = i + 1 < argc ? argv[++i] : "";
+                }
+                if (!wpm_set_color_policy(value)) {
+                    valid = 0;
+                    wpm_event_printf(WPM_EVENT_ERROR, "output.color", "query",
+                                     "parse", "Invalid color policy.");
+                }
+                continue;
+            }
+            if (!strcmp(argv[i], "--json") || !strcmp(argv[i], "--verbose") ||
+                !strcmp(argv[i], "--help") || !strcmp(argv[i], "-h")) {
+                valid = 0;
+                wpm_event_printf(WPM_EVENT_ERROR, "output.flags", "query",
+                                 "parse",
+                                 "Machine output cannot combine "
+                                 "with --json, --verbose, or help.");
+            }
+            arguments[count++] = argv[i];
+        }
+        /* Global offline is redundant for these read-only queries. Removing
+         * it before command detection permits either global option position. */
+        for (int i = 1; i < count; i++) {
+            if (!strcmp(arguments[i], "--offline")) {
+                for (int j = i; j + 1 < count; j++) {
+                    arguments[j] = arguments[j + 1];
+                }
+                count--;
+                i--;
+            }
+        }
+        diagnostic = command_has_option(count, arguments, 0, "--diagnose");
+        if (diagnostic) {
+            operation = "diagnose";
+            arguments[count++] = "--json";
+            if (!diagnostic_json_shape(count, arguments, 0)) {
+                valid = 0;
+                wpm_event_printf(WPM_EVENT_ERROR, "output.diagnose.flags",
+                                 "diagnose", "parse",
+                                 "Diagnosis accepts only --offline and "
+                                 "--dry-run in machine mode.");
+            }
+        } else if (count > 1) {
+            command_index = 1;
+            command = parse_command(arguments[command_index]);
+            if (command == CMD_LIST || command == CMD_SHOW ||
+                command == CMD_RECOVERY || command == CMD_REPO) {
+                operation = command_name(command);
+                if (command_has_option(count, arguments, 1, "--dry-run")) {
+                    valid = 0;
+                }
+                if (!validate_command_options(command, count, arguments, 1) ||
+                    !validate_command_operands(command, count, arguments, 1) ||
+                    !validate_command_actions(command, count, arguments, 1)) {
+                    valid = 0;
+                }
+                if (valid) {
+                    operand_count = collect_command_operands(
+                        command, count, arguments, 1, operands, 8);
+                    if (command == CMD_REPO &&
+                        (operand_count != 1 ||
+                         strcmp(operands[0], "diagnose"))) {
+                        valid = 0;
+                    }
+                    if (valid) {
+                        for (int i = 2; i < count; i++) {
+                            const char **selector = NULL;
+                            if (!strcmp(arguments[i], "--arch")) {
+                                selector = &arch;
+                            } else if (!strcmp(arguments[i], "--version")) {
+                                selector = &version;
+                            } else if (!strcmp(arguments[i], "--name")) {
+                                selector = &name;
+                            }
+                            if (selector) {
+                                if (*selector) {
+                                    valid = 0;
+                                }
+                                *selector = arguments[++i];
+                            }
+                        }
+                        available = command_has_option(count, arguments, 1,
+                                                       "--available");
+                        links =
+                            command_has_option(count, arguments, 1, "--links");
+                        show = command == CMD_SHOW;
+                        if (command == CMD_LIST || show) {
+                            name = operand_count ? operands[0] : NULL;
+                            valid &= command_bounded_option(
+                                count, arguments, 1, "--repo", 32, &ordinal);
+                        }
+                        if (command == CMD_RECOVERY) {
+                            valid &= command_bounded_option(
+                                count, arguments, 1, "--limit", 4096, &limit);
+                        }
+                    }
+                }
+            } else {
+                valid = 0;
+            }
+        } else {
+            valid = 0;
+        }
+    }
+    if (!valid) {
+        wpm_event_printf(WPM_EVENT_ERROR, "output.query.invalid", "query",
+                         "parse",
+                         "Use --output json with --diagnose, list, "
+                         "show, repo diagnose, or recovery list and valid "
+                         "selectors; mutating commands are unsupported.");
+    }
+    fputs("{\"schema\":\"wpm.output.v1\",\"command\":", stdout);
+    issues += !wpm_json_string(operation);
+    fputs(",\"selectors\":{\"name\":", stdout);
+    issues += !wpm_json_string(name);
+    fputs(",\"arch\":", stdout);
+    issues += !wpm_json_string(!arch                      ? NULL
+                               : !_stricmp(arch, "x86")   ? "x86"
+                               : !_stricmp(arch, "x64")   ? "x64"
+                               : !_stricmp(arch, "arm64") ? "arm64"
+                               : !_stricmp(arch, "any")   ? "any"
+                                                          : arch);
+    fputs(",\"version\":", stdout);
+    issues += !wpm_json_string(version);
+    fputs(",\"repository\":", stdout);
+    if (ordinal) {
+        fprintf(stdout, "%u", ordinal);
+    } else {
+        fputs("null", stdout);
+    }
+    if (issues) {
+        wpm_event_printf(WPM_EVENT_ERROR, "output.encoding", "query",
+                         "serialize",
+                         "A selector could not be encoded "
+                         "as UTF-8; no query was executed.");
+    }
+    fprintf(stdout, ",\"available\":%s,\"links\":%s,\"limit\":",
+            available ? "true" : "false", links ? "true" : "false");
+    if (command == CMD_RECOVERY) {
+        fprintf(stdout, "%u", limit);
+    } else {
+        fputs("null", stdout);
+    }
+    fputs("},\"resultSchema\":", stdout);
+    issues +=
+        !wpm_json_string(!valid || issues          ? NULL
+                         : diagnostic              ? "wpm.runtime-diagnose.v1"
+                         : command == CMD_REPO     ? "wpm.repository-health.v1"
+                         : command == CMD_RECOVERY ? "wpm.recovery-list.v1"
+                                                   : "wpm.package-query.v1");
+    fputs(",\"result\":", stdout);
+    if (valid && !issues) {
+        has_result = 1;
+        if (diagnostic) {
+            result_code = print_diagnostics_json();
+        } else if (command == CMD_REPO) {
+            result_code = wpm_repo_diagnose_json(links) ? 0 : 1;
+        } else if (command == CMD_RECOVERY) {
+            result_code =
+                wpm_recovery_list_filtered(limit, 1, name, arch) ? 0 : 1;
+        } else {
+            result_code = wpm_repo_query_json(name, arch, version, ordinal,
+                                              available, show)
+                              ? 0
+                              : 1;
+        }
+        if (result_code) {
+            wpm_event_printf(WPM_EVENT_ERROR, "output.query.incomplete",
+                             operation, "query",
+                             "Query did not succeed; inspect result status "
+                             "and completeness before using its rows.");
+        }
+    } else {
+        fputs("null", stdout);
+    }
+    fputs(",\"diagnostics\":", stdout);
+    issues += !wpm_json_events_end();
+    if (issues) {
+        result_code = 1;
+    }
+    fprintf(stdout,
+            ",\"serializationComplete\":%s,\"status\":\"%s\","
+            "\"exitCode\":%d}\n",
+            issues ? "false" : "true",
+            !has_result   ? "error"
+            : result_code ? "partial"
+                          : "success",
+            result_code);
+    free(arguments);
+    return fflush(stdout) != 0 || ferror(stdout) ? 1 : result_code;
+}
+
 int main(int argc, char *argv[]) {
+    for (int i = 1; i < argc; i++) {
+        if (!strcmp(argv[i], "--output") || !strncmp(argv[i], "--output=", 9)) {
+            return machine_query(argc, argv);
+        }
+    }
+
     int verbose = 0;
     int plan_yes = 0;
     int plan_confirm = 0;
@@ -2193,9 +2429,12 @@ void print_usage(Command c) {
     wpm_event_printf(
         WPM_EVENT_INFO, "wpm.info", "wpm", "command",
         "      Control semantic output styling; default is auto\n\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  --output json\n"
+                     "      Emit wpm.output.v1 for read-only queries\n\n");
 
     wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
-                     "  --diagnose [--json]\n");
+                     "  --diagnose [--json | --output json]\n");
     wpm_event_printf(
         WPM_EVENT_INFO, "wpm.info", "wpm", "command",
         "      Display runtime mode and resolved WPM locations\n\n");

@@ -19,4 +19,10 @@
 \def\TCExpectedResult{Forbidden state is rejected; records/corpus are complete and secret-safe; bounds cannot hang or leak the host; failures remain immutable and linked; every required non-Pass or unknown finding blocks; architecture claims match execution. Required completion-record entries all report Pass for release.}
 \def\TCPostConditions{Clean disposable processes/data while retaining original failures, completion records, and reports under \texttt{Testing/Evidence/2.0/<source-revision>/TC-0020/<profile>/<architecture>/}.}
 \TCTemplate
+\section*{Executable candidate-gate foundation}
+\texttt{tests/verify-quality-candidate-gate.py} supplies synthetic verification
+for REQ-0020.006: a complete native source-bound bundle passes and missing,
+stale, duplicate, non-Pass, build-only, malformed, changed, unsafe or untriaged
+records independently block without changing evidence. This proves aggregation
+semantics only; product profile producers and composite acceptance remain open.
 \end{document}

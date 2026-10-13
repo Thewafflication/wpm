@@ -1,0 +1,126 @@
+\section*{Automated Execution Results}
+\begin{description}
+\item[Test Case Identifier] TC-0023
+\item[Execution Timestamp] 2026-10-13T00:47:58.7182217+00:00
+\item[Completed Timestamp] 2026-10-13T00:48:38.7738513+00:00
+\item[Software Under Test] D:\textbackslash{}a\textbackslash{}wpm\textbackslash{}wpm\textbackslash{}bin\textbackslash{}x86\textbackslash{}Debug\textbackslash{}wpm.exe
+\item[Environment] Microsoft Windows NT 10.0.20348.0; PowerShell 7.6.6
+\item[Overall Status] Pass
+\end{description}
+\subsubsection*{Step 1: Validate the controlled architecture and DFS baseline}
+\begin{description}
+\item[Command] \mbox{}
+\begin{verbatim}
+PowerShell validation
+\end{verbatim}
+\item[Exit Code] 0
+\item[Status] Pass
+\end{description}
+\begin{verbatim}
+Accepted ADR dispositions, relationships, DFS coverage, manifest,
+  traceability, and WSP pin are consistent.
+\end{verbatim}
+\subsubsection*{Step 2: Validate equivalent CRLF controlled text}
+\begin{description}
+\item[Command] \mbox{}
+\begin{verbatim}
+PowerShell validation
+\end{verbatim}
+\item[Exit Code] 0
+\item[Status] Pass
+\end{description}
+\begin{verbatim}
+The complete controlled baseline is equivalent with CRLF line endings.
+\end{verbatim}
+\subsubsection*{Step 3: Reject a missing accepted-ADR disposition}
+\begin{description}
+\item[Command] \mbox{}
+\begin{verbatim}
+PowerShell validation
+\end{verbatim}
+\item[Exit Code] 0
+\item[Status] Pass
+\end{description}
+\begin{verbatim}
+Rejected as expected: docs/change-impact-2.0-architecture-and-
+  security.md is missing the ADR-0009 review disposition.
+\end{verbatim}
+\subsubsection*{Step 4: Reject a missing explicit non-goal section}
+\begin{description}
+\item[Command] \mbox{}
+\begin{verbatim}
+PowerShell validation
+\end{verbatim}
+\item[Exit Code] 0
+\item[Status] Pass
+\end{description}
+\begin{verbatim}
+Rejected as expected: docs/adr-0010-command-events-and-machine-readable-
+  output.md is missing ## Explicit Non-Goals.
+\end{verbatim}
+\subsubsection*{Step 5: Reject a missing requirement-to-ADR reference}
+\begin{description}
+\item[Command] \mbox{}
+\begin{verbatim}
+PowerShell validation
+\end{verbatim}
+\item[Exit Code] 0
+\item[Status] Pass
+\end{description}
+\begin{verbatim}
+Rejected as expected: docs/req-0014-command-output-and-help.md is
+  missing the governing ADR-0010 reference.
+\end{verbatim}
+\subsubsection*{Step 6: Reject missing DFS cleanup-threat coverage}
+\begin{description}
+\item[Command] \mbox{}
+\begin{verbatim}
+PowerShell validation
+\end{verbatim}
+\item[Exit Code] 0
+\item[Status] Pass
+\end{description}
+\begin{verbatim}
+Rejected as expected: docs/dfs.md is missing WPM-THR-020.
+\end{verbatim}
+\subsubsection*{Step 7: Reject a missing documentation-manifest entry}
+\begin{description}
+\item[Command] \mbox{}
+\begin{verbatim}
+PowerShell validation
+\end{verbatim}
+\item[Exit Code] 0
+\item[Status] Pass
+\end{description}
+\begin{verbatim}
+Rejected as expected: documentation/documentation-manifest.json is
+  missing the docs/adr-0013-operation-plans-dry-run-and-recovery.md
+  manifest entry.
+\end{verbatim}
+\subsubsection*{Step 8: Reject a changed WSP baseline identity}
+\begin{description}
+\item[Command] \mbox{}
+\begin{verbatim}
+PowerShell validation
+\end{verbatim}
+\item[Exit Code] 0
+\item[Status] Pass
+\end{description}
+\begin{verbatim}
+Rejected as expected: The wsp gitlink is
+  0000000000000000000000000000000000000000, expected
+  f009399dd1406219571ac978bfee85e85bbdfeac.
+\end{verbatim}
+\subsubsection*{Step 9: Return zero after expected negative validator children}
+\begin{description}
+\item[Command] \mbox{}
+\begin{verbatim}
+PowerShell validation
+\end{verbatim}
+\item[Exit Code] 0
+\item[Status] Pass
+\end{description}
+\begin{verbatim}
+The top-level validator returned zero after all expected negative
+  children and cleanup.
+\end{verbatim}

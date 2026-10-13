@@ -1,0 +1,61 @@
+name: Quality candidate gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      evidence_run_id:
+        description: Exact-source run retaining wpm-quality-candidate-input
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  candidate:
+    name: Validate retained quality candidate
+    runs-on: windows-2022
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      INPUT_RUN_ID: ${{ inputs.evidence_run_id }}
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@v6
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Download retained source-bound input
+        shell: pwsh
+        run: |
+          if ($env:INPUT_RUN_ID -notmatch '^\d+$') {
+            throw 'Evidence run ID must be numeric.'
+          }
+          $revision = gh run view $env:INPUT_RUN_ID --json headSha `
+              --jq '.headSha'
+          if ($LASTEXITCODE -ne 0 -or $revision -ne $env:GITHUB_SHA) {
+            throw 'Evidence run does not identify the exact source.'
+          }
+          gh run download $env:INPUT_RUN_ID `
+              --name wpm-quality-candidate-input --dir out/quality-candidate
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Validate without rewriting profile evidence
+        shell: pwsh
+        run: |
+          $wspRevision = git rev-parse HEAD:wsp
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python tools/quality-candidate-gate.py `
+              --manifest out/quality-candidate/manifest.json `
+              --source-revision $env:GITHUB_SHA `
+              --wsp-revision $wspRevision |
+            Tee-Object -FilePath out/quality-candidate/gate.json
+          exit $LASTEXITCODE
+      - name: Preserve candidate and original failure evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: wpm-quality-candidate-evidence
+          path: out/quality-candidate
+          retention-days: 90

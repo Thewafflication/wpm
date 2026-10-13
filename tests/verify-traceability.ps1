@@ -3,6 +3,8 @@ param(
     [string]$RepositoryRoot = (Split-Path -Parent $PSScriptRoot),
     [ValidateSet('', '2.0')]
     [string]$ReleaseBaseline = '',
+    [ValidateSet('Complete', 'PrePublication')]
+    [string]$ReleasePhase = 'Complete',
     [ValidatePattern('^\d{4}$')]
     [string]$RunnerPlanId = '',
     [switch]$SkipRunnerPlanExecution
@@ -483,6 +485,25 @@ if ($ReleaseBaseline -eq '2.0') {
         }
     }
     foreach ($row in $traceRows20) {
+        if ($ReleasePhase -eq 'PrePublication' -and
+            $row.RequirementId -eq 'REQ-0022.009' -and
+            $row.State -eq 'Planned') {
+            $planPath = Join-Path $docs 'retrospective-2.0-plan.md'
+            $plan = if (Test-Path -LiteralPath $planPath) {
+                Get-Content -Raw -LiteralPath $planPath
+            } else { '' }
+            $completionPattern = '\*\*Completion condition:\*\* ' +
+                'Before next stable release'
+            if ($row.Evidence -notmatch 'docs/retrospective-2\.0-plan\.md' -or
+                $plan -notmatch '\*\*Owner:\*\* WPM maintainers' -or
+                $plan -notmatch '\*\*Trigger:\*\* Published WPM 2\.0\.0' -or
+                $plan -notmatch $completionPattern -or
+                $plan -notmatch 'REQ-0022\.009') {
+                $failures.Add(
+                    'REQ-0022.009 has no controlled post-release action.')
+            }
+            continue
+        }
         if ($row.State -ne 'Verified') {
             $failures.Add((
                     "$($row.RequirementId) is not Verified for th" +

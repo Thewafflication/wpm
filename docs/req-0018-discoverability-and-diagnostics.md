@@ -125,3 +125,25 @@ verification; its runner remains Blocked pending implementation. ADR-0010 define
 the `wpm.output.v1` envelope, handled-error behavior, deterministic encoding,
 and schema evolution rule. No implementation is claimed by this proposed
 baseline.
+
+
+## Envelope implementation allocation
+
+The next compatible slice supplies `--output json` with the ADR-0010
+`wpm.output.v1` envelope for runtime diagnose, installed/available list, show,
+repository diagnose, and recovery list. It nests existing versioned query
+results without changing their `--json` contracts. Shared typed events become
+ordered redacted diagnostics; handled parse/unsupported-command errors use the
+same envelope with a null result and nonzero exitCode before initialization.
+Query failure and serialization/bound failures remain non-success. Existing
+query selectors and deterministic ordering are reused; selectors have explicit
+nulls and normalized architecture/version values. UTF-8 failure cannot become
+a successful document. No network retrieval, scripts, or persistent state is
+authorized by this mode. New mutations are rejected before dispatch.
+
+This advances REQ-0018.008/.009 but does not close full diagnose health,
+remediation, eligible selection, trust/upgrade/recovery context, or ambiguity.
+The parent and composite TC-0018 remain Proposed/Blocked. Controlled executable
+foundation `machine-output-integration` tests the envelope, old-schema parity,
+handled errors, redaction, bounds, determinism, and no-write snapshots on each
+native architecture. See docs/machine-output.md for the exact public contract.

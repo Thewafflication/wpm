@@ -22,6 +22,14 @@ int wpm_event_printf(wpm_event_class kind, const char *code,
                      const char *operation, const char *phase,
                      const char *format, ...);
 
+/** Install an optional process-local renderer for already-redacted events.
+ * A sink replaces console rendering; it must not retain the borrowed text.
+ */
+typedef void (*wpm_event_sink)(wpm_event_class kind, const char *code,
+                               const char *operation, const char *phase,
+                               const char *text);
+void wpm_event_set_sink(wpm_event_sink sink);
+
 /** Apply the shared terminal/credential filter to mutable NUL-terminated text.
  * Filtering only shortens text; callers retain ownership of the buffer. */
 void wpm_redact_text(char *text);
