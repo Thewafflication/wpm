@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 #include "json_output.h"
 #include "logging.h"
 
@@ -119,37 +120,63 @@ static int json_utf8(const unsigned char *text) {
     return 1;
 }
 
-int wpm_json_string(const char *text) {
-    char *safe;
+char *wpm_json_encode_string(const char *text) {
+    char *safe, *encoded, *next;
     const unsigned char *p;
+    size_t length;
     if (!text) {
-        fputs("null", stdout);
-        return 1;
+        encoded = malloc(5);
+        if (encoded) {
+            memcpy(encoded, "null", 5);
+        }
+        return encoded;
     }
-    safe = malloc(strlen(text) + 1);
+    length = strlen(text);
+    if (length > (SIZE_MAX - 3) / 6) {
+        return NULL;
+    }
+    safe = malloc(length + 1);
     if (!safe) {
-        fputs("null", stdout);
-        return 0;
+        return NULL;
     }
     strcpy(safe, text);
     wpm_redact_text(safe);
     if (!json_utf8((const unsigned char *)safe)) {
         free(safe);
-        fputs("null", stdout);
-        return 0;
+        return NULL;
     }
-    fputc('"', stdout);
+    encoded = malloc(length * 6 + 3);
+    if (!encoded) {
+        free(safe);
+        return NULL;
+    }
+    next = encoded;
+    *next++ = '"';
     for (p = (const unsigned char *)safe; *p; p++) {
         if (*p == '"' || *p == '\\') {
-            fputc('\\', stdout);
-            fputc(*p, stdout);
+            *next++ = '\\';
+            *next++ = *p;
         } else if (*p < 0x20) {
-            fprintf(stdout, "\\u%04x", (unsigned)*p);
+            snprintf(next, 7, "\\u%04x", (unsigned)*p);
+            next += 6;
         } else {
-            fputc(*p, stdout);
+            *next++ = *p;
         }
     }
-    fputc('"', stdout);
+    *next++ = '"';
+    *next = 0;
     free(safe);
-    return !ferror(stdout);
+    return encoded;
+}
+
+int wpm_json_write_string(FILE *output, const char *text) {
+    char *encoded = wpm_json_encode_string(text);
+    int success = encoded != NULL;
+    fputs(encoded ? encoded : "null", output);
+    free(encoded);
+    return success && !ferror(output);
+}
+
+int wpm_json_string(const char *text) {
+    return wpm_json_write_string(stdout, text);
 }

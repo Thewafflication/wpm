@@ -1,10 +1,16 @@
 """Exercise real lifecycle plans, cancellation, and changed-input rejection."""
 
 import argparse
+import hashlib
+import json
 import os
 from pathlib import Path
 import subprocess
 import tempfile
+import time
+
+from repository_test_helpers import junction
+import re
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--wpm", required=True)
@@ -57,6 +63,7 @@ with tempfile.TemporaryDirectory(prefix="wpm-operation-") as directory:
             assert text in result.stdout, result.stdout
         assert not installed.exists()
         assert not list((data / "packages").glob("*.zip"))
+        assert not (data / "recovery").exists()
 
     # Change config after the prompt but before approval. The typed error must
     # reject the stale plan before staging or a package script can run.
@@ -110,6 +117,31 @@ with tempfile.TemporaryDirectory(prefix="wpm-operation-") as directory:
     )
     assert result.returncode == 0, result.stdout
     assert installed.exists()
+    records = list((data / "recovery").glob("*.json"))
+    assert len(records) == 1, records
+    record = json.loads(records[0].read_text(encoding="utf-8"))
+    assert record["schema"] == "wpm.recovery.v1"
+    assert record["status"] == "completed"
+    assert record["phase"] == "completed"
+    assert record["externalStateMayHaveChanged"] is True
+    assert record["scriptExitCode"] == 0
+    assert record["retryEligible"] is False
+    assert record["safeActions"] == ["inspect"]
+    assert (
+        record["planDigest"]
+        == re.search(r"Plan digest: ([0-9a-f]{64})", result.stdout)[1]
+    )
+    assert (
+        record["input"]["blake2b256"]
+        == hashlib.blake2b(archive.read_bytes(), digest_size=32).hexdigest()
+    )
+    assert record["package"] == {
+        "name": "plan-test",
+        "arch": "any",
+        "oldVersion": None,
+        "newVersion": "1.0.0",
+    }
+    assert not list((data / "recovery").glob("*.new"))
     assert run("remove", archive.stem).returncode == 0
     installed.unlink()
     removed.unlink()
@@ -148,6 +180,137 @@ with tempfile.TemporaryDirectory(prefix="wpm-operation-") as directory:
     assert "Trust it? [y/N]" in result.stdout, result.stdout
     assert installed.exists()
     assert list((data / "trust").glob("*.pub"))
+
+    # A script failure retains its exact exit and external-state uncertainty.
+    installed.unlink()
+    (meta / "install.cmd").write_text(
+        f'@echo off\necho attempted>"{installed}"\nexit /b 37\n',
+        encoding="utf-8",
+    )
+    assert run("build", source, root, "--sign", private).returncode == 0
+    before = set((data / "recovery").glob("*.json"))
+    result = run(
+        "install", archive, "--allow-unsigned", "--confirm", input_text="y\n"
+    )
+    assert result.returncode != 0, result.stdout
+    added = set((data / "recovery").glob("*.json")) - before
+    assert len(added) == 1, (added, result.stdout, result.stderr)
+    failure = json.loads(added.pop().read_text(encoding="utf-8"))
+    assert failure["status"] == "failed"
+    assert failure["failedPhase"] == "script"
+    assert failure["scriptExitCode"] == 37
+    assert failure["externalStateMayHaveChanged"] is True
+    assert installed.exists()
+
+    # Initial record failure blocks extraction and external script effects.
+    installed.unlink()
+    recovery = data / "recovery"
+    retained = data / "retained-recovery"
+    recovery.rename(retained)
+    recovery.write_text("unrecognized object", encoding="utf-8")
+    result = run(
+        "install", archive, "--allow-unsigned", "--confirm", input_text="y\n"
+    )
+    assert result.returncode != 0, result.stdout
+    assert "recovery evidence could not be committed" in result.stdout
+    assert not installed.exists()
+    assert recovery.read_text(encoding="utf-8") == "unrecognized object"
+    recovery.unlink()
+    retained.rename(recovery)
+
+    # A recovery junction is not a supported record destination and must not
+    # redirect journal writes outside the selected controlled root.
+    outside = root / "outside-recovery"
+    outside.mkdir()
+    recovery.rename(retained)
+    assert junction(recovery, outside), "junction fixture unavailable"
+    try:
+        result = run(
+            "install",
+            archive,
+            "--allow-unsigned",
+            "--confirm",
+            input_text="y\n",
+        )
+        assert result.returncode != 0, result.stdout
+        assert "recovery evidence could not be committed" in result.stdout
+        assert not list(outside.iterdir())
+        assert not installed.exists()
+    finally:
+        recovery.rmdir()
+        retained.rename(recovery)
+
+    # A later update failure preserves the last atomic document. The script
+    # makes the current record read-only; WPM must neither unlink nor truncate
+    # it in an attempt to force completion.
+    (meta / "install.cmd").write_text(
+        f'@echo off\nattrib +r "{recovery}\\*.json"\nexit /b 0\n',
+        encoding="utf-8",
+    )
+    assert run("build", source, root, "--sign", private).returncode == 0
+    before = set(recovery.glob("*.json"))
+    result = run(
+        "install", archive, "--allow-unsigned", "--confirm", input_text="y\n"
+    )
+    assert result.returncode != 0, result.stdout
+    assert "recovery evidence could not be committed" in result.stdout
+    added = set(recovery.glob("*.json")) - before
+    assert len(added) == 1, (added, result.stdout, result.stderr)
+    incomplete = json.loads(added.pop().read_text(encoding="utf-8"))
+    assert incomplete["status"] == "in-progress"
+    assert incomplete["phase"] == "script"
+    assert incomplete["externalStateMayHaveChanged"] is True
+    assert incomplete["scriptExitCode"] is None
+    assert not list(recovery.glob("*.new"))
+    for path in recovery.glob("*.json"):
+        path.chmod(0o666)
+
+    # Abrupt termination must leave a parseable pre-process record. Terminate
+    # only the disposable process tree started by this test.
+    ready = root / "interruption-ready"
+    (meta / "install.cmd").write_text(
+        f'@echo off\necho ready>"{ready}"\n'
+        "powershell -NoProfile -Command Start-Sleep -Seconds 30\nexit /b 0\n",
+        encoding="utf-8",
+    )
+    assert run("build", source, root, "--sign", private).returncode == 0
+    before = set(recovery.glob("*.json"))
+    process = subprocess.Popen(
+        [wpm, "install", str(archive), "--allow-unsigned", "--confirm"],
+        env=env,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    process.stdin.write(b"y\n")
+    process.stdin.flush()
+    deadline = time.monotonic() + 15
+    try:
+        while not ready.exists() and time.monotonic() < deadline:
+            assert process.poll() is None
+            time.sleep(0.05)
+        assert ready.exists(), "script did not reach interruption boundary"
+        added = set(recovery.glob("*.json")) - before
+        assert len(added) == 1, added
+        interrupted_path = added.pop()
+        original = interrupted_path.read_bytes()
+        interrupted = json.loads(original)
+        assert interrupted["status"] == "in-progress"
+        assert interrupted["phase"] == "script"
+        assert interrupted["externalStateMayHaveChanged"] is True
+        assert interrupted["scriptExitCode"] is None
+        assert Path(interrupted["input"]["path"]).exists()
+    finally:
+        if process.poll() is None:
+            killed = subprocess.run(
+                ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                capture_output=True,
+                timeout=15,
+            )
+            assert killed.returncode == 0, killed.stdout
+        process.communicate(timeout=15)
+    assert interrupted_path.read_bytes() == original
+    assert not list(recovery.glob("*.new"))
 
 print(
     "PASS: complete plans, safe cancellation, --yes, and stale-state rejection"

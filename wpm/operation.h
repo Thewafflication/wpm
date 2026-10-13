@@ -24,7 +24,12 @@ int wpm_operation_confirm(void);
 /** Recheck inputs and selected state immediately before a package script. */
 int wpm_operation_before_script(void);
 /** Record the new controlled state after a completed authorized item. */
-void wpm_operation_completed(void);
+int wpm_operation_completed(void);
+
+/** Commit external-state uncertainty before attempting a package process. */
+int wpm_operation_external_start(const char *phase);
+/** Retain the observed script exit; failed writes block further mutation. */
+int wpm_operation_script_result(unsigned long exit_code);
 /** Release plan inputs and memory. */
 void wpm_operation_close(void);
 #endif

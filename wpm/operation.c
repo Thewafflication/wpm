@@ -4,12 +4,14 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <stdint.h>
 #include <windows.h>
 #include "sodium.h"
 #include "archive.h"
 #include "logging.h"
 #include "operation.h"
 #include "capability.h"
+#include "json_output.h"
 
 #define PLAN_LIMIT 256
 #define PLAN_PATH 4096
@@ -22,6 +24,12 @@ typedef struct plan_item {
     HANDLE input;
     DWORD file_identity[3];
     int consumed;
+    char recovery_id[33], created[32];
+    int journal_started, journal_failed, external;
+    char phase[32];
+    unsigned long script_exit;
+    int script_exit_known;
+    DWORD record_identity[3];
 } plan_item;
 
 static plan_item *items;
@@ -30,6 +38,279 @@ static int collecting, active, assume_yes;
 static plan_item *executing;
 static unsigned char approved_state[32];
 static char selected_source[PLAN_PATH];
+static char approved_plan[65];
+
+static void journal_time(char *text, size_t size) {
+    SYSTEMTIME now;
+    GetSystemTime(&now);
+    snprintf(text, size, "%04u-%02u-%02uT%02u:%02u:%02u.%03uZ", now.wYear,
+             now.wMonth, now.wDay, now.wHour, now.wMinute, now.wSecond,
+             now.wMilliseconds);
+}
+
+/* Hold each ancestor against rename while creating/replacing the record.
+ * Reparse roots and device namespaces are deliberately unsupported. */
+static int journal_lock_root(char *path, HANDLE *locks, size_t *count) {
+    size_t length = strlen(path);
+    *count = 0;
+    if (length <= 3 || !isalpha((unsigned char)path[0]) || path[1] != ':' ||
+        path[2] != '\\') {
+        return 0;
+    }
+    for (size_t i = 3; i <= length; i++) {
+        char saved;
+        HANDLE directory;
+        BY_HANDLE_FILE_INFORMATION info;
+        DWORD attributes, error;
+        if (i != length && path[i] != '\\') {
+            continue;
+        }
+        if (*count == 128) {
+            return 0;
+        }
+        saved = path[i];
+        path[i] = 0;
+        attributes = GetFileAttributesA(path);
+        error = attributes == INVALID_FILE_ATTRIBUTES ? GetLastError() : 0;
+        if (error == ERROR_PATH_NOT_FOUND || error == ERROR_FILE_NOT_FOUND) {
+            if (!CreateDirectoryA(path, NULL) &&
+                GetLastError() != ERROR_ALREADY_EXISTS) {
+                path[i] = saved;
+                return 0;
+            }
+        }
+        directory = CreateFileA(
+            path, FILE_READ_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE,
+            NULL, OPEN_EXISTING,
+            FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, NULL);
+        path[i] = saved;
+        if (directory == INVALID_HANDLE_VALUE) {
+            return 0;
+        }
+        locks[(*count)++] = directory;
+        if (!GetFileInformationByHandle(directory, &info) ||
+            !(info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ||
+            (info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static int journal_text(const char *text, HANDLE file) {
+    size_t size = strlen(text);
+    DWORD written;
+    return size <= MAXDWORD &&
+           WriteFile(file, text, (DWORD)size, &written, NULL) &&
+           written == size;
+}
+
+static int journal_string(HANDLE file, const char *text) {
+    char *encoded = wpm_json_encode_string(text);
+    int success = encoded && journal_text(encoded, file);
+    free(encoded);
+    return success;
+}
+
+static int journal_format(HANDLE file, const char *format, ...) {
+    char text[256];
+    va_list arguments;
+    int size;
+    va_start(arguments, format);
+    size = vsnprintf(text, sizeof(text), format, arguments);
+    va_end(arguments);
+    return size >= 0 && (size_t)size < sizeof(text) && journal_text(text, file);
+}
+
+static int journal_write(plan_item *item, const char *phase, const char *status,
+                         const unsigned long *exit_code) {
+    char root[PLAN_PATH], supplied[PLAN_PATH], directory[PLAN_PATH];
+    char final[PLAN_PATH];
+    char temporary[PLAN_PATH] = "", updated[32], fingerprint[65];
+    HANDLE locks[128], file = INVALID_HANDLE_VALUE;
+    size_t lock_count = 0;
+    int complete = 1, success = 0;
+    unsigned char random[16];
+    DWORD length;
+    BY_HANDLE_FILE_INFORMATION committed;
+    if (exit_code) {
+        item->script_exit = *exit_code;
+        item->script_exit_known = 1;
+    }
+    if (item->script_exit_known) {
+        exit_code = &item->script_exit;
+    }
+    if (item->journal_failed || wpm_is_readonly() ||
+        !wpm_get_data_root(supplied, sizeof(supplied))) {
+        goto done;
+    }
+    length = GetFullPathNameA(supplied, sizeof(root), root, NULL);
+    if (!length || length >= sizeof(root) ||
+        !journal_lock_root(root, locks, &lock_count)) {
+        goto done;
+    }
+    if (snprintf(directory, sizeof(directory), "%s\\recovery", root) < 0 ||
+        strlen(root) + 10 >= sizeof(directory)) {
+        goto done;
+    }
+    if (!CreateDirectoryA(directory, NULL) &&
+        GetLastError() != ERROR_ALREADY_EXISTS) {
+        goto done;
+    }
+    /* Ancestors remain held; lock and inspect the new final directory too. */
+    if (lock_count == 128) {
+        goto done;
+    }
+    file = CreateFileA(
+        directory, FILE_READ_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE,
+        NULL, OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, NULL);
+    if (file == INVALID_HANDLE_VALUE) {
+        goto done;
+    }
+    locks[lock_count++] = file;
+    file = INVALID_HANDLE_VALUE;
+    {
+        BY_HANDLE_FILE_INFORMATION info;
+        if (!GetFileInformationByHandle(locks[lock_count - 1], &info) ||
+            !(info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ||
+            (info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
+            goto done;
+        }
+    }
+    if (!item->recovery_id[0]) {
+        randombytes_buf(random, sizeof(random));
+        sodium_bin2hex(item->recovery_id, sizeof(item->recovery_id), random,
+                       sizeof(random));
+        journal_time(item->created, sizeof(item->created));
+    }
+    if (snprintf(final, sizeof(final), "%s\\%s.json", directory,
+                 item->recovery_id) < 0 ||
+        strlen(directory) + 43 >= sizeof(final)) {
+        goto done;
+    }
+    snprintf(temporary, sizeof(temporary), "%s.new", final);
+    if (!item->journal_started &&
+        GetFileAttributesA(final) != INVALID_FILE_ATTRIBUTES) {
+        goto done;
+    }
+    if (item->journal_started) {
+        BY_HANDLE_FILE_INFORMATION previous;
+        HANDLE existing = CreateFileA(
+            final, FILE_READ_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE,
+            NULL, OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT, NULL);
+        int same = existing != INVALID_HANDLE_VALUE &&
+                   GetFileInformationByHandle(existing, &previous) &&
+                   previous.nNumberOfLinks == 1 &&
+                   !(previous.dwFileAttributes &
+                     (FILE_ATTRIBUTE_REPARSE_POINT | FILE_ATTRIBUTE_DIRECTORY |
+                      FILE_ATTRIBUTE_READONLY)) &&
+                   previous.dwVolumeSerialNumber == item->record_identity[0] &&
+                   previous.nFileIndexHigh == item->record_identity[1] &&
+                   previous.nFileIndexLow == item->record_identity[2];
+        if (existing != INVALID_HANDLE_VALUE) {
+            CloseHandle(existing);
+        }
+        if (!same) {
+            goto done;
+        }
+    }
+    file =
+        CreateFileA(temporary, GENERIC_WRITE, 0, NULL, CREATE_NEW,
+                    FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT, NULL);
+    if (file == INVALID_HANDLE_VALUE) {
+        goto done;
+    }
+    journal_time(updated, sizeof(updated));
+    sodium_bin2hex(fingerprint, sizeof(fingerprint), item->fingerprint,
+                   sizeof(item->fingerprint));
+    complete &=
+        journal_text("{\"schema\":\"wpm.recovery.v1\",\"operationId\":", file);
+    complete &= journal_string(file, item->recovery_id);
+    complete &= journal_text(",\"operation\":", file);
+    complete &= journal_string(file, item->action);
+    complete &= journal_text(",\"created\":", file);
+    complete &= journal_string(file, item->created);
+    complete &= journal_text(",\"updated\":", file);
+    complete &= journal_string(file, updated);
+    complete &= journal_text(",\"planDigest\":", file);
+    complete &= journal_string(file, approved_plan);
+    complete &= journal_text(",\"status\":", file);
+    complete &= journal_string(file, status);
+    complete &= journal_text(",\"phase\":", file);
+    complete &= journal_string(file, phase);
+    complete &= journal_text(",\"package\":{\"name\":", file);
+    complete &= journal_string(file, item->identity.name);
+    complete &= journal_text(",\"arch\":", file);
+    complete &= journal_string(file, item->identity.arch);
+    complete &= journal_text(",\"oldVersion\":", file);
+    complete &= journal_string(
+        file, !strcmp(item->old_version, "none") ? NULL : item->old_version);
+    complete &= journal_text(",\"newVersion\":", file);
+    complete &= journal_string(
+        file, !strcmp(item->action, "remove") ? NULL : item->identity.version);
+    complete &= journal_text("},\"source\":", file);
+    complete &= journal_string(file, item->source);
+    complete &= journal_text(",\"signer\":", file);
+    complete &=
+        journal_string(file, item->signing_key[0] ? item->signing_key : NULL);
+    complete &=
+        journal_text(",\"validation\":\"validated-before-approval\",\"input\":{"
+                     "\"path\":",
+                     file);
+    complete &= journal_string(file, item->archive);
+    complete &= journal_text(",\"blake2b256\":", file);
+    complete &= journal_string(file, fingerprint);
+    complete &= journal_format(
+        file, "},\"externalStateMayHaveChanged\":%s,\"scriptExitCode\":",
+        item->external ? "true" : "false");
+    if (exit_code) {
+        complete &= journal_format(file, "%lu", *exit_code);
+    } else {
+        complete &= journal_text("null", file);
+    }
+    complete &=
+        journal_text(",\"retryEligible\":false,\"safeActions\":[\"inspect\"],"
+                     "\"controlledArtifacts\":[],\"completedPhases\":null,"
+                     "\"failedPhase\":",
+                     file);
+    complete &= journal_string(file, !strcmp(status, "failed") ? phase : NULL);
+    complete &= journal_text("}\n", file);
+    complete &= FlushFileBuffers(file) != 0;
+    complete &= GetFileInformationByHandle(file, &committed) != 0;
+    complete &= CloseHandle(file) != 0;
+    file = INVALID_HANDLE_VALUE;
+    if (!complete ||
+        !MoveFileExA(
+            temporary, final,
+            MOVEFILE_WRITE_THROUGH |
+                (item->journal_started ? MOVEFILE_REPLACE_EXISTING : 0))) {
+        goto done;
+    }
+    item->journal_started = 1;
+    item->record_identity[0] = committed.dwVolumeSerialNumber;
+    item->record_identity[1] = committed.nFileIndexHigh;
+    item->record_identity[2] = committed.nFileIndexLow;
+    strcpy_s(item->phase, sizeof(item->phase), phase);
+    success = 1;
+done:
+    if (file != INVALID_HANDLE_VALUE) {
+        CloseHandle(file);
+    }
+    /* Preserve failed temporary evidence. Never delete a name after releasing
+     * its handle: it may now identify an unrelated substituted object. */
+    while (lock_count) {
+        CloseHandle(locks[--lock_count]);
+    }
+    if (!success) {
+        item->journal_failed = 1;
+        wpm_event_printf(WPM_EVENT_ERROR, "recovery.record.failed", "recovery",
+                         "record",
+                         "Error: recovery evidence could not be "
+                         "committed; further planned mutation is blocked.\n");
+    }
+    return success;
+}
 
 static int hash_file(const char *path, unsigned char digest[32]) {
     HANDLE file =
@@ -196,6 +477,9 @@ static int state_digest(unsigned char digest[32]) {
 }
 
 void wpm_operation_close(void) {
+    if (executing && executing->journal_started && !executing->journal_failed) {
+        journal_write(executing, executing->phase, "failed", NULL);
+    }
     for (size_t i = 0; i < item_count; i++) {
         if (items[i].input != INVALID_HANDLE_VALUE) {
             CloseHandle(items[i].input);
@@ -291,6 +575,11 @@ int wpm_operation_archive(const char *action, const char *archive,
     if (!active) {
         return 1; /* Legacy internal handoff validates independently. */
     }
+    if (executing) {
+        /* A previous item has not committed completion. Keep its evidence
+         * and stop the approved batch rather than replacing its identity. */
+        return changed();
+    }
     if (selected_source[0]) {
         source = selected_source;
     }
@@ -356,7 +645,7 @@ int wpm_operation_archive(const char *action, const char *archive,
             file_identity_matches(item)) {
             item->consumed = 1;
             executing = item;
-            return 1;
+            return journal_write(item, "prepare", "in-progress", NULL);
         }
     }
     return changed();
@@ -416,6 +705,7 @@ int wpm_operation_confirm(void) {
     crypto_generichash_update(&hash, approved_state, sizeof(approved_state));
     crypto_generichash_final(&hash, digest, sizeof(digest));
     sodium_bin2hex(hex, sizeof(hex), digest, sizeof(digest));
+    strcpy_s(approved_plan, sizeof(approved_plan), hex);
     wpm_event_printf(WPM_EVENT_INFO, "plan.digest", "plan", "preview",
                      "Plan digest: %s\n", hex);
     if (wpm_is_readonly()) {
@@ -473,14 +763,46 @@ int wpm_operation_before_script(void) {
         !state_digest(state) || memcmp(state, approved_state, sizeof(state))) {
         return changed();
     }
-    return 1;
+    return !executing->journal_failed;
 }
 
-void wpm_operation_completed(void) {
+int wpm_operation_external_start(const char *phase) {
+    if (!active) {
+        return 1;
+    }
+    if (!executing || collecting) {
+        return 0;
+    }
+    executing->external = 1;
+    executing->script_exit_known = 0;
+    return journal_write(executing, phase, "in-progress", NULL);
+}
+
+int wpm_operation_script_result(unsigned long exit_code) {
+    if (!active) {
+        return 1;
+    }
+    return executing &&
+           journal_write(executing, "script",
+                         exit_code ? "failed" : "in-progress", &exit_code);
+}
+
+int wpm_operation_completed(void) {
     if (active && !collecting) {
+        if (!executing ||
+            !journal_write(
+                executing,
+                !strcmp(executing->action, "self-upgrade") ? "handoff"
+                                                           : "completed",
+                !strcmp(executing->action, "self-upgrade") ? "pending"
+                                                           : "completed",
+                NULL)) {
+            return 0;
+        }
         if (!state_digest(approved_state)) {
             memset(approved_state, 0, sizeof(approved_state));
         }
         executing = NULL;
     }
+    return 1;
 }
