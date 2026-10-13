@@ -73,7 +73,9 @@ are serialized.
 queries, checks populated retained/catalog fixtures, exact ordering and nulls,
 normalized selectors, repeated-byte determinism, handled invalid/unsupported
 shapes, redaction, bounded diagnostics, operational failures, and before/after
-byte/mtime/attribute/root snapshots. CTest runs this foundation in native
+byte/mtime/attribute/root snapshots, and a real broken output pipe that must
+return nonzero without stderr or writes. Final output is explicitly flushed.
+CTest runs this foundation in native
 x86/x64/ARM64 verification and full suites.
 
 This is partial REQ-0018.008/.009 evidence. Full 2.0 health, remediation,

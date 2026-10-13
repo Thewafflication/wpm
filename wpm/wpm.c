@@ -1193,7 +1193,7 @@ static int machine_query(int argc, char **argv) {
                           : "success",
             result_code);
     free(arguments);
-    return ferror(stdout) ? 1 : result_code;
+    return fflush(stdout) != 0 || ferror(stdout) ? 1 : result_code;
 }
 
 int main(int argc, char *argv[]) {

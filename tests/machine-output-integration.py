@@ -215,5 +215,26 @@ with tempfile.TemporaryDirectory(prefix="wpm-envelope-") as directory:
     assert value["diagnostics"][-1]["code"] == "output.query.incomplete"
     assert not (root / "ran").exists()
     assert not (root / "external.log").exists()
+    # A broken destination cannot receive an envelope; the process must fail.
+    before = snapshot(root)
+    reader, writer = os.pipe()
+    os.close(reader)
+    try:
+        broken = subprocess.run(
+            [wpm, "--diagnose", "--output", "json"],
+            cwd=root,
+            env=env,
+            input=b"",
+            stdout=writer,
+            stderr=subprocess.PIPE,
+            timeout=30,
+        )
+        assert broken.returncode != 0, (
+            "broken output destination returned success"
+        )
+        assert broken.stderr == b"", broken.stderr
+        assert snapshot(root) == before
+    finally:
+        os.close(writer)
 
 print("PASS: machine envelopes, query parity, structured errors, no mutations")
