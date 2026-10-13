@@ -66,9 +66,70 @@ jobs:
         run: tests/export-dependency-metadata.ps1 -GitHubOutput
           $env:GITHUB_OUTPUT
 
+  candidate-readiness:
+    name: Require complete 2.0 candidate evidence
+    if: >-
+      startsWith(github.ref_name, '2.') &&
+      !contains(github.ref_name, '-alpha.')
+    needs: dependency-metadata
+    runs-on: windows-2022
+    permissions:
+      contents: read
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check out exact source and controlled dependencies
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          submodules: recursive
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Require accepted and verified 2.0 requirements
+        shell: pwsh
+        run: |
+          $coreVersion = $env:GITHUB_REF_NAME.Split('-')[0]
+          $phase = if ($coreVersion -eq '2.0.0') {
+            'PrePublication'
+          } else { 'Complete' }
+          tests/verify-traceability.ps1 -ReleaseBaseline 2.0 `
+              -ReleasePhase $phase
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Require latest exact-source quality verdict
+        shell: pwsh
+        run: |
+          $endpoint = 'repos/${{ github.repository }}/actions/workflows/' +
+            'quality-candidate.yml/runs?head_sha=${{ github.sha }}&per_page=100'
+          $runs = gh api $endpoint | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $latest = $runs.workflow_runs | Sort-Object run_number -Descending |
+            Select-Object -First 1
+          if (-not $latest -or $latest.head_sha -ne $env:GITHUB_SHA -or
+              $latest.status -ne 'completed' -or
+              $latest.conclusion -ne 'success') {
+            throw 'Latest exact-source quality gate is missing or non-Pass.'
+          }
+          gh run download $latest.id --name wpm-quality-candidate-evidence `
+              --dir out/quality-candidate
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $wspRevision = git rev-parse HEAD:wsp
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python tools/quality-candidate-gate.py `
+              --manifest out/quality-candidate/manifest.json `
+              --source-revision $env:GITHUB_SHA `
+              --wsp-revision $wspRevision
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
   verify:
     name: Verify ${{ matrix.arch }} Debug
-    needs: dependency-metadata
+    needs: [dependency-metadata, candidate-readiness]
+    if: >-
+      always() && needs.dependency-metadata.result == 'success' &&
+      (needs.candidate-readiness.result == 'success' ||
+       needs.candidate-readiness.result == 'skipped')
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false

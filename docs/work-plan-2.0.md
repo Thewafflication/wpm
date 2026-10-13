@@ -100,12 +100,12 @@ The implementing agent must inspect the current architecture and keep modules na
 
 ## 5. Execution plan and prompts
 
-### CP-00 — Establish the 2.0 controlled baseline
+### CP-00 â€” Establish the 2.0 controlled baseline
 
 **Depends on:** none  
 **Model:** Profile F
 
-#### Prompt CP-00A — Requirements and traceability baseline
+#### Prompt CP-00A â€” Requirements and traceability baseline
 
 ```text
 Create the controlled WPM 2.0 requirements baseline from docs/roadmap-2.0.md. Inspect
@@ -119,7 +119,7 @@ fail. Update the documentation manifest. This prompt is documentation and valida
 only; do not implement product behavior.
 ```
 
-#### Prompt CP-00B — Architecture and security decisions
+#### Prompt CP-00B â€” Architecture and security decisions
 
 ```text
 Review the new 2.0 requirements against every accepted ADR and docs/dfs.md. Add the
@@ -132,7 +132,7 @@ HTTP opt-in, removable media, authored repository signing, cleanup, and recovery
 Resolve contradictions before implementation and record explicit non-goals.
 ```
 
-#### Prompt CP-00C — Test allocation and delivery slices
+#### Prompt CP-00C â€” Test allocation and delivery slices
 
 ```text
 Allocate every new 2.0 requirement to controlled TC specifications using the pinned WSP
@@ -171,13 +171,13 @@ CP-07 because REQ-0021 depends on REQ-0020 and the quality harness is needed to
 verify the refactoring boundary. CP-04 inherits CP-01/CP-02 through CP-03;
 CP-05 through CP-09 remain correctly ordered by their stated dependencies.
 
-### CP-01 — Command presentation and help
+### CP-01 â€” Command presentation and help
 
 **Depends on:** CP-00  
 **Model:** Profile B; use Profile F for the shared output abstraction if it
 crosses security-sensitive script or logging boundaries.
 
-#### Prompt CP-01A — Shared output contract
+#### Prompt CP-01A â€” Shared output contract
 
 ```text
 Implement a single presentation contract for progress, success, warning, error, prompt,
@@ -189,7 +189,7 @@ secrets. Add unit/integration coverage for TTY and non-TTY decisions, precedence
 invalid values, and every semantic message class.
 ```
 
-#### Prompt CP-01B — Help, progress, verbose, and failure logging
+#### Prompt CP-01B â€” Help, progress, verbose, and failure logging
 
 ```text
 Rewrite public command help around common tasks and add short examples for install,
@@ -206,12 +206,12 @@ criterion, including package scripts and redirected CI output.
 **Gate:** Every public command has a tested task example and consistent summaries;
 normal, verbose, colored, redirected, and failure output satisfy the roadmap.
 
-### CP-02 — Safe plans, confirmation, and dry runs
+### CP-02 â€” Safe plans, confirmation, and dry runs
 
 **Depends on:** CP-01  
 **Model:** Profile F
 
-#### Prompt CP-02A — Plan model and mutation inventory
+#### Prompt CP-02A â€” Plan model and mutation inventory
 
 ```text
 Design and implement an operation-plan representation for install, remove, and upgrade.
@@ -223,7 +223,7 @@ retained, removed, or deferred until WPM exits. Preserve safe [y/N] defaults and
 -y/--yes the consistent bypass. Clearly bound package-script output.
 ```
 
-#### Prompt CP-02B — Enforce dry-run purity
+#### Prompt CP-02B â€” Enforce dry-run purity
 
 ```text
 Add --dry-run to every supported mutating command using the shared operation plan.
@@ -238,12 +238,12 @@ commands and reject misleading flag combinations.
 **Gate:** Users see the exact plan before approval and dry-run tests prove zero
 durable mutation.
 
-### CP-03 — Transport-neutral repositories
+### CP-03 â€” Transport-neutral repositories
 
 **Depends on:** CP-00, CP-01, and CP-02
 **Model:** Profile F
 
-#### Prompt CP-03A — Repository locator and local/read-only media
+#### Prompt CP-03A â€” Repository locator and local/read-only media
 
 ```text
 Implement the approved transport-neutral repository interface while retaining the
@@ -255,7 +255,7 @@ drive-letter changes, disappearance between phases, read-only sources, path trav
 and local paths that resemble URLs. Never infer trust from the transport.
 ```
 
-#### Prompt CP-03B — UNC/SMB and explicit HTTP opt-in
+#### Prompt CP-03B â€” UNC/SMB and explicit HTTP opt-in
 
 ```text
 Extend the repository transport interface to UNC/SMB roots and plain HTTP. HTTP must be
@@ -271,12 +271,12 @@ tests from required managed-network evidence.
 **Gate:** The same signed repository works from fixed disk, removable/read-only
 media, SMB, HTTPS, and opted-in HTTP, with transport-specific failures actionable.
 
-### CP-04 — Repository authoring
+### CP-04 â€” Repository authoring
 
 **Depends on:** CP-03  
 **Model:** Profile F for design/signing; Profile B for docs and bounded tests.
 
-#### Prompt CP-04A — Initialize and add packages
+#### Prompt CP-04A â€” Initialize and add packages
 
 ```text
 Implement `wpm repo init <directory>` and
@@ -289,7 +289,7 @@ Test empty, existing, corrupt, duplicate, malicious-path, insufficient-space, an
 read-only repositories.
 ```
 
-#### Prompt CP-04B — Index, sign, and verify repositories
+#### Prompt CP-04B â€” Index, sign, and verify repositories
 
 ```text
 Implement `wpm repo index <repository>` and `wpm repo verify <repository>`. Generate a
@@ -301,7 +301,7 @@ verification never mutates. Test deterministic output, interrupted replacement, 
 entries, tampering, wrong keys, read-only verification, and round-trip consumption.
 ```
 
-#### Prompt CP-04C — Removable-media authoring journey
+#### Prompt CP-04C â€” Removable-media authoring journey
 
 ```text
 Document and automate the repeatable journey: initialize on writable local disk, add
@@ -315,12 +315,12 @@ the generated repository.
 **Gate:** WPM alone can create, populate, index, sign, verify, copy, and consume a
 repository.
 
-### CP-05 — Discoverability and diagnostics
+### CP-05 â€” Discoverability and diagnostics
 
 **Depends on:** CP-03; CP-01 output contract  
 **Model:** Profile B, escalating to Profile F for selection/ambiguity logic.
 
-#### Prompt CP-05A — Health report and remediation
+#### Prompt CP-05A â€” Health report and remediation
 
 ```text
 Expand `wpm --diagnose` into a concise health report covering runtime mode, resolved data
@@ -332,7 +332,7 @@ degraded, and multiple-failure states and ensure the report is useful when repos
 media is absent.
 ```
 
-#### Prompt CP-05B — List and show queries
+#### Prompt CP-05B â€” List and show queries
 
 ```text
 Implement `wpm list`, `wpm list --available`, and `wpm show <package>` from a shared
@@ -345,7 +345,7 @@ installed archives merely to inspect metadata. Test empty, large, ambiguous, cor
 offline, prerelease, multi-architecture, and multi-repository states.
 ```
 
-#### Prompt CP-05C — Stable machine-readable output
+#### Prompt CP-05C â€” Stable machine-readable output
 
 ```text
 Add a documented stable machine-readable mode for diagnose, list, list --available, and
@@ -358,12 +358,12 @@ parser-based tests, redirected-output tests, and compatibility documentation.
 **Gate:** One diagnose command gathers support data; list/show explain exact package
 selection interactively and by a stable machine contract without mutation.
 
-### CP-06 — Recovery and lifecycle cleanup
+### CP-06 â€” Recovery and lifecycle cleanup
 
 **Depends on:** CP-02, CP-05  
 **Model:** Profile F; Profile R for destructive-boundary review.
 
-#### Prompt CP-06A — Inspect and retry failed operations
+#### Prompt CP-06A â€” Inspect and retry failed operations
 
 ```text
 Create the approved recovery command surface for interrupted installs, failed package
@@ -375,7 +375,7 @@ injection at every lifecycle boundary and tests for tampered or missing retained
 changed repositories, repeated retry, and successful recovery.
 ```
 
-#### Prompt CP-06B — Safe cleanup and uninstall messaging
+#### Prompt CP-06B â€” Safe cleanup and uninstall messaging
 
 ```text
 Implement a supported cleanup path for stale cache, staging, failed-operation artifacts,
@@ -387,7 +387,7 @@ configuration, and intentionally preserved recovery evidence. Test symlinks/repa
 points, locked files, partial state, concurrent changes, and idempotence.
 ```
 
-#### Prompt CP-06C — Backup, restore, and architecture matrix
+#### Prompt CP-06C â€” Backup, restore, and architecture matrix
 
 ```text
 Document backup and restore expectations for machine and user data roots, including what
@@ -400,12 +400,12 @@ and rerun. Update DFS and support guidance with residual risks.
 **Gate:** Every failed operation identifies retained artifacts and a tested safe next
 command; cleanup cannot remove active state; matrix recovery evidence passes.
 
-### CP-07 — Quality testing and resilience
+### CP-07 â€” Quality testing and resilience
 
 **Depends on:** Feature-specific requirements and interfaces from CP-01 through CP-06  
 **Model:** Profile F for harness/fault injection; Profile B for corpus maintenance.
 
-#### Prompt CP-07A — Harness and seed corpus
+#### Prompt CP-07A â€” Harness and seed corpus
 
 ```text
 Implement the program already defined by docs/quality-testing.md. Create an isolated,
@@ -417,7 +417,7 @@ signatures, repository locators, installed records, and recovery records. Keep t
 separate from fast CI and enforce bounded resource use and cleanup.
 ```
 
-#### Prompt CP-07B — Scheduled and release-candidate gates
+#### Prompt CP-07B â€” Scheduled and release-candidate gates
 
 ```text
 Add manual, nightly, and release-candidate quality-test workflows with appropriate
@@ -431,14 +431,14 @@ normal regression suite while preserving the original failure evidence.
 **Gate:** Harness and corpus exist; a full release-candidate run produces retained,
 triaged evidence and a blocking verdict.
 
-### CP-08 — C99 portability and reference documentation
+### CP-08 â€” C99 portability and reference documentation
 
 **Depends on:** CP-01 through CP-07; inventory may begin earlier, but broad
 refactoring waits for stable shared interfaces and the accepted quality-harness
 boundary.
 **Model:** Profile F for portability boundaries; Profile B for documentation coverage.
 
-#### Prompt CP-08A — Portable core and platform helpers
+#### Prompt CP-08A â€” Portable core and platform helpers
 
 ```text
 Inventory C11-only language/library use and direct Windows API dependencies in project-
@@ -450,7 +450,7 @@ Record unavoidable platform dependencies and ensure x86, x64, ARM64, and support
 legacy-Windows assumptions remain explicit.
 ```
 
-#### Prompt CP-08B — CI compilation and Doxygen reference
+#### Prompt CP-08B â€” CI compilation and Doxygen reference
 
 ```text
 Add the C99 compilation check to CI alongside supported Windows builds. Complete
@@ -465,12 +465,12 @@ undocumented required public entities fail the documentation gate.
 **Gate:** Portable core passes strict C99 compilation; supported Windows builds/tests
 remain green; reference docs generate without warnings.
 
-### CP-09 — Release experience and WSP closure
+### CP-09 â€” Release experience and WSP closure
 
 **Depends on:** CP-01 through CP-08  
 **Model:** Profile F for integration; Profile R for final readiness review.
 
-#### Prompt CP-09A — Migration, release notes, support, and examples
+#### Prompt CP-09A â€” Migration, release notes, support, and examples
 
 ```text
 Write a concise 1.x-to-2.0 migration guide covering preserved contracts, new defaults,
@@ -481,7 +481,7 @@ command examples, and any screenshots or rendered examples for 2.0. Validate eve
 command shown against the release candidate and remove claims not backed by evidence.
 ```
 
-#### Prompt CP-09B — Bootstrap and self-upgrade journeys
+#### Prompt CP-09B â€” Bootstrap and self-upgrade journeys
 
 ```text
 Execute and automate the 2.0 bootstrap installation and self-upgrade journeys from the
@@ -492,7 +492,7 @@ resources, Defender gates, provenance, and exact digests. Preserve all required 
 and do not treat build-only cross-compilation as an architecture test pass.
 ```
 
-#### Prompt CP-09C — Independent release-readiness review
+#### Prompt CP-09C â€” Independent release-readiness review
 
 ```text
 Act as an independent verifier for the WPM 2.0 release candidate. Do not implement fixes
@@ -504,7 +504,7 @@ Release Readiness record with Pass/Fail/Blocked/Inconclusive statuses and action
 findings. Any required non-Pass gate blocks approval.
 ```
 
-#### Prompt CP-09D — Release record and retrospective
+#### Prompt CP-09D â€” Release record and retrospective
 
 ```text
 After every CP-09C required gate is Pass and the release approver has approved publication,
@@ -966,3 +966,15 @@ and typed redacted event diagnostics, preserving legacy --json and all product
 mutation/default/trust contracts. The new machine-output integration foundation
 runs on each native architecture. Full diagnosis/recovery/resilience and exact
 2.0 candidate readiness are subsequent closure work, not declared complete.
+
+
+The candidate gate now aggregates a strict 36-report native class matrix,
+retained checksummed reports and reviewed corrective findings, with synthetic
+non-Pass/incomplete/stale/unsafe rejection tests. Non-alpha 2.x publication
+requires accepted/verified traceability and the latest exact-source controlled
+quality verdict; a later failure cannot fall back to an older pass. Actual
+endurance/fault/media/recovery producers and findings/readiness review remain
+open. The explicit pre-publication phase schedules only REQ-0022.009 because
+its retrospective is required after publication; full closure and subsequent
+stable 2.x releases require the default Complete phase. No runtime result is
+waived or synthesized. See quality-candidate-gate.md and retrospective-2.0-plan.md.

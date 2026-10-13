@@ -14,6 +14,7 @@ function Invoke-Validator {
         [Parameter(Mandatory)]
         [string]$Root,
         [string]$ReleaseBaseline = '',
+        [string]$ReleasePhase = 'Complete',
         [string]$RunnerPlanId = '',
         [switch]$SkipRunnerPlanExecution
     )
@@ -30,6 +31,7 @@ function Invoke-Validator {
     if ($ReleaseBaseline) {
         $arguments += @('-ReleaseBaseline', $ReleaseBaseline)
     }
+    $arguments += @('-ReleasePhase', $ReleasePhase)
     if ($RunnerPlanId) {
         $arguments += @('-RunnerPlanId', $RunnerPlanId)
     }
@@ -92,6 +94,27 @@ try {
 
     $matrixPath = Join-Path $fixtureRoot 'docs/traceability-2.0.md'
     $controlledMatrix = Get-Content -Raw -LiteralPath $matrixPath
+    $prePublication = Invoke-Validator -Root $fixtureRoot `
+        -ReleaseBaseline '2.0' -ReleasePhase PrePublication `
+        -SkipRunnerPlanExecution
+    Assert-FailedWith -Result $prePublication -Pattern `
+        'REQ-0014\.001 is not Verified'
+    if ($prePublication.Output -match 'REQ-0022\.009 is not Verified' -or
+        $prePublication.Output -match 'no controlled post-release action') {
+        throw 'The scheduled retrospective was treated as pre-publication work.'
+    }
+    $retrospectivePath = Join-Path $fixtureRoot 'docs/retrospective-2.0-plan.md'
+    $retrospective = Get-Content -Raw -LiteralPath $retrospectivePath
+    Set-Content -NoNewline -LiteralPath $retrospectivePath `
+        -Value ($retrospective -replace '\*\*Owner:\*\* WPM maintainers', '')
+    Assert-FailedWith -Result (Invoke-Validator -Root $fixtureRoot `
+            -ReleaseBaseline '2.0' -ReleasePhase PrePublication `
+            -SkipRunnerPlanExecution) -Pattern `
+                'no controlled post-release action'
+    Set-Content -NoNewline -LiteralPath $retrospectivePath -Value $retrospective
+    $complete = Invoke-Validator -Root $fixtureRoot -ReleaseBaseline '2.0' `
+        -SkipRunnerPlanExecution
+    Assert-FailedWith -Result $complete -Pattern 'REQ-0022\.009 is not Verified'
 
     $missingRow = $controlledMatrix -replace '(?m)^\| REQ-0014\.001 .+\r?\n', ''
     Set-Content -NoNewline -LiteralPath $matrixPath -Value $missingRow

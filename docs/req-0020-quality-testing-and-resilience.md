@@ -113,3 +113,22 @@ controlled completion records. TC-0020 defines harness-control, matrix,
 environmental-evidence, and gate-semantics verification; its runner remains
 Blocked pending implementation. No harness completion or quality result is claimed by this proposed
 baseline.
+
+
+## Candidate gate allocation
+
+The blocking quality-candidate validator consumes retained source-bound reports
+for every required native architecture, class, and scenario, with checksummed
+contained evidence and triaged findings. Missing, duplicate, stale, malformed,
+non-native/build-only, non-Pass, incomplete, unreviewed, changed, or unsafe
+records block. The gate never executes retained commands or reruns a failed
+profile to overwrite its result. Synthetic acceptance tests cover each rejection
+partition independently of product-quality runs. Exact 2.0 stable/RC release
+workflows must require Accepted/Verified traceability plus successful validated
+quality evidence from the controlled candidate workflow before downstream builds
+or publication. Alpha prototypes retain their explicit incomplete scope.
+
+This implements a gate foundation for REQ-0020.006 and REQ-0022.006/.007.
+It does not fabricate passing endurance/fault/media/recovery runs or approve
+residual risks. External/manual evidence provenance and approval remain the
+release approver's responsibility. See docs/quality-candidate-gate.md.

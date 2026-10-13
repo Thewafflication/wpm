@@ -521,6 +521,18 @@ if(BUILD_TESTING)
   endif()
   find_package(Python3 COMPONENTS Interpreter REQUIRED)
   add_test(
+    NAME quality-candidate-gate
+    COMMAND
+      "${Python3_EXECUTABLE}"
+      "${CMAKE_SOURCE_DIR}/tests/verify-quality-candidate-gate.py"
+  )
+  set_tests_properties(
+    quality-candidate-gate
+    PROPERTIES
+      TIMEOUT
+        120
+  )
+  add_test(
     NAME machine-output-integration
     COMMAND
       "${Python3_EXECUTABLE}"
@@ -1189,6 +1201,7 @@ if(BUILD_TESTING)
       "repository-index-integration|"
       "quality-query-harness|runtime-diagnose-integration|"
       "machine-output-integration|"
+      "quality-candidate-gate|"
       "installed-list-integration|"
       "available-list-integration|"
       "documentation-installation|"
