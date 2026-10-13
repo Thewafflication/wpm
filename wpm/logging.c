@@ -406,6 +406,10 @@ void wpm_redact_text(char *text) {
     }
 }
 
+static wpm_event_sink event_sink;
+
+void wpm_event_set_sink(wpm_event_sink sink) { event_sink = sink; }
+
 int wpm_event_printf(wpm_event_class kind, const char *code,
                      const char *operation, const char *phase,
                      const char *format, ...) {
@@ -429,6 +433,10 @@ int wpm_event_printf(wpm_event_class kind, const char *code,
         return -1;
     }
     wpm_redact_text(message);
+    if (event_sink) {
+        event_sink(kind, code, operation, phase, message);
+        return result;
+    }
     result = wpm_write_console_message(message, styles[kind]);
     if (wpm_logger_initialized && !wpm_is_readonly() && message[0]) {
         size_t length = strlen(message);

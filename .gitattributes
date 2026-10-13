@@ -3,6 +3,7 @@
 ###############################################################################
 * text=auto
 third_party/certificates/cacert.pem text eol=lf
+docs/evidence/** -text
 
 ###############################################################################
 # Set default behavior for command prompt diff.

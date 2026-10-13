@@ -8,4 +8,11 @@
  */
 int wpm_json_string(const char *text);
 
+/** Capture up to 32 typed redacted diagnostics without console/log writes. */
+void wpm_json_events_begin(void);
+/** Write the captured array, release its text, and restore console rendering.
+ * Returns zero on allocation, bounds, encoding, or output failure.
+ */
+int wpm_json_events_end(void);
+
 #endif

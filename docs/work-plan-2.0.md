@@ -953,3 +953,16 @@ parent traversal. Impact is limited to test path identity and release naming;
 product formats, defaults, trust policy, and planned 2.0 acceptance are unchanged.
 The original failed CI evidence remains available. Publication requires passing
 mandatory local checks and the native release gates for the new exact tag.
+
+
+## 2.0 closure continuation after 1.3.0
+
+The current 77-obligation reconciliation is in reconciliation-2.0-1.3.0.md;
+retain the historical I-00 baseline. Six Accepted static consistency obligations
+have retained native TC-0023 Pass reports. Runtime closure remains Planned
+where the full controlled profiles are incomplete. The common --output json
+slice advances REQ-0018.008/.009 through the shared legacy query serializers
+and typed redacted event diagnostics, preserving legacy --json and all product
+mutation/default/trust contracts. The new machine-output integration foundation
+runs on each native architecture. Full diagnosis/recovery/resilience and exact
+2.0 candidate readiness are subsequent closure work, not declared complete.

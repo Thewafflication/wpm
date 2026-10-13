@@ -19,4 +19,12 @@
 \def\TCExpectedResult{Required health and remediation are complete; selection/filtering is deterministic; invalid or ambiguous state is explicit; JSON is one clean deterministic schema document; human and machine selection agrees; protected data is absent; every snapshot is unchanged. Every required profile reports Pass.}
 \def\TCPostConditions{Remove disposable roots and retain schema fixtures/results under \texttt{Testing/Evidence/2.0/<source-revision>/TC-0018/<profile>/<architecture>/}.}
 \TCTemplate
+\section*{Executable envelope foundation}
+\texttt{tests/machine-output-integration.py} supplies partial executable
+verification for REQ-0018.008 and REQ-0018.009 under ADR-0010. It compares
+nested results with the existing JSON query schemas, validates required/null
+fields, normalized selectors, deterministic output, structured handled errors,
+invalid encodings, secret redaction and before/after byte/time/attribute
+snapshots. Native x86/x64/ARM64 CTest runs this foundation. It does not declare
+the composite diagnosis, resolver, trust, upgrade or ambiguity profiles complete.
 \end{document}
