@@ -1106,3 +1106,16 @@ staging-guard-reader-test.log and staging-guard-held-archive-test.log. This is a
 recovery I/O foundation; full operation-specific staging, artifact inventories,
 guarded cleanup/retry/restore, and controlled native quality acceptance remain
 open. Directory sharing does not promise to prevent in-place reparse changes.
+
+The first PR #9 native report builds exposed a missing dependency: the component
+runner selected guarded-directory-identity before its executable was built.
+Original run 38417479630 is retained locally as anchor-ci-original-fail.log;
+all existing recovery/lifecycle component checks passed on x86/x64/ARM64, but
+the aggregate failed and is not acceptance. Both check and check-components
+now depend on wpm-path-guard-test. A clean report configuration exercises the
+same dependency path before corrective native CI. The first PR documentation
+run also failed with Pandoc exit 43; its original job output is retained as
+anchor-doc-original-fail.log, with the cause unclassified because its Pandoc
+log was not uploaded. Documentation CI now retains diagnostic logs even after
+failure rather than losing the tool-specific evidence. Later successful runs
+will not overwrite these original failures.

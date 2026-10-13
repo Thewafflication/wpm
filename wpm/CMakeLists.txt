@@ -1214,6 +1214,7 @@ if(BUILD_TESTING)
   add_dependencies(
     check
     wpm-capability-test
+    wpm-path-guard-test
     wpm-https-test
     wpm-blake2b-test
   )
@@ -1270,6 +1271,7 @@ if(BUILD_TESTING)
       DEPENDS
         wpm
         wpm-capability-test
+        wpm-path-guard-test
         wpm-https-test
         wpm-blake2b-test
       WORKING_DIRECTORY ${CMAKE_BINARY_DIR}

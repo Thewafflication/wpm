@@ -175,6 +175,15 @@ jobs:
             output/pdf/wpm-engineering-documentation.pdf `
             --repo ${{ github.repository }}
 
+      - name: Retain documentation diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: wpm-documentation-diagnostics
+          path: tmp/pdfs/documentation/*.log
+          if-no-files-found: ignore
+          retention-days: 90
+
       - name: Upload documentation PDF
         uses: actions/upload-artifact@v7
         with:
