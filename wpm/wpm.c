@@ -592,12 +592,6 @@ static int validate_command_actions(Command command, int argc, char **argv,
         }
         if (count == 2 && !strcmp(action, "inspect") &&
             wpm_recovery_id_valid(operands[1])) {
-            if (command_has_option(argc, argv, command_index,
-                                   "--allow-unsigned") &&
-                !archive_options) {
-                return invalid_action_shape(command,
-                                            "--allow-unsigned needs --archive");
-            }
             return 1;
         }
         if (archive_options ||

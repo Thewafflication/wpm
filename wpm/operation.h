@@ -30,6 +30,15 @@ int wpm_operation_completed(void);
 int wpm_operation_external_start(const char *phase);
 /** Retain the observed script exit; failed writes block further mutation. */
 int wpm_operation_script_result(unsigned long exit_code);
+/** Durably begin a bounded controlled phase; no inferred completion occurs. */
+int wpm_operation_phase_start(const char *phase);
+/** Commit a known phase completion, bounded to 16 entries per operation. */
+int wpm_operation_phase_finish(const char *phase);
+/** Derive an approved canonical retained name; zero means legacy behavior.
+ * Returns -1 on invalid state/capacity, 1 on success. Does not write files.
+ * The caller owns output; identity is taken only from the active approved plan.
+ */
+int wpm_operation_store_name(char *output, size_t size);
 /** Release plan inputs and memory. */
 void wpm_operation_close(void);
 #endif

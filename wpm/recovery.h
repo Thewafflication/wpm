@@ -28,9 +28,9 @@ int wpm_recovery_id_valid(const char *id);
  * @param json Nonzero selects wpm.recovery-query.v1 instead of human events.
  * @param id Optional validated operation ID for a single inspection.
  * @param archive Optional explicit current input for inspection only; stored
- * paths never grant authority. NULL leaves current input
- * unverified/non-success.
- * @param allow_unsigned Explicit validation override, requires archive.
+ * paths never grant authority. NULL uses a recognized controlled input derived
+ * from the selected root and operation ID; otherwise input stays unverified.
+ * @param allow_unsigned Explicit override under the existing root policy.
  * @param name Optional bounded package filter.
  * @param arch Optional supported architecture filter.
  * @return Nonzero for a complete query, never a retry/cleanup authorization.

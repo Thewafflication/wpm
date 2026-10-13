@@ -25,7 +25,7 @@ wpm_path_result wpm_path_guard_open(const char *path, int create,
         return WPM_PATH_FAILED;
     }
     *result = NULL;
-    if (!path || !canonical || size > MAXDWORD ||
+    if (!path || !canonical || size > MAXDWORD || create < 0 || create > 2 ||
         (create &&
          !wpm_require_capability(WPM_CAP_WRITE, "directory bootstrap"))) {
         return WPM_PATH_FAILED;
@@ -33,6 +33,9 @@ wpm_path_result wpm_path_guard_open(const char *path, int create,
     length = GetFullPathNameA(path, (DWORD)size, canonical, NULL);
     if (!length || length >= size) {
         return WPM_PATH_FAILED;
+    }
+    while (length > 3 && canonical[length - 1] == '\\') {
+        canonical[--length] = 0;
     }
     if (length < 3 || !isalpha((unsigned char)canonical[0]) ||
         canonical[1] != ':' || canonical[2] != '\\') {
@@ -66,15 +69,23 @@ wpm_path_result wpm_path_guard_open(const char *path, int create,
         canonical[i] = 0;
         attributes = GetFileAttributesA(canonical);
         error = attributes == INVALID_FILE_ATTRIBUTES ? GetLastError() : 0;
+        if (create == 2 && i == length &&
+            attributes != INVALID_FILE_ATTRIBUTES) {
+            canonical[i] = saved;
+            return WPM_PATH_UNSAFE;
+        }
         if (error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND) {
             if (!create) {
                 canonical[i] = saved;
                 return WPM_PATH_ABSENT;
             }
-            if (!CreateDirectoryA(canonical, NULL) &&
-                GetLastError() != ERROR_ALREADY_EXISTS) {
-                canonical[i] = saved;
-                return WPM_PATH_FAILED;
+            if (!CreateDirectoryA(canonical, NULL)) {
+                DWORD creation_error = GetLastError();
+                if (creation_error != ERROR_ALREADY_EXISTS ||
+                    (create == 2 && i == length)) {
+                    canonical[i] = saved;
+                    return WPM_PATH_FAILED;
+                }
             }
         }
         directory = CreateFileA(

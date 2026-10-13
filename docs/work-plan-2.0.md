@@ -1061,3 +1061,18 @@ at 64 MiB and remains non-success even when display filters hide all records.
 The record reader validates raw UTF-8 without allocating a filtered copy of the
 whole source; public field rendering retains shared redaction. All these logs
 are local foundation evidence under out/2.0-closure, not completed profiles.
+
+
+Retained-input continuation copies approved bytes from the held source into a
+fresh operation-specific recovery root, verifies/flushes them, and holds them
+immutable during execution. Input IDs/paths bind the confirmation digest.
+Known stage/extraction/validation/script/retention/audit/cleanup completions
+are recorded in order for install/upgrade/remove; failed and interrupted work
+is not guessed complete. Records preserve input role, relative path, state,
+and digest. Inspection derives only <id>/input.zip under the selected recovery
+root and revalidates current integrity/trust; an explicit good archive cannot
+conceal a damaged retained copy. Ordinary 1.x execution is unchanged. Planned
+installs use canonical validated retained names, shown in the plan, so an
+opaque recovery filename cannot collide across package identities. Cache
+preparation, operation-specific staging/log/handoff inventories, safe retry,
+cleanup/restore, and complete native quality acceptance remain open.

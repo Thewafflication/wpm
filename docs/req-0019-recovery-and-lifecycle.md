@@ -172,3 +172,15 @@ explicit --archive argument but never executes a stored reference. Existing
 legacy recovery list behavior remains unchanged. Retry, cleanup, and complete
 acceptance remain open. Shared JSON grammar helpers move to a C99 module with
 legacy catalog semantics preserved; the path guard is a narrow Windows helper.
+
+
+The following I-11 allocation retains an approved input beneath a fresh
+operation-specific recovery root before staging or scripts, records its role
+and fingerprint, and keeps an immutable read handle through execution. Recovery
+IDs/retained paths are included in the displayed plan and digest. Phase starts
+and known completions are durable; failed or unknown work is not inferred as
+completed. The reader derives controlled input paths from validated identity
+and operation ID, rechecks current integrity/trust, and never grants authority
+from an arbitrary recorded path. Failed copy/phase updates stop planned work
+and preserve evidence. Normal 1.x execution is unchanged; complete retry,
+cleanup, restore, handoff linkage, and acceptance remain open.
