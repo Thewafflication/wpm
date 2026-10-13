@@ -33,7 +33,7 @@ static void capture_event(wpm_event_class kind, const char *code,
         events_complete = 0;
         return;
     }
-    strcpy(event->text, text);
+    memcpy(event->text, text, strlen(text) + 1);
     event->kind = kind;
     event->code = event->text + strlen(text) + 1;
     event->operation = event->code + code_size;
@@ -120,6 +120,10 @@ static int json_utf8(const unsigned char *text) {
     return 1;
 }
 
+int wpm_json_utf8_valid(const char *text) {
+    return text && json_utf8((const unsigned char *)text);
+}
+
 char *wpm_json_encode_string(const char *text) {
     char *safe, *encoded, *next;
     const unsigned char *p;
@@ -139,7 +143,7 @@ char *wpm_json_encode_string(const char *text) {
     if (!safe) {
         return NULL;
     }
-    strcpy(safe, text);
+    memcpy(safe, text, length + 1);
     wpm_redact_text(safe);
     if (!json_utf8((const unsigned char *)safe)) {
         free(safe);

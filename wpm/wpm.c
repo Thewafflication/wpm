@@ -208,6 +208,12 @@ static void print_usage_line(Command command) {
             "Usage: wpm recovery [list] [--name <name>] [--arch <arch>] "
             "[--limit <1..4096>] "
             "[--json] [--offline]\n");
+        wpm_event_printf(
+            WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+            "       wpm recovery records [--name <name>] [--arch <arch>] "
+            "[--limit <1..4096>] [--json]\n"
+            "       wpm recovery inspect <operation-id> "
+            "[--archive <current-archive>] [--allow-unsigned] [--json]\n");
         break;
     case CMD_REPO:
         wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
@@ -262,7 +268,7 @@ static int command_option_takes_value(Command command, const char *option) {
             (!strcmp(option, "--sign") || !strcmp(option, "--index-key"))) ||
            (command == CMD_RECOVERY &&
             (!strcmp(option, "--limit") || !strcmp(option, "--name") ||
-             !strcmp(option, "--arch"))) ||
+             !strcmp(option, "--arch") || !strcmp(option, "--archive"))) ||
            ((command == CMD_LIST || command == CMD_SHOW) &&
             strcmp(option, "--repo") == 0) ||
            (command == CMD_CONFIG && strcmp(option, "--package") == 0);
@@ -306,7 +312,8 @@ static int command_option_is_known(Command command, const char *option) {
         return strcmp(option, "--offline") == 0;
     case CMD_RECOVERY:
         return strcmp(option, "--offline") == 0 ||
-               strcmp(option, "--json") == 0;
+               strcmp(option, "--json") == 0 ||
+               strcmp(option, "--allow-unsigned") == 0;
     case CMD_LIST:
         return strcmp(option, "--offline") == 0 ||
                strcmp(option, "--json") == 0 ||
@@ -574,10 +581,38 @@ static int validate_command_actions(Command command, int argc, char **argv,
         if (!wpm_recovery_filters_valid(name, arch)) {
             return invalid_action_shape(command, "invalid audit filter");
         }
+        int archive_options = 0;
+        for (int i = command_index + 1; i < argc; i++) {
+            if (!strcmp(argv[i], "--archive")) {
+                archive_options++;
+            }
+        }
+        if (archive_options > 1) {
+            return invalid_action_shape(command, "duplicate --archive");
+        }
+        if (count == 2 && !strcmp(action, "inspect") &&
+            wpm_recovery_id_valid(operands[1])) {
+            if (command_has_option(argc, argv, command_index,
+                                   "--allow-unsigned") &&
+                !archive_options) {
+                return invalid_action_shape(command,
+                                            "--allow-unsigned needs --archive");
+            }
+            return 1;
+        }
+        if (archive_options ||
+            command_has_option(argc, argv, command_index, "--allow-unsigned")) {
+            return invalid_action_shape(command,
+                                        "archive validation requires inspect");
+        }
+        if (count == 1 && !strcmp(action, "records")) {
+            return 1;
+        }
         if (!count || (count == 1 && !strcmp(action, "list"))) {
             return 1;
         }
-        return invalid_action_shape(command, "expected list without operands");
+        return invalid_action_shape(command,
+                                    "expected list, records, or inspect <id>");
     }
 
     if (command == CMD_REPO) {
@@ -975,6 +1010,8 @@ static int machine_query(int argc, char **argv) {
     int available = 0, show = 0, links = 0, has_result = 0;
     unsigned ordinal = 0, limit = 128;
     const char *name = NULL, *arch = NULL, *version = NULL;
+    const char *recovery_id = NULL, *archive_path = NULL;
+    int recovery_records = 0, allow_unsigned = 0;
     const char *operation = NULL;
     Command command = CMD_UNKNOWN;
     const char *operands[8];
@@ -1098,6 +1135,20 @@ static int machine_query(int argc, char **argv) {
                         if (command == CMD_RECOVERY) {
                             valid &= command_bounded_option(
                                 count, arguments, 1, "--limit", 4096, &limit);
+                            recovery_records =
+                                operand_count &&
+                                (strcmp(operands[0], "records") == 0 ||
+                                 strcmp(operands[0], "inspect") == 0);
+                            if (operand_count == 2) {
+                                recovery_id = operands[1];
+                            }
+                            allow_unsigned = command_has_option(
+                                count, arguments, 1, "--allow-unsigned");
+                            for (int i = 2; i < count; i++) {
+                                if (!strcmp(arguments[i], "--archive")) {
+                                    archive_path = arguments[++i];
+                                }
+                            }
                         }
                     }
                 }
@@ -1147,13 +1198,22 @@ static int machine_query(int argc, char **argv) {
     } else {
         fputs("null", stdout);
     }
+    if (recovery_records) {
+        fputs(",\"record\":", stdout);
+        issues += !wpm_json_string(recovery_id);
+        fputs(",\"archive\":", stdout);
+        issues += !wpm_json_string(archive_path);
+        fprintf(stdout, ",\"allowUnsigned\":%s",
+                allow_unsigned ? "true" : "false");
+    }
     fputs("},\"resultSchema\":", stdout);
-    issues +=
-        !wpm_json_string(!valid || issues          ? NULL
-                         : diagnostic              ? "wpm.runtime-diagnose.v1"
-                         : command == CMD_REPO     ? "wpm.repository-health.v1"
-                         : command == CMD_RECOVERY ? "wpm.recovery-list.v1"
-                                                   : "wpm.package-query.v1");
+    issues += !wpm_json_string(
+        !valid || issues          ? NULL
+        : diagnostic              ? "wpm.runtime-diagnose.v1"
+        : command == CMD_REPO     ? "wpm.repository-health.v1"
+        : command == CMD_RECOVERY ? (recovery_records ? "wpm.recovery-query.v1"
+                                                      : "wpm.recovery-list.v1")
+                                  : "wpm.package-query.v1");
     fputs(",\"result\":", stdout);
     if (valid && !issues) {
         has_result = 1;
@@ -1163,7 +1223,13 @@ static int machine_query(int argc, char **argv) {
             result_code = wpm_repo_diagnose_json(links) ? 0 : 1;
         } else if (command == CMD_RECOVERY) {
             result_code =
-                wpm_recovery_list_filtered(limit, 1, name, arch) ? 0 : 1;
+                recovery_records
+                    ? (wpm_recovery_records(limit, 1, recovery_id, archive_path,
+                                            allow_unsigned, name, arch)
+                           ? 0
+                           : 1)
+                    : (wpm_recovery_list_filtered(limit, 1, name, arch) ? 0
+                                                                        : 1);
         } else {
             result_code = wpm_repo_query_json(name, arch, version, ordinal,
                                               available, show)
@@ -1960,7 +2026,10 @@ operation_dispatch:
     }
     case CMD_RECOVERY: {
         unsigned limit = 128;
-        const char *name = NULL, *arch = NULL;
+        const char *name = NULL, *arch = NULL, *archive = NULL;
+        const char *operands[8];
+        int count = collect_command_operands(cmd, argc, argv, command_index,
+                                             operands, 8);
         for (int i = command_index + 1; i < argc; i++) {
             if (!strcmp(argv[i], "--limit")) {
                 limit = (unsigned)atoi(argv[++i]);
@@ -1968,11 +2037,20 @@ operation_dispatch:
                 name = argv[++i];
             } else if (!strcmp(argv[i], "--arch")) {
                 arch = argv[++i];
+            } else if (!strcmp(argv[i], "--archive")) {
+                archive = argv[++i];
             }
         }
-        if (!wpm_recovery_list_filtered(
-                limit, command_has_option(argc, argv, command_index, "--json"),
-                name, arch)) {
+        int json = command_has_option(argc, argv, command_index, "--json");
+        int complete =
+            count && strcmp(operands[0], "list")
+                ? wpm_recovery_records(
+                      limit, json, count == 2 ? operands[1] : NULL, archive,
+                      command_has_option(argc, argv, command_index,
+                                         "--allow-unsigned"),
+                      name, arch)
+                : wpm_recovery_list_filtered(limit, json, name, arch);
+        if (!complete) {
             return 1;
         }
         break;
@@ -2268,11 +2346,15 @@ void print_usage(Command c) {
             print_usage_line(c);
             wpm_event_printf(
                 WPM_EVENT_INFO, "wpm.info", "wpm", "command",
-                "\nInspect recorded failed upgrades without writes or "
-                "scripts.\n"
+                "\nInspect legacy failure audits or additive recovery records "
+                "without writes or scripts.\n"
                 "--limit bounds examined entries (default 128, maximum 4096)."
                 "\n--name and --arch narrow displayed audit records."
-                "\n\nExample:\n  wpm recovery list\n");
+                "\nAn explicit --archive validates current content and trust; "
+                "stored paths never authorize execution.\n\nExamples:\n"
+                "  wpm recovery list\n  wpm recovery records --output json\n"
+                "  wpm recovery inspect <operation-id> --archive "
+                ".\\package.zip\n");
             return;
         case CMD_KEYGEN:
             print_usage_line(c);
@@ -2367,6 +2449,9 @@ void print_usage(Command c) {
                      "  recovery [list] [--name <name>] [--arch <arch>]\n"
                      "      [--limit <1..4096>] [--json] [--offline]\n"
                      "      Inspect recorded failed upgrades\n\n"
+                     "  recovery records | inspect <operation-id>\n"
+                     "      Read additive recovery identities; inspect can "
+                     "validate --archive <current-archive>\n\n"
                      "  list [package] [--arch <arch>] [--version <semver>]\n"
                      "      Inspect retained installed-package metadata\n\n");
     wpm_event_printf(

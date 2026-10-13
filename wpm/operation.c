@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
 #include <stdint.h>
 #include <windows.h>
 #include "sodium.h"
@@ -12,6 +11,7 @@
 #include "operation.h"
 #include "capability.h"
 #include "json_output.h"
+#include "path_guard.h"
 
 #define PLAN_LIMIT 256
 #define PLAN_PATH 4096
@@ -48,55 +48,6 @@ static void journal_time(char *text, size_t size) {
              now.wMilliseconds);
 }
 
-/* Hold each ancestor against rename while creating/replacing the record.
- * Reparse roots and device namespaces are deliberately unsupported. */
-static int journal_lock_root(char *path, HANDLE *locks, size_t *count) {
-    size_t length = strlen(path);
-    *count = 0;
-    if (length <= 3 || !isalpha((unsigned char)path[0]) || path[1] != ':' ||
-        path[2] != '\\') {
-        return 0;
-    }
-    for (size_t i = 3; i <= length; i++) {
-        char saved;
-        HANDLE directory;
-        BY_HANDLE_FILE_INFORMATION info;
-        DWORD attributes, error;
-        if (i != length && path[i] != '\\') {
-            continue;
-        }
-        if (*count == 128) {
-            return 0;
-        }
-        saved = path[i];
-        path[i] = 0;
-        attributes = GetFileAttributesA(path);
-        error = attributes == INVALID_FILE_ATTRIBUTES ? GetLastError() : 0;
-        if (error == ERROR_PATH_NOT_FOUND || error == ERROR_FILE_NOT_FOUND) {
-            if (!CreateDirectoryA(path, NULL) &&
-                GetLastError() != ERROR_ALREADY_EXISTS) {
-                path[i] = saved;
-                return 0;
-            }
-        }
-        directory = CreateFileA(
-            path, FILE_READ_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE,
-            NULL, OPEN_EXISTING,
-            FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, NULL);
-        path[i] = saved;
-        if (directory == INVALID_HANDLE_VALUE) {
-            return 0;
-        }
-        locks[(*count)++] = directory;
-        if (!GetFileInformationByHandle(directory, &info) ||
-            !(info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ||
-            (info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
-            return 0;
-        }
-    }
-    return 1;
-}
-
 static int journal_text(const char *text, HANDLE file) {
     size_t size = strlen(text);
     DWORD written;
@@ -127,8 +78,8 @@ static int journal_write(plan_item *item, const char *phase, const char *status,
     char root[PLAN_PATH], supplied[PLAN_PATH], directory[PLAN_PATH];
     char final[PLAN_PATH];
     char temporary[PLAN_PATH] = "", updated[32], fingerprint[65];
-    HANDLE locks[128], file = INVALID_HANDLE_VALUE;
-    size_t lock_count = 0;
+    HANDLE file = INVALID_HANDLE_VALUE;
+    wpm_path_guard *guard = NULL;
     int complete = 1, success = 0;
     unsigned char random[16];
     DWORD length;
@@ -145,38 +96,14 @@ static int journal_write(plan_item *item, const char *phase, const char *status,
         goto done;
     }
     length = GetFullPathNameA(supplied, sizeof(root), root, NULL);
-    if (!length || length >= sizeof(root) ||
-        !journal_lock_root(root, locks, &lock_count)) {
-        goto done;
-    }
-    if (snprintf(directory, sizeof(directory), "%s\\recovery", root) < 0 ||
+    if (!length || length <= 3 || length >= sizeof(root) ||
         strlen(root) + 10 >= sizeof(directory)) {
         goto done;
     }
-    if (!CreateDirectoryA(directory, NULL) &&
-        GetLastError() != ERROR_ALREADY_EXISTS) {
+    snprintf(directory, sizeof(directory), "%s\\recovery", root);
+    if (wpm_path_guard_open(directory, 1, supplied, sizeof(supplied), &guard) !=
+        WPM_PATH_OPEN) {
         goto done;
-    }
-    /* Ancestors remain held; lock and inspect the new final directory too. */
-    if (lock_count == 128) {
-        goto done;
-    }
-    file = CreateFileA(
-        directory, FILE_READ_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE,
-        NULL, OPEN_EXISTING,
-        FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, NULL);
-    if (file == INVALID_HANDLE_VALUE) {
-        goto done;
-    }
-    locks[lock_count++] = file;
-    file = INVALID_HANDLE_VALUE;
-    {
-        BY_HANDLE_FILE_INFORMATION info;
-        if (!GetFileInformationByHandle(locks[lock_count - 1], &info) ||
-            !(info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ||
-            (info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
-            goto done;
-        }
     }
     if (!item->recovery_id[0]) {
         randombytes_buf(random, sizeof(random));
@@ -245,7 +172,9 @@ static int journal_write(plan_item *item, const char *phase, const char *status,
     complete &= journal_string(file, item->identity.arch);
     complete &= journal_text(",\"oldVersion\":", file);
     complete &= journal_string(
-        file, !strcmp(item->old_version, "none") ? NULL : item->old_version);
+        file, !strcmp(item->action, "remove")      ? item->identity.version
+              : !strcmp(item->old_version, "none") ? NULL
+                                                   : item->old_version);
     complete &= journal_text(",\"newVersion\":", file);
     complete &= journal_string(
         file, !strcmp(item->action, "remove") ? NULL : item->identity.version);
@@ -299,9 +228,7 @@ done:
     }
     /* Preserve failed temporary evidence. Never delete a name after releasing
      * its handle: it may now identify an unrelated substituted object. */
-    while (lock_count) {
-        CloseHandle(locks[--lock_count]);
-    }
+    wpm_path_guard_close(guard);
     if (!success) {
         item->journal_failed = 1;
         wpm_event_printf(WPM_EVENT_ERROR, "recovery.record.failed", "recovery",

@@ -410,6 +410,8 @@ static wpm_event_sink event_sink;
 
 void wpm_event_set_sink(wpm_event_sink sink) { event_sink = sink; }
 
+wpm_event_sink wpm_event_get_sink(void) { return event_sink; }
+
 int wpm_event_printf(wpm_event_class kind, const char *code,
                      const char *operation, const char *phase,
                      const char *format, ...) {
