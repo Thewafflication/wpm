@@ -2,7 +2,9 @@
 
 `--output json` emits the ADR-0010 `wpm.output.v1` envelope for these read-only
 queries: `--diagnose`, `list`, `list --available`, `show <package>`,
-`repo diagnose [--links]`, and `recovery [list]`. It adds no network retrieval,
+`repo diagnose [--links]`, `recovery [list]`, `recovery records`, and
+`recovery inspect <operation-id> [--archive <current-input>]`. It adds no
+network retrieval,
 package extraction, scripts, operational logging, or persistent initialization.
 Legacy `--json` remains available with its original schema and fields.
 
@@ -32,13 +34,17 @@ whitespace is insignificant.
   booleans default false. Architecture is lowercase; version retains the
   validated exact selector. Repository is the displayed ordinal (1..32).
   Recovery's examined-entry limit defaults to 128; other commands use null.
+  New recovery records/inspect selectors additionally include record, archive,
+  and allowUnsigned; legacy query selectors remain unchanged.
 - `resultSchema` identifies the command-specific contract, or is null when no
   query is executed. Repository health uses wpm.repository-health.v1 to name
   its unchanged legacy version: 1 contract, whose nested document has no schema
   string.
 - `result` nests the existing command-specific document, including its schema
   (`wpm.runtime-diagnose.v1`, `wpm.package-query.v1`,
-  `wpm.repository-health.v1`, or `wpm.recovery-list.v1`). Invalid arguments,
+  `wpm.repository-health.v1`, `wpm.recovery-list.v1`, or
+  `wpm.recovery-query.v1`). See recovery-records.md for explicit current-input
+  validation and its unauthenticated-history/no-retry boundary. Invalid arguments,
   unsupported commands, or unencodable selectors produce null before querying.
   Nesting does not change existing query completeness, selection, trust, or
   metadata-only limitations. Package queries do not prove deployed state or

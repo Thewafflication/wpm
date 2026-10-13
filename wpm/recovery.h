@@ -20,4 +20,24 @@ int wpm_recovery_filters_valid(const char *name, const char *arch);
 int wpm_recovery_list_filtered(unsigned limit, int json, const char *name,
                                const char *arch);
 
+/** Validate one lowercase 128-bit operation ID without interpreting paths. */
+int wpm_recovery_id_valid(const char *id);
+/** Query additive recovery records without writes, fetches, or scripts.
+ * @param limit Bound on examined records, 1..4096; source errors remain
+ * visible.
+ * @param json Nonzero selects wpm.recovery-query.v1 instead of human events.
+ * @param id Optional validated operation ID for a single inspection.
+ * @param archive Optional explicit current input for inspection only; stored
+ * paths never grant authority. NULL leaves current input
+ * unverified/non-success.
+ * @param allow_unsigned Explicit validation override, requires archive.
+ * @param name Optional bounded package filter.
+ * @param arch Optional supported architecture filter.
+ * @return Nonzero for a complete query, never a retry/cleanup authorization.
+ * All arguments are borrowed; the query owns/releases records and path guards.
+ */
+int wpm_recovery_records(unsigned limit, int json, const char *id,
+                         const char *archive, int allow_unsigned,
+                         const char *name, const char *arch);
+
 #endif

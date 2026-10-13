@@ -39,11 +39,14 @@ set(
   "logging.h"
   "json_output.c"
   "json_output.h"
+  "json_input.c"
   "json_input.h"
   "capability.c"
   "capability.h"
   "operation.c"
   "operation.h"
+  "path_guard.c"
+  "path_guard.h"
   "progress.c"
   "progress.h"
   "archive.c"
@@ -58,6 +61,7 @@ set(
   "repository.h"
   "recovery.c"
   "recovery.h"
+  "recovery_record.c"
   "signing.c"
   "signing.h"
   "${WPM_ICON_FILE}"
@@ -646,6 +650,19 @@ if(BUILD_TESTING)
         120
   )
   add_test(
+    NAME recovery-record-integration
+    COMMAND
+      "${Python3_EXECUTABLE}"
+      "${CMAKE_SOURCE_DIR}/tests/recovery-record-integration.py" --wpm
+      $<TARGET_FILE:wpm>
+  )
+  set_tests_properties(
+    recovery-record-integration
+    PROPERTIES
+      TIMEOUT
+        120
+  )
+  add_test(
     NAME runtime-diagnose-integration
     COMMAND
       "${Python3_EXECUTABLE}"
@@ -1196,7 +1213,7 @@ if(BUILD_TESTING)
       "http-length-integration|repository-init-integration|"
       "repository-verify-integration|"
       "repository-publish-integration|"
-      "recovery-integration|"
+      "recovery-integration|recovery-record-integration|"
       "repository-sign-integration|"
       "repository-index-integration|"
       "quality-query-harness|runtime-diagnose-integration|"

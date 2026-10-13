@@ -29,6 +29,8 @@ typedef void (*wpm_event_sink)(wpm_event_class kind, const char *code,
                                const char *operation, const char *phase,
                                const char *text);
 void wpm_event_set_sink(wpm_event_sink sink);
+/** Borrow the process-local renderer so a scoped adapter can restore it. */
+wpm_event_sink wpm_event_get_sink(void);
 
 /** Apply the shared terminal/credential filter to mutable NUL-terminated text.
  * Filtering only shortens text; callers retain ownership of the buffer. */

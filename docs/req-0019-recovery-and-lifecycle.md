@@ -162,3 +162,13 @@ advertise inspect only, with retryEligible false, no inferred artifact list,
 and explicit null for unknown phase history. The public legacy recovery list
 continues to enumerate legacy audits until the new reader is implemented.
 REQ-0019 and its traceability obligations remain Proposed/Planned.
+
+
+The next I-11 slice allocates recovery records/inspect queries with bounded
+strict schema admission and shared redaction, canonical directory guards,
+explicit current-input validation, and deterministic common machine output.
+Untrusted stored paths are diagnostic identities; inspection may validate an
+explicit --archive argument but never executes a stored reference. Existing
+legacy recovery list behavior remains unchanged. Retry, cleanup, and complete
+acceptance remain open. Shared JSON grammar helpers move to a C99 module with
+legacy catalog semantics preserved; the path guard is a narrow Windows helper.

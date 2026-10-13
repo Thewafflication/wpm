@@ -1492,406 +1492,6 @@ int wpm_repo_update(int offline) {
     return 1;
 }
 
-static const char *skip_ws(const char *p) {
-    while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') {
-        p++;
-    }
-    return p;
-}
-static int json_hex4(const char **source, unsigned long *value) {
-    const char *p = *source;
-    unsigned long result = 0;
-    for (int i = 0; i < 4; i++) {
-        unsigned char c = (unsigned char)*p;
-        unsigned long digit;
-        if (c >= '0' && c <= '9') {
-            digit = c - '0';
-        } else if (c >= 'a' && c <= 'f') {
-            digit = c - 'a' + 10;
-        } else if (c >= 'A' && c <= 'F') {
-            digit = c - 'A' + 10;
-        } else {
-            return 0;
-        }
-        result = (result << 4) | digit;
-        p++;
-    }
-    *source = p;
-    *value = result;
-    return 1;
-}
-static int json_string(const char **source, char *output, size_t size) {
-    const char *p = skip_ws(*source);
-    size_t n = 0;
-    if (*p != '"') {
-        return 0;
-    }
-    p++;
-    while (*p && *p != '"') {
-        unsigned long codepoint = (unsigned char)*p++;
-        unsigned char bytes[4];
-        size_t length = 1;
-        if (codepoint < 0x20) {
-            return 0;
-        }
-        if (codepoint == '\\') {
-            switch (*p++) {
-            case '"':
-                codepoint = '"';
-                break;
-            case '\\':
-                codepoint = '\\';
-                break;
-            case '/':
-                codepoint = '/';
-                break;
-            case 'b':
-                codepoint = '\b';
-                break;
-            case 'f':
-                codepoint = '\f';
-                break;
-            case 'n':
-                codepoint = '\n';
-                break;
-            case 'r':
-                codepoint = '\r';
-                break;
-            case 't':
-                codepoint = '\t';
-                break;
-            case 'u': {
-                unsigned long low;
-                if (!json_hex4(&p, &codepoint) || (!codepoint && output)) {
-                    return 0;
-                }
-                if (codepoint >= 0xd800 && codepoint <= 0xdbff) {
-                    if (*p != '\\' || p[1] != 'u') {
-                        return 0;
-                    }
-                    p += 2;
-                    if (!json_hex4(&p, &low) || low < 0xdc00 || low > 0xdfff) {
-                        return 0;
-                    }
-                    codepoint =
-                        0x10000 + ((codepoint - 0xd800) << 10) + low - 0xdc00;
-                } else if (codepoint >= 0xdc00 && codepoint <= 0xdfff) {
-                    return 0;
-                }
-                if (codepoint < 0x80) {
-                    bytes[0] = (unsigned char)codepoint;
-                } else if (codepoint < 0x800) {
-                    length = 2;
-                    bytes[0] = (unsigned char)(0xc0 | (codepoint >> 6));
-                    bytes[1] = (unsigned char)(0x80 | (codepoint & 0x3f));
-                } else if (codepoint < 0x10000) {
-                    length = 3;
-                    bytes[0] = (unsigned char)(0xe0 | (codepoint >> 12));
-                    bytes[1] =
-                        (unsigned char)(0x80 | ((codepoint >> 6) & 0x3f));
-                    bytes[2] = (unsigned char)(0x80 | (codepoint & 0x3f));
-                } else {
-                    length = 4;
-                    bytes[0] = (unsigned char)(0xf0 | (codepoint >> 18));
-                    bytes[1] =
-                        (unsigned char)(0x80 | ((codepoint >> 12) & 0x3f));
-                    bytes[2] =
-                        (unsigned char)(0x80 | ((codepoint >> 6) & 0x3f));
-                    bytes[3] = (unsigned char)(0x80 | (codepoint & 0x3f));
-                }
-                if (length >= size || n >= size - length) {
-                    return 0;
-                }
-                if (output) {
-                    memcpy(output + n, bytes, length);
-                }
-                n += length;
-                continue;
-            }
-            default:
-                return 0;
-            }
-        }
-        if (n + 1 >= size) {
-            return 0;
-        }
-        if (output) {
-            output[n] = (char)codepoint;
-        }
-        n++;
-    }
-    if (*p != '"') {
-        return 0;
-    }
-    if (output) {
-        output[n] = '\0';
-    }
-    *source = p + 1;
-    return 1;
-}
-static int json_value_end(const char **source) {
-    const char *p = skip_ws(*source);
-    int depth = 0, quote = 0;
-    while (*p) {
-        if (quote) {
-            if (*p == '\\' && p[1]) {
-                p += 2;
-            } else {
-                if (*p == '"') {
-                    quote = 0;
-                }
-                p++;
-            }
-            continue;
-        }
-        if (*p == '"') {
-            quote = 1;
-        } else if (*p == '{' || *p == '[') {
-            depth++;
-        } else if (*p == '}' || *p == ']') {
-            if (!depth) {
-                break;
-            }
-            depth--;
-        } else if (*p == ',' && depth == 0) {
-            break;
-        }
-        p++;
-    }
-    *source = p;
-    return depth == 0 && !quote;
-}
-static const char *json_content(const char *text) {
-    const unsigned char *bytes = (const unsigned char *)text;
-    if (bytes[0] == 0xef && bytes[1] == 0xbb && bytes[2] == 0xbf) {
-        text += 3;
-    }
-    return skip_ws(text);
-}
-/* Iterative grammar validation: depth is bounded only by the 4 MiB input,
- * not by the C call stack. Unknown extension values remain valid JSON. */
-static int json_document_valid(const char *text) {
-    enum {
-        ROOT_VALUE,
-        ROOT_END,
-        OBJECT_FIRST,
-        OBJECT_KEY,
-        OBJECT_COLON,
-        OBJECT_VALUE,
-        OBJECT_END,
-        ARRAY_FIRST,
-        ARRAY_VALUE,
-        ARRAY_END
-    };
-    const char *p = json_content(text);
-    size_t depth = 0, capacity = strlen(p) + 1;
-    unsigned char *states = malloc(capacity);
-    int valid = 0;
-    if (!states) {
-        return 0;
-    }
-    states[0] = ROOT_VALUE;
-    for (;;) {
-        unsigned char state = states[depth];
-        while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') {
-            p++;
-        }
-        if (state == ROOT_END) {
-            valid = !*p;
-            break;
-        }
-        if (state == OBJECT_FIRST || state == OBJECT_KEY) {
-            if (state == OBJECT_FIRST && *p == '}') {
-                p++;
-                depth--;
-                continue;
-            }
-            if (!json_string(&p, NULL, (size_t)-1)) {
-                break;
-            }
-            states[depth] = OBJECT_COLON;
-            continue;
-        }
-        if (state == OBJECT_COLON) {
-            if (*p != ':') {
-                break;
-            }
-            p++;
-            states[depth] = OBJECT_VALUE;
-            continue;
-        }
-        if (state == OBJECT_END || state == ARRAY_END) {
-            if (*p == (state == OBJECT_END ? '}' : ']')) {
-                p++;
-                depth--;
-                continue;
-            }
-            if (*p != ',') {
-                break;
-            }
-            p++;
-            states[depth] = state == OBJECT_END ? OBJECT_KEY : ARRAY_VALUE;
-            continue;
-        }
-        if (state == ARRAY_FIRST && *p == ']') {
-            p++;
-            depth--;
-            continue;
-        }
-        states[depth] = state == ROOT_VALUE     ? ROOT_END
-                        : state == OBJECT_VALUE ? OBJECT_END
-                                                : ARRAY_END;
-        if (*p == '{' || *p == '[') {
-            if (depth + 1 >= capacity) {
-                break;
-            }
-            states[++depth] = *p++ == '{' ? OBJECT_FIRST : ARRAY_FIRST;
-            continue;
-        }
-        if (*p == '"') {
-            if (!json_string(&p, NULL, (size_t)-1)) {
-                break;
-            }
-        } else if (*p == '-' || (*p >= '0' && *p <= '9')) {
-            if (*p == '-') {
-                p++;
-            }
-            if (*p == '0') {
-                p++;
-            } else {
-                if (*p < '1' || *p > '9') {
-                    break;
-                }
-                do {
-                    p++;
-                } while (*p >= '0' && *p <= '9');
-            }
-            if (*p == '.') {
-                p++;
-                if (*p < '0' || *p > '9') {
-                    break;
-                }
-                do {
-                    p++;
-                } while (*p >= '0' && *p <= '9');
-            }
-            if (*p == 'e' || *p == 'E') {
-                p++;
-                if (*p == '+' || *p == '-') {
-                    p++;
-                }
-                if (*p < '0' || *p > '9') {
-                    break;
-                }
-                do {
-                    p++;
-                } while (*p >= '0' && *p <= '9');
-            }
-        } else if (!strncmp(p, "true", 4)) {
-            p += 4;
-        } else if (!strncmp(p, "false", 5)) {
-            p += 5;
-        } else if (!strncmp(p, "null", 4)) {
-            p += 4;
-        } else {
-            break;
-        }
-    }
-    free(states);
-    return valid;
-}
-/* Find root fields without confusing package metadata with index metadata. */
-static const char *index_field(const char *text, const char *wanted) {
-    const char *p = json_content(text);
-    if (*p != '{') {
-        return NULL;
-    }
-    p++;
-    while (*(p = skip_ws(p)) && *p != '}') {
-        char key[32];
-        if (!json_string(&p, key, sizeof(key))) {
-            /* A long or NUL-containing unknown key need not fit our key buffer.
-             */
-            if (!json_string(&p, NULL, (size_t)-1)) {
-                return NULL;
-            }
-            key[0] = 0;
-        }
-        if (*(p = skip_ws(p)) != ':') {
-            return NULL;
-        }
-        p = skip_ws(p + 1);
-        if (strcmp(key, wanted) == 0) {
-            return p;
-        }
-        json_value_end(&p);
-        p = skip_ws(p);
-        if (*p != ',') {
-            return NULL;
-        }
-        p++;
-    }
-    return NULL;
-}
-int wpm_json_version_one(const char *text) {
-    const char *value = text ? index_field(text, "version") : NULL, *p = value;
-    int position = 0, integer_digits = 0, nonzero = -1;
-    int exponent = 0, exponent_sign = 1;
-    if (!p || *p < '0' || *p > '9') {
-        return 0;
-    }
-    while (*p >= '0' && *p <= '9') {
-        if (*p != '0') {
-            if (*p != '1' || nonzero >= 0) {
-                return 0;
-            }
-            nonzero = position;
-        }
-        position++;
-        integer_digits++;
-        p++;
-    }
-    if (integer_digits > 1 && *value == '0') {
-        return 0;
-    }
-    if (*p == '.') {
-        p++;
-        if (*p < '0' || *p > '9') {
-            return 0;
-        }
-        while (*p >= '0' && *p <= '9') {
-            if (*p != '0') {
-                if (*p != '1' || nonzero >= 0) {
-                    return 0;
-                }
-                nonzero = position;
-            }
-            position++;
-            p++;
-        }
-    }
-    if (*p == 'e' || *p == 'E') {
-        p++;
-        if (*p == '-' || *p == '+') {
-            exponent_sign = *p++ == '-' ? -1 : 1;
-        }
-        if (*p < '0' || *p > '9') {
-            return 0;
-        }
-        while (*p >= '0' && *p <= '9') {
-            int digit = *p++ - '0';
-            /* A 4 MiB token cannot balance an exponent larger than this. */
-            if (exponent > (4 * 1024 * 1024 - digit) / 10) {
-                return 0;
-            }
-            exponent = exponent * 10 + digit;
-        }
-    }
-    p = skip_ws(p);
-    return nonzero >= 0 &&
-           integer_digits - nonzero - 1 + exponent_sign * exponent == 0 &&
-           (*p == ',' || *p == '}');
-}
 /* Validate schema admission before replacing a previous cached catalog. */
 static int index_file_supported(const char *path, int report) {
     FILE *input = wpm_fopen(path, "rb");
@@ -1911,9 +1511,10 @@ static int index_file_supported(const char *path, int report) {
         goto cleanup;
     }
     text[size] = 0;
-    packages = index_field(text, "packages");
-    supported = !memchr(text, 0, (size_t)size) && json_document_valid(text) &&
-                wpm_json_version_one(text) && packages && *packages == '[';
+    packages = wpm_json_field(text, "packages");
+    supported = !memchr(text, 0, (size_t)size) &&
+                wpm_json_document_valid(text) && wpm_json_version_one(text) &&
+                packages && *packages == '[';
 cleanup:
     free(text);
     fclose(input);
@@ -1963,7 +1564,7 @@ static int parse_index(const char *path, repository *repo,
     }
     fclose(f);
     text[size] = '\0';
-    if (memchr(text, 0, (size_t)size) || !json_document_valid(text)) {
+    if (memchr(text, 0, (size_t)size) || !wpm_json_document_valid(text)) {
         wpm_event_printf(WPM_EVENT_WARNING, "repository.index.invalid",
                          "repository", "resolve",
                          "Warning: malformed repository JSON: %s\n", repo->url);
@@ -1971,7 +1572,7 @@ static int parse_index(const char *path, repository *repo,
         return 0;
     }
     version_ok = wpm_json_version_one(text);
-    p = index_field(text, "packages");
+    p = wpm_json_field(text, "packages");
     if (!version_ok) {
         wpm_event_printf(
             WPM_EVENT_WARNING, "repository.warning", "repository", "command",
@@ -1993,12 +1594,12 @@ static int parse_index(const char *path, repository *repo,
     while (*p && *p != ']') {
         char name[128] = "", version[64] = "", arch[16] = "",
              url[PATH_SIZE] = "";
-        p = skip_ws(p);
+        p = wpm_json_space(p);
         if (!*p || *p == ']') {
             break;
         }
         if (*p != '{') {
-            json_value_end(&p);
+            wpm_json_value_end(&p);
             if (*p != ',') {
                 break;
             }
@@ -2008,30 +1609,30 @@ static int parse_index(const char *path, repository *repo,
         p++;
         while (*p && *p != '}') {
             char key[32];
-            p = skip_ws(p);
-            if (!json_string(&p, key, sizeof(key))) {
-                if (!json_string(&p, NULL, (size_t)-1)) {
+            p = wpm_json_space(p);
+            if (!wpm_json_read_string(&p, key, sizeof(key))) {
+                if (!wpm_json_read_string(&p, NULL, (size_t)-1)) {
                     break;
                 }
                 key[0] = 0;
             }
-            p = skip_ws(p);
+            p = wpm_json_space(p);
             if (*p != ':') {
                 break;
             }
             p++;
             if (strcmp(key, "name") == 0) {
-                json_string(&p, name, sizeof(name));
+                wpm_json_read_string(&p, name, sizeof(name));
             } else if (strcmp(key, "version") == 0) {
-                json_string(&p, version, sizeof(version));
+                wpm_json_read_string(&p, version, sizeof(version));
             } else if (strcmp(key, "arch") == 0) {
-                json_string(&p, arch, sizeof(arch));
+                wpm_json_read_string(&p, arch, sizeof(arch));
             } else if (strcmp(key, "url") == 0) {
-                json_string(&p, url, sizeof(url));
+                wpm_json_read_string(&p, url, sizeof(url));
             } else {
-                json_value_end(&p);
+                wpm_json_value_end(&p);
             }
-            p = skip_ws(p);
+            p = wpm_json_space(p);
             if (*p == ',') {
                 p++;
             }
@@ -2052,7 +1653,7 @@ static int parse_index(const char *path, repository *repo,
                 complete = 0;
             }
         }
-        p = skip_ws(p);
+        p = wpm_json_space(p);
         if (*p == ',') {
             p++;
         }
@@ -2067,16 +1668,16 @@ static int parse_index(const char *path, repository *repo,
             MAX_PACKAGES, repo->url);
     }
     /* Optional schema-1 links are repository roots, not package URLs. */
-    p = index_field(text, "repositories");
+    p = wpm_json_field(text, "repositories");
     if (p && *p == '[') {
         p++;
-        while (*(p = skip_ws(p)) && *p != ']') {
+        while (*(p = wpm_json_space(p)) && *p != ']') {
             char link[PATH_SIZE];
-            if (!json_string(&p, link, sizeof(link))) {
+            if (!wpm_json_read_string(&p, link, sizeof(link))) {
                 break;
             }
             append_repository_link(repositories, repository_count, repo, link);
-            p = skip_ws(p);
+            p = wpm_json_space(p);
             if (*p != ',') {
                 break;
             }
@@ -2105,11 +1706,11 @@ static int diagnose_links(const char *path, repository *repositories,
         goto cleanup;
     }
     text[size] = 0;
-    if (memchr(text, 0, (size_t)size) || !json_document_valid(text) ||
+    if (memchr(text, 0, (size_t)size) || !wpm_json_document_valid(text) ||
         !wpm_json_version_one(text)) {
         goto cleanup;
     }
-    p = index_field(text, "repositories");
+    p = wpm_json_field(text, "repositories");
     result = 1;
     if (!p) {
         goto cleanup;
@@ -2119,10 +1720,10 @@ static int diagnose_links(const char *path, repository *repositories,
         goto cleanup;
     }
     p++;
-    while (*(p = skip_ws(p)) && *p != ']') {
+    while (*(p = wpm_json_space(p)) && *p != ']') {
         char link[PATH_SIZE];
         int before = *count;
-        if (!json_string(&p, link, sizeof(link))) {
+        if (!wpm_json_read_string(&p, link, sizeof(link))) {
             (*issues)++;
             break;
         }
@@ -2132,7 +1733,7 @@ static int diagnose_links(const char *path, repository *repositories,
         } else if (*count > before) {
             parents[before] = parent + 1;
         }
-        p = skip_ws(p);
+        p = wpm_json_space(p);
         if (*p != ',') {
             break;
         }
@@ -2557,24 +2158,24 @@ int wpm_repo_version_is_valid(const char *version) {
 /* Author verification is stricter than the compatibility resolver: no entry
  * may be silently skipped and every required identity field occurs once. */
 static int author_entry(const char **source, package_entry *entry) {
-    const char *p = skip_ws(*source);
+    const char *p = wpm_json_space(*source);
     unsigned fields = 0;
     memset(entry, 0, sizeof(*entry));
     if (*p++ != '{') {
         return 0;
     }
-    while (*(p = skip_ws(p)) != '}') {
+    while (*(p = wpm_json_space(p)) != '}') {
         char key[32];
         char *value = NULL;
         size_t capacity = 0;
         unsigned field = 0;
-        if (!json_string(&p, key, sizeof(key))) {
-            if (!json_string(&p, NULL, (size_t)-1)) {
+        if (!wpm_json_read_string(&p, key, sizeof(key))) {
+            if (!wpm_json_read_string(&p, NULL, (size_t)-1)) {
                 return 0;
             }
             key[0] = 0;
         }
-        p = skip_ws(p);
+        p = wpm_json_space(p);
         if (*p++ != ':') {
             return 0;
         }
@@ -2596,15 +2197,15 @@ static int author_entry(const char **source, package_entry *entry) {
             field = 8;
         }
         if (value) {
-            if ((fields & field) || !json_string(&p, value, capacity) ||
-                !*value) {
+            if ((fields & field) ||
+                !wpm_json_read_string(&p, value, capacity) || !*value) {
                 return 0;
             }
             fields |= field;
-        } else if (!json_value_end(&p)) {
+        } else if (!wpm_json_value_end(&p)) {
             return 0;
         }
-        p = skip_ws(p);
+        p = wpm_json_space(p);
         if (*p == ',') {
             p++;
         } else if (*p != '}') {
@@ -2646,16 +2247,16 @@ static int author_file(const char *root, const char *item, char *path,
 }
 
 static int author_catalog_fields(const char *text) {
-    const char *p = json_content(text);
+    const char *p = wpm_json_content(text);
     unsigned fields = 0;
     if (*p++ != '{') {
         return 0;
     }
-    while (*(p = skip_ws(p)) != '}') {
+    while (*(p = wpm_json_space(p)) != '}') {
         char key[32];
         unsigned field;
-        if (!json_string(&p, key, sizeof(key))) {
-            if (!json_string(&p, NULL, (size_t)-1)) {
+        if (!wpm_json_read_string(&p, key, sizeof(key))) {
+            if (!wpm_json_read_string(&p, NULL, (size_t)-1)) {
                 return 0;
             }
             key[0] = 0;
@@ -2665,11 +2266,11 @@ static int author_catalog_fields(const char *text) {
             return 0;
         }
         fields |= field;
-        p = skip_ws(p);
-        if (*p++ != ':' || !json_value_end(&p)) {
+        p = wpm_json_space(p);
+        if (*p++ != ':' || !wpm_json_value_end(&p)) {
             return 0;
         }
-        p = skip_ws(p);
+        p = wpm_json_space(p);
         if (*p == ',') {
             p++;
         } else if (*p != '}') {
@@ -2697,7 +2298,7 @@ static int query_catalog_document(const char *path, HANDLE *catalog,
         return 0;
     }
     (*text)[size] = 0;
-    if (memchr(*text, 0, size) || !json_document_valid(*text) ||
+    if (memchr(*text, 0, size) || !wpm_json_document_valid(*text) ||
         !wpm_json_version_one(*text) || !author_catalog_fields(*text)) {
         return 0;
     }
@@ -2718,11 +2319,11 @@ static int author_read_catalog(const char *root, HANDLE *catalog, char **text,
         !query_catalog_document(path, catalog, text)) {
         return 0;
     }
-    p = index_field(*text, "packages");
+    p = wpm_json_field(*text, "packages");
     if (!p || *p++ != '[') {
         return 0;
     }
-    while (*(p = skip_ws(p)) != ']') {
+    while (*(p = wpm_json_space(p)) != ']') {
         if (*count == MAX_PACKAGES || !author_entry(&p, &entries[*count])) {
             return 0;
         }
@@ -2734,7 +2335,7 @@ static int author_read_catalog(const char *root, HANDLE *catalog, char **text,
             }
         }
         (*count)++;
-        p = skip_ws(p);
+        p = wpm_json_space(p);
         if (*p == ',') {
             p++;
         } else if (*p != ']') {
@@ -2777,22 +2378,23 @@ static int author_verify_entries(const char *root, package_entry *entries,
 static int author_signature_document(const char *text, const char *catalog,
                                      const char *public_key, char *id,
                                      size_t id_size) {
-    const char *p = json_content(text);
+    const char *p = wpm_json_content(text);
     char algorithm[16] = "", purpose[32] = "", public_text[128] = "";
     char signature_text[256] = "";
     unsigned fields = 0;
-    if (!json_document_valid(text) || !wpm_json_version_one(text) ||
+    if (!wpm_json_document_valid(text) || !wpm_json_version_one(text) ||
         *p++ != '{') {
         return 0;
     }
-    while (*(p = skip_ws(p)) != '}') {
+    while (*(p = wpm_json_space(p)) != '}') {
         char key[32], *value = NULL;
         size_t capacity = 0;
         unsigned field = 0;
-        if (!json_string(&p, key, sizeof(key)) || *(p = skip_ws(p)) != ':') {
+        if (!wpm_json_read_string(&p, key, sizeof(key)) ||
+            *(p = wpm_json_space(p)) != ':') {
             return 0;
         }
-        p = skip_ws(p + 1);
+        p = wpm_json_space(p + 1);
         if (!strcmp(key, "version")) {
             field = 1;
         } else if (!strcmp(key, "purpose")) {
@@ -2816,12 +2418,13 @@ static int author_signature_document(const char *text, const char *catalog,
             value = signature_text;
             capacity = sizeof(signature_text);
         }
-        if ((fields & field) || (value && !json_string(&p, value, capacity)) ||
-            (!value && !json_value_end(&p))) {
+        if ((fields & field) ||
+            (value && !wpm_json_read_string(&p, value, capacity)) ||
+            (!value && !wpm_json_value_end(&p))) {
             return 0;
         }
         fields |= field;
-        p = skip_ws(p);
+        p = wpm_json_space(p);
         if (*p == ',') {
             p++;
         } else if (*p != '}') {
@@ -3276,7 +2879,7 @@ int wpm_repo_index(const char *directory, int allow_unsigned, int dry_run) {
         goto done;
     }
     qsort(entries, (size_t)count, sizeof(*entries), author_index_order);
-    array_start = index_field(text, "packages") + 1;
+    array_start = wpm_json_field(text, "packages") + 1;
     prefix = (size_t)(array_start - text);
     suffix = strlen(array_end);
     updated = malloc(capacity);
@@ -3844,7 +3447,7 @@ static int query_available_records(const char *name, const char *arch,
             issues++;
             goto catalog_done;
         }
-        p = index_field(text, "packages");
+        p = wpm_json_field(text, "packages");
         if (!p || *p++ != '[') {
             issues++;
             goto catalog_done;
@@ -3856,7 +3459,7 @@ static int query_available_records(const char *name, const char *arch,
         if (!diagnose_links(path, roots, &root_count, i, parents, &issues)) {
             issues++;
         }
-        while (*(p = skip_ws(p)) != ']') {
+        while (*(p = wpm_json_space(p)) != ']') {
             package_entry record;
             const char *start = p;
             if (count == MAX_PACKAGES) {
@@ -3868,7 +3471,7 @@ static int query_available_records(const char *name, const char *arch,
                                 sizeof(source))) {
                 issues++;
                 p = start;
-                if (!json_value_end(&p)) {
+                if (!wpm_json_value_end(&p)) {
                     break;
                 }
             } else {
@@ -3876,7 +3479,7 @@ static int query_available_records(const char *name, const char *arch,
                 record.order = i;
                 records[count++] = record;
             }
-            p = skip_ws(p);
+            p = wpm_json_space(p);
             if (*p == ',') {
                 p++;
             } else if (*p != ']') {

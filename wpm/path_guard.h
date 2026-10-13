@@ -1,0 +1,42 @@
+/** @file path_guard.h @brief Canonical local-drive directory guards.
+ * This Windows boundary holds ancestors against rename and rejects reparse
+ * paths. It does not grant authority to execute a recorded path or claim
+ * support for device/UNC namespaces. Guards are process-local and not shared
+ * across threads; release every successfully or partially opened guard.
+ */
+#ifndef WPM_PATH_GUARD_H
+#define WPM_PATH_GUARD_H
+
+#include <stddef.h>
+
+/** Opaque owned collection of directory identity handles. */
+typedef struct wpm_path_guard wpm_path_guard;
+
+/** Distinguish absent query state from unsafe or inaccessible state. */
+typedef enum {
+    WPM_PATH_OPEN,
+    WPM_PATH_ABSENT,
+    WPM_PATH_UNSAFE,
+    WPM_PATH_FAILED
+} wpm_path_result;
+
+/** Canonicalize and guard every directory ancestor, including the volume root.
+ * @param path Borrowed bounded NUL-terminated directory path.
+ * @param create Nonzero permits missing-directory bootstrap with write
+ * capability; zero guarantees no filesystem mutation.
+ * @param canonical Caller-owned output buffer; valid only on OPEN.
+ * @param size Capacity of canonical, including its terminator.
+ * @param guard Receives an owned guard, also on partial failure; release it.
+ * @return OPEN only for guarded ordinary directories. Missing read-only paths
+ * return ABSENT; reparse/device/UNC paths return UNSAFE; other errors FAILED.
+ * No content, trust, cleanup, or mutation authority is inferred from a guard.
+ */
+wpm_path_result wpm_path_guard_open(const char *path, int create,
+                                    char *canonical, size_t size,
+                                    wpm_path_guard **guard);
+
+/** Release a guard and its handles; NULL is safe. Does not mutate filesystem.
+ * @param guard Owned guard consumed by this call; no subsequent access. */
+void wpm_path_guard_close(wpm_path_guard *guard);
+
+#endif

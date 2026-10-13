@@ -1024,3 +1024,40 @@ advertise inspect only, with retryEligible false, no inferred artifact list,
 and explicit null for unknown phase history. The public legacy recovery list
 continues to enumerate legacy audits until the new reader is implemented.
 REQ-0019 and its traceability obligations remain Proposed/Planned.
+
+
+The additive recovery reader is documented in recovery-records.md. It shares
+C99 JSON grammar helpers with catalogs and a narrow canonical-directory guard
+with the writer. Registered recovery-record integration covers real journals,
+strict admission, explicit current content/trust checks, and no-write snapshots.
+Reader testing initially rejected the writer's legitimate unsigned signer
+sentinel; inspection-record-first.log retains that failure. The corrected
+reader accepts unsigned only as recorded validation state and still requires
+explicit authorized current unsigned validation. A later harness snapshot
+attempted to read an exclusively locked fixture; inspection-record-second.log
+retains that harness failure, and inspection-record-third/fourth.log retain
+successful corrective runs under out/2.0-closure. These are local foundation
+results, not candidate quality-profile acceptance. Writer review also corrected
+removal oldVersion to the known retained identity; existing null-version
+records remain explicitly incomplete. The strict local Clang C99 syntax check
+for shared JSON modules found two CRT-deprecated copies; bounded memcpy now
+passes unchanged warning-as-error flags. Original and rerun logs are retained
+as inspection-portable-c99.log and inspection-portable-c99-rerun.log. Complete
+portability/reference, retry/cleanup/restore, and acceptance remain open.
+
+The maintainer reports no dedicated test hardware for real USB/optical/SMB
+acceptance. Continue software implementation and automated native verification;
+retain real-media/environment review as an open release gate. Simulated media
+results cannot substitute for required physical/environment evidence.
+
+
+Adversarial current-input tests found that Windows canonicalization removes a
+trailing file-name dot before the reader's canonical-name check. The original
+failing result is inspection-guard-final-test.log; the corrected reader rejects
+that alias in the supplied argument before canonicalization. The successful
+rerun is inspection-guard-correction-test.log. Alternate data streams and
+trailing-space aliases are also rejected. Retained-source exhaustion is bounded
+at 64 MiB and remains non-success even when display filters hide all records.
+The record reader validates raw UTF-8 without allocating a filtered copy of the
+whole source; public field rendering retains shared redaction. All these logs
+are local foundation evidence under out/2.0-closure, not completed profiles.

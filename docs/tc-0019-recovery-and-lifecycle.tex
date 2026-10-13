@@ -20,6 +20,8 @@
 \def\TCPostConditions{Remove only classified disposable test state; preserve required failing and rerun evidence under \texttt{Testing/Evidence/2.0/<source-revision>/TC-0019/<profile>/<architecture>/}.}
 % Registered operation-integration foundation verifies the additive writer's
 % completion, script failure, initial/update failure, and interruption paths.
-% It does not satisfy the complete retry/cleanup/restore/native quality case.
+% Recovery-record integration additionally verifies bounded admission, current
+% input identity/trust, schema/path failures, and no-write inspection snapshots.
+% Neither foundation satisfies the complete retry/cleanup/restore quality case.
 \TCTemplate
 \end{document}

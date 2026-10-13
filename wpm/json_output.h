@@ -11,6 +11,11 @@ int wpm_json_write_string(FILE *output, const char *text);
  * Caller frees the result. A NULL input encodes the JSON literal null. */
 char *wpm_json_encode_string(const char *text);
 
+/** Validate borrowed NUL-terminated UTF-8 without filtering or allocation.
+ * @param text Non-NULL bounded input, unchanged by this call.
+ * @return Nonzero for valid UTF-8, including empty input; zero otherwise. */
+int wpm_json_utf8_valid(const char *text);
+
 /** Write one redacted JSON string to stdout, or null for unavailable text.
  * Invalid UTF-8/allocation failure writes null and returns zero. Fields must
  * be bounded, NUL-terminated public/support text, never private key material.
