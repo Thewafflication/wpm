@@ -60,7 +60,7 @@ every row that is not `Verified` or lacks objective evidence.
 | REQ-0018.008 | TC-0018 | Schema and redirected-output test | Planned | Partial: runtime-diagnose-integration covers optional runtime configuration JSON; full envelope/health evidence remains open |
 | REQ-0018.009 | TC-0018 | Automated parity and redaction inspection | Planned | Partial: shared runtime query, human/JSON path parity and redaction fixtures; full inspection evidence remains open |
 | REQ-0019.001 | TC-0019 | Fault injection and record inspection | Planned | Not yet produced |
-| REQ-0019.002 | TC-0019 | Automated tamper/no-mutation test | Planned | Not yet produced |
+| REQ-0019.002 | TC-0019 | Automated tamper/no-mutation test | Planned | Not yet produced; optional name/architecture audit selection tested, full retained-input inspection remains open |
 | REQ-0019.003 | TC-0019 | Automated state-transition and trust test | Planned | Not yet produced |
 | REQ-0019.004 | TC-0019 | Automated classification/idempotence test | Planned | Not yet produced |
 | REQ-0019.005 | TC-0019 | Automated deletion-boundary and race test | Planned | Not yet produced |

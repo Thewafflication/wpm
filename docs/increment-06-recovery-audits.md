@@ -97,3 +97,32 @@ to receive a complete document. Human mode and audit formats remain unchanged.
 The real failed-upgrade fixture checks human/JSON identity and exit status,
 empty/unavailable/partial queries, bounded ordering, Unicode, escaping, invalid
 UTF-8 forms, credential filtering, forced color, no writes, and no script replay.
+
+## Optional audit selection (1.3.0)
+
+`wpm recovery [list] --name <recorded-name> [--arch <architecture>]` narrows
+displayed records without changing the inspected source or replaying scripts.
+Either filter can be used alone, with `--limit`, `--offline`, or `--json`.
+Matching is exact and case-insensitive in the existing native text model. Names
+contain 1..127 native bytes with no control characters; architecture is any,
+x86, x64, or arm64. Missing, empty, oversized, unsupported, and duplicate filters
+fail before initialization rather than silently broadening the query.
+
+Limits still count examined matching audit-file entries, including excluded
+and invalid records. Corrupt/unreadable entries anywhere in the examined subset
+and enumeration limits keep the query partial even if no selected rows remain.
+A complete query with no selected rows returns 0. Returned rows retain their
+existing descending filename order and informational trust/uncertainty meaning.
+
+Filtered JSON adds optional `filters` (nullable name/arch) and `selection`
+(`examined` entries and `filtered_out` parsed records) objects. Human mode shows
+the same selection counts. These fields appear only when a filter is requested;
+unfiltered output, default bounds, public wrappers, audit files, and the
+`wpm.recovery-list.v1` field meanings remain unchanged. Selected names use the
+shared redaction/UTF-8 rules. A filter cannot establish recovery eligibility or
+authorize retry, cleanup, installed-state assumptions, or trust changes.
+
+The real failed-upgrade fixture covers case-insensitive matching, architectures,
+empty selections, source-wide corruption, examined-before-filter bounds, invalid
+CLI shapes before roots/logs exist, shared human/JSON rows, redaction, immutable
+snapshots, and no script replay on x86/x64. Full I-06 remains open.

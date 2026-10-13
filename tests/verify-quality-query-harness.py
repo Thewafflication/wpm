@@ -77,7 +77,8 @@ with tempfile.TemporaryDirectory(prefix="wpm-quality-harness-") as directory:
         ).hexdigest()
     )
     runtime = root / "runtime-baselines"
-    run(args.wpm, runtime, cases=4)
+    # Exercise a noncanonical output spelling as well as Windows TEMP aliases.
+    run(args.wpm, runtime / ".." / runtime.name, cases=4)
     runtime_report = json.loads(
         (runtime / "report.json").read_text(encoding="utf-8")
     )
@@ -89,7 +90,7 @@ with tempfile.TemporaryDirectory(prefix="wpm-quality-harness-") as directory:
     ]
     for case in runtime_report["cases"]:
         assert case["input_copy_complete"] and case["input_copy_intact"]
-        assert Path(case["working_directory"]).parent == runtime
+        assert Path(case["working_directory"]).parent == runtime.resolve()
     runtime_case = runtime_report["cases"][-1]
     assert runtime_case["environment"]["WPM_TLS_CA_FILE"] is None
     # Python rejects WPM-only flags before loading any script. This wrong binary

@@ -136,10 +136,23 @@ static int recovery_order(const void *left, const void *right) {
 }
 
 static int recovery_json(const failure_record *records, int count, int invalid,
-                         int limited, int complete, unsigned limit) {
+                         int limited, int complete, unsigned limit,
+                         const char *name, const char *arch, int scanned,
+                         int filtered) {
     int encoding_issues = 0;
     const char *status;
-    fputs("{\"schema\":\"wpm.recovery-list.v1\",\"records\":[", stdout);
+    fputs("{\"schema\":\"wpm.recovery-list.v1\",", stdout);
+    if (name || arch) {
+        fputs("\"filters\":{\"name\":", stdout);
+        encoding_issues += !wpm_json_string(name);
+        fputs(",\"arch\":", stdout);
+        encoding_issues += !wpm_json_string(arch);
+        fprintf(stdout,
+                "},\"selection\":{\"examined\":%d,"
+                "\"filtered_out\":%d},",
+                scanned, filtered);
+    }
+    fputs("\"records\":[", stdout);
     for (int i = 0; i < count; i++) {
         const failure_record *record = &records[i];
         const char *keys[] = {"record",      "name",        "arch",
@@ -174,23 +187,50 @@ static int recovery_json(const failure_record *records, int count, int invalid,
     return complete;
 }
 
-static int recovery_query(unsigned limit, int json);
+static int recovery_query(unsigned limit, int json, const char *name,
+                          const char *arch);
 
 int wpm_recovery_list(void) { return wpm_recovery_list_limit(RECOVERY_LIMIT); }
 
-int wpm_recovery_list_limit(unsigned limit) { return recovery_query(limit, 0); }
+int wpm_recovery_list_limit(unsigned limit) {
+    return recovery_query(limit, 0, NULL, NULL);
+}
 
-int wpm_recovery_list_json(unsigned limit) { return recovery_query(limit, 1); }
+int wpm_recovery_list_json(unsigned limit) {
+    return recovery_query(limit, 1, NULL, NULL);
+}
 
-static int recovery_query(unsigned limit, int json) {
+int wpm_recovery_filters_valid(const char *name, const char *arch) {
+    if (name) {
+        if (!*name || strlen(name) >= sizeof(((failure_record *)0)->name)) {
+            return 0;
+        }
+        for (const unsigned char *p = (const unsigned char *)name; *p; p++) {
+            if (*p < 32 || *p == 127) {
+                return 0;
+            }
+        }
+    }
+    return !arch || (!_stricmp(arch, "any") || !_stricmp(arch, "x86") ||
+                     !_stricmp(arch, "x64") || !_stricmp(arch, "arm64"));
+}
+
+int wpm_recovery_list_filtered(unsigned limit, int json, const char *name,
+                               const char *arch) {
+    return recovery_query(limit, json != 0, name, arch);
+}
+
+static int recovery_query(unsigned limit, int json, const char *name,
+                          const char *arch) {
     char root[RECOVERY_PATH], directory[RECOVERY_PATH], path[RECOVERY_PATH];
     failure_record *records;
     WIN32_FIND_DATAA found;
     HANDLE search = INVALID_HANDLE_VALUE;
     DWORD attributes, failure;
-    int count = 0, scanned = 0, invalid = 0, limited = 0, success = 0;
+    int count = 0, scanned = 0, filtered = 0, invalid = 0, limited = 0;
+    int success = 0;
     wpm_set_readonly(1);
-    if (!limit || limit > 4096) {
+    if (!limit || limit > 4096 || !wpm_recovery_filters_valid(name, arch)) {
         return 0;
     }
     records = calloc(limit, sizeof(*records));
@@ -235,6 +275,12 @@ static int recovery_query(unsigned limit, int json) {
             memset(&records[count], 0, sizeof(records[count]));
             continue;
         }
+        if ((name && _stricmp(name, records[count].name)) ||
+            (arch && _stricmp(arch, records[count].arch))) {
+            filtered++;
+            memset(&records[count], 0, sizeof(records[count]));
+            continue;
+        }
         strcpy_s(records[count].file, sizeof(records[count].file),
                  found.cFileName);
         count++;
@@ -250,6 +296,13 @@ report:
     }
     wpm_event_printf(WPM_EVENT_INFO, "recovery.audit.start", "recovery", "list",
                      "Recorded upgrade failures (read-only):\n");
+    if (name || arch) {
+        wpm_event_printf(
+            WPM_EVENT_INFO, "recovery.audit.filters", "recovery", "list",
+            "Filters: name=%s; arch=%s; examined=%d; "
+            "filtered out=%d\n",
+            name ? name : "all", arch ? arch : "all", scanned, filtered);
+    }
     for (int i = 0; i < count; i++) {
         wpm_event_printf(
             WPM_EVENT_INFO, "recovery.audit.item", "recovery", "list",
@@ -280,8 +333,8 @@ done:
         FindClose(search);
     }
     if (json) {
-        success =
-            recovery_json(records, count, invalid, limited, success, limit);
+        success = recovery_json(records, count, invalid, limited, success,
+                                limit, name, arch, scanned, filtered);
     }
     free(records);
     if (!json && !success && !invalid && !limited) {

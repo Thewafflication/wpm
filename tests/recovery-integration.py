@@ -75,6 +75,24 @@ with tempfile.TemporaryDirectory(prefix="wpm-recovery-") as directory:
     value = machine()
     assert value["records"] == [] and value["status"] == "complete", value
     assert value["summary"]["limit"] == 128, value
+    assert "filters" not in value and "selection" not in value
+    empty_filtered = machine("--name", "absent", "--arch", "X64")
+    assert empty_filtered["filters"] == {"name": "absent", "arch": "X64"}
+    assert empty_filtered["selection"] == {"examined": 0, "filtered_out": 0}
+    for options in (
+        ("--name",),
+        ("--arch",),
+        ("--name", ""),
+        ("--name", "x" * 128),
+        ("--name", "bad\tname"),
+        ("--name", "bad\x7fname"),
+        ("--arch", "unsupported"),
+        ("--name", "first", "--name", "second"),
+        ("--arch", "x64", "--arch", "x86"),
+        ("--name", "--json"),
+    ):
+        run("recovery", "list", *options, succeeds=False, readonly=True)
+    assert not data.exists() and not (root / "external.log").exists()
     run("recovery", "--json", "--verbose", succeeds=False, readonly=True)
     for arguments in (
         ("recovery",),
@@ -162,6 +180,38 @@ with tempfile.TemporaryDirectory(prefix="wpm-recovery-") as directory:
     )
     assert value["complete"] is True, value
     original = audit.read_bytes()
+    selected = machine("--name", "RECOVERY-CHECK", "--arch", "ANY")
+    assert selected["records"] == [record]
+    assert selected["selection"] == {"examined": 1, "filtered_out": 0}
+    absent = machine("--name", "absent")
+    assert absent["records"] == [] and absent["selection"]["filtered_out"] == 1
+    assert machine("--arch", "x64")["records"] == []
+    other = audit.parent / "other.upgrade-failed.txt"
+    other.write_bytes(
+        original.replace(b"name=recovery-check", b"name=other").replace(
+            b"arch=any", b"arch=x64"
+        )
+    )
+    selected = machine("--arch", "X64")
+    assert [item["name"] for item in selected["records"]] == ["other"]
+    assert selected["selection"] == {"examined": 2, "filtered_out": 1}
+    human = run("recovery", "list", "--name", "recovery-check", readonly=True)
+    assert "1 recorded upgrade failures" in human and "filtered out=1" in human
+    other.write_bytes(b"malformed")
+    selected = machine("--name", "recovery-check", succeeds=False)
+    assert selected["records"] == [record]
+    assert selected["summary"]["invalid_or_unreadable"] == 1
+    other.unlink()
+    protected_name = "token=DO_NOT_LEAK_FILTER"
+    audit.write_bytes(
+        original.replace(
+            b"name=recovery-check", b"name=" + protected_name.encode()
+        )
+    )
+    selected = machine("--name", protected_name)
+    assert len(selected["records"]) == 1
+    assert "DO_NOT_LEAK_FILTER" not in json.dumps(selected)
+    audit.write_bytes(original)
     secret = b"DO_NOT_LEAK_AUDIT_CREDENTIAL"
     audit.write_bytes(
         original.replace(
@@ -240,6 +290,12 @@ with tempfile.TemporaryDirectory(prefix="wpm-recovery-") as directory:
     assert "limited: yes" in text, text
     text = run("recovery", "--limit", "129", "list", readonly=True)
     assert "129 recorded upgrade failures" in text, text
+    absent = machine("--name", "absent", "--limit", "129")
+    assert absent["records"] == [] and absent["complete"]
+    assert absent["selection"] == {"examined": 129, "filtered_out": 129}
+    limited = machine("--name", "absent", "--limit", "1", succeeds=False)
+    assert limited["records"] == [] and limited["summary"]["limited"]
+    assert limited["selection"] == {"examined": 1, "filtered_out": 1}
     assert "limited: no" in text, text
     text = run(
         "recovery", "list", "--limit", "1", succeeds=False, readonly=True
