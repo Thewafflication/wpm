@@ -423,6 +423,42 @@ int wpm_path_guard_publish(wpm_path_guard *guard, void *file, const char *name,
     return status == 0;
 }
 
+int wpm_path_guard_discard_fresh(wpm_path_guard *guard, void *file) {
+    typedef LONG(WINAPI * set_information)(HANDLE, guard_io_status *, void *,
+                                           ULONG, int);
+    set_information set;
+    guard_io_status result;
+    BY_HANDLE_FILE_INFORMATION identity;
+    BYTE disposition = 1;
+    if (!guard || !file || file == INVALID_HANDLE_VALUE ||
+        !guard->created_known || !guard_ordinary(guard) ||
+        !wpm_require_capability(WPM_CAP_WRITE, "owned temporary cleanup") ||
+        !GetFileInformationByHandle(file, &identity) ||
+        identity.nNumberOfLinks != 1 ||
+        (identity.dwFileAttributes &
+         (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT |
+          FILE_ATTRIBUTE_READONLY)) ||
+        identity.dwVolumeSerialNumber != guard->created_identity[0] ||
+        identity.nFileIndexHigh != guard->created_identity[1] ||
+        identity.nFileIndexLow != guard->created_identity[2]) {
+        return 0;
+    }
+    set = (set_information)GetProcAddress(GetModuleHandleA("ntdll.dll"),
+                                          "NtSetInformationFile");
+    if (!set) {
+        return 0;
+    }
+    memset(&result, 0, sizeof(result));
+    /* FileDispositionInformation uses the one-byte BOOLEAN DeleteFile ABI.
+     * The exclusive source stays open; no name-based deletion follows. */
+    if (set((HANDLE)file, &result, &disposition, sizeof(disposition), 13) !=
+        0) {
+        return 0;
+    }
+    guard->created_known = 0;
+    return 1;
+}
+
 void wpm_path_guard_close(wpm_path_guard *guard) {
     if (guard) {
         while (guard->count) {
