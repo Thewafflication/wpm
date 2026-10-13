@@ -209,7 +209,13 @@ with tempfile.TemporaryDirectory(prefix="wpm-quality-gate-") as directory:
         value = copy.deepcopy(baseline)
         value["findings"][0][field] = replacement
         run(value, expected)
-    for name in ("../outside.json", "C:/outside.json", "x\\outside.json"):
+    for name in (
+        "../outside.json",
+        "C:/outside.json",
+        "x\\outside.json",
+        "control\x00report.json",
+        "surrogate\ud800report.json",
+    ):
         value = copy.deepcopy(baseline)
         value["reports"][0]["path"] = name
         run(value, "unsafe-evidence-path")

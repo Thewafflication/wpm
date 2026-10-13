@@ -39,9 +39,11 @@ baseline (exact WSP pin, dependency identity, per-architecture toolchains),
 binaries (x86/x64/arm64 SHA-256 values), reports (path/sha256 references), and
 findings (explicit array, empty when there are no findings). Report paths are
 relative slash-separated contained files. Traversal, absolute paths, reparse
-points, symbolic/hard links, digest changes, duplicate JSON members and nonfinite
+points, symbolic/hard links, control/surrogate path characters, digest changes,
+duplicate JSON members and nonfinite
 JSON values block. Documents are limited to 4 MiB each, 64 MiB total reads,
-128 report references, 1000 cases per profile, and 1000 findings.
+128 report references, 1000 cases per profile, and 1000 findings. File reads are
+bounded to the inspected size plus one byte; a concurrent size change blocks.
 
 Each report has schema `wpm.quality-profile.v1`, exact source_revision,
 source_state clean, architecture, profile, execution native, status Pass,

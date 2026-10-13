@@ -978,3 +978,14 @@ open. The explicit pre-publication phase schedules only REQ-0022.009 because
 its retrospective is required after publication; full closure and subsequent
 stable 2.x releases require the default Complete phase. No runtime result is
 waived or synthesized. See quality-candidate-gate.md and retrospective-2.0-plan.md.
+
+
+Gate review found that a retained path containing NUL raised an uncontrolled
+Python traceback instead of the Blocked result. The original failing unit run
+is retained at out/2.0-closure/gate-path-before.log; the successful targeted
+rerun is at gate-path-after.log in the same root. Stable path validation now
+rejects controls and unpaired surrogates before filesystem access and handles
+path ValueError as controlled failure. Reads are bounded even if file size
+changes between inspection and reading. Regression fixtures cover the actual
+malformed path partitions; mandatory/native checks provide corrective evidence.
+This is an unreleased gate-tool defect, not a passed candidate quality profile.

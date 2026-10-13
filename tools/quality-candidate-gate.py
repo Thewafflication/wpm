@@ -88,13 +88,25 @@ def plain_file(path):
     require(info.st_size <= MAX_BYTES, "document-size-limit")
     evidence_bytes += info.st_size
     require(evidence_bytes <= MAX_TOTAL_BYTES, "evidence-size-limit")
-    return path.read_bytes()
+    with path.open("rb") as stream:
+        raw = stream.read(info.st_size + 1)
+    require(len(raw) == info.st_size, "evidence-size-changed")
+    return raw
 
 
 def evidence(root, reference):
     require(isinstance(reference, dict), "invalid-evidence-reference")
     name, expected = reference.get("path"), reference.get("sha256")
     require(isinstance(name, str) and len(name) <= 512, "invalid-evidence-path")
+    require(
+        all(
+            ord(char) >= 32
+            and ord(char) != 127
+            and not 0xD800 <= ord(char) <= 0xDFFF
+            for char in name
+        ),
+        "unsafe-evidence-path",
+    )
     require(
         isinstance(expected, str) and HEX256.fullmatch(expected), "bad-digest"
     )
@@ -313,7 +325,7 @@ def main():
             status="Pass", complete=True, profiles=count, diagnostics=[]
         )
         code = 0
-    except (InvalidEvidence, OSError, TypeError, KeyError) as error:
+    except (InvalidEvidence, OSError, TypeError, KeyError, ValueError) as error:
         # Emit stable codes only; hostile paths/documents may contain secrets.
         reason = (
             str(error)
