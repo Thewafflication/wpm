@@ -32,6 +32,10 @@ typedef struct {
     unsigned long script_exit;
     int external, exit_known;
     const char *input_status;
+    char retained_relative[256], retained_state[16];
+    char retained_path[RECORD_PATH];
+    const char *retained_status;
+    int retained_known, inventory_known;
 } recovery_identity;
 
 int wpm_recovery_id_valid(const char *id) {
@@ -122,6 +126,48 @@ static int record_time(const char *text) {
            : month == 4 || month == 6 || month == 9 || month == 11 ? 30
                                                                    : 31;
     return day <= days;
+}
+
+static int record_artifacts(const char *artifacts, recovery_identity *record) {
+    const char *p = wpm_json_space(artifacts + 1);
+    unsigned count = 0;
+    record->inventory_known = 1;
+    record->retained_status = "not-recorded";
+    while (*p != ']') {
+        char role[32], digest[65], path[RECORD_PATH];
+        if (*p != '{' || ++count > 16 ||
+            !record_string(p, "role", role, sizeof(role), 0)) {
+            return 0;
+        }
+        if (!strcmp(role, "recovery-input")) {
+            if (record->retained_known ||
+                !record_string(p, "path", path, sizeof(path), 0) ||
+                !record_string(p, "relativePath", record->retained_relative,
+                               sizeof(record->retained_relative), 0) ||
+                !record_string(p, "blake2b256", digest, sizeof(digest), 0) ||
+                strcmp(digest, record->fingerprint) ||
+                !record_string(p, "state", record->retained_state,
+                               sizeof(record->retained_state), 0) ||
+                (strcmp(record->retained_state, "planned") &&
+                 strcmp(record->retained_state, "incomplete") &&
+                 strcmp(record->retained_state, "retained"))) {
+                return 0;
+            }
+            record->retained_known = 1;
+            record->retained_status = "not-checked";
+        } else {
+            record->inventory_known = 0;
+        }
+        if (!wpm_json_value_end(&p)) {
+            return 0;
+        }
+        p = wpm_json_space(p);
+        if (*p != ',') {
+            break;
+        }
+        p = wpm_json_space(p + 1);
+    }
+    return *p == ']' && record_delimiter(p + 1);
 }
 
 static int record_parse(const char *text, const char *id,
@@ -239,7 +285,7 @@ static int record_parse(const char *text, const char *id,
         record->exit_known = 1;
     }
     record->input_status = "not-checked";
-    return 1;
+    return record_artifacts(artifacts, record);
 }
 
 static int record_read(const char *path, const char *id,
@@ -382,6 +428,60 @@ done:
     return success;
 }
 
+static int record_retained_path(recovery_identity *record,
+                                const char *directory) {
+    const char *version = !strcmp(record->operation, "remove")
+                              ? record->old_version
+                              : record->new_version;
+    char relative[256];
+    int written;
+    if (!record->retained_known) {
+        return 1;
+    }
+    if (!*version) {
+        record->retained_status = "identity-incomplete";
+        record->inventory_known = 0;
+        return 1;
+    }
+    written = snprintf(relative, sizeof(relative), "%s/input.zip", record->id);
+    if (written <= 0 || (size_t)written >= sizeof(relative) ||
+        strcmp(relative, record->retained_relative)) {
+        return 0;
+    }
+    written = snprintf(record->retained_path, sizeof(record->retained_path),
+                       "%s\\%s\\input.zip", directory, record->id);
+    return written > 0 && (size_t)written < sizeof(record->retained_path);
+}
+
+static int record_inspect_inputs(recovery_identity *record, const char *archive,
+                                 int allow_unsigned) {
+    int explicit_ok = 0, retained_ok = 1;
+    const char *explicit_status = NULL;
+    if (archive) {
+        explicit_ok = record_validate_input(record, archive, allow_unsigned);
+        explicit_status = record->input_status;
+    }
+    if (record->retained_known) {
+        if (!record->retained_path[0]) {
+            record->retained_status = "identity-incomplete";
+            retained_ok = 0;
+        } else {
+            retained_ok = record_validate_input(record, record->retained_path,
+                                                allow_unsigned);
+            record->retained_status = record->input_status;
+        }
+    }
+    if (archive) {
+        record->input_status = explicit_status;
+    } else if (!record->retained_known) {
+        record->input_status = "external-unchecked";
+    } else if (!record->retained_path[0]) {
+        record->input_status = "identity-incomplete";
+    }
+    return record->inventory_known && retained_ok &&
+           (archive ? explicit_ok : record->retained_known);
+}
+
 static int record_order(const void *left, const void *right) {
     const recovery_identity *a = left, *b = right;
     return strcmp(a->id, b->id);
@@ -406,11 +506,24 @@ static void record_silent_event(wpm_event_class kind, const char *code,
 }
 
 static int record_render(const recovery_identity *record, int json) {
-    const char *keys[] = {
-        "operationId", "operation",  "created",    "updated",
-        "planDigest",  "status",     "phase",      "name",
-        "arch",        "oldVersion", "newVersion", "source",
-        "inputPath",   "blake2b256", "signer",     "inputStatus"};
+    const char *keys[] = {"operationId",
+                          "operation",
+                          "created",
+                          "updated",
+                          "planDigest",
+                          "status",
+                          "phase",
+                          "name",
+                          "arch",
+                          "oldVersion",
+                          "newVersion",
+                          "source",
+                          "inputPath",
+                          "blake2b256",
+                          "signer",
+                          "inputStatus",
+                          "retainedInputPath",
+                          "retainedInputStatus"};
     const char *values[] = {record->id,
                             record->operation,
                             record->created,
@@ -426,7 +539,10 @@ static int record_render(const recovery_identity *record, int json) {
                             record->input,
                             record->fingerprint,
                             record->signer[0] ? record->signer : NULL,
-                            record->input_status};
+                            record->input_status,
+                            record->retained_path[0] ? record->retained_path
+                                                     : NULL,
+                            record->retained_status};
     int complete = 1;
     if (!json) {
         wpm_event_printf(
@@ -462,8 +578,9 @@ static int record_render(const recovery_identity *record, int json) {
     fputs(",\"authenticated\":false,\"externalStateKnown\":false,"
           "\"retryEligible\":false,"
           "\"safeActions\":[\"inspect\"],"
-          "\"artifactInventoryInterpreted\":false}",
+          "\"artifactInventoryInterpreted\":",
           stdout);
+    fputs(record->inventory_known ? "true}" : "false}", stdout);
     return complete;
 }
 
@@ -486,7 +603,7 @@ int wpm_recovery_records(unsigned limit, int json, const char *id,
     }
     wpm_set_readonly(1);
     if (!limit || limit > 4096 || (id && !wpm_recovery_id_valid(id)) ||
-        (archive && !id) || (allow_unsigned && !archive) ||
+        (archive && !id) || (allow_unsigned && !id) ||
         !wpm_recovery_filters_valid(name, arch)) {
         goto report;
     }
@@ -509,7 +626,8 @@ int wpm_recovery_records(unsigned limit, int json, const char *id,
     if (id) {
         snprintf(path, sizeof(path), "%s\\%s.json", directory, id);
         examined = 1;
-        if (record_read(path, id, records, &budget) != 1) {
+        if (record_read(path, id, records, &budget) != 1 ||
+            !record_retained_path(records, directory)) {
             invalid = 1;
             record_issue("recovery.record.invalid", id);
             goto report;
@@ -520,7 +638,7 @@ int wpm_recovery_records(unsigned limit, int json, const char *id,
             goto report;
         }
         count = 1;
-        complete = record_validate_input(records, archive, allow_unsigned);
+        complete = record_inspect_inputs(records, archive, allow_unsigned);
         goto report;
     }
     snprintf(path, sizeof(path), "%s\\*.json", directory);
@@ -556,7 +674,7 @@ int wpm_recovery_records(unsigned limit, int json, const char *id,
                          "cumulative-read bound");
             break;
         }
-        if (!admitted) {
+        if (!admitted || !record_retained_path(&records[count], directory)) {
             invalid++;
             record_issue("recovery.record.invalid", candidate);
             memset(&records[count], 0, sizeof(*records));

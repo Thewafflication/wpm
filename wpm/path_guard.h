@@ -22,8 +22,8 @@ typedef enum {
 
 /** Canonicalize and guard every directory ancestor, including the volume root.
  * @param path Borrowed bounded NUL-terminated directory path.
- * @param create Nonzero permits missing-directory bootstrap with write
- * capability; zero guarantees no filesystem mutation.
+ * @param create Zero guarantees no mutation; one permits write-capable
+ * bootstrap; two additionally requires a fresh final operation directory.
  * @param canonical Caller-owned output buffer; valid only on OPEN.
  * @param size Capacity of canonical, including its terminator.
  * @param guard Receives an owned guard, also on partial failure; release it.

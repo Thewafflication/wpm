@@ -110,9 +110,9 @@ with tempfile.TemporaryDirectory(prefix="wpm-recovery-record-") as directory:
         ("records", "extra"),
         ("records", "--archive", "file.zip"),
         ("records", "--allow-unsigned"),
-        ("inspect", "a" * 32, "--allow-unsigned"),
     ):
         assert query(*operands, succeeds=False)["result"] is None
+    query("inspect", "a" * 32, "--allow-unsigned", succeeds=False)
 
     assert run("build", source, root).returncode == 0
     archive = root / "record-test-any-1.0.0.zip"
@@ -150,6 +150,9 @@ with tempfile.TemporaryDirectory(prefix="wpm-recovery-record-") as directory:
         identity = f"{number:032x}"
         candidate = copy.deepcopy(original_value)
         candidate["operationId"] = identity
+        candidate["controlledArtifacts"][0]["relativePath"] = (
+            f"{identity}/input.zip"
+        )
         path = record_path.parent / f"{identity}.json"
         path.write_text(json.dumps(candidate), encoding="utf-8")
         additional.append(path)
@@ -166,7 +169,41 @@ with tempfile.TemporaryDirectory(prefix="wpm-recovery-record-") as directory:
 
     # A stored external path cannot authorize inspection of its contents.
     unchecked = query("inspect", record_id, succeeds=False)["records"][0]
-    assert unchecked["inputStatus"] == "external-unchecked"
+    assert unchecked["inputStatus"] == "untrusted-or-invalid"
+    retained = query("inspect", record_id, "--allow-unsigned")["records"][0]
+    assert retained["retainedInputStatus"] == "validated-current-input"
+    retained_path = Path(retained["retainedInputPath"])
+    assert retained_path.read_bytes() == archive.read_bytes()
+    moved = root / "moved-original.zip"
+    archive.rename(moved)
+    query("inspect", record_id, "--allow-unsigned")
+    moved.rename(archive)
+    retained_bytes = retained_path.read_bytes()
+    retained_path.write_bytes(retained_bytes + b"tampered")
+    damaged = query("inspect", record_id, "--allow-unsigned", succeeds=False)[
+        "records"
+    ][0]
+    assert damaged["retainedInputStatus"] == "changed"
+    # A good explicit archive does not conceal a corrupt recorded input.
+    mismatch = query(
+        "inspect",
+        record_id,
+        "--archive",
+        archive,
+        "--allow-unsigned",
+        succeeds=False,
+    )["records"][0]
+    assert mismatch["inputStatus"] == "validated-current-input"
+    assert mismatch["retainedInputStatus"] == "changed"
+    retained_path.write_bytes(retained_bytes)
+    retained_path.rename(root / "missing-retained.zip")
+    assert (
+        query("inspect", record_id, "--allow-unsigned", succeeds=False)[
+            "records"
+        ][0]["retainedInputStatus"]
+        == "missing"
+    )
+    (root / "missing-retained.zip").rename(retained_path)
     validated = query(
         "inspect", record_id, "--archive", archive, "--allow-unsigned"
     )["records"][0]
@@ -373,6 +410,9 @@ with tempfile.TemporaryDirectory(prefix="wpm-recovery-record-") as directory:
         identity = f"{number:032x}"
         candidate = copy.deepcopy(original_value)
         candidate["operationId"] = identity
+        candidate["controlledArtifacts"][0]["relativePath"] = (
+            f"{identity}/input.zip"
+        )
         text = json.dumps(candidate).encode("utf-8")
         path = record_path.parent / f"{identity}.json"
         path.write_bytes(text + b" " * (65536 - len(text)))

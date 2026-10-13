@@ -12,6 +12,7 @@
 #include "capability.h"
 #include "json_output.h"
 #include "path_guard.h"
+#include "hashing.h"
 
 #define PLAN_LIMIT 256
 #define PLAN_PATH 4096
@@ -30,6 +31,11 @@ typedef struct plan_item {
     unsigned long script_exit;
     int script_exit_known;
     DWORD record_identity[3];
+    char retained[PLAN_PATH], completed[16][32];
+    HANDLE retained_input;
+    wpm_path_guard *retained_guard;
+    unsigned completed_count;
+    int retained_state, failed;
 } plan_item;
 
 static plan_item *items;
@@ -39,6 +45,26 @@ static plan_item *executing;
 static unsigned char approved_state[32];
 static char selected_source[PLAN_PATH];
 static char approved_plan[65];
+
+static int plan_recovery_path(plan_item *item) {
+    char root[PLAN_PATH], supplied[PLAN_PATH];
+    unsigned char random[16];
+    DWORD length;
+    int written;
+    if (!wpm_get_data_root(supplied, sizeof(supplied))) {
+        return 0;
+    }
+    length = GetFullPathNameA(supplied, sizeof(root), root, NULL);
+    if (!length || length <= 3 || length >= sizeof(root)) {
+        return 0;
+    }
+    randombytes_buf(random, sizeof(random));
+    sodium_bin2hex(item->recovery_id, sizeof(item->recovery_id), random,
+                   sizeof(random));
+    written = snprintf(item->retained, sizeof(item->retained),
+                       "%s\\recovery\\%s\\input.zip", root, item->recovery_id);
+    return written > 0 && (size_t)written < sizeof(item->retained);
+}
 
 static void journal_time(char *text, size_t size) {
     SYSTEMTIME now;
@@ -109,6 +135,8 @@ static int journal_write(plan_item *item, const char *phase, const char *status,
         randombytes_buf(random, sizeof(random));
         sodium_bin2hex(item->recovery_id, sizeof(item->recovery_id), random,
                        sizeof(random));
+    }
+    if (!item->created[0]) {
         journal_time(item->created, sizeof(item->created));
     }
     if (snprintf(final, sizeof(final), "%s\\%s.json", directory,
@@ -198,11 +226,32 @@ static int journal_write(plan_item *item, const char *phase, const char *status,
     } else {
         complete &= journal_text("null", file);
     }
-    complete &=
-        journal_text(",\"retryEligible\":false,\"safeActions\":[\"inspect\"],"
-                     "\"controlledArtifacts\":[],\"completedPhases\":null,"
-                     "\"failedPhase\":",
-                     file);
+    complete &= journal_text(",\"retryEligible\":false,"
+                             "\"safeActions\":[\"inspect\"],"
+                             "\"controlledArtifacts\":[{\"role\":"
+                             "\"recovery-input\",\"path\":",
+                             file);
+    complete &= journal_string(file, item->retained);
+    complete &= journal_text(",\"relativePath\":", file);
+    {
+        char relative[256];
+        snprintf(relative, sizeof(relative), "%s/input.zip", item->recovery_id);
+        complete &= journal_string(file, relative);
+    }
+    complete &= journal_text(",\"blake2b256\":", file);
+    complete &= journal_string(file, fingerprint);
+    complete &= journal_text(",\"state\":", file);
+    complete &= journal_string(file, item->retained_state == 2   ? "retained"
+                                     : item->retained_state == 1 ? "incomplete"
+                                                                 : "planned");
+    complete &= journal_text("}],\"completedPhases\":[", file);
+    for (unsigned i = 0; i < item->completed_count; i++) {
+        if (i) {
+            complete &= journal_text(",", file);
+        }
+        complete &= journal_string(file, item->completed[i]);
+    }
+    complete &= journal_text("],\"failedPhase\":", file);
     complete &= journal_string(file, !strcmp(status, "failed") ? phase : NULL);
     complete &= journal_text("}\n", file);
     complete &= FlushFileBuffers(file) != 0;
@@ -235,6 +284,95 @@ done:
                          "record",
                          "Error: recovery evidence could not be "
                          "committed; further planned mutation is blocked.\n");
+    }
+    return success;
+}
+
+static int retain_input(plan_item *item) {
+    char parent[PLAN_PATH], canonical[PLAN_PATH], digest[65], expected[65];
+    unsigned char buffer[65536];
+    HANDLE output = INVALID_HANDLE_VALUE;
+    BY_HANDLE_FILE_INFORMATION created, opened;
+    LARGE_INTEGER size;
+    uint64_t received = 0;
+    DWORD read, written;
+    int success = 0;
+    strcpy_s(parent, sizeof(parent), item->retained);
+    {
+        char *separator = strrchr(parent, '\\');
+        if (!separator) {
+            goto done;
+        }
+        *separator = 0;
+    }
+    /* Never merge a newly approved operation with an unknown existing root. */
+    if (wpm_path_guard_open(parent, 2, canonical, sizeof(canonical),
+                            &item->retained_guard) != WPM_PATH_OPEN) {
+        goto done;
+    }
+    item->retained_state = 1;
+    output = CreateFileA(item->retained, GENERIC_READ | GENERIC_WRITE, 0, NULL,
+                         CREATE_NEW, FILE_FLAG_OPEN_REPARSE_POINT, NULL);
+    if (output == INVALID_HANDLE_VALUE ||
+        SetFilePointer(item->input, 0, NULL, FILE_BEGIN) ==
+            INVALID_SET_FILE_POINTER ||
+        !GetFileSizeEx(item->input, &size) || size.QuadPart < 0) {
+        goto done;
+    }
+    for (;;) {
+        if (!ReadFile(item->input, buffer, sizeof(buffer), &read, NULL)) {
+            goto done;
+        }
+        if (!read) {
+            break;
+        }
+        if (received > (uint64_t)size.QuadPart ||
+            read > (uint64_t)size.QuadPart - received ||
+            !WriteFile(output, buffer, read, &written, NULL) ||
+            written != read) {
+            goto done;
+        }
+        received += read;
+    }
+    sodium_bin2hex(expected, sizeof(expected), item->fingerprint,
+                   sizeof(item->fingerprint));
+    if (received != (uint64_t)size.QuadPart ||
+        !wpm_hash_open_file(output, digest, sizeof(digest)) ||
+        strcmp(digest, expected) || !FlushFileBuffers(output) ||
+        !GetFileInformationByHandle(output, &created) ||
+        created.nNumberOfLinks != 1) {
+        goto done;
+    }
+    CloseHandle(output);
+    output = INVALID_HANDLE_VALUE;
+    item->retained_input =
+        CreateFileA(item->retained, GENERIC_READ, FILE_SHARE_READ, NULL,
+                    OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT, NULL);
+    if (item->retained_input == INVALID_HANDLE_VALUE ||
+        !GetFileInformationByHandle(item->retained_input, &opened) ||
+        opened.dwVolumeSerialNumber != created.dwVolumeSerialNumber ||
+        opened.nFileIndexHigh != created.nFileIndexHigh ||
+        opened.nFileIndexLow != created.nFileIndexLow ||
+        opened.nNumberOfLinks != 1 ||
+        (opened.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) ||
+        !wpm_hash_open_file(item->retained_input, digest, sizeof(digest)) ||
+        strcmp(digest, expected)) {
+        goto done;
+    }
+    item->retained_state = 2;
+    success = 1;
+done:
+    if (output != INVALID_HANDLE_VALUE) {
+        CloseHandle(output);
+    }
+    if (!success) {
+        item->failed = 1;
+        journal_write(item, "retain-input", "failed", NULL);
+        wpm_event_printf(WPM_EVENT_ERROR, "recovery.input.failed", "recovery",
+                         "retain",
+                         "Error: approved recovery input could not "
+                         "be retained and validated; planned mutation stopped. "
+                         "Preserve the source and any incomplete evidence.\n");
     }
     return success;
 }
@@ -411,6 +549,10 @@ void wpm_operation_close(void) {
         if (items[i].input != INVALID_HANDLE_VALUE) {
             CloseHandle(items[i].input);
         }
+        if (items[i].retained_input != INVALID_HANDLE_VALUE) {
+            CloseHandle(items[i].retained_input);
+        }
+        wpm_path_guard_close(items[i].retained_guard);
     }
     free(items);
     items = NULL;
@@ -527,11 +669,15 @@ int wpm_operation_archive(const char *action, const char *archive,
         }
         memset(&item, 0, sizeof(item));
         item.input = INVALID_HANDLE_VALUE;
+        item.retained_input = INVALID_HANDLE_VALUE;
         if (!wpm_archive_inspect(full, &item.identity) ||
             !wpm_archive_validate_readonly(full, allow_unsigned,
                                            item.signing_key,
                                            sizeof(item.signing_key))) {
             return 0;
+        }
+        if (!plan_recovery_path(&item)) {
+            return changed();
         }
         strcpy_s(item.action, sizeof(item.action), action);
         strcpy_s(item.archive, sizeof(item.archive), full);
@@ -572,7 +718,9 @@ int wpm_operation_archive(const char *action, const char *archive,
             file_identity_matches(item)) {
             item->consumed = 1;
             executing = item;
-            return journal_write(item, "prepare", "in-progress", NULL);
+            return journal_write(item, "retain-input", "in-progress", NULL) &&
+                   retain_input(item) &&
+                   wpm_operation_phase_finish("retain-input");
         }
     }
     return changed();
@@ -592,12 +740,20 @@ int wpm_operation_confirm(void) {
                      "Operation plan:\n");
     for (size_t i = 0; i < item_count; i++) {
         plan_item *item = &items[i];
+        char canonical_name[256];
         const char *basename = strrchr(item->archive, '\\');
         basename = basename ? basename + 1 : item->archive;
+        if (!strcmp(item->action, "install")) {
+            snprintf(canonical_name, sizeof(canonical_name), "%s-%s-%s.zip",
+                     item->identity.name, item->identity.arch,
+                     item->identity.version);
+            basename = canonical_name;
+        }
         const char *fields[] = {item->action,           item->archive,
                                 item->source,           item->old_version,
                                 item->identity.name,    item->identity.arch,
-                                item->identity.version, item->signing_key};
+                                item->identity.version, item->signing_key,
+                                item->recovery_id,      item->retained};
         for (size_t j = 0; j < sizeof(fields) / sizeof(fields[0]); j++) {
             crypto_generichash_update(&hash, (unsigned char *)fields[j],
                                       strlen(fields[j]) + 1);
@@ -628,6 +784,9 @@ int wpm_operation_confirm(void) {
             !strcmp(item->action, "self-upgrade")
                 ? "scheduled after this process exits"
                 : "installed/removed after script success");
+        wpm_event_printf(WPM_EVENT_INFO, "plan.recovery", "plan", "preview",
+                         "  Recovery input: %s\n  Recovery operation: %s\n",
+                         item->retained, item->recovery_id);
     }
     crypto_generichash_update(&hash, approved_state, sizeof(approved_state));
     crypto_generichash_final(&hash, digest, sizeof(digest));
@@ -702,16 +861,65 @@ int wpm_operation_external_start(const char *phase) {
     }
     executing->external = 1;
     executing->script_exit_known = 0;
-    return journal_write(executing, phase, "in-progress", NULL);
+    return wpm_operation_phase_start(phase);
 }
 
 int wpm_operation_script_result(unsigned long exit_code) {
     if (!active) {
         return 1;
     }
-    return executing &&
-           journal_write(executing, "script",
-                         exit_code ? "failed" : "in-progress", &exit_code);
+    if (!executing) {
+        return 0;
+    }
+    executing->script_exit = exit_code;
+    executing->script_exit_known = 1;
+    if (exit_code) {
+        executing->failed = 1;
+        return journal_write(executing, "script", "failed", &exit_code);
+    }
+    return wpm_operation_phase_finish("script");
+}
+
+int wpm_operation_phase_start(const char *phase) {
+    if (!phase || !*phase) {
+        return 0;
+    }
+    if (!active) {
+        return 1;
+    }
+    return !collecting && executing && !executing->failed &&
+           strlen(phase) < sizeof(executing->phase) &&
+           journal_write(executing, phase, "in-progress", NULL);
+}
+
+int wpm_operation_store_name(char *output, size_t size) {
+    int written;
+    if (!active) {
+        return 0;
+    }
+    if (collecting || !executing || !output || !size) {
+        return -1;
+    }
+    written = snprintf(output, size, "%s-%s-%s.zip", executing->identity.name,
+                       executing->identity.arch, executing->identity.version);
+    return written > 0 && (size_t)written < size ? 1 : -1;
+}
+
+int wpm_operation_phase_finish(const char *phase) {
+    if (!phase || !*phase) {
+        return 0;
+    }
+    if (!active) {
+        return 1;
+    }
+    if (collecting || !executing || executing->failed ||
+        strcmp(executing->phase, phase) || executing->completed_count == 16 ||
+        strlen(phase) >= sizeof(executing->completed[0])) {
+        return 0;
+    }
+    strcpy_s(executing->completed[executing->completed_count++],
+             sizeof(executing->completed[0]), phase);
+    return journal_write(executing, phase, "in-progress", NULL);
 }
 
 int wpm_operation_completed(void) {

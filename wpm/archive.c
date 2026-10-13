@@ -3100,6 +3100,9 @@ static int run_package_script(const char *staging_dir, const char *script_name,
     if (!wpm_operation_before_script()) {
         return 0;
     }
+    if (!wpm_operation_phase_start("script")) {
+        return 0;
+    }
 
     if (!join_path(script_path, sizeof(script_path), staging_dir,
                    script_name)) {
@@ -3111,7 +3114,7 @@ static int run_package_script(const char *staging_dir, const char *script_name,
         *result_exit_code = 0;
     }
     if (!file_exists_at_path(script_path)) {
-        return 1;
+        return wpm_operation_phase_finish("script");
     }
 
     verbose_log("Running %s script: %s", action_name, script_path);
@@ -3482,6 +3485,7 @@ int wpm_archive_install(const char *archive_path, int allow_unsigned) {
     char package_store[WPM_PATH_SIZE];
     char staging_path[WPM_PATH_SIZE];
     char stored_archive_path[WPM_PATH_SIZE];
+    char stored_name[WPM_PATH_SIZE];
     char signing_key_id[65];
     wpm_package_metadata metadata;
     wpm_package_metadata display_metadata;
@@ -3521,6 +3525,11 @@ int wpm_archive_install(const char *archive_path, int allow_unsigned) {
         read_archive_package_metadata(archive_full_path, &display_metadata)
             ? display_metadata.name
             : package_name;
+    strcpy_s(stored_name, sizeof(stored_name),
+             path_basename(archive_full_path));
+    if (wpm_operation_store_name(stored_name, sizeof(stored_name)) < 0) {
+        return 0;
+    }
 
     if (!wpm_get_data_root(data_root, sizeof(data_root)) ||
         !join_path(temp_root, sizeof(temp_root), data_root, "temp") ||
@@ -3529,13 +3538,14 @@ int wpm_archive_install(const char *archive_path, int allow_unsigned) {
         !join_path(staging_path, sizeof(staging_path), temp_root,
                    package_name) ||
         !join_path(stored_archive_path, sizeof(stored_archive_path),
-                   package_store, path_basename(archive_full_path))) {
+                   package_store, stored_name)) {
         wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
                          "Error: installation path is too long.\n");
         return 0;
     }
 
-    if (!create_directories(temp_root) || !create_directories(package_store)) {
+    if (!wpm_operation_phase_start("stage") || !create_directories(temp_root) ||
+        !create_directories(package_store)) {
         wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
                          "Error: could not create WPM data directories.\n");
         return 0;
@@ -3549,9 +3559,18 @@ int wpm_archive_install(const char *archive_path, int allow_unsigned) {
 
     verbose_log("Using staging directory: %s", staging_path);
 
+    if (!wpm_operation_phase_finish("stage") ||
+        !wpm_operation_phase_start("extract")) {
+        goto cleanup;
+    }
+
     print_package_progress(display_name, "Extracting package");
     if (!wpm_archive_extract_with_label(archive_full_path, staging_path,
                                         display_name)) {
+        goto cleanup;
+    }
+    if (!wpm_operation_phase_finish("extract") ||
+        !wpm_operation_phase_start("validate")) {
         goto cleanup;
     }
     print_package_progress(display_name, "Validating package");
@@ -3571,9 +3590,15 @@ int wpm_archive_install(const char *archive_path, int allow_unsigned) {
     if (!installed_architecture_is_compatible(&metadata)) {
         goto cleanup;
     }
+    if (!wpm_operation_phase_finish("validate")) {
+        goto cleanup;
+    }
     print_package_progress(display_name, "Installing package");
     if (!run_package_script(staging_path, ".wpm\\install.cmd", "install",
                             metadata.name, NULL)) {
+        goto cleanup;
+    }
+    if (!wpm_operation_phase_start("retain-archive")) {
         goto cleanup;
     }
     if (_stricmp(archive_full_path, stored_archive_path) != 0) {
@@ -3586,23 +3611,33 @@ int wpm_archive_install(const char *archive_path, int allow_unsigned) {
                          stored_archive_path);
         goto cleanup;
     }
+    if (!wpm_operation_phase_finish("retain-archive") ||
+        !wpm_operation_phase_start("audit")) {
+        goto cleanup;
+    }
     if (!record_archive_repository(stored_archive_path)) {
         wpm_event_printf(
             WPM_EVENT_WARNING, "archive.warning", "archive", "command",
             "Warning: could not retain the package repository URL for "
             "removal diagnostics.\n");
     }
-    if (!write_installation_audit(data_root, path_basename(archive_full_path),
+    if (!write_installation_audit(data_root, path_basename(stored_archive_path),
                                   &metadata, signing_key_id)) {
         wpm_event_printf(
             WPM_EVENT_ERROR, "archive.error", "archive", "command",
             "Error: could not record package verification audit.\n");
         goto cleanup;
     }
+    if (!wpm_operation_phase_finish("audit")) {
+        goto cleanup;
+    }
 
     success = 1;
 
 cleanup:
+    if (success && !wpm_operation_phase_start("cleanup")) {
+        return 0;
+    }
     if (!remove_directory_tree_with_retry(staging_path)) {
         wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
                          "Error: could not remove staging directory: %s\n",
@@ -3610,6 +3645,10 @@ cleanup:
         success = 0;
     }
     if (!success) {
+        return 0;
+    }
+
+    if (!wpm_operation_phase_finish("cleanup")) {
         return 0;
     }
 
@@ -3908,7 +3947,8 @@ int wpm_archive_upgrade(const char *archive_path, int allow_unsigned,
         return 0;
     }
     strcpy_s(base, sizeof(base), path_basename(archive_full));
-    if (!wpm_get_data_root(root, sizeof(root)) ||
+    if (!wpm_operation_phase_start("stage") ||
+        !wpm_get_data_root(root, sizeof(root)) ||
         !join_path(temp, sizeof(temp), root, "temp") ||
         !join_path(store, sizeof(store), root, "packages") ||
         !join_path(stage, sizeof(stage), temp, base) ||
@@ -3917,10 +3957,18 @@ int wpm_archive_upgrade(const char *archive_path, int allow_unsigned,
         !remove_directory_tree_with_retry(stage)) {
         return 0;
     }
+    if (!wpm_operation_phase_finish("stage") ||
+        !wpm_operation_phase_start("extract")) {
+        goto cleanup;
+    }
     print_package_progress(expected_name, "Extracting package");
     if (!wpm_archive_extract_with_label(archive_full, stage, expected_name)) {
         write_upgrade_audit(root, &metadata, old_version, base, signing_key, 1,
                             "extraction", 0);
+        goto cleanup;
+    }
+    if (!wpm_operation_phase_finish("extract") ||
+        !wpm_operation_phase_start("validate")) {
         goto cleanup;
     }
     print_package_progress(expected_name, "Validating package");
@@ -3956,6 +4004,9 @@ int wpm_archive_upgrade(const char *archive_path, int allow_unsigned,
                             "architecture", 0);
         goto cleanup;
     }
+    if (!wpm_operation_phase_finish("validate")) {
+        goto cleanup;
+    }
     print_package_progress(expected_name, "Installing package");
     if (!run_package_script(stage, ".wpm\\install.cmd", "upgrade install",
                             metadata.name, &script_exit)) {
@@ -3966,6 +4017,9 @@ int wpm_archive_upgrade(const char *archive_path, int allow_unsigned,
             "Warning: package-maintainer recovery may be required.\n");
         goto cleanup;
     }
+    if (!wpm_operation_phase_start("retain-archive")) {
+        goto cleanup;
+    }
     if (_stricmp(archive_full, stored) != 0 &&
         !CopyFileA(archive_full, stored, FALSE)) {
         write_upgrade_audit(root, &metadata, old_version, base, signing_key, 1,
@@ -3974,6 +4028,10 @@ int wpm_archive_upgrade(const char *archive_path, int allow_unsigned,
             WPM_EVENT_ERROR, "archive.error", "archive", "command",
             "Error: upgrade deployed software but archive retention failed; "
             "recovery is required.\n");
+        goto cleanup;
+    }
+    if (!wpm_operation_phase_finish("retain-archive") ||
+        !wpm_operation_phase_start("audit")) {
         goto cleanup;
     }
     if (!record_archive_repository(stored)) {
@@ -3990,12 +4048,21 @@ int wpm_archive_upgrade(const char *archive_path, int allow_unsigned,
             "recovery is required.\n");
         goto cleanup;
     }
+    if (!wpm_operation_phase_finish("audit")) {
+        goto cleanup;
+    }
     success = 1;
 cleanup:
+    if (success && !wpm_operation_phase_start("cleanup")) {
+        return 0;
+    }
     if (!remove_directory_tree_with_retry(stage)) {
         success = 0;
     }
     if (!success) {
+        return 0;
+    }
+    if (!wpm_operation_phase_finish("cleanup")) {
         return 0;
     }
     if (!wpm_operation_completed()) {
@@ -4067,7 +4134,7 @@ int wpm_archive_remove(const char *package_name) {
         return 1;
     }
     verbose_log("Removing archive: %s", stored_archive_path);
-    if (!create_directories(temp_root) ||
+    if (!wpm_operation_phase_start("stage") || !create_directories(temp_root) ||
         !remove_directory_tree_with_retry(staging_path)) {
         wpm_event_printf(
             WPM_EVENT_ERROR, "archive.error", "archive", "command",
@@ -4076,8 +4143,16 @@ int wpm_archive_remove(const char *package_name) {
     }
     verbose_log("Using removal staging directory: %s", staging_path);
 
+    if (!wpm_operation_phase_finish("stage") ||
+        !wpm_operation_phase_start("extract")) {
+        goto cleanup;
+    }
     if (!wpm_archive_extract_with_label(stored_archive_path, staging_path,
                                         archive_name)) {
+        goto cleanup;
+    }
+    if (!wpm_operation_phase_finish("extract") ||
+        !wpm_operation_phase_start("validate")) {
         goto cleanup;
     }
     if (!verify_package_index(staging_path, archive_name)) {
@@ -4088,6 +4163,9 @@ int wpm_archive_remove(const char *package_name) {
     }
     verbose_log("Resolved package identity: %s %s %s", metadata.name,
                 metadata.arch, metadata.version);
+    if (!wpm_operation_phase_finish("validate")) {
+        goto cleanup;
+    }
     wpm_archive_set_repository_url(NULL);
     if (load_archive_repository(stored_archive_path, repository_url,
                                 sizeof(repository_url))) {
@@ -4097,6 +4175,9 @@ int wpm_archive_remove(const char *package_name) {
                                         "removal", archive_name, NULL);
     wpm_archive_set_repository_url(NULL);
     if (!script_success) {
+        goto cleanup;
+    }
+    if (!wpm_operation_phase_start("remove-record")) {
         goto cleanup;
     }
     verbose_log("Deleting retained archive: %s", stored_archive_path);
@@ -4110,9 +4191,15 @@ int wpm_archive_remove(const char *package_name) {
                                sizeof(repository_url))) {
         DeleteFileA(repository_url);
     }
+    if (!wpm_operation_phase_finish("remove-record")) {
+        goto cleanup;
+    }
     success = 1;
 
 cleanup:
+    if (success && !wpm_operation_phase_start("cleanup")) {
+        return 0;
+    }
     if (!remove_directory_tree_with_retry(staging_path)) {
         wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
                          "Error: could not remove staging directory: %s\n",
@@ -4123,6 +4210,9 @@ cleanup:
         return 0;
     }
 
+    if (!wpm_operation_phase_finish("cleanup")) {
+        return 0;
+    }
     if (!wpm_operation_completed()) {
         return 0;
     }

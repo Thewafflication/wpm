@@ -127,6 +127,21 @@ with tempfile.TemporaryDirectory(prefix="wpm-operation-") as directory:
     assert record["scriptExitCode"] == 0
     assert record["retryEligible"] is False
     assert record["safeActions"] == ["inspect"]
+    assert record["completedPhases"] == [
+        "retain-input",
+        "stage",
+        "extract",
+        "validate",
+        "script",
+        "retain-archive",
+        "audit",
+        "cleanup",
+    ]
+    retained = record["controlledArtifacts"][0]
+    assert retained["role"] == "recovery-input"
+    assert retained["state"] == "retained"
+    assert retained["relativePath"] == f"{record['operationId']}/input.zip"
+    assert Path(retained["path"]).read_bytes() == archive.read_bytes()
     assert (
         record["planDigest"]
         == re.search(r"Plan digest: ([0-9a-f]{64})", result.stdout)[1]
@@ -200,6 +215,8 @@ with tempfile.TemporaryDirectory(prefix="wpm-operation-") as directory:
     assert failure["failedPhase"] == "script"
     assert failure["scriptExitCode"] == 37
     assert failure["externalStateMayHaveChanged"] is True
+    assert "script" not in failure["completedPhases"]
+    assert failure["completedPhases"][-1] == "validate"
     assert installed.exists()
 
     # Initial record failure blocks extraction and external script effects.
