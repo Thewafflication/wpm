@@ -1076,3 +1076,46 @@ installs use canonical validated retained names, shown in the plan, so an
 opaque recovery filename cannot collide across package identities. Cache
 preparation, operation-specific staging/log/handoff inventories, safe retry,
 cleanup/restore, and complete native quality acceptance remain open.
+
+
+Recovery boundary testing found that metadata-only directory handles can set a
+junction even while rename guards are held. Denying write sharing alone is not
+an adequate boundary; an attributes-only guard did not enforce it, and a
+list-access variant also blocked Win32 record publication. Original failures
+are retained under out/2.0-closure as staging-guard-before.log,
+staging-guard-final-test.log, staging-guard-actual-before.log, and
+staging-guard-access-test.log. These local failures are not accepted profiles.
+
+The corrected boundary opens each directory component relative to its held
+parent through an XP-compatible native adapter, atomically creates fresh final
+operation directories, and checks ordinary directory state before/after file
+access. Recovery record creation, retained-input copying/reopening, record reads,
+and JSON enumeration use held directory handles. Flushed exclusive temporary
+records publish by renaming their still-open file handle within its own parent.
+Archive identity and current integrity/trust validation consume the admitted
+immutable input handle rather than reopening a pathname. Native structures use
+named C99 unions and compile-time pointer-width layout checks. Missing native
+APIs and unsafe/unreadable state fail closed without a pathname fallback.
+
+The registered guarded-directory-identity probe demonstrates actual junction
+conversion through a metadata handle, rejects subsequent guarded file creation
+without touching the outside target, rejects existing junction roots and unknown
+fresh destinations, and verifies ordinary creation/publication and blocked root
+rename. Reader/lifecycle regression evidence is retained as
+staging-guard-reader-test.log and staging-guard-held-archive-test.log. This is a
+recovery I/O foundation; full operation-specific staging, artifact inventories,
+guarded cleanup/retry/restore, and controlled native quality acceptance remain
+open. Directory sharing does not promise to prevent in-place reparse changes.
+
+The first PR #9 native report builds exposed a missing dependency: the component
+runner selected guarded-directory-identity before its executable was built.
+Original run 38417479630 is retained locally as anchor-ci-original-fail.log;
+all existing recovery/lifecycle component checks passed on x86/x64/ARM64, but
+the aggregate failed and is not acceptance. Both check and check-components
+now depend on wpm-path-guard-test. A clean report configuration exercises the
+same dependency path before corrective native CI. The first PR documentation
+run also failed with Pandoc exit 43; its original job output is retained as
+anchor-doc-original-fail.log, with the cause unclassified because its Pandoc
+log was not uploaded. Documentation CI now retains diagnostic logs even after
+failure rather than losing the tool-specific evidence. Later successful runs
+will not overwrite these original failures.

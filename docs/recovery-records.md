@@ -34,8 +34,12 @@ record remains unknown instead of being inferred from current software.
 
 Inspection performs no extraction, retrieval, logging initialization, script,
 handoff, trust change, cleanup, or persistent write. Directory ancestors are
-guarded against rename and checked for reparse points. Records/current inputs
-must be ordinary single-link files; locks, unsafe namespaces, malformed data,
+guarded against rename and checked for reparse points. Records and current inputs
+open relative to held directory handles, and archive identity/integrity/trust
+checks read the same immutable handle. JSON enumeration also uses the held
+directory. Sharing does not prevent every in-place reparse change; checks before
+and after admitted I/O fail unsafe state closed, with no pathname fallback.
+Files must also be ordinary single-link files; locks, unsafe namespaces, malformed data,
 or identity changes fail closed. This slice supports canonical local-drive
 paths; UNC/device record roots and current-input paths are not admitted.
 
@@ -53,6 +57,10 @@ are ordered; failed or unobserved work is never inferred as completed.
 Unknown values remain null. Initial record failure blocks planned package
 mutation. Atomic updates preserve the last valid document, and failed temporary
 evidence remains retained. Scheduled self-upgrades remain pending.
+
+Temporary records remain exclusively open through same-parent native rename
+after their bytes are flushed. The XP-compatible Windows adapter checks native
+structure layouts at compile time and fails closed when an API is unavailable.
 
 `--json` emits `wpm.recovery-query.v1`; `--output json` nests the same result in
 `wpm.output.v1`. The envelope adds record, archive, and allowUnsigned selectors

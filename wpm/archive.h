@@ -97,6 +97,18 @@ int wpm_archive_inspect(const char *archive_path, wpm_package_info *info);
 int wpm_archive_validate_readonly(const char *archive_path, int allow_unsigned,
                                   char *signing_key, size_t signing_key_size);
 
+/** Read identity from an admitted immutable native handle without reopening a
+ * pathname. Handle is borrowed, cursor is changed, caller serializes access.
+ * The diagnostic archive_name is empty; no filename is inferred from a handle.
+ */
+int wpm_archive_inspect_open(void *handle, wpm_package_info *info);
+/** Validate all archive integrity/current trust through a borrowed immutable
+ * native handle. Does not close it, reopen paths, extract, or mutate files.
+ * Handle cursor is changed; caller must serialize access and retain ownership.
+ */
+int wpm_archive_validate_open(void *handle, int allow_unsigned,
+                              char *signing_key, size_t signing_key_size);
+
 /**
  * Upgrade an installed package from a validated candidate archive.
  * @param[in] archive_path Candidate archive.
