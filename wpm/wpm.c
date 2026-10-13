@@ -203,9 +203,11 @@ static void print_usage_line(Command command) {
             "[--version <semver>] [--json] [--offline]\n");
         break;
     case CMD_RECOVERY:
-        wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
-                         "Usage: wpm recovery [list] [--limit <1..4096>] "
-                         "[--json] [--offline]\n");
+        wpm_event_printf(
+            WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+            "Usage: wpm recovery [list] [--name <name>] [--arch <arch>] "
+            "[--limit <1..4096>] "
+            "[--json] [--offline]\n");
         break;
     case CMD_REPO:
         wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
@@ -258,7 +260,9 @@ static int command_option_takes_value(Command command, const char *option) {
            (command == CMD_REPO && strcmp(option, "--priority") == 0) ||
            (command == CMD_REPO &&
             (!strcmp(option, "--sign") || !strcmp(option, "--index-key"))) ||
-           (command == CMD_RECOVERY && strcmp(option, "--limit") == 0) ||
+           (command == CMD_RECOVERY &&
+            (!strcmp(option, "--limit") || !strcmp(option, "--name") ||
+             !strcmp(option, "--arch"))) ||
            ((command == CMD_LIST || command == CMD_SHOW) &&
             strcmp(option, "--repo") == 0) ||
            (command == CMD_CONFIG && strcmp(option, "--package") == 0);
@@ -555,6 +559,20 @@ static int validate_command_actions(Command command, int argc, char **argv,
         if (!command_bounded_option(argc, argv, command_index, "--limit", 4096,
                                     &limit)) {
             return invalid_action_shape(command, "invalid --limit");
+        }
+        const char *name = NULL, *arch = NULL;
+        for (int i = command_index + 1; i < argc; i++) {
+            if (!strcmp(argv[i], "--name") || !strcmp(argv[i], "--arch")) {
+                const char **filter =
+                    !strcmp(argv[i], "--name") ? &name : &arch;
+                if (*filter) {
+                    return invalid_action_shape(command, "duplicate filter");
+                }
+                *filter = argv[++i];
+            }
+        }
+        if (!wpm_recovery_filters_valid(name, arch)) {
+            return invalid_action_shape(command, "invalid audit filter");
         }
         if (!count || (count == 1 && !strcmp(action, "list"))) {
             return 1;
@@ -1706,15 +1724,19 @@ operation_dispatch:
     }
     case CMD_RECOVERY: {
         unsigned limit = 128;
+        const char *name = NULL, *arch = NULL;
         for (int i = command_index + 1; i < argc; i++) {
             if (!strcmp(argv[i], "--limit")) {
                 limit = (unsigned)atoi(argv[++i]);
+            } else if (!strcmp(argv[i], "--name")) {
+                name = argv[++i];
+            } else if (!strcmp(argv[i], "--arch")) {
+                arch = argv[++i];
             }
         }
-        int complete = command_has_option(argc, argv, command_index, "--json")
-                           ? wpm_recovery_list_json(limit)
-                           : wpm_recovery_list_limit(limit);
-        if (!complete) {
+        if (!wpm_recovery_list_filtered(
+                limit, command_has_option(argc, argv, command_index, "--json"),
+                name, arch)) {
             return 1;
         }
         break;
@@ -2013,6 +2035,7 @@ void print_usage(Command c) {
                 "\nInspect recorded failed upgrades without writes or "
                 "scripts.\n"
                 "--limit bounds examined entries (default 128, maximum 4096)."
+                "\n--name and --arch narrow displayed audit records."
                 "\n\nExample:\n  wpm recovery list\n");
             return;
         case CMD_KEYGEN:
@@ -2104,12 +2127,12 @@ void print_usage(Command c) {
         WPM_EVENT_INFO, "wpm.info", "wpm", "command",
         "      Configure HTTPS, opted-in HTTP, local, or UNC package "
         "repositories\n\n");
-    wpm_event_printf(
-        WPM_EVENT_INFO, "wpm.info", "wpm", "command",
-        "  recovery [list] [--limit <1..4096>] [--json] [--offline]\n"
-        "      Inspect recorded failed upgrades\n\n"
-        "  list [package] [--arch <arch>] [--version <semver>]\n"
-        "      Inspect retained installed-package metadata\n\n");
+    wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
+                     "  recovery [list] [--name <name>] [--arch <arch>]\n"
+                     "      [--limit <1..4096>] [--json] [--offline]\n"
+                     "      Inspect recorded failed upgrades\n\n"
+                     "  list [package] [--arch <arch>] [--version <semver>]\n"
+                     "      Inspect retained installed-package metadata\n\n");
     wpm_event_printf(
         WPM_EVENT_INFO, "wpm.info", "wpm", "command",
         "  show <package> [--arch <arch>] [--version <semver>]\n"

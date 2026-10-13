@@ -926,3 +926,30 @@ The checkpointed x64 repeat completed all 1000 cases in 111 seconds under an
 explicit 300-second local budget, with all prepared copies complete/intact, at
 out/quality-runtime-checkpoint-x64-20047. Default duration remains 120 seconds;
 the original bounded run is not replaced or reclassified.
+
+Next compatible recovery slice: optional --name/--arch audit filters with exact
+case-insensitive native matching, shared human/JSON selection, and validation
+before initialization. Bounds still count examined source entries; corrupt or
+unreadable records anywhere in that subset keep the query partial. Unfiltered
+output and APIs remain unchanged. Filter evidence is informational and cannot
+authorize retry, prove deployed state, or change trust/recovery formats.
+
+1.3.0 implements optional recovery name/architecture filters over the shared
+examined subset. Existing wrappers and unfiltered output remain unchanged;
+optional JSON selection facts and human counts agree. The real failed-upgrade
+fixture passes on x86/x64 with no writes/replay, including source-wide invalid
+records, zero matches, bounds, bad CLI shapes, and protected names. Recovery
+authentication, retained-input checks, guarded retry/cleanup, and full I-06 remain
+open. The expanded native query run 38319458654 passed 1000 cases per architecture
+at 1e69eff; downloaded evidence is checked separately.
+
+
+1.3.0 supersedes the failed 1.2.47 release attempt and includes the compatible
+recovery selection slice above. Release run 38319528091 failed the same quality
+harness assertion on x86, x64, and ARM64: the harness records resolved working
+paths, while the verifier compared against an unresolved temporary directory.
+The verifier now resolves its expected parent and exercises an output path with
+parent traversal. Impact is limited to test path identity and release naming;
+product formats, defaults, trust policy, and planned 2.0 acceptance are unchanged.
+The original failed CI evidence remains available. Publication requires passing
+mandatory local checks and the native release gates for the new exact tag.

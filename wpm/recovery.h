@@ -12,4 +12,12 @@ int wpm_recovery_list_limit(unsigned limit);
 /** Render the same bounded query as UTF-8 wpm.recovery-list.v1 JSON. */
 int wpm_recovery_list_json(unsigned limit);
 
+/** Validate optional bounded native name and supported architecture filters. */
+int wpm_recovery_filters_valid(const char *name, const char *arch);
+/** Filter the same examined subset; source-wide invalid/limit health remains.
+ * JSON filter/selection fields are optional; original wrappers are unchanged.
+ */
+int wpm_recovery_list_filtered(unsigned limit, int json, const char *name,
+                               const char *arch);
+
 #endif
