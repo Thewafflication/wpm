@@ -123,25 +123,70 @@ static int guard_ordinary(wpm_path_guard *guard) {
     return 1;
 }
 
+static int guard_name_valid(const char *name) {
+    size_t length;
+    if (!name || !(length = strlen(name)) || length > 255 ||
+        !strcmp(name, ".") || !strcmp(name, "..") || name[length - 1] == '.' ||
+        name[length - 1] == ' ' || strchr(name, '\\') || strchr(name, '/') ||
+        strchr(name, ':')) {
+        return 0;
+    }
+    for (size_t i = 0; i < length; i++) {
+        if ((unsigned char)name[i] < 32 || (unsigned char)name[i] == 127) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+wpm_path_guard *wpm_path_guard_child(wpm_path_guard *parent, const char *name,
+                                     int fresh) {
+    wpm_path_guard *child;
+    HANDLE directory;
+    if ((fresh != 0 && fresh != 1) || !guard_name_valid(name) ||
+        !guard_ordinary(parent) || parent->count >= 128 ||
+        (fresh && !wpm_require_capability(WPM_CAP_WRITE,
+                                          "staging directory creation"))) {
+        return NULL;
+    }
+    child = calloc(1, sizeof(*child));
+    if (!child) {
+        return NULL;
+    }
+    for (size_t i = 0; i < parent->count; i++) {
+        if (!DuplicateHandle(GetCurrentProcess(), parent->handles[i],
+                             GetCurrentProcess(), &child->handles[child->count],
+                             0, FALSE, DUPLICATE_SAME_ACCESS)) {
+            goto failed;
+        }
+        child->count++;
+    }
+    directory = guard_open_relative(
+        parent->handles[parent->count - 1], name,
+        FILE_READ_ATTRIBUTES | FILE_TRAVERSE | FILE_LIST_DIRECTORY,
+        FILE_SHARE_READ | FILE_SHARE_WRITE, fresh ? 2 : 1, 1);
+    if (directory == INVALID_HANDLE_VALUE) {
+        goto failed;
+    }
+    child->handles[child->count++] = directory;
+    if (!guard_ordinary(child)) {
+        goto failed;
+    }
+    return child;
+failed:
+    wpm_path_guard_close(child);
+    return NULL;
+}
+
 void *wpm_path_guard_file(wpm_path_guard *guard, const char *name, int fresh) {
     HANDLE file;
     BY_HANDLE_FILE_INFORMATION info;
-    size_t length;
-    if ((fresh != 0 && fresh != 1) || !name || !(length = strlen(name)) ||
-        length > 255 || name[0] == '.' || name[length - 1] == '.' ||
-        name[length - 1] == ' ' || strchr(name, '\\') || strchr(name, '/') ||
-        strchr(name, ':') ||
+    if ((fresh != 0 && fresh != 1) || !guard_name_valid(name) ||
         (fresh &&
          !wpm_require_capability(WPM_CAP_WRITE, "guarded file creation")) ||
         !guard_ordinary(guard)) {
         SetLastError(ERROR_ACCESS_DENIED);
         return NULL;
-    }
-    for (size_t i = 0; i < length; i++) {
-        if ((unsigned char)name[i] < 32 || (unsigned char)name[i] == 127) {
-            SetLastError(ERROR_INVALID_NAME);
-            return NULL;
-        }
     }
     file = guard_open_relative(guard->handles[guard->count - 1], name,
                                fresh ? GENERIC_READ | GENERIC_WRITE | DELETE
@@ -346,11 +391,13 @@ int wpm_path_guard_publish(wpm_path_guard *guard, void *file, const char *name,
     }
     for (size_t i = 0; i < length; i++) {
         unsigned char c = (unsigned char)name[i];
-        if (!(c >= 'a' && c <= 'z') && !(c >= '0' && c <= '9') && c != '.') {
+        if (!(c >= 'a' && c <= 'z') && !(c >= 'A' && c <= 'Z') &&
+            !(c >= '0' && c <= '9') && c != '.' && c != '-' && c != '_' &&
+            c != '+') {
             return 0;
         }
     }
-    if (name[0] == '.' || name[length - 1] == '.') {
+    if (!guard_name_valid(name)) {
         return 0;
     }
     set = (set_information)GetProcAddress(GetModuleHandleA("ntdll.dll"),

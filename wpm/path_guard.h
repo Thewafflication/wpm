@@ -39,6 +39,17 @@ wpm_path_result wpm_path_guard_open(const char *path, int create,
  * @param guard Owned guard consumed by this call; no subsequent access. */
 void wpm_path_guard_close(wpm_path_guard *guard);
 
+/** Admit one child directory relative to a held parent without resolving a
+ * full pathname. Fresh nonzero atomically creates an absent child; zero opens
+ * existing. Parent is borrowed; the owned returned guard duplicates ancestors
+ * and may outlive it. NULL means unsafe/inaccessible state; partial evidence is
+ * preserved. One bounded basename only; reparse/control/stream/alias input
+ * fails closed. Fresh creation requires write capability. Guards are
+ * process-local.
+ */
+wpm_path_guard *wpm_path_guard_child(wpm_path_guard *parent, const char *name,
+                                     int fresh);
+
 /** Atomically rename an exclusively held DELETE-capable file within its own
  * guarded parent, without closing it or traversing a destination pathname.
  * File must match the latest successful fresh creation through this guard;

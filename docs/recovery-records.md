@@ -106,9 +106,16 @@ native/fault/media evidence are subsequent work.
 There is no general rollback guarantee for package-script effects.
 
 
-Planned installs retain package records under their validated canonical
+Planned installs and upgrades retain package records under their validated canonical
 name-architecture-version.zip identity. This prevents an opaque recovery-copy
 filename or a caller's generic alias from colliding with another package's
 record. The displayed plan names that destination. Ordinary 1.x execution
 preserves its legacy filename/default behavior; archive contents and repository
 formats are unchanged. Retained evidence is not automatically removed here.
+
+Archive reads for an active approved input use its held recovery copy.
+Package-store retention copies those same bytes through an exclusive temporary
+file, validates the complete size and digest, flushes, and publishes by handle.
+Changing the original archive name after a script launches cannot substitute
+different bytes into the stored package record. This does not establish safety
+for arbitrary external script effects or complete staging/cleanup/handoff state.
