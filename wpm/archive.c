@@ -52,6 +52,93 @@ typedef struct wpm_package_metadata {
     int debug;
 } wpm_package_metadata;
 
+/* A read-only minizip stream over a borrowed, already admitted native handle.
+ * Reader teardown never closes it. Calls change its cursor; callers serialize
+ * access and retain immutable ownership for the whole validation. */
+typedef struct {
+    mz_stream base;
+    HANDLE file;
+    int32_t error;
+} wpm_archive_stream;
+
+static int32_t archive_stream_is_open(void *stream) {
+    wpm_archive_stream *input = stream;
+    return input->file && input->file != INVALID_HANDLE_VALUE ? MZ_OK
+                                                              : MZ_OPEN_ERROR;
+}
+static int32_t archive_stream_read(void *stream, void *buffer, int32_t size) {
+    wpm_archive_stream *input = stream;
+    DWORD read;
+    if (size < 0 || !ReadFile(input->file, buffer, (DWORD)size, &read, NULL)) {
+        input->error = MZ_READ_ERROR;
+        return MZ_READ_ERROR;
+    }
+    return (int32_t)read;
+}
+static int64_t archive_stream_position(wpm_archive_stream *input,
+                                       int64_t offset, DWORD origin) {
+    LARGE_INTEGER position;
+    DWORD low;
+    position.QuadPart = offset;
+    SetLastError(NO_ERROR);
+    low = SetFilePointer(input->file, position.LowPart, &position.HighPart,
+                         origin);
+    if (low == INVALID_SET_FILE_POINTER && GetLastError() != NO_ERROR) {
+        input->error = MZ_SEEK_ERROR;
+        return MZ_SEEK_ERROR;
+    }
+    position.LowPart = low;
+    return position.QuadPart;
+}
+static int64_t archive_stream_tell(void *stream) {
+    return archive_stream_position(stream, 0, FILE_CURRENT);
+}
+static int32_t archive_stream_seek(void *stream, int64_t offset,
+                                   int32_t origin) {
+    DWORD method;
+    if (origin == MZ_SEEK_SET) {
+        method = FILE_BEGIN;
+    } else if (origin == MZ_SEEK_CUR) {
+        method = FILE_CURRENT;
+    } else if (origin == MZ_SEEK_END) {
+        method = FILE_END;
+    } else {
+        return MZ_SEEK_ERROR;
+    }
+    return archive_stream_position(stream, offset, method) < 0 ? MZ_SEEK_ERROR
+                                                               : MZ_OK;
+}
+static int32_t archive_stream_close(void *stream) {
+    (void)stream;
+    return MZ_OK;
+}
+static int32_t archive_stream_error(void *stream) {
+    return ((wpm_archive_stream *)stream)->error;
+}
+static mz_stream_vtbl archive_stream_interface = {NULL,
+                                                  archive_stream_is_open,
+                                                  archive_stream_read,
+                                                  NULL,
+                                                  archive_stream_tell,
+                                                  archive_stream_seek,
+                                                  archive_stream_close,
+                                                  archive_stream_error,
+                                                  NULL,
+                                                  NULL,
+                                                  NULL,
+                                                  NULL};
+static int archive_reader_open(void *reader, const char *path, HANDLE handle,
+                               wpm_archive_stream *stream) {
+    if (!handle) {
+        return mz_zip_reader_open_file(reader, path) == MZ_OK;
+    }
+    memset(stream, 0, sizeof(*stream));
+    stream->base.vtbl = &archive_stream_interface;
+    stream->file = handle;
+    return archive_stream_is_open(stream) == MZ_OK &&
+           mz_zip_reader_open(reader, stream) == MZ_OK;
+}
+
 typedef struct wpm_process_entry {
     DWORD dwSize;
     DWORD cntUsage;
@@ -1139,16 +1226,19 @@ static int read_package_metadata(const char *source_dir,
     return 1;
 }
 
-static int read_archive_package_metadata(const char *archive_path,
-                                         wpm_package_metadata *metadata) {
+static int read_archive_metadata_handle(const char *archive_path,
+                                        wpm_package_metadata *metadata,
+                                        HANDLE handle) {
     void *reader = NULL;
     mz_zip_file *info = NULL;
     char *text = NULL;
     char *current;
     int result = 0;
+    wpm_archive_stream stream;
 
     reader = mz_zip_reader_create();
-    if (!reader || mz_zip_reader_open_file(reader, archive_path) != MZ_OK) {
+    if (!reader ||
+        !archive_reader_open(reader, archive_path, handle, &stream)) {
         goto cleanup;
     }
     mz_zip_reader_set_raw(reader, 1);
@@ -1231,6 +1321,11 @@ cleanup:
     free(text);
     mz_zip_reader_delete(&reader);
     return result;
+}
+
+static int read_archive_package_metadata(const char *archive_path,
+                                         wpm_package_metadata *metadata) {
+    return read_archive_metadata_handle(archive_path, metadata, NULL);
 }
 
 static int write_installation_audit(const char *data_root,
@@ -2502,8 +2597,9 @@ static int read_zip_text(void *reader, const char *name, size_t maximum,
     return memchr(*text, 0, *length) == NULL;
 }
 
-int wpm_archive_validate_readonly(const char *archive_path, int allow_unsigned,
-                                  char *signing_key, size_t signing_key_size) {
+static int archive_validate_handle(const char *archive_path, HANDLE handle,
+                                   int allow_unsigned, char *signing_key,
+                                   size_t signing_key_size) {
     void *reader = mz_zip_reader_create();
     char *index = NULL, *signature = NULL, *working = NULL;
     size_t index_size, signature_size;
@@ -2511,8 +2607,9 @@ int wpm_archive_validate_readonly(const char *archive_path, int allow_unsigned,
     int status, success = 0;
     const char *failure = "archive path, integrity, or trust";
     char failed_path[WPM_PATH_SIZE] = "";
+    wpm_archive_stream stream;
     if (!reader || !ensure_sodium_ready() ||
-        mz_zip_reader_open_file(reader, archive_path) != MZ_OK) {
+        !archive_reader_open(reader, archive_path, handle, &stream)) {
         goto done;
     }
     mz_zip_reader_set_raw(reader, 1);
@@ -2685,6 +2782,21 @@ done:
                          failure, *failed_path ? " for " : "", failed_path);
     }
     return success;
+}
+
+int wpm_archive_validate_readonly(const char *archive_path, int allow_unsigned,
+                                  char *signing_key, size_t signing_key_size) {
+    return archive_validate_handle(archive_path, NULL, allow_unsigned,
+                                   signing_key, signing_key_size);
+}
+
+int wpm_archive_validate_open(void *handle, int allow_unsigned,
+                              char *signing_key, size_t signing_key_size) {
+    if (!handle || handle == INVALID_HANDLE_VALUE) {
+        return 0;
+    }
+    return archive_validate_handle(NULL, handle, allow_unsigned, signing_key,
+                                   signing_key_size);
 }
 
 static int is_valid_package_name(const char *package_name) {
@@ -3308,6 +3420,19 @@ int wpm_archive_inspect(const char *archive_path, wpm_package_info *info) {
     strcpy_s(info->arch, sizeof(info->arch), metadata.arch);
     strcpy_s(info->archive_name, sizeof(info->archive_name),
              path_basename(archive_path));
+    return 1;
+}
+
+int wpm_archive_inspect_open(void *handle, wpm_package_info *info) {
+    wpm_package_metadata metadata;
+    if (!handle || handle == INVALID_HANDLE_VALUE || !info ||
+        !read_archive_metadata_handle(NULL, &metadata, handle)) {
+        return 0;
+    }
+    strcpy_s(info->name, sizeof(info->name), metadata.name);
+    strcpy_s(info->version, sizeof(info->version), metadata.version);
+    strcpy_s(info->arch, sizeof(info->arch), metadata.arch);
+    info->archive_name[0] = 0;
     return 1;
 }
 

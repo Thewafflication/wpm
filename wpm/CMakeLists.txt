@@ -598,6 +598,43 @@ if(BUILD_TESTING)
     COMMAND
       wpm-capability-test "${CMAKE_CURRENT_BINARY_DIR}/capability-test.tmp"
   )
+  add_executable(
+    wpm-path-guard-test
+    "${CMAKE_SOURCE_DIR}/tests/path-guard-probe.c"
+    path_guard.c
+    capability.c
+    "${wcrt_console_startup}"
+  )
+  target_include_directories(
+    wpm-path-guard-test
+    PRIVATE
+      "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  target_compile_options(
+    wpm-path-guard-test
+    PRIVATE
+      $<TARGET_PROPERTY:wpm-blake2b-test,COMPILE_OPTIONS>
+  )
+  target_compile_definitions(
+    wpm-path-guard-test
+    PRIVATE
+      $<TARGET_PROPERTY:wpm-blake2b-test,COMPILE_DEFINITIONS>
+  )
+  target_link_options(
+    wpm-path-guard-test
+    PRIVATE
+      $<TARGET_PROPERTY:wpm-blake2b-test,LINK_OPTIONS>
+  )
+  target_link_libraries(
+    wpm-path-guard-test
+    PRIVATE
+      $<TARGET_PROPERTY:wpm-blake2b-test,LINK_LIBRARIES>
+  )
+  add_test(
+    NAME guarded-directory-identity
+    COMMAND
+      wpm-path-guard-test "${CMAKE_CURRENT_BINARY_DIR}/path-guard-fixture"
+  )
   add_test(
     NAME documentation-installation
     COMMAND
@@ -1208,7 +1245,8 @@ if(BUILD_TESTING)
       CONCAT
       WPM_COMPONENT_TEST_REGEX
       "^(https-.*|blake2b-simd|zlib-sse2|"
-      "readonly-capabilities|operation-integration|local-media-integration|"
+      "readonly-capabilities|guarded-directory-identity|"
+      "operation-integration|local-media-integration|"
       "linked-repository-integration|repository-health-integration|"
       "http-length-integration|repository-init-integration|"
       "repository-verify-integration|"

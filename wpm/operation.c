@@ -151,9 +151,11 @@ static int journal_write(plan_item *item, const char *phase, const char *status,
     }
     if (item->journal_started) {
         BY_HANDLE_FILE_INFORMATION previous;
-        HANDLE existing = CreateFileA(
-            final, FILE_READ_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE,
-            NULL, OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT, NULL);
+        HANDLE existing =
+            wpm_path_guard_file(guard, strrchr(final, '\\') + 1, 0);
+        if (!existing) {
+            existing = INVALID_HANDLE_VALUE;
+        }
         int same = existing != INVALID_HANDLE_VALUE &&
                    GetFileInformationByHandle(existing, &previous) &&
                    previous.nNumberOfLinks == 1 &&
@@ -170,10 +172,9 @@ static int journal_write(plan_item *item, const char *phase, const char *status,
             goto done;
         }
     }
-    file =
-        CreateFileA(temporary, GENERIC_WRITE, 0, NULL, CREATE_NEW,
-                    FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT, NULL);
-    if (file == INVALID_HANDLE_VALUE) {
+    file = wpm_path_guard_file(guard, strrchr(temporary, '\\') + 1, 1);
+    if (!file) {
+        file = INVALID_HANDLE_VALUE;
         goto done;
     }
     journal_time(updated, sizeof(updated));
@@ -256,13 +257,14 @@ static int journal_write(plan_item *item, const char *phase, const char *status,
     complete &= journal_text("}\n", file);
     complete &= FlushFileBuffers(file) != 0;
     complete &= GetFileInformationByHandle(file, &committed) != 0;
+    if (!complete ||
+        !wpm_path_guard_publish(guard, file, strrchr(final, '\\') + 1,
+                                item->journal_started)) {
+        goto done;
+    }
     complete &= CloseHandle(file) != 0;
     file = INVALID_HANDLE_VALUE;
-    if (!complete ||
-        !MoveFileExA(
-            temporary, final,
-            MOVEFILE_WRITE_THROUGH |
-                (item->journal_started ? MOVEFILE_REPLACE_EXISTING : 0))) {
+    if (!complete) {
         goto done;
     }
     item->journal_started = 1;
@@ -311,10 +313,12 @@ static int retain_input(plan_item *item) {
         goto done;
     }
     item->retained_state = 1;
-    output = CreateFileA(item->retained, GENERIC_READ | GENERIC_WRITE, 0, NULL,
-                         CREATE_NEW, FILE_FLAG_OPEN_REPARSE_POINT, NULL);
-    if (output == INVALID_HANDLE_VALUE ||
-        SetFilePointer(item->input, 0, NULL, FILE_BEGIN) ==
+    output = wpm_path_guard_file(item->retained_guard, "input.zip", 1);
+    if (!output) {
+        output = INVALID_HANDLE_VALUE;
+        goto done;
+    }
+    if (SetFilePointer(item->input, 0, NULL, FILE_BEGIN) ==
             INVALID_SET_FILE_POINTER ||
         !GetFileSizeEx(item->input, &size) || size.QuadPart < 0) {
         goto done;
@@ -346,10 +350,12 @@ static int retain_input(plan_item *item) {
     CloseHandle(output);
     output = INVALID_HANDLE_VALUE;
     item->retained_input =
-        CreateFileA(item->retained, GENERIC_READ, FILE_SHARE_READ, NULL,
-                    OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT, NULL);
-    if (item->retained_input == INVALID_HANDLE_VALUE ||
-        !GetFileInformationByHandle(item->retained_input, &opened) ||
+        wpm_path_guard_file(item->retained_guard, "input.zip", 0);
+    if (!item->retained_input) {
+        item->retained_input = INVALID_HANDLE_VALUE;
+        goto done;
+    }
+    if (!GetFileInformationByHandle(item->retained_input, &opened) ||
         opened.dwVolumeSerialNumber != created.dwVolumeSerialNumber ||
         opened.nFileIndexHigh != created.nFileIndexHigh ||
         opened.nFileIndexLow != created.nFileIndexLow ||

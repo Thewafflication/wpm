@@ -288,16 +288,19 @@ static int record_parse(const char *text, const char *id,
     return record_artifacts(artifacts, record);
 }
 
-static int record_read(const char *path, const char *id,
+static int record_read(wpm_path_guard *guard, const char *name, const char *id,
                        recovery_identity *record, size_t *budget) {
     HANDLE file = INVALID_HANDLE_VALUE;
     BY_HANDLE_FILE_INFORMATION info;
     char *text = NULL;
     DWORD read;
     int success = 0;
-    file = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING,
-                       FILE_FLAG_OPEN_REPARSE_POINT, NULL);
-    if (file == INVALID_HANDLE_VALUE || GetFileType(file) != FILE_TYPE_DISK ||
+    file = wpm_path_guard_file(guard, name, 0);
+    if (!file) {
+        file = INVALID_HANDLE_VALUE;
+        goto done;
+    }
+    if (GetFileType(file) != FILE_TYPE_DISK ||
         !GetFileInformationByHandle(file, &info) || info.nNumberOfLinks != 1 ||
         (info.dwFileAttributes &
          (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) ||
@@ -375,10 +378,10 @@ static int record_validate_input(recovery_identity *record, const char *path,
                                    : "unreadable";
         goto done;
     }
-    input = CreateFileA(canonical, GENERIC_READ, FILE_SHARE_READ, NULL,
-                        OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT, NULL);
-    if (input == INVALID_HANDLE_VALUE) {
+    input = wpm_path_guard_file(guard, strrchr(canonical, '\\') + 1, 0);
+    if (!input) {
         DWORD error = GetLastError();
+        input = INVALID_HANDLE_VALUE;
         record->input_status =
             error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND
                 ? "missing"
@@ -400,7 +403,7 @@ static int record_validate_input(recovery_identity *record, const char *path,
         record->input_status = "changed";
         goto done;
     }
-    if (!wpm_archive_inspect(canonical, &package) ||
+    if (!wpm_archive_inspect_open(input, &package) ||
         strcmp(package.name, record->name) ||
         _stricmp(package.arch, record->arch) ||
         strcmp(package.version, !strcmp(record->operation, "remove")
@@ -409,8 +412,8 @@ static int record_validate_input(recovery_identity *record, const char *path,
         record->input_status = "identity-conflict";
         goto done;
     }
-    if (!wpm_archive_validate_readonly(canonical, allow_unsigned, signer,
-                                       sizeof(signer))) {
+    if (!wpm_archive_validate_open(input, allow_unsigned, signer,
+                                   sizeof(signer))) {
         record->input_status = "untrusted-or-invalid";
         goto done;
     }
@@ -592,8 +595,8 @@ int wpm_recovery_records(unsigned limit, int json, const char *id,
     recovery_identity *records = NULL;
     wpm_path_guard *guard = NULL;
     wpm_path_result guarded;
-    WIN32_FIND_DATAA found;
-    HANDLE search = INVALID_HANDLE_VALUE;
+    char found[256];
+    int next;
     unsigned count = 0, examined = 0, invalid = 0, filtered = 0;
     int limited = 0, complete = 0, encoding = 1;
     size_t budget = RECORD_READ_BUDGET;
@@ -626,7 +629,8 @@ int wpm_recovery_records(unsigned limit, int json, const char *id,
     if (id) {
         snprintf(path, sizeof(path), "%s\\%s.json", directory, id);
         examined = 1;
-        if (record_read(path, id, records, &budget) != 1 ||
+        if (record_read(guard, strrchr(path, '\\') + 1, id, records, &budget) !=
+                1 ||
             !record_retained_path(records, directory)) {
             invalid = 1;
             record_issue("recovery.record.invalid", id);
@@ -641,32 +645,30 @@ int wpm_recovery_records(unsigned limit, int json, const char *id,
         complete = record_inspect_inputs(records, archive, allow_unsigned);
         goto report;
     }
-    snprintf(path, sizeof(path), "%s\\*.json", directory);
-    search = FindFirstFileA(path, &found);
-    if (search == INVALID_HANDLE_VALUE) {
-        complete = GetLastError() == ERROR_FILE_NOT_FOUND;
+    next = wpm_path_guard_next_json(guard, found, sizeof(found), 1);
+    if (next != 1) {
+        complete = next == 0;
         goto report;
     }
     do {
         char candidate[33];
-        size_t length = strlen(found.cFileName);
+        size_t length = strlen(found);
         if (examined == limit) {
             limited = 1;
             record_issue("recovery.records.limit", "examined-entry bound");
             break;
         }
         examined++;
-        if (length != 37 || strcmp(found.cFileName + 32, ".json")) {
+        if (length != 37 || strcmp(found + 32, ".json")) {
             invalid++;
-            record_issue("recovery.record.name.invalid", found.cFileName);
+            record_issue("recovery.record.name.invalid", found);
             continue;
         }
-        memcpy(candidate, found.cFileName, 32);
+        memcpy(candidate, found, 32);
         candidate[32] = 0;
-        snprintf(path, sizeof(path), "%s\\%s", directory, found.cFileName);
         int admitted =
             wpm_recovery_id_valid(candidate)
-                ? record_read(path, candidate, &records[count], &budget)
+                ? record_read(guard, found, candidate, &records[count], &budget)
                 : 0;
         if (admitted == 2) {
             limited = 1;
@@ -687,12 +689,10 @@ int wpm_recovery_records(unsigned limit, int json, const char *id,
             continue;
         }
         count++;
-    } while (FindNextFileA(search, &found));
-    complete = !invalid && !limited && GetLastError() == ERROR_NO_MORE_FILES;
+    } while (
+        (next = wpm_path_guard_next_json(guard, found, sizeof(found), 0)) == 1);
+    complete = !invalid && !limited && next == 0;
 report:
-    if (search != INVALID_HANDLE_VALUE) {
-        FindClose(search);
-    }
     wpm_path_guard_close(guard);
     if (records) {
         qsort(records, count, sizeof(*records), record_order);

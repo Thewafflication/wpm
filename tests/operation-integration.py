@@ -48,7 +48,7 @@ with tempfile.TemporaryDirectory(prefix="wpm-operation-") as directory:
         )
 
     result = run("build", source, root)
-    assert result.returncode == 0, result.stdout
+    assert result.returncode == 0, result.stdout + result.stderr
     archive = root / "plan-test-any-1.0.0.zip"
     for answer in ("", "\n", "n\n", "maybe\n"):
         result = run(
@@ -58,7 +58,7 @@ with tempfile.TemporaryDirectory(prefix="wpm-operation-") as directory:
             "--confirm",
             input_text=answer,
         )
-        assert result.returncode == 0, result.stdout
+        assert result.returncode == 0, result.stdout + result.stderr
         for text in ("Operation plan:", "Plan digest:", "cancelled"):
             assert text in result.stdout, result.stdout
         assert not installed.exists()
@@ -115,7 +115,7 @@ with tempfile.TemporaryDirectory(prefix="wpm-operation-") as directory:
     result = run(
         "install", archive, "--allow-unsigned", "--confirm", input_text="y\n"
     )
-    assert result.returncode == 0, result.stdout
+    assert result.returncode == 0, result.stdout + result.stderr
     assert installed.exists()
     records = list((data / "recovery").glob("*.json"))
     assert len(records) == 1, records
@@ -162,7 +162,7 @@ with tempfile.TemporaryDirectory(prefix="wpm-operation-") as directory:
     removed.unlink()
 
     result = run("install", archive, "--allow-unsigned")
-    assert result.returncode == 0, result.stdout
+    assert result.returncode == 0, result.stdout + result.stderr
     assert installed.exists()
     assert "Proceed with" not in result.stdout
     assert "Result: plan-test any installed" in result.stdout
@@ -170,12 +170,12 @@ with tempfile.TemporaryDirectory(prefix="wpm-operation-") as directory:
         result = run(
             "remove", "plan-test-any-1.0.0", "--confirm", input_text=answer
         )
-        assert result.returncode == 0, result.stdout
+        assert result.returncode == 0, result.stdout + result.stderr
         assert "1.0.0 -> removed" in result.stdout
         assert "cancelled" in result.stdout
         assert not removed.exists()
     result = run("remove", "plan-test-any-1.0.0")
-    assert result.returncode == 0, result.stdout
+    assert result.returncode == 0, result.stdout + result.stderr
     assert removed.exists()
     assert "Proceed with" not in result.stdout
     assert not list((data / "packages").glob("*.zip"))
@@ -191,7 +191,7 @@ with tempfile.TemporaryDirectory(prefix="wpm-operation-") as directory:
     assert not installed.exists()
     assert not list((data / "trust").glob("*.pub"))
     result = run("install", archive, input_text="y\n")
-    assert result.returncode == 0, result.stdout
+    assert result.returncode == 0, result.stdout + result.stderr
     assert "Trust it? [y/N]" in result.stdout, result.stdout
     assert installed.exists()
     assert list((data / "trust").glob("*.pub"))
