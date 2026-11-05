@@ -26,10 +26,18 @@ with tempfile.TemporaryDirectory(prefix="wpm-linked-refresh-") as directory:
     grandchild.mkdir(parents=True)
     requests = []
     unavailable = set()
+    overlap = threading.Barrier(2)
+    overlapped = []
 
     class Handler(SimpleHTTPRequestHandler):
         def do_GET(self):
             requests.append(self.path)
+            if self.path in ("/node-00/index.json", "/node-01/index.json"):
+                try:
+                    overlap.wait(timeout=5)
+                    overlapped.append(self.path)
+                except threading.BrokenBarrierError:
+                    pass
             if self.path in unavailable:
                 self.send_error(503)
             else:
@@ -182,9 +190,11 @@ with tempfile.TemporaryDirectory(prefix="wpm-linked-refresh-") as directory:
         text = run("update")
         # Two configured roots (including the built-in HTTPS root) leave thirty
         # slots for linked roots. The root's self-link consumes no extra slot.
-        assert requests == ["/index.json"] + [
+        assert requests[0] == "/index.json", requests
+        assert sorted(requests[1:]) == [
             f"/node-{number:02d}/index.json" for number in range(30)
         ], requests
+        assert len(overlapped) == 2, "linked index downloads did not overlap"
         assert "repository link capacity (32)" in text, text
         assert "unsafe repository link" in text, text
         # Schema recognition reads the root field, accepts JSON whitespace and

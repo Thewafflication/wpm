@@ -1420,7 +1420,22 @@ static int publish_repository_index(const char *candidate, const char *cached) {
     return 0;
 }
 static int index_file_supported(const char *path, int report);
-static int refresh(repository *repo, int offline, int required) {
+/* Only transport runs on workers; preparation and publication stay ordered. */
+typedef struct {
+    char url[PATH_SIZE], candidate[PATH_SIZE];
+    int allow_insecure_http, succeeded, started;
+    HANDLE thread;
+} index_download;
+
+static DWORD WINAPI download_index(void *context) {
+    index_download *job = context;
+    job->succeeded = retrieve(job->url, job->candidate, "repository index",
+                              job->allow_insecure_http);
+    return 0;
+}
+
+static int refresh(repository *repo, int offline, int required,
+                   index_download *download) {
     char cached[PATH_SIZE], url[PATH_SIZE], candidate[PATH_SIZE];
     int length, prepared = 0;
     if (!cache_path(repo->url, cached, sizeof(cached))) {
@@ -1447,11 +1462,12 @@ static int refresh(repository *repo, int offline, int required) {
         return 0;
     }
     if (index_source(repo->url, url, sizeof(url)) &&
-        (prepared = wpm_operation_prepare(url, cached)) &&
+        (prepared = download ? 1 : wpm_operation_prepare(url, cached)) &&
         wpm_initialize_data_directories() &&
         ensure_cache_directory("repositories") &&
-        retrieve(url, candidate, "repository index",
-                 repo->allow_insecure_http) &&
+        (download ? download->succeeded
+                  : retrieve(url, candidate, "repository index",
+                             repo->allow_insecure_http)) &&
         index_file_supported(candidate, 1) &&
         publish_repository_index(candidate, cached)) {
         wpm_event_printf(WPM_EVENT_INFO, "repository.info", "repository",
@@ -3343,7 +3359,60 @@ static int load_entries(repository *repositories, int *repository_count,
     if (!load_repositories(repositories, repository_count, NULL, 0)) {
         return 0;
     }
+    index_download downloads[4];
+    int batch_start = 0, batch_end = 0;
+    memset(downloads, 0, sizeof(downloads));
     for (int i = 0; i < *repository_count; i++) {
+        if (i == batch_end) {
+            int end = i + 4;
+            batch_start = i;
+            if (end > *repository_count) {
+                end = *repository_count;
+            }
+            memset(downloads, 0, sizeof(downloads));
+            /* Active plans hash cache state during preparation: keep those
+             * refreshes serial so downloads cannot change an approval input. */
+            if (!offline && !wpm_is_readonly() && !wpm_operation_active()) {
+                wpm_progress_parallel(1);
+                for (int j = i; j < end; j++) {
+                    index_download *job = &downloads[j - i];
+                    char path[PATH_SIZE];
+                    int length;
+                    if (!is_web_repository(repositories[j].url) ||
+                        !cache_path(repositories[j].url, path, sizeof(path)) ||
+                        (!force_refresh && index_is_fresh(path))) {
+                        continue;
+                    }
+                    length = snprintf(job->candidate, sizeof(job->candidate),
+                                      "%s.candidate", path);
+                    if (length < 0 ||
+                        (size_t)length >= sizeof(job->candidate) ||
+                        !index_source(repositories[j].url, job->url,
+                                      sizeof(job->url))) {
+                        continue;
+                    }
+                    if (!wpm_initialize_data_directories() ||
+                        !ensure_cache_directory("repositories")) {
+                        continue;
+                    }
+                    job->allow_insecure_http =
+                        repositories[j].allow_insecure_http;
+                    job->thread =
+                        CreateThread(NULL, 0, download_index, job, 0, NULL);
+                    job->started = job->thread != NULL;
+                }
+                for (int j = i; j < end; j++) {
+                    index_download *job = &downloads[j - i];
+                    if (job->thread) {
+                        WaitForSingleObject(job->thread, INFINITE);
+                        CloseHandle(job->thread);
+                        job->thread = NULL;
+                    }
+                }
+            }
+            wpm_progress_parallel(0);
+            batch_end = end;
+        }
         if (wpm_is_readonly() || (wpm_operation_active() &&
                                   (!is_web_repository(repositories[i].url) ||
                                    !wpm_operation_collecting()))) {
@@ -3367,7 +3436,10 @@ static int load_entries(repository *repositories, int *repository_count,
             }
             continue;
         }
-        if (refresh(&repositories[i], offline, force_refresh) &&
+        if (refresh(&repositories[i], offline, force_refresh,
+                    downloads[i - batch_start].started
+                        ? &downloads[i - batch_start]
+                        : NULL) &&
             cache_path(repositories[i].url, cached, sizeof(cached))) {
             if (parse_index(cached, &repositories[i], entries, entry_count,
                             repositories, repository_count)) {

@@ -1,3 +1,4 @@
+#include "logging.h"
 /** @file progress.c @brief Shared byte-progress presentation. */
 #include <stdio.h>
 #include <string.h>
@@ -14,6 +15,9 @@
 
 /* Progress must not depend on CRT stdout buffering while moving the native
    console cursor. WriteFile works on XP consoles and redirected handles. */
+static int parallel_progress;
+void wpm_progress_parallel(int enabled) { parallel_progress = enabled; }
+
 static void progress_write(const char *text) {
     HANDLE output = GetStdHandle(STD_OUTPUT_HANDLE);
     size_t remaining = strlen(text);
@@ -86,9 +90,11 @@ static int progress_clear_console_line(void) {
 static void progress_write_line(wpm_progress *progress, const char *line,
                                 int final) {
     size_t length = strlen(line);
+    wpm_output_lock();
     if (!progress->interactive) {
         progress_write(line);
         progress_write("\r\n");
+        wpm_output_unlock();
         return;
     }
     if (progress_clear_console_line()) {
@@ -109,6 +115,7 @@ static void progress_write_line(wpm_progress *progress, const char *line,
     if (final) {
         progress_write("\r\n");
     }
+    wpm_output_unlock();
 }
 
 static void progress_render(wpm_progress *progress, int force) {
@@ -235,7 +242,8 @@ void wpm_progress_start(wpm_progress *progress, const char *ongoing_verb,
     progress->label = label;
     progress->total = total;
     progress->last_update_ms = GetTickCount();
-    progress->interactive = progress_stdout_is_interactive();
+    progress->interactive =
+        !parallel_progress && progress_stdout_is_interactive();
     progress->started = 1;
     progress_render(progress, 1);
 }

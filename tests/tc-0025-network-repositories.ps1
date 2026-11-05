@@ -137,16 +137,19 @@ try {
                 "nd stable. $Output"
             )
         }
-        $updatedIndex = $updatedIndexes[0]
-        $startMatch = [regex]::Match($outputLines[$updatedIndex - 2],
-            (
-                '^Download progress: repository index: 0% \(0' +
-                '/([1-9][0-9]*) bytes\)$'
-            ))
-        $completionMatch = [regex]::Match($outputLines[$updatedIndex - 1],
-            '^Downloaded repository index: ([1-9][0-9]*) bytes$')
-        if (-not $startMatch.Success -or -not $completionMatch.Success -or
-            $startMatch.Groups[1].Value -ne $completionMatch.Groups[1].Value) {
+        # Parallel transports may emit progress between this index's records.
+        $bytes = (Get-Item -LiteralPath (Join-Path $repositoryDir `
+                    'index.json')).Length
+        $startLine = "Download progress: repository index: 0% (0/$bytes bytes)"
+        $completionLine = "Downloaded repository index: $bytes bytes"
+        $starts = @(for ($i = 0; $i -lt $updatedIndexes[0]; $i++) {
+                if ($outputLines[$i] -eq $startLine) { $i }
+            })
+        $completions = @(for ($i = 0; $i -lt $updatedIndexes[0]; $i++) {
+                if ($outputLines[$i] -eq $completionLine) { $i }
+            })
+        if ($starts.Count -ne 1 -or $completions.Count -ne 1 -or
+            $starts[0] -ge $completions[0]) {
             throw (
                 "Loopback HTTP progress did not report one st" +
                 "able start/completion sequence. $Output"

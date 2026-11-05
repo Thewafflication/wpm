@@ -412,6 +412,21 @@ void wpm_event_set_sink(wpm_event_sink sink) { event_sink = sink; }
 
 wpm_event_sink wpm_event_get_sink(void) { return event_sink; }
 
+static CRITICAL_SECTION output_lock;
+static volatile LONG output_lock_state;
+void wpm_output_lock(void) {
+    if (InterlockedCompareExchange(&output_lock_state, 1, 0) == 0) {
+        InitializeCriticalSection(&output_lock);
+        InterlockedExchange(&output_lock_state, 2);
+    } else {
+        while (InterlockedCompareExchange(&output_lock_state, 2, 2) != 2) {
+            Sleep(0);
+        }
+    }
+    EnterCriticalSection(&output_lock);
+}
+void wpm_output_unlock(void) { LeaveCriticalSection(&output_lock); }
+
 int wpm_event_printf(wpm_event_class kind, const char *code,
                      const char *operation, const char *phase,
                      const char *format, ...) {
@@ -434,9 +449,11 @@ int wpm_event_printf(wpm_event_class kind, const char *code,
     if (result < 0 || result >= (int)sizeof(message)) {
         return -1;
     }
+    wpm_output_lock();
     wpm_redact_text(message);
     if (event_sink) {
         event_sink(kind, code, operation, phase, message);
+        wpm_output_unlock();
         return result;
     }
     result = wpm_write_console_message(message, styles[kind]);
@@ -468,6 +485,7 @@ int wpm_event_printf(wpm_event_class kind, const char *code,
     if (kind == WPM_EVENT_ERROR) {
         wpm_report_failure_log();
     }
+    wpm_output_unlock();
     return result;
 }
 

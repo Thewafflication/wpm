@@ -32,4 +32,7 @@ void wpm_progress_add(wpm_progress *progress, unsigned long long bytes);
 /** Finish the operation with a complete or failed presentation. */
 void wpm_progress_finish(wpm_progress *progress, int succeeded);
 
+/** Use complete lines while multiple transports share stdout. */
+void wpm_progress_parallel(int enabled);
+
 #endif
