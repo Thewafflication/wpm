@@ -7,6 +7,7 @@ from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import tempfile
@@ -93,7 +94,22 @@ with tempfile.TemporaryDirectory(prefix="wpm-linked-refresh-") as directory:
         index(previous / "index.json", ["grandchild", url], "old")
         index(grandchild / "index.json", [url], "nested-old")
         run("repo", "add", url, "--allow-insecure-http")
-        run("update")
+        output = run("update")
+        assert "Repository indexes:" in output, output
+        assert "Download progress:" not in output, output
+        assert "Downloaded repository index:" not in output, output
+        assert "Updated repository index:" not in output, output
+        assert "3 updated" in output, output
+        completions = re.findall(
+            r"^\[\d{2}:\d{2}:\d{2}\] Downloaded index (.+) \(\d+ bytes\)$",
+            output,
+            re.MULTILINE,
+        )
+        assert completions == [
+            url,
+            url + "/previous",
+            url + "/previous/grandchild",
+        ], output
         expected = [
             "/index.json",
             "/previous/index.json",

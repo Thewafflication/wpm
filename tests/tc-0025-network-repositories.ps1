@@ -116,7 +116,8 @@ try {
         }
     }
     $results += Invoke-WpmTestStep -WpmExe $WpmExe -Name `
-        'Refresh opted-in HTTP repository' -Arguments @('repo', 'update') `
+        'Refresh opted-in HTTP repository' -Arguments @(
+            '--verbose', 'repo', 'update') `
         -Assert {
         param($ExitCode, $Output)
         if ($ExitCode -ne 0 -or $Output -notmatch `

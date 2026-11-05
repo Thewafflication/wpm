@@ -5,6 +5,7 @@
 
 #include "archive.h"
 #include "helpers.h"
+#include "progress.h"
 #include "wsp_log.h"
 
 #include <stdio.h>
@@ -456,6 +457,7 @@ int wpm_event_printf(wpm_event_class kind, const char *code,
         wpm_output_unlock();
         return result;
     }
+    wpm_progress_clear_display();
     result = wpm_write_console_message(message, styles[kind]);
     if (wpm_logger_initialized && !wpm_is_readonly() && message[0]) {
         size_t length = strlen(message);
@@ -485,6 +487,7 @@ int wpm_event_printf(wpm_event_class kind, const char *code,
     if (kind == WPM_EVENT_ERROR) {
         wpm_report_failure_log();
     }
+    wpm_progress_restore_display();
     wpm_output_unlock();
     return result;
 }

@@ -35,9 +35,14 @@ normal cache freshness window. Web indexes download in batches of up to four,
 including newly discovered linked roots. Parsing and cache publication follow
 repository order to preserve package selection. Failed downloads retain the
 existing cache fallback. Active deployment approval flows refresh serially so
-cache changes cannot invalidate another preparation check. Parallel progress
-uses complete lines. Offline resolution uses cached web indexes. Dry-run and
-confirmation execution never retrieve missing indexes during read-only planning.
+cache changes cannot invalidate another preparation check. Index refreshes show
+a separate live download bar for each active transfer in terminals, plus
+timestamped completion lines identifying each repository. Redirected output keeps completion lines without
+intermediate byte updates. A final summary counts updated, cached, and
+unavailable indexes. Use `--verbose` for full diagnostic detail. Offline
+resolution uses cached web indexes.
+Dry-run and confirmation execution never retrieve missing indexes during
+read-only planning.
 
 ## Verification
 
