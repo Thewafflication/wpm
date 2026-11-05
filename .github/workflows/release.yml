@@ -231,6 +231,9 @@ jobs:
   build:
     name: Build ${{ matrix.arch }} Release
     needs: [verify, dependency-metadata]
+    if: >-
+      always() && needs.verify.result == 'success' &&
+      needs.dependency-metadata.result == 'success'
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -334,6 +337,9 @@ jobs:
   package:
     name: Build WPM Release Packages
     needs: [verify, build]
+    if: >-
+      always() && needs.verify.result == 'success' &&
+      needs.build.result == 'success'
     runs-on: windows-2022
     environment: release
 
@@ -466,6 +472,7 @@ jobs:
   upgrade-compatibility:
     name: Upgrade ${{ matrix.arch }} from previous release
     needs: package
+    if: always() && needs.package.result == 'success'
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -555,6 +562,9 @@ jobs:
   publish:
     name: Publish GitHub Release
     needs: [upgrade-compatibility, documentation]
+    if: >-
+      always() && needs.upgrade-compatibility.result == 'success' &&
+      needs.documentation.result == 'success'
     runs-on: ubuntu-latest
 
     steps:
