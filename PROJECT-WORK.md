@@ -21,7 +21,7 @@ This document captures the project-specific work items, prerequisites, branch/wo
 
 ### Branch/Worktree
 
-- Current HEAD: `9efd227` (wpm root)
+- Current HEAD: `4037645` (wpm root)
 - WSP submodule commit: `c2dc862e22ccd251be2e32ffba9401496091e598`
 - Adoption record tied to WSP 1.4.0 release baseline
 
@@ -34,14 +34,17 @@ This document captures the project-specific work items, prerequisites, branch/wo
 ### Acceptance Commands
 
 ```powershell
-# Verify WSP submodule commit
+# Verify WPM project root and HEAD
+git rev-parse HEAD
+
+# Verify WSP submodule commit at c2dc862e release baseline
 git -C wsp rev-parse HEAD
 
-# Verify adoption record alignment
+# Verify adoption record alignment with WSP 1.4.0 release
 git -C wsp log --oneline --all | findstr "c2dc862e"
 
-# Run project validation (project-specific)
-python -m pytest tests/ -v 2>&1 | head -50
+# Run project validation using project .venv Python interpreter
+python -m pytest tests/ -v
 ```
 
 ### Publication Target
@@ -54,7 +57,7 @@ python -m pytest tests/ -v 2>&1 | head -50
 
 - **Last incomplete run:** priorrun377785c63a2446fa878e2c8cdfc43064
   - Ended incomplete at `missingreportlab` while collecting nestedWSPPDFtests
-  - Current root HEAD: `9efd227`
+  - Current root HEAD: `4037645`
   - Modified `wsp` and untracked scratch files preserved
 - **Next experiment:** Reconcile WPM requirements against actual code/tests and draft ownership before another milestone
 
