@@ -5,11 +5,11 @@
 **Project:** Waughtal Package Manager (WPM)
 
 **WSP baseline:** Release `1.4.0` at immutable commit
-`f009399dd1406219571ac978bfee85e85bbdfeac`
+`c2dc862e22ccd251be2e32ffba9401496091e598`
 
 **Submodule path:** `wsp/`
 
-**Pinned commit:** `f009399dd1406219571ac978bfee85e85bbdfeac`
+**Pinned commit:** `c2dc862e22ccd251be2e32ffba9401496091e598`
 
 **Status:** Proposed
 

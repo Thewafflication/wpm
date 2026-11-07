@@ -1148,3 +1148,12 @@ probe checks unknown existing fresh destinations, hidden metadata names, child
 lifetime, and actual reparse containment. Staging inventories, source/state
 rechecks at other commit boundaries, guarded cleanup/retry/restore, and full
 controlled acceptance remain open; these foundations do not claim closure.
+
+The next cleanup boundary supports disposition through the original exclusive
+handle of only the guard's latest fresh ordinary single-link file. It rejects
+read-only admitted inputs, unrelated handles, and superseded fresh identities,
+and invalidates publication ownership after successful disposition. The real
+filesystem probe checks disappearance on close, repeated-disposition rejection,
+and preservation of superseded and unrelated files. This is a low-level owned
+temporary primitive; no recovery evidence is automatically discarded and the
+supported staging inventory/cleanup policy remains open.

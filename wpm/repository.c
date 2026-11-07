@@ -1420,8 +1420,49 @@ static int publish_repository_index(const char *candidate, const char *cached) {
     return 0;
 }
 static int index_file_supported(const char *path, int report);
-static int refresh(repository *repo, int offline, int required) {
+/* Collapse GitHub release asset roots into owner/repository@release labels. */
+static void index_label(const char *root, char *label, size_t size) {
+    const char *github = "https://github.com/";
+    const char *identity =
+        root + (!strncmp(root, github, strlen(github)) ? strlen(github) : 0);
+    const char *owner_end = strchr(identity, '/');
+    const char *releases = owner_end ? strchr(owner_end + 1, '/') : NULL;
+    if (identity != root && releases && !strncmp(releases, "/releases/", 10)) {
+        const char *version = releases + 10;
+        if (!strncmp(version, "download/", 9)) {
+            version += 9;
+        }
+        const char *end = strchr(version, '/');
+        snprintf(label, size, "index %.*s@%.*s", (int)(releases - identity),
+                 identity, (int)(end ? end - version : strlen(version)),
+                 version);
+    } else {
+        snprintf(label, size, "index %s", root);
+    }
+}
+
+/* Only transport runs on workers; preparation and publication stay ordered. */
+typedef struct {
+    char url[PATH_SIZE], candidate[PATH_SIZE], label[PATH_SIZE];
+    int allow_insecure_http, succeeded, started;
+    HANDLE thread;
+} index_download;
+
+static DWORD WINAPI download_index(void *context) {
+    index_download *job = context;
+    job->succeeded =
+        retrieve(job->url, job->candidate,
+                 repository_verbose ? "repository index" : job->label,
+                 job->allow_insecure_http);
+    return 0;
+}
+
+/* Return 2 for a newly published index, 1 for cache reuse, or 0 on failure. */
+static int refresh(repository *repo, int offline, int required,
+                   index_download *download) {
     char cached[PATH_SIZE], url[PATH_SIZE], candidate[PATH_SIZE];
+    char label[PATH_SIZE];
+    index_label(repo->url, label, sizeof(label));
     int length, prepared = 0;
     if (!cache_path(repo->url, cached, sizeof(cached))) {
         return 0;
@@ -1447,17 +1488,21 @@ static int refresh(repository *repo, int offline, int required) {
         return 0;
     }
     if (index_source(repo->url, url, sizeof(url)) &&
-        (prepared = wpm_operation_prepare(url, cached)) &&
+        (prepared = download ? 1 : wpm_operation_prepare(url, cached)) &&
         wpm_initialize_data_directories() &&
         ensure_cache_directory("repositories") &&
-        retrieve(url, candidate, "repository index",
-                 repo->allow_insecure_http) &&
+        (download ? download->succeeded
+                  : retrieve(url, candidate,
+                             repository_verbose ? "repository index" : label,
+                             repo->allow_insecure_http)) &&
         index_file_supported(candidate, 1) &&
         publish_repository_index(candidate, cached)) {
-        wpm_event_printf(WPM_EVENT_INFO, "repository.info", "repository",
-                         "command", "Updated repository index: %s\n",
-                         repo->url);
-        return 1;
+        if (repository_verbose) {
+            wpm_event_printf(WPM_EVENT_INFO, "repository.info", "repository",
+                             "command", "Updated repository index: %s\n",
+                             repo->url);
+        }
+        return 2;
     }
     if (prepared) {
         DeleteFileA(candidate);
@@ -3338,12 +3383,67 @@ static int load_entries(repository *repositories, int *repository_count,
                         package_entry *entries, int *entry_count, int offline,
                         int force_refresh) {
     char cached[PATH_SIZE];
-    int usable = 0;
+    int usable = 0, updated = 0, cached_count = 0, unavailable = 0;
     *entry_count = 0;
     if (!load_repositories(repositories, repository_count, NULL, 0)) {
         return 0;
     }
+    wpm_progress_compact(!repository_verbose);
+    wpm_progress_parallel(1);
+    index_download downloads[4];
+    int batch_start = 0, batch_end = 0;
+    memset(downloads, 0, sizeof(downloads));
     for (int i = 0; i < *repository_count; i++) {
+        if (i == batch_end) {
+            int end = i + 4;
+            batch_start = i;
+            if (end > *repository_count) {
+                end = *repository_count;
+            }
+            memset(downloads, 0, sizeof(downloads));
+            /* Active plans hash cache state during preparation: keep those
+             * refreshes serial so downloads cannot change an approval input. */
+            if (!offline && !wpm_is_readonly() && !wpm_operation_active()) {
+                for (int j = i; j < end; j++) {
+                    index_download *job = &downloads[j - i];
+                    char path[PATH_SIZE];
+                    int length;
+                    if (!is_web_repository(repositories[j].url) ||
+                        !cache_path(repositories[j].url, path, sizeof(path)) ||
+                        (!force_refresh && index_is_fresh(path))) {
+                        continue;
+                    }
+                    length = snprintf(job->candidate, sizeof(job->candidate),
+                                      "%s.candidate", path);
+                    if (length < 0 ||
+                        (size_t)length >= sizeof(job->candidate) ||
+                        !index_source(repositories[j].url, job->url,
+                                      sizeof(job->url))) {
+                        continue;
+                    }
+                    if (!wpm_initialize_data_directories() ||
+                        !ensure_cache_directory("repositories")) {
+                        continue;
+                    }
+                    index_label(repositories[j].url, job->label,
+                                sizeof(job->label));
+                    job->allow_insecure_http =
+                        repositories[j].allow_insecure_http;
+                    job->thread =
+                        CreateThread(NULL, 0, download_index, job, 0, NULL);
+                    job->started = job->thread != NULL;
+                }
+                for (int j = i; j < end; j++) {
+                    index_download *job = &downloads[j - i];
+                    if (job->thread) {
+                        WaitForSingleObject(job->thread, INFINITE);
+                        CloseHandle(job->thread);
+                        job->thread = NULL;
+                    }
+                }
+            }
+            batch_end = end;
+        }
         if (wpm_is_readonly() || (wpm_operation_active() &&
                                   (!is_web_repository(repositories[i].url) ||
                                    !wpm_operation_collecting()))) {
@@ -3367,13 +3467,35 @@ static int load_entries(repository *repositories, int *repository_count,
             }
             continue;
         }
-        if (refresh(&repositories[i], offline, force_refresh) &&
+        int refreshed = refresh(&repositories[i], offline, force_refresh,
+                                downloads[i - batch_start].started
+                                    ? &downloads[i - batch_start]
+                                    : NULL);
+        if (refreshed &&
             cache_path(repositories[i].url, cached, sizeof(cached))) {
             if (parse_index(cached, &repositories[i], entries, entry_count,
                             repositories, repository_count)) {
                 usable = 1;
+                if (refreshed == 2) {
+                    updated++;
+                } else {
+                    cached_count++;
+                }
+            } else {
+                unavailable++;
             }
+        } else {
+            unavailable++;
         }
+    }
+    wpm_progress_parallel(0);
+    wpm_progress_compact(0);
+    if (force_refresh && !wpm_is_readonly()) {
+        wpm_event_printf(WPM_EVENT_INFO, "repository.refresh.summary",
+                         "repository", "refresh",
+                         "Repository indexes: %d updated, %d cached, "
+                         "%d unavailable.\n",
+                         updated, cached_count, unavailable);
     }
     REPO_VERBOSE("resolver loaded %d entries from %d repositories",
                  *entry_count, *repository_count);

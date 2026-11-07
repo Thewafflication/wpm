@@ -31,8 +31,18 @@ Linked roots inherit the parent priority and are appended after configured roots
 Roots are deduplicated, including cycles, before access. The graph is bounded by
 32 total roots and 96 package entries; capacity exhaustion emits a warning.
 A missing linked index leaves readable roots available. `wpm update` refreshes every discovered linked web index, even inside the
-normal cache freshness window; offline resolution uses cached web indexes. Dry-run and
-confirmation execution never retrieve missing indexes during read-only planning.
+normal cache freshness window. Web indexes download in batches of up to four,
+including newly discovered linked roots. Parsing and cache publication follow
+repository order to preserve package selection. Failed downloads retain the
+existing cache fallback. Active deployment approval flows refresh serially so
+cache changes cannot invalidate another preparation check. Index refreshes show
+a separate live download bar for each active transfer in terminals, plus
+timestamped completion lines identifying each repository. Redirected output keeps completion lines without
+intermediate byte updates. A final summary counts updated, cached, and
+unavailable indexes. Use `--verbose` for full diagnostic detail. Offline
+resolution uses cached web indexes.
+Dry-run and confirmation execution never retrieve missing indexes during
+read-only planning.
 
 ## Verification
 

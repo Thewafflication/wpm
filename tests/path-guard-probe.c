@@ -91,12 +91,44 @@ int main(int argc, char **argv) {
         goto done;
     }
     file = wpm_path_guard_file(guard, "published.tmp", 0);
-    if (!file || wpm_path_guard_publish(guard, file, "moved.tmp", 0)) {
+    if (!file || wpm_path_guard_publish(guard, file, "moved.tmp", 0) ||
+        wpm_path_guard_discard_fresh(guard, file)) {
         goto done;
     }
     CloseHandle(file);
     file = INVALID_HANDLE_VALUE;
     if (!DeleteFileA(canonical)) {
+        goto done;
+    }
+    file = wpm_path_guard_file(guard, "discard.tmp", 1);
+    if (!file || !wpm_path_guard_discard_fresh(guard, file) ||
+        wpm_path_guard_discard_fresh(guard, file) ||
+        wpm_path_guard_publish(guard, file, "discard-moved.tmp", 0)) {
+        goto done;
+    }
+    CloseHandle(file);
+    file = INVALID_HANDLE_VALUE;
+    snprintf(canonical, sizeof(canonical), "%s\\discard.tmp", child);
+    if (GetFileAttributesA(canonical) != INVALID_FILE_ATTRIBUTES ||
+        GetLastError() != ERROR_FILE_NOT_FOUND) {
+        goto done;
+    }
+    file = wpm_path_guard_file(guard, "older.tmp", 1);
+    if (!file) {
+        goto done;
+    }
+    writer = wpm_path_guard_file(guard, "newer.tmp", 1);
+    if (!writer || wpm_path_guard_discard_fresh(guard, file) ||
+        !wpm_path_guard_discard_fresh(guard, writer)) {
+        goto done;
+    }
+    CloseHandle(writer);
+    writer = INVALID_HANDLE_VALUE;
+    CloseHandle(file);
+    file = INVALID_HANDLE_VALUE;
+    snprintf(canonical, sizeof(canonical), "%s\\older.tmp", child);
+    if (GetFileAttributesA(canonical) == INVALID_FILE_ATTRIBUTES ||
+        !DeleteFileA(canonical)) {
         goto done;
     }
     nested = wpm_path_guard_child(guard, ".wpm", 1);
@@ -141,7 +173,8 @@ int main(int argc, char **argv) {
     file = CreateFileA(canonical, GENERIC_READ | GENERIC_WRITE | DELETE, 0,
                        NULL, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
     if (file == INVALID_HANDLE_VALUE ||
-        wpm_path_guard_publish(guard, file, "unowned.tmp", 0)) {
+        wpm_path_guard_publish(guard, file, "unowned.tmp", 0) ||
+        wpm_path_guard_discard_fresh(guard, file)) {
         goto done;
     }
     CloseHandle(file);

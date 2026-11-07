@@ -61,6 +61,15 @@ wpm_path_guard *wpm_path_guard_child(wpm_path_guard *parent, const char *name,
 int wpm_path_guard_publish(wpm_path_guard *guard, void *file, const char *name,
                            int replace);
 
+/** Mark the latest file freshly created by this guard for deletion on close.
+ * Requires its original exclusive DELETE-capable handle and unchanged ordinary
+ * single-link identity. No pathname is reopened; unrelated/read-only handles
+ * fail closed. Success invalidates this guard's publication ownership. Caller
+ * retains and must close the handle. This primitive grants no policy authority
+ * to discard recovery evidence or arbitrary existing files.
+ */
+int wpm_path_guard_discard_fresh(wpm_path_guard *guard, void *file);
+
 /** Open one ordinary single-link file relative to the held final directory.
  * Fresh nonzero creates an exclusive READ/WRITE/DELETE-capable file; zero
  * opens existing read-only, denying writes/deletes. Returns an owned native

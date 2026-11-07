@@ -4,12 +4,16 @@ import argparse
 import ctypes
 from ctypes import wintypes
 import json
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
 import sys
 import tempfile
+import threading
+import traceback
 import time
 
 parser = argparse.ArgumentParser()
@@ -55,6 +59,95 @@ def console_child(root):
         Coord,
         ctypes.POINTER(wintypes.DWORD),
     ]
+    kernel.ReadConsoleOutputCharacterW.argtypes = [
+        wintypes.HANDLE,
+        wintypes.LPWSTR,
+        wintypes.DWORD,
+        Coord,
+        ctypes.POINTER(wintypes.DWORD),
+    ]
+
+    def read_screen():
+        output = ctypes.create_unicode_buffer(32768)
+        count = wintypes.DWORD()
+        assert kernel.ReadConsoleOutputCharacterW(
+            handle, output, 32767, Coord(0, 0), ctypes.byref(count)
+        )
+        return output[: count.value].rstrip()
+
+    # Hold an actual index transfer open while checking its native console bar.
+    held, release = threading.Event(), threading.Event()
+    held_count = 0
+    held_lock = threading.Lock()
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            nonlocal held_count
+            body = b'{"version":1,"packages":[]}'
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body[:1])
+            self.wfile.flush()
+            with held_lock:
+                held_count += 1
+                if held_count == 2:
+                    held.set()
+            release.wait(timeout=10)
+            self.wfile.write(body[1:])
+
+        def log_message(self, *_arguments):
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    worker = threading.Thread(target=server.serve_forever, daemon=True)
+    worker.start()
+    index_env = {
+        **os.environ,
+        "WPM_DATA_DIR": str(root / "console-index-data"),
+        "WPM_HTTPS_BACKEND": "invalid",
+    }
+    url = f"http://127.0.0.1:{server.server_port}"
+    process = None
+    try:
+        for name in ("one", "two"):
+            run(
+                "repo",
+                "add",
+                url + "/" + name,
+                "--allow-insecure-http",
+                env=index_env,
+            )
+        process = subprocess.Popen([wpm, "update"], env=index_env)
+        assert held.wait(timeout=10), "Index transfer did not start"
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            screen = read_screen()
+            if (
+                screen.count("Downloading ") >= 2
+                and len(re.findall(r"\[[=> ]+\]", screen)) >= 2
+            ):
+                break
+            time.sleep(0.02)
+        else:
+            raise AssertionError(screen)
+        download_screen = screen
+        release.set()
+        assert process.wait(timeout=15) == 0
+        screen = read_screen()
+        assert (
+            len(re.findall(r"\[\d{2}:\d{2}:\d{2}\] Downloaded index", screen))
+            == 2
+        ), screen
+    finally:
+        release.set()
+        if process is not None and process.poll() is None:
+            process.kill()
+            process.wait()
+        server.shutdown()
+        server.server_close()
+        worker.join(timeout=5)
+
     attributes = (wintypes.WORD * 4096)()
     count = wintypes.DWORD()
     result = subprocess.run(
@@ -68,15 +161,18 @@ def console_child(root):
     env = os.environ.copy()
     env["WPM_DATA_DIR"] = str(root / "data")
     env["WPM_LOG_FILE"] = str(root / "operational.log")
-    run(
-        "upgrade",
-        "--all",
-        "--yes",
-        "--offline",
-        "--allow-unsigned",
-        env=env,
-        capture=False,
-    )
+    try:
+        run(
+            "upgrade",
+            "--all",
+            "--yes",
+            "--offline",
+            "--allow-unsigned",
+            env=env,
+            capture=False,
+        )
+    except AssertionError:
+        raise AssertionError(read_screen()) from None
     # Model the shell's prompt after the original process returns.
     print("WPM-TEST-PROMPT>", end="", flush=True)
     log = next((root / "data" / "audit").glob("self-upgrade-*-2.0.0.log"), None)
@@ -91,19 +187,7 @@ def console_child(root):
         raise AssertionError("Background upgrade never completed")
     time.sleep(0.2)
 
-    output = ctypes.create_unicode_buffer(32768)
-    count = wintypes.DWORD()
-    kernel.ReadConsoleOutputCharacterW.argtypes = [
-        wintypes.HANDLE,
-        wintypes.LPWSTR,
-        wintypes.DWORD,
-        Coord,
-        ctypes.POINTER(wintypes.DWORD),
-    ]
-    assert kernel.ReadConsoleOutputCharacterW(
-        handle, output, 32767, Coord(0, 0), ctypes.byref(count)
-    )
-    screen = output[: count.value].rstrip()
+    screen = read_screen()
     assert screen.endswith("WPM-TEST-PROMPT>"), screen
     assert "Completion runs in the background" in screen, screen
     assert "Result: wpm" in screen and "scheduled" in screen, screen
@@ -113,6 +197,8 @@ def console_child(root):
         json.dumps(
             {
                 "nativeConsole": True,
+                "parallelDownloadBars": 2,
+                "downloadScreen": download_screen,
                 "promptPreserved": True,
                 "completionLogged": True,
                 "screen": screen,
@@ -122,7 +208,13 @@ def console_child(root):
 
 
 if args.child:
-    console_child(Path(args.root))
+    try:
+        console_child(Path(args.root))
+    except Exception:
+        (Path(args.root) / "console-error.txt").write_text(
+            traceback.format_exc()
+        )
+        raise
     sys.exit(0)
 
 with tempfile.TemporaryDirectory(prefix="wpm-presentation-") as directory:
@@ -241,7 +333,12 @@ with tempfile.TemporaryDirectory(prefix="wpm-presentation-") as directory:
         timeout=60,
         env=env,
     )
-    assert child.returncode == 0, "Native console regression failed"
+    error = root / "console-error.txt"
+    assert child.returncode == 0, (
+        error.read_text()
+        if error.exists()
+        else "Native console regression failed"
+    )
     evidence = json.loads((root / "console-evidence.json").read_text())
     assert evidence["promptPreserved"] and evidence["completionLogged"]
     print(

@@ -70,4 +70,8 @@ int wpm_vprintf(const char *format, va_list arguments);
 #define vprintf wpm_vprintf
 #endif
 
+/* Serialize complete console/log records from download workers. */
+void wpm_output_lock(void);
+void wpm_output_unlock(void);
+
 #endif

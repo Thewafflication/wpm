@@ -38,6 +38,9 @@ int wpm_event_printf(wpm_event_class kind, const char *code,
     return result;
 }
 
+void wpm_output_lock(void) {}
+void wpm_output_unlock(void) {}
+
 int main(int argc, char **argv) {
     if (argc == 2 && strcmp(argv[1], "--self-test") == 0) {
         static const char *invalid[] = {"http://localhost/",
