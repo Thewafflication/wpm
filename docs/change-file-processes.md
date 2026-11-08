@@ -75,3 +75,14 @@ legacy checks; dry-run and TC-0013 regression checks; source style, C99, and
 traceability validation; and x86 executable/holder PE checks. The prior complete
 suite's timeout and pre-existing WSP worktree gate remain unresolved; a full
 suite rerun and commit/publication are not claimed for this follow-up.
+
+## Release preparation, 2026-11-07
+
+The user subsequently authorized commit, push and release. The WSP caches were
+preserved outside the submodule and the recovery fixture's bounded total budget
+was raised to 300 seconds, retaining all assertions and 30-second command
+deadlines. The normal 58-test commit suite passed; feature commit `8d17368` was
+pushed and passed GitHub's x86/x64/ARM64 Debug matrix. PDF review identified and
+corrected clipped code/tables and raw TeX test-specification rendering. The
+final source snapshot must pass the normal commit and release workflow gates.
+`docs/release-1.3.4.md` supersedes the earlier pending-release status above.

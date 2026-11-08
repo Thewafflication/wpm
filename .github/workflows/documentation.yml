@@ -107,6 +107,7 @@ jobs:
           wsp/tools/Build-Documentation.ps1 `
             -RepositoryRoot . `
             -ManifestPath documentation/documentation-manifest.json `
+            -Pandoc documentation/pandoc.ps1 `
             -HeaderPath documentation/code-blocks.tex `
             -Version $version
 

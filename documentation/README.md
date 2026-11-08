@@ -19,6 +19,7 @@ From the repository root, with Pandoc 3+, MiKTeX, and PowerShell 7 available:
 pwsh -File wsp/tools/Build-Documentation.ps1 `
   -RepositoryRoot . `
   -ManifestPath documentation/documentation-manifest.json `
+  -Pandoc documentation/pandoc.ps1 `
   -HeaderPath documentation/code-blocks.tex `
   -Version <release-version>
 ```
@@ -29,6 +30,13 @@ written beneath `wsp/`.
 
 The project header wraps long plain and highlighted code blocks so command
 arguments and paths remain visible within the text area.
+The project Pandoc adapter also gives Markdown tables bounded wrapping columns
+and permits long identifiers/paths to wrap within cells. It uses Pandoc from
+`PATH`, or the executable selected by `WPM_DOCUMENT_PANDOC`.
+Controlled `.tex` test specifications are first parsed with Pandoc's LaTeX
+reader and normalized under `tmp/pdfs/documentation/normalized`. Their field
+values and procedures render as chapters instead of literal macro definitions;
+the version-controlled specifications remain authoritative and unchanged.
 
 ## Verification
 

@@ -21,6 +21,13 @@ upgrade selection are unchanged. Scripts opt in by calling the utility.
 The PDF review also found long command examples exceeding the text area. A
 project-level documentation header wraps plain/highlighted code blocks; the
 usage examples use explicit batch continuations. The WSP pin is unchanged.
+The full review also found clipped columns in older traceability tables. A
+project Pandoc adapter assigns wrapping column widths and break opportunities
+to long identifiers and paths; the pinned WSP builder remains unchanged.
+It also parses the controlled TeX test specifications with the LaTeX reader
+before combining them with Markdown, preserving their fields and procedures
+as readable chapters instead of printing raw macro definitions.
+Long inline paths and identifiers also receive line-break opportunities.
 
 ## Verification and release readiness
 
@@ -33,6 +40,13 @@ Current-host x86 Release and x64 Debug builds, both discovery backends, native
 file/DLL holders, dry-run, TC-0013, C99/style, traceability and x86 PE checks
 passed during implementation. Real legacy execution and ARM64 runtime evidence
 must not be inferred from those results.
+
+The feature commit subsequently passed the normal 58-test x64 commit suite and
+GitHub's x86/x64/ARM64 Debug matrix. The corrected local documentation candidate
+passes structure/identity/checksum verification (358 pages, 1,074 links) and an
+independent near-page-edge text-bound check with zero exceptions. Rendered-page
+review artifacts are retained under `out/release-1.3.4-review`; final release
+metadata and CI artifact verification are recorded with publication evidence.
 
 The earlier full-run blockers are addressed before commit: pre-existing Python
 caches are preserved under `out/preserved-wsp-caches-20261107`, outside the
