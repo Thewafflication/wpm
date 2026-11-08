@@ -86,3 +86,6 @@ pushed and passed GitHub's x86/x64/ARM64 Debug matrix. PDF review identified and
 corrected clipped code/tables and raw TeX test-specification rendering. The
 final source snapshot must pass the normal commit and release workflow gates.
 `docs/release-1.3.4.md` supersedes the earlier pending-release status above.
+The 1.3.4 tag's documentation build subsequently failed on duplicate Pandoc
+discovery, before publication. The corrected release is 1.3.5; see
+`docs/release-1.3.5.md`. The failed tag is preserved without a history rewrite.

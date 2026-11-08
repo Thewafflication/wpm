@@ -67,3 +67,10 @@ The existing previous-release packages remain available for recovery. Report
 script failures with their retained log and check copy exit codes before
 claiming an application upgrade succeeded. The normal security and support
 policies continue to apply.
+
+## Attempt outcome
+
+The tag's documentation job exposed duplicate Pandoc executables on the runner
+PATH: the project adapter collected both paths instead of selecting one.
+Publication was blocked. The tag remains intact; the corrected release is
+tracked in `docs/release-1.3.5.md`. No 1.3.4 release assets were published.

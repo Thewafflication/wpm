@@ -4,7 +4,7 @@ $ErrorActionPreference = 'Stop'
 $pandocBinary = $env:WPM_DOCUMENT_PANDOC
 if (-not $pandocBinary) {
     $pandocBinary = (Get-Command pandoc -CommandType Application `
-            -ErrorAction Stop).Source
+            -ErrorAction Stop | Select-Object -First 1).Source
 }
 $forwarded = @($args)
 $normalizedRoot = Join-Path (Split-Path -Parent $PSScriptRoot) `
