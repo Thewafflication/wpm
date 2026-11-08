@@ -18,6 +18,9 @@ termination can lose unsaved data and does not restart applications.
 
 Existing install defaults, signing/trust rules, package formats, schemas, and
 upgrade selection are unchanged. Scripts opt in by calling the utility.
+The PDF review also found long command examples exceeding the text area. A
+project-level documentation header wraps plain/highlighted code blocks; the
+usage examples use explicit batch continuations. The WSP pin is unchanged.
 
 ## Verification and release readiness
 

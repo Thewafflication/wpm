@@ -194,7 +194,9 @@ Install scripts can query the existing destination files before overwriting
 them. Pass exact file paths, including any deployed EXEs, DLLs, or data files:
 
 ```bat
-wpm file-processes "C:\Program Files\Example\example.exe" "C:\Program Files\Example\example.dll"
+wpm file-processes ^
+  "C:\Program Files\Example\example.exe" ^
+  "C:\Program Files\Example\example.dll"
 ```
 
 Output contains one line per affected process: PID, a tab, and application name.
@@ -203,7 +205,9 @@ and wait for them to exit, explicitly add `--kill`. Unsaved application data can
 be lost. For example, in `.wpm\install.cmd`, before copying the new files:
 
 ```bat
-"%WPM%\wpm.exe" file-processes "%ProgramFiles%\Example\example.exe" "%ProgramFiles%\Example\example.dll" --kill
+"%WPM%\wpm.exe" file-processes ^
+  "%ProgramFiles%\Example\example.exe" ^
+  "%ProgramFiles%\Example\example.dll" --kill
 if errorlevel 1 exit /b 1
 rem Copy the new version only after the command succeeds.
 ```

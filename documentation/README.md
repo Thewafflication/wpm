@@ -19,12 +19,16 @@ From the repository root, with Pandoc 3+, MiKTeX, and PowerShell 7 available:
 pwsh -File wsp/tools/Build-Documentation.ps1 `
   -RepositoryRoot . `
   -ManifestPath documentation/documentation-manifest.json `
+  -HeaderPath documentation/code-blocks.tex `
   -Version <release-version>
 ```
 
 Intermediate output is written beneath `tmp/pdfs/`; the final document is
 `output/pdf/wpm-engineering-documentation.pdf`. Generated output shall never be
 written beneath `wsp/`.
+
+The project header wraps long plain and highlighted code blocks so command
+arguments and paths remain visible within the text area.
 
 ## Verification
 

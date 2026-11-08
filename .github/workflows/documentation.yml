@@ -107,6 +107,7 @@ jobs:
           wsp/tools/Build-Documentation.ps1 `
             -RepositoryRoot . `
             -ManifestPath documentation/documentation-manifest.json `
+            -HeaderPath documentation/code-blocks.tex `
             -Version $version
 
       - name: Generate SHA-256 checksum
