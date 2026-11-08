@@ -188,6 +188,61 @@ After a successful installation, WPM saves a copy of the ZIP archive as
 removed after every installation attempt. The install script controls where
 the package deploys software; WPM does not impose a deployment location.
 
+### Find and stop processes using upgrade files
+
+Install scripts can query the existing destination files before overwriting
+them. Pass exact file paths, including any deployed EXEs, DLLs, or data files:
+
+```bat
+wpm file-processes "C:\Program Files\Example\example.exe" "C:\Program Files\Example\example.dll"
+```
+
+Output contains one line per affected process: PID, a tab, and application name.
+Listing does not stop applications. To forcibly terminate ordinary applications
+and wait for them to exit, explicitly add `--kill`. Unsaved application data can
+be lost. For example, in `.wpm\install.cmd`, before copying the new files:
+
+```bat
+"%WPM%\wpm.exe" file-processes "%ProgramFiles%\Example\example.exe" "%ProgramFiles%\Example\example.dll" --kill
+if errorlevel 1 exit /b 1
+rem Copy the new version only after the command succeeds.
+```
+
+`--dry-run` lists the processes without terminating them, even with `--kill`.
+Missing destination files are ignored. Directories, wildcard paths, invalid
+options, query errors, access failures, exit timeouts, and remaining file users
+after termination produce a nonzero exit code. A successful listing returns zero
+whether or not it finds processes. Use `--` before paths beginning with `-`.
+All paths are validated before any process is terminated. PID creation times
+are checked to avoid terminating a process that reused an exited process's PID.
+Services, Explorer, critical processes, and the querying WPM process and its
+ancestors are refused
+in kill mode; manage services with their service lifecycle commands. Permission
+to terminate other users' applications may require elevation.
+
+On Windows Vista and newer, discovery uses Windows Restart Manager. Windows
+2000/XP automatically use the legacy backend when Restart Manager is unavailable.
+`--legacy` explicitly selects that backend on newer systems for diagnostics.
+It scans loaded EXEs/DLLs with Tool Help and disk-file handles with dynamically
+loaded NT handle-table queries. File handles are compared by volume/file ID,
+including files opened without sharing; the scan does not query pipe names.
+Kill mode checks service PIDs with the Service Control Manager and refuses to
+proceed if that protection cannot be initialized. Known system images and
+available critical-process flags add legacy system-process protection.
+
+The legacy scan covers processes accessible to the caller. It warns when access
+or architecture limits prevent full inspection. Use an elevated WPM matching
+the native OS architecture: a 32-bit process cannot enumerate 64-bit modules.
+Inaccessible processes, kernel drivers, and arbitrary memory mappings can still
+hold files. A zero exit status does not certify that replacement will succeed.
+The command does not restart applications. Discovery is a snapshot: applications
+can reopen files afterward, so the install script must check copy errors.
+It does not create WPM package or data directories. See the
+[legacy validation procedure](file-processes-legacy.md) for native smoke tests
+and the remaining Windows 2000/XP verification work.
+
+### Package trust during installation
+
 Signed packages are validated against a trusted signing key before their
 installation script runs. Unsigned packages are rejected by default. For a
 known development or legacy package, use `--allow-unsigned` to proceed; WPM

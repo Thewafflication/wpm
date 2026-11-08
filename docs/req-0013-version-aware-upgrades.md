@@ -319,6 +319,36 @@ either upgraded or current. Any failed identity shall produce a nonzero exit
 status. Multi-package upgrade is best-effort and shall not claim transactionality
 or cross-package rollback.
 
+### Installer file users
+
+**REQ-0013.038**
+WPM shall provide `file-processes <file...>` to list the PID and application
+name of processes using exact destination file paths. Missing files shall be
+ignored; directories, wildcard paths,
+missing operands, and unknown options shall fail before termination begins.
+This optional utility shall use Restart Manager when available and provide a
+Windows 2000/XP fallback using loaded-module and disk-file-handle enumeration,
+without introducing static imports of newer operating-system APIs. `--legacy`
+shall select the fallback explicitly for diagnostics and verification.
+
+**REQ-0013.039**
+Termination shall require explicit `--kill`; `--dry-run` shall prevent it.
+The utility shall check process creation time on the handle used to terminate,
+wait for exit, and refuse services, Explorer, critical processes, itself, and
+its ancestors. Failures to query or stop processes, and remaining live file
+users after termination, shall return nonzero. Listing shall return zero on
+successful discovery, including an empty result.
+Legacy enumeration shall warn about inaccessible or cross-architecture processes
+and shall not claim that its accessible-process snapshot proves replaceability.
+Service-PID inspection shall be required before legacy termination. Legacy
+critical-process protection shall include known system-image names and the
+critical-process flag where the operating system exposes it.
+
+**REQ-0013.040**
+The utility shall accept multiple paths, report each affected process once,
+avoid matching by executable basename, and operate without initializing WPM
+package or data directories. It shall not automatically restart applications.
+
 ## Rationale
 
 Version-aware upgrades must distinguish installed package identities from the
@@ -337,7 +367,8 @@ recovery reporting are therefore enforceable, while universal rollback is not.
 
 **Method:** Automated test and inspection
 
-**References:** TC-0013 and `tests/tc-0013-*.ps1`
+**References:** TC-0013, `tests/tc-0013-*.ps1`, and
+`tests/file-processes-integration.py` (installer file-user companion test)
 
 Verified by:
 

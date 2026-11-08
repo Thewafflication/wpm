@@ -412,6 +412,25 @@ audit, or recovery state.
 
 ### 5.5 Least privilege and package scripts
 
+The optional `file-processes` installer utility accepts exact destination file
+paths. Restart Manager is loaded from the Windows system directory. Windows
+2000/XP fall back to dynamic NT handle queries and Tool Help module snapshots;
+`--legacy` exposes that path for verification. Handle matches use volume/file
+identity, not basenames or pipe-name queries. Legacy inspection gaps produce
+warnings, so scripts must check actual copy results. Service-PID enumeration
+must succeed before legacy kills; known system images and available critical
+flags add protection. Query errors fail closed. Termination requires explicit
+`--kill` and write/script
+capabilities; dry-run only lists users. Process creation times are checked on
+the termination handle to prevent PID-reuse substitution. Services, Explorer,
+critical processes, WPM itself, and installer ancestors are refused. Exit waits
+are bounded and surviving users cause failure. A caller must check the command
+and subsequent file-copy results. A trusted script can already terminate
+processes using its own privileges; this utility adds no elevation. Explicit
+termination may lose unsaved application data and can partially complete before
+another target fails. REQ-0013.038 through REQ-0013.040 and the TC-0013 companion
+`file-processes-integration` test cover this additive interface.
+
 Read-only inspection and verification do not intentionally modify package,
 trust, or audit state. Machine trust mutation and privileged unsigned-package
 exceptions require authorization. WPM performs validation before invoking

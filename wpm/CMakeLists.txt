@@ -35,6 +35,8 @@ set(
   "https.c"
   "https.h"
   "wpm.c"
+  "file_processes.c"
+  "file_processes.h"
   "logging.c"
   "logging.h"
   "json_output.c"
@@ -697,7 +699,7 @@ if(BUILD_TESTING)
     recovery-record-integration
     PROPERTIES
       TIMEOUT
-        120
+        300
   )
   add_test(
     NAME runtime-diagnose-integration
@@ -874,6 +876,57 @@ if(BUILD_TESTING)
       "${Python3_EXECUTABLE}"
       "${CMAKE_SOURCE_DIR}/tests/presentation-integration.py" --wpm
       $<TARGET_FILE:wpm>
+  )
+  add_executable(
+    wpm-file-holder-test
+    "${CMAKE_SOURCE_DIR}/tests/file-process-holder.c"
+    "${wcrt_console_startup}"
+  )
+  target_compile_options(
+    wpm-file-holder-test
+    PRIVATE
+      $<TARGET_PROPERTY:wpm-blake2b-test,COMPILE_OPTIONS>
+  )
+  target_compile_definitions(
+    wpm-file-holder-test
+    PRIVATE
+      $<TARGET_PROPERTY:wpm-blake2b-test,COMPILE_DEFINITIONS>
+  )
+  target_link_options(
+    wpm-file-holder-test
+    PRIVATE
+      $<TARGET_PROPERTY:wpm-blake2b-test,LINK_OPTIONS>
+  )
+  target_link_libraries(
+    wpm-file-holder-test
+    PRIVATE
+      $<TARGET_PROPERTY:wpm-blake2b-test,LINK_LIBRARIES>
+  )
+  add_test(
+    NAME file-processes-integration
+    COMMAND
+      "${Python3_EXECUTABLE}"
+      "${CMAKE_SOURCE_DIR}/tests/file-processes-integration.py" --wpm
+      $<TARGET_FILE:wpm> --holder $<TARGET_FILE:wpm-file-holder-test>
+  )
+  set_tests_properties(
+    file-processes-integration
+    PROPERTIES
+      TIMEOUT
+        240
+  )
+  add_test(
+    NAME file-processes-legacy-integration
+    COMMAND
+      "${Python3_EXECUTABLE}"
+      "${CMAKE_SOURCE_DIR}/tests/file-processes-integration.py" --wpm
+      $<TARGET_FILE:wpm> --holder $<TARGET_FILE:wpm-file-holder-test> --legacy
+  )
+  set_tests_properties(
+    file-processes-legacy-integration
+    PROPERTIES
+      TIMEOUT
+        240
   )
   set_tests_properties(
     presentation-integration
@@ -1226,6 +1279,7 @@ if(BUILD_TESTING)
   )
   add_dependencies(
     check
+    wpm-file-holder-test
     wpm-capability-test
     wpm-path-guard-test
     wpm-https-test
@@ -1261,6 +1315,7 @@ if(BUILD_TESTING)
       "^(https-.*|blake2b-simd|zlib-sse2|"
       "readonly-capabilities|guarded-directory-identity|"
       "operation-integration|local-media-integration|"
+      "file-processes-integration|file-processes-legacy-integration|"
       "admitted-input-integration|"
       "linked-repository-integration|repository-health-integration|"
       "http-length-integration|repository-init-integration|"
@@ -1284,6 +1339,7 @@ if(BUILD_TESTING)
         "${WPM_COMPONENT_TEST_REGEX}"
       DEPENDS
         wpm
+        wpm-file-holder-test
         wpm-capability-test
         wpm-path-guard-test
         wpm-https-test
