@@ -431,6 +431,23 @@ termination may lose unsaved application data and can partially complete before
 another target fails. REQ-0013.038 through REQ-0013.040 and the TC-0013 companion
 `file-processes-integration` test cover this additive interface.
 
+The `copy` installer utility (`wpm/copy.c`) builds a bounded plan before any
+mutation. `--recursive`/`-r` includes directory contents and empty directories,
+merging into the exact destination and retaining destination-only files.
+It rejects overlapping roots, same-file identities, reparse paths and
+file/directory conflicts, expands existing 8.3 aliases, and rechecks the plan
+after confirmation. It displays planned paths and destination file users before
+asking `[y/N]`; only affirmative input or explicit `--yes`/`-y` authorizes
+termination and copying. Read-only authority/`--dry-run` previews without a
+prompt or mutations. One batch delegates destination-file discovery and kills
+to `file-processes`, preserving process deduplication, legacy support and
+protected-process checks. Native directory creation and `CopyFileW` run only
+after confirmation and successful file-user shutdown. Every error propagates
+nonzero; partial copies are retained and applications are not restarted.
+These path checks are snapshots, not a concurrent filesystem security boundary.
+REQ-0013.041 through REQ-0013.043 are covered by the TC-0013 companion
+`copy-default-integration` and `copy-legacy-integration` tests.
+
 Read-only inspection and verification do not intentionally modify package,
 trust, or audit state. Machine trust mutation and privileged unsigned-package
 exceptions require authorization. WPM performs validation before invoking

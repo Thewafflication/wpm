@@ -349,6 +349,35 @@ The utility shall accept multiple paths, report each affected process once,
 avoid matching by executable basename, and operate without initializing WPM
 package or data directories. It shall not automatically restart applications.
 
+### Confirmed installer copies
+
+**REQ-0013.041**
+WPM shall provide `copy <source> <destination>` and accept equivalent
+`--recursive` and `-r` options for directory sources. Directory contents,
+including empty subdirectories, shall be merged into the exact destination;
+destination-only files shall be retained. Single files shall support an exact
+destination filename or an existing directory destination. Copy failures shall
+return nonzero and shall not claim atomicity or rollback.
+
+**REQ-0013.042**
+The copy utility shall validate and display the plan and affected file users
+before prompting by default. An affirmative answer shall authorize stopping
+ordinary applications and copying/overwriting; negative input, empty input and
+EOF shall cancel without termination or copying. `--yes`/`-y` shall explicitly
+authorize unattended execution. `--dry-run` shall prevent termination and all
+filesystem mutation, including with `--yes` or `--kill`. Copy shall reuse the
+file-user backends and identity/protected-process checks, require write/script
+capabilities, and avoid initializing WPM package/data directories.
+
+**REQ-0013.043**
+Copy planning shall reject overlapping roots, same-file source/destination
+identities, reparse points in source/destination paths, unsupported or ambiguous
+names, file/directory conflicts and traversal/enumeration failures before
+termination. It shall expand existing short-name aliases and bound traversal
+and path lengths. It shall recheck the planned names/types after confirmation
+and fail if they changed. Actual copy errors shall remain authoritative;
+snapshot checks shall not imply protection against concurrent filesystem changes.
+
 ## Rationale
 
 Version-aware upgrades must distinguish installed package identities from the
@@ -368,7 +397,8 @@ recovery reporting are therefore enforceable, while universal rollback is not.
 **Method:** Automated test and inspection
 
 **References:** TC-0013, `tests/tc-0013-*.ps1`, and
-`tests/file-processes-integration.py` (installer file-user companion test)
+`tests/file-processes-integration.py` (installer file-user companion test) and
+`tests/copy-integration.py` (confirmed recursive copy companion test)
 
 Verified by:
 

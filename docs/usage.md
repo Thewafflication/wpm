@@ -245,6 +245,57 @@ It does not create WPM package or data directories. See the
 [legacy validation procedure](file-processes-legacy.md) for native smoke tests
 and the remaining Windows 2000/XP verification work.
 
+### Copy a payload folder during installation
+
+Use `copy` to deploy a folder's **contents** into the exact destination folder:
+
+```bat
+wpm copy "C:\Staging\Example" "C:\Program Files\Example" --recursive
+```
+
+`-r` is equivalent to `--recursive`. Subfolders and empty directories are
+included. Existing destination files with matching relative paths are
+overwritten; destination-only files are retained. The command does not add an
+extra source-folder name beneath the destination. A directory source requires
+`-r` or `--recursive`; a single file can be copied without either option. For
+a single file, an existing directory destination receives the source basename;
+otherwise the destination is the exact new filename. Missing parent directories
+are created after confirmation.
+
+WPM validates the complete source tree, displays the copy plan and lists
+applications using destination files. By default it asks `[y/N]` before stopping
+those applications and copying. Enter `y` or `yes` to proceed. Empty input,
+end-of-input or any other answer cancels with a nonzero exit status and no
+termination or copying. Forceful termination can discard unsaved work.
+`--kill` is accepted to express explicit installer intent but still prompts.
+
+Use `--yes` or `-y` to authorize both application termination and overwriting
+without a prompt in an unattended installation script:
+
+```bat
+"%WPM%\wpm.exe" copy ".\payload" "%ProgramFiles%\Example" -r -y
+if errorlevel 1 exit /b 1
+```
+
+`--dry-run` displays the plan and affected applications without prompting,
+stopping processes or creating/copying files, even with `--yes` or `--kill`.
+`--legacy` selects the Windows 2000/XP file-user backend for diagnostics;
+the same backend is selected automatically when Restart Manager is unavailable.
+The service, critical-process, self and ancestor protections described above
+also apply to `copy`. The command creates no WPM package/data directories.
+
+Overlapping source/destination trees, same-file hard links, reparse points
+(including directory junctions and symbolic links) in either path, wildcard,
+device/stream paths, ambiguous names and file/directory conflicts are rejected
+before termination. Existing 8.3 aliases are expanded for overlap checks.
+Paths must fit `MAX_PATH`; a plan is limited to 65,536 entries and 128 directory
+levels. The planned names/types are checked again after confirmation; a changed
+plan requires a new invocation. File contents and permissions can still change
+after inspection, so actual copy failures return nonzero. Copies are not atomic:
+earlier files and directories can remain after a later failure, and stopped
+applications are not restarted. Directory ACLs/timestamps are not mirrored.
+Windows 2000/XP execution remains unverified; the legacy limitations above apply.
+
 ### Package trust during installation
 
 Signed packages are validated against a trusted signing key before their

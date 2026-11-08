@@ -12,6 +12,7 @@
 #include "operation.h"
 #include "capability.h"
 #include "file_processes.h"
+#include "copy.h"
 #include "repository.h"
 #include "recovery.h"
 #include "signing.h"
@@ -1339,9 +1340,17 @@ int main(int argc, char *argv[]) {
         while (utility < argc && !strcmp(argv[utility], "--dry-run")) {
             utility++;
         }
+        if (argc == 3 && !strcmp(argv[1], "help") && !strcmp(argv[2], "copy")) {
+            char *help[] = {"--help"};
+            return wpm_copy(1, help);
+        }
         if (utility < argc && !strcmp(argv[utility], "file-processes")) {
             wpm_set_verbose(verbose);
             return wpm_file_processes(argc - utility - 1, argv + utility + 1);
+        }
+        if (utility < argc && !strcmp(argv[utility], "copy")) {
+            wpm_set_verbose(verbose);
+            return wpm_copy(argc - utility - 1, argv + utility + 1);
         }
     }
     if (argc == 1) {
@@ -2501,6 +2510,8 @@ void print_usage(Command c) {
         WPM_EVENT_INFO, "wpm.info", "wpm", "command",
         "  file-processes <file...> [--kill] [--dry-run] [--legacy]\n"
         "      Find or stop applications using upgrade destination files\n\n"
+        "  copy <source> <destination> [--recursive|-r] [--yes|-y]\n"
+        "      Confirm, stop destination file users and copy files\n\n"
         "Options:\n");
     wpm_event_printf(WPM_EVENT_INFO, "wpm.info", "wpm", "command",
                      "  -h, --help\n");

@@ -37,6 +37,8 @@ set(
   "wpm.c"
   "file_processes.c"
   "file_processes.h"
+  "copy.c"
+  "copy.h"
   "logging.c"
   "logging.h"
   "json_output.c"
@@ -928,6 +930,25 @@ if(BUILD_TESTING)
       TIMEOUT
         240
   )
+  foreach(backend IN ITEMS default legacy)
+    set(copy_backend_args)
+    if(backend STREQUAL "legacy")
+      list(APPEND copy_backend_args --legacy)
+    endif()
+    add_test(
+      NAME copy-${backend}-integration
+      COMMAND
+        "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/copy-integration.py"
+        --wpm $<TARGET_FILE:wpm> --holder $<TARGET_FILE:wpm-file-holder-test>
+        ${copy_backend_args}
+    )
+    set_tests_properties(
+      copy-${backend}-integration
+      PROPERTIES
+        TIMEOUT
+          240
+    )
+  endforeach()
   set_tests_properties(
     presentation-integration
     PROPERTIES
@@ -1316,6 +1337,7 @@ if(BUILD_TESTING)
       "readonly-capabilities|guarded-directory-identity|"
       "operation-integration|local-media-integration|"
       "file-processes-integration|file-processes-legacy-integration|"
+      "copy-default-integration|copy-legacy-integration|"
       "admitted-input-integration|"
       "linked-repository-integration|repository-health-integration|"
       "http-length-integration|repository-init-integration|"
