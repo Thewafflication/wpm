@@ -6,6 +6,12 @@
  */
 int wpm_repo_version_is_valid(const char *version);
 
+/** Validate a minimum-version dependency declaration without side effects. */
+int wpm_repo_dependency_is_valid(const char *declaration);
+/** Resolve archive dependencies and install the complete graph in order. */
+int wpm_repo_install_archive(const char *archive, int offline,
+                             int allow_unsigned);
+
 /** Enable or disable detailed repository diagnostics. */
 void wpm_repo_set_verbose(int enabled);
 /** Create a fresh schema-1 filesystem repository without replacing an index.

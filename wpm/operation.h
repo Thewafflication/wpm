@@ -56,6 +56,10 @@ int wpm_operation_input(const char *archive, void **input);
  * Failure preserves temporary evidence and never widens destination scope.
  */
 int wpm_operation_store_input(const char *destination);
+/** Find an earlier planned dependency (completed during execution).
+ * Copies its selected version; never authorizes a new action. */
+int wpm_operation_dependency(const char *name, const char *arch, char *version,
+                             size_t capacity, int exact_arch);
 /** Release plan inputs and memory. */
 void wpm_operation_close(void);
 #endif

@@ -723,3 +723,34 @@ wpm upgrade --all --dry-run --offline
 I-02's 2.0 alpha demonstrated confirmation by default. The maintainer requested
 compatible 1.x delivery, so the stable backport enables the new contract only
 through these explicit options. Broader 2.0 default changes remain proposed.
+
+## Required dependencies
+
+Declare required packages in `.wpm/package.txt`, one minimum per line:
+
+```ini
+depends=libfoo>=1.0.0
+depends=libbar>=2.1.0
+```
+
+Versions must use complete SemVer. Repeated declarations are combined; upper
+bounds, comma ranges and alternative providers are rejected. The combined
+metadata is limited to 1023 bytes including newline separators.
+
+Repository installs, ZIP-path installs and repository upgrades resolve these
+requirements transitively. Compatible retained installed metadata satisfies a
+requirement; otherwise WPM selects the highest eligible repository version,
+preferring the parent's architecture over `any`. Prerelease settings apply to
+new selections. `any` parents use WPM's target architecture for dependencies.
+Insufficient retained versions use the upgrade lifecycle for matching
+architectures. Retained archives describe WPM state; they do not prove that
+externally deployed files are still present.
+
+Dependencies appear before their parents in the normal approval plan. Shared
+dependencies are installed once. `--dry-run`, `--offline`, `--allow-unsigned`
+and confirmation apply to all graph members. Web dependencies must already be
+cached for a dry-run. Cycles, unavailable requirements, incompatible earlier
+selections and graphs above 64 selected packages fail. Required WPM upgrades
+must be performed explicitly first. A failing dependency stops its parent;
+completed scripts are not rolled back. Removal does not enforce reverse
+relationships. Existing packages without `depends` lines retain their behavior.

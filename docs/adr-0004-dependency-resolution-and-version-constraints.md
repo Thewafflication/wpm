@@ -88,6 +88,22 @@ depends=libfoo>=1.0.0,<2.0.0
 
 ## Dependency Resolution
 
+The 1.4.0 implementation accepts repeated `depends=name>=version` lines in
+`.wpm/package.txt`. Each version must be a complete SemVer. The aggregate
+newline-separated declarations are bounded to 1023 bytes. Comma ranges,
+upper bounds and alternative providers remain future work and are rejected.
+Compatible retained installed metadata satisfies requirements without an
+implicit update. Otherwise resolution chooses the highest compatible eligible
+catalog version, preferring the parent's specific architecture over `any` and
+using existing repository priority/order ties. All minimum constraints are
+monotone; a general SAT solver is unnecessary. Cycles, conflicting selected
+versions and graphs over 64 selected packages fail explicitly. Previously
+planned roots are fixed; later requirements cannot silently replace them.
+Dependencies execute in authored depth-first topological order and share the
+existing immutable confirmation plan. ZIP installs and repository upgrades
+use the same resolver. Required WPM upgrades must be performed explicitly
+before deploying their dependents. See REQ-0013.044 through REQ-0013.046.
+
 WPM SHALL select the highest compatible version.
 
 Resolution SHALL be deterministic.

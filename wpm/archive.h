@@ -9,6 +9,8 @@ typedef struct wpm_package_info {
     char name[128];          /**< Package identity. */
     char version[64];        /**< Semantic package version. */
     char arch[16];           /**< Target architecture. */
+    char dependencies[1024]; /**< Newline-separated minimum-version
+                                requirements. */
     char archive_name[4096]; /**< Original archive filename. */
 } wpm_package_info;
 

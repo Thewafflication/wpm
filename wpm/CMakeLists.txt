@@ -847,6 +847,19 @@ if(BUILD_TESTING)
         120
   )
   add_test(
+    NAME dependency-integration
+    COMMAND
+      "${Python3_EXECUTABLE}"
+      "${CMAKE_SOURCE_DIR}/tests/dependency-integration.py" --wpm
+      $<TARGET_FILE:wpm>
+  )
+  set_tests_properties(
+    dependency-integration
+    PROPERTIES
+      TIMEOUT
+        180
+  )
+  add_test(
     NAME operation-integration
     COMMAND
       "${Python3_EXECUTABLE}"
@@ -949,6 +962,14 @@ if(BUILD_TESTING)
           240
     )
   endforeach()
+  # Legacy discovery scans all live processes, so isolate it from test churn.
+  set_tests_properties(
+    file-processes-legacy-integration
+    copy-legacy-integration
+    PROPERTIES
+      RUN_SERIAL
+        TRUE
+  )
   set_tests_properties(
     presentation-integration
     PROPERTIES

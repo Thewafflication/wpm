@@ -1065,3 +1065,19 @@ int wpm_operation_completed(void) {
     }
     return 1;
 }
+
+int wpm_operation_dependency(const char *name, const char *arch, char *version,
+                             size_t capacity, int exact_arch) {
+    for (size_t i = 0; i < item_count; i++) {
+        plan_item *item = &items[i];
+        if ((collecting || item->consumed) &&
+            (!strcmp(item->action, "install") ||
+             !strcmp(item->action, "upgrade")) &&
+            !_stricmp(item->identity.name, name) &&
+            (!_stricmp(item->identity.arch, arch) ||
+             (!exact_arch && !_stricmp(item->identity.arch, "any")))) {
+            return strcpy_s(version, capacity, item->identity.version) == 0;
+        }
+    }
+    return 0;
+}

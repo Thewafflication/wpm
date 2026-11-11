@@ -50,6 +50,10 @@ broader execution on those legacy systems still needs validation. The bootstrap 
 itself retains the downloader requirement above. See [bundled HTTPS](docs/bundled-https.md)
 for configuration and current limitations.
 
+Required packages can be declared with `depends=package>=1.0.0` in package
+metadata. WPM resolves them before installation and upgrade; see
+[required dependencies](docs/usage.md#required-dependencies).
+
 See the [usage guide](docs/usage.md) for commands, examples, and the WPM
 package layout.
 

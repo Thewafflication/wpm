@@ -4232,6 +4232,294 @@ static int obtain(repository *repositories, package_entry *selected,
 static int candidate_matches(const char *archive,
                              const package_entry *selected);
 
+/* Minimum-only constraints are monotone: the highest eligible catalog version
+ * satisfies every incoming bound if any catalog version can. No range syntax
+ * or implicit downgrades are accepted. */
+static int parse_dependency(const char *text, char *name, size_t capacity,
+                            const char **minimum) {
+    const char *separator = strstr(text, ">=");
+    size_t length = separator ? (size_t)(separator - text) : 0;
+    if (!length || length >= capacity ||
+        !wpm_repo_version_is_valid(separator + 2)) {
+        return 0;
+    }
+    for (size_t i = 0; i < length; i++) {
+        unsigned char c = (unsigned char)text[i];
+        if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+              (c >= '0' && c <= '9') || c == '-' || c == '_' || c == '.')) {
+            return 0;
+        }
+    }
+    if (text[0] == '.' || text[0] == '-') {
+        return 0;
+    }
+    memcpy(name, text, length);
+    name[length] = 0;
+    *minimum = separator + 2;
+    return 1;
+}
+
+int wpm_repo_dependency_is_valid(const char *declaration) {
+    char name[128];
+    const char *minimum;
+    return declaration &&
+           parse_dependency(declaration, name, sizeof(name), &minimum);
+}
+
+#define DEPENDENCY_LIMIT 64
+
+typedef struct {
+    char path[PATH_SIZE];
+    wpm_package_info info;
+    package_entry *entry;
+    HANDLE input;
+    int state;
+} dependency_node;
+
+typedef struct {
+    repository repositories[MAX_REPOSITORIES];
+    package_entry entries[MAX_PACKAGES];
+    installed_entry installed[MAX_INSTALLED];
+    dependency_node nodes[DEPENDENCY_LIMIT];
+    int order[DEPENDENCY_LIMIT], count, ordered, loaded, entry_count,
+        installed_count;
+    int offline, allow_unsigned;
+    const char *arch;
+} dependency_graph;
+
+static int dependency_error(const char *name, const char *reason) {
+    wpm_event_printf(WPM_EVENT_ERROR, "dependency.unresolved", "dependency",
+                     "resolve", "Error: dependency %s: %s.\n", name, reason);
+    return 0;
+}
+
+static int dependency_at_least(const char *version, const char *minimum) {
+    int valid, comparison = semver_compare(version, minimum, &valid);
+    return valid && comparison >= 0;
+}
+
+static int dependency_visit(dependency_graph *graph, int index);
+
+static int dependency_resolve(dependency_graph *graph,
+                              const char *declaration) {
+    char name[128], planned[64];
+    const char *minimum;
+    package_entry *selected;
+    int repositories;
+    if (!parse_dependency(declaration, name, sizeof(name), &minimum)) {
+        return dependency_error(declaration,
+                                "invalid minimum-version requirement");
+    }
+    for (int i = 0; i < graph->count; i++) {
+        dependency_node *node = &graph->nodes[i];
+        if (!_stricmp(name, node->info.name)) {
+            if (node->state == 1) {
+                return dependency_error(name, "dependency cycle detected");
+            }
+            return dependency_at_least(node->info.version, minimum) ||
+                   dependency_error(name,
+                                    "selected version conflicts with minimum");
+        }
+    }
+    if (wpm_operation_dependency(name, graph->arch, planned, sizeof(planned),
+                                 0)) {
+        return dependency_at_least(planned, minimum) ||
+               dependency_error(name,
+                                "earlier operation conflicts with minimum");
+    }
+    for (int i = 0; i < graph->installed_count; i++) {
+        installed_entry *item = &graph->installed[i];
+        if (!_stricmp(item->name, name) &&
+            (!_stricmp(item->arch, graph->arch) ||
+             !_stricmp(item->arch, "any")) &&
+            dependency_at_least(item->version, minimum)) {
+            return 1;
+        }
+    }
+    if (!graph->loaded) {
+        if (!load_entries(graph->repositories, &repositories, graph->entries,
+                          &graph->entry_count, graph->offline, 0)) {
+            return 0;
+        }
+        graph->loaded = 1;
+    }
+    selected = NULL;
+    for (int i = 0; i < graph->entry_count; i++) {
+        package_entry *candidate = &graph->entries[i];
+        int native = !_stricmp(candidate->arch, graph->arch);
+        if (_stricmp(candidate->name, name) ||
+            (!native && _stricmp(candidate->arch, "any")) ||
+            !dependency_at_least(candidate->version, minimum) ||
+            (is_prerelease(candidate->version) &&
+             !prerelease_effective(name, NULL))) {
+            continue;
+        }
+        if (selected && !_stricmp(selected->arch, graph->arch) && !native) {
+            continue;
+        }
+        if (!selected || (native && !_stricmp(selected->arch, "any")) ||
+            better_candidate(candidate, selected)) {
+            selected = candidate;
+        }
+    }
+    if (!selected || !dependency_at_least(selected->version, minimum)) {
+        return dependency_error(declaration, "no compatible catalog version");
+    }
+    if (!_stricmp(name, "wpm")) {
+        return dependency_error(name,
+                                "upgrade WPM explicitly before this operation");
+    }
+    if (graph->count == DEPENDENCY_LIMIT) {
+        return dependency_error(name, "graph exceeds 64 packages");
+    }
+    int index = graph->count++;
+    dependency_node *node = &graph->nodes[index];
+    node->entry = selected;
+    if (!obtain(graph->repositories, selected, graph->offline, node->path,
+                sizeof(node->path)) ||
+        !candidate_matches(node->path, selected)) {
+        return 0;
+    }
+    return dependency_visit(graph, index);
+}
+
+static int dependency_visit(dependency_graph *graph, int index) {
+    dependency_node *node = &graph->nodes[index];
+    char declarations[1024], signer[65];
+    char *current;
+    node->input = CreateFileA(node->path, GENERIC_READ, FILE_SHARE_READ, NULL,
+                              OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (node->input == INVALID_HANDLE_VALUE ||
+        !wpm_archive_inspect_open(node->input, &node->info) ||
+        !wpm_archive_validate_open(node->input, graph->allow_unsigned, signer,
+                                   sizeof(signer))) {
+        return dependency_error(node->path, "archive validation failed");
+    }
+    if (node->entry && (_stricmp(node->info.name, node->entry->name) ||
+                        _stricmp(node->info.arch, node->entry->arch) ||
+                        strcmp(node->info.version, node->entry->version))) {
+        return dependency_error(node->path, "locked archive identity changed");
+    }
+    if (!index) {
+        graph->arch = !_stricmp(node->info.arch, "any") ? WPM_TARGET_ARCH
+                                                        : node->info.arch;
+    }
+    node->state = 1;
+    strcpy_s(declarations, sizeof(declarations), node->info.dependencies);
+    current = declarations;
+    while (*current) {
+        char *end = strchr(current, '\n');
+        if (!end) {
+            return dependency_error(node->info.name,
+                                    "unterminated declaration");
+        }
+        *end = 0;
+        if (!dependency_resolve(graph, current)) {
+            return 0;
+        }
+        current = end + 1;
+    }
+    node->state = 2;
+    graph->order[graph->ordered++] = index;
+    return 1;
+}
+
+/* Resolve and validate the entire graph before registering/executing any item.
+ * Hold read-only handles throughout so dependency metadata cannot change. */
+static int install_dependency_graph(const char *archive,
+                                    package_entry *root_entry,
+                                    repository *root_repositories, int offline,
+                                    int allow_unsigned, int dependencies_only) {
+    dependency_graph *graph = calloc(1, sizeof(*graph));
+    int result = 0;
+    if (!graph) {
+        return dependency_error(archive, "could not allocate graph");
+    }
+    graph->count = 1;
+    graph->nodes[0].entry = root_entry;
+    graph->offline = offline;
+    graph->allow_unsigned = allow_unsigned;
+    for (int i = 0; i < DEPENDENCY_LIMIT; i++) {
+        graph->nodes[i].input = INVALID_HANDLE_VALUE;
+    }
+    if (strcpy_s(graph->nodes[0].path, sizeof(graph->nodes[0].path), archive) ||
+        !wpm_archive_inspect(archive, &graph->nodes[0].info)) {
+        goto cleanup;
+    }
+    graph->arch = !_stricmp(graph->nodes[0].info.arch, "any")
+                      ? WPM_TARGET_ARCH
+                      : graph->nodes[0].info.arch;
+    if (!load_installed(graph->installed, &graph->installed_count) ||
+        !dependency_visit(graph, 0)) {
+        goto cleanup;
+    }
+    for (int i = 0; i < graph->ordered; i++) {
+        int index = graph->order[i];
+        dependency_node *node = &graph->nodes[index];
+        package_entry *entry = index ? node->entry : root_entry;
+        repository *repos = index ? graph->repositories : root_repositories;
+        char source[PATH_SIZE];
+        if (!index && dependencies_only) {
+            continue;
+        }
+        if (entry && !package_source(repos[entry->order].url, entry->url,
+                                     source, sizeof(source))) {
+            goto cleanup;
+        }
+        wpm_operation_set_source(entry ? source : NULL);
+        wpm_archive_set_repository_url(entry ? repos[entry->order].url : NULL);
+        const char *old_version = NULL;
+        if (index) {
+            for (int n = 0; n < graph->installed_count; n++) {
+                installed_entry *item = &graph->installed[n];
+                if (!_stricmp(item->name, node->info.name) &&
+                    !_stricmp(item->arch, node->info.arch) &&
+                    (!old_version ||
+                     dependency_at_least(item->version, old_version))) {
+                    old_version = item->version;
+                }
+            }
+        }
+        int ok;
+        if (index && !_stricmp(node->info.name, "wpm")) {
+            ok = dependency_error(
+                "wpm", "upgrade WPM explicitly before this operation");
+        } else if (old_version) {
+            ok = wpm_archive_upgrade(node->path, allow_unsigned,
+                                     node->info.name, node->info.version,
+                                     node->info.arch, old_version);
+        } else {
+            ok = wpm_archive_install(node->path, allow_unsigned);
+        }
+        wpm_operation_set_source(NULL);
+        wpm_archive_set_repository_url(NULL);
+        if (!ok) {
+            goto cleanup;
+        }
+    }
+    result = 1;
+cleanup:
+    for (int i = 0; i < graph->count; i++) {
+        if (graph->nodes[i].input != INVALID_HANDLE_VALUE) {
+            CloseHandle(graph->nodes[i].input);
+        }
+    }
+    free(graph);
+    return result;
+}
+
+int wpm_repo_install_archive(const char *archive, int offline,
+                             int allow_unsigned) {
+    wpm_package_info info;
+    /* Preserve existing archive diagnostics and behavior for legacy packages.
+     */
+    if (!wpm_archive_inspect(archive, &info) || !*info.dependencies) {
+        return wpm_archive_install(archive, allow_unsigned);
+    }
+    return install_dependency_graph(archive, NULL, NULL, offline,
+                                    allow_unsigned, 0);
+}
+
 int wpm_repo_install(const char *package_name, const char *arch,
                      const char *version, int offline, int allow_unsigned) {
     repository repositories[MAX_REPOSITORIES];
@@ -4263,6 +4551,13 @@ int wpm_repo_install(const char *package_name, const char *arch,
             package_name);
         return 0;
     }
+    char planned[64];
+    if (wpm_operation_dependency(selected->name, selected->arch, planned,
+                                 sizeof(planned), 1)) {
+        return !strcmp(planned, selected->version) ||
+               dependency_error(package_name,
+                                "earlier operation selects another version");
+    }
     if (!obtain(repositories, selected, offline, package, sizeof(package))) {
         return 0;
     }
@@ -4279,7 +4574,11 @@ int wpm_repo_install(const char *package_name, const char *arch,
     }
     wpm_operation_set_source(selected_source_path);
     wpm_archive_set_repository_url(repositories[selected->order].url);
-    result = wpm_archive_install(package, allow_unsigned);
+    wpm_package_info info;
+    result = wpm_archive_inspect(package, &info) && *info.dependencies
+                 ? install_dependency_graph(package, selected, repositories,
+                                            offline, allow_unsigned, 0)
+                 : wpm_archive_install(package, allow_unsigned);
     wpm_operation_set_source(NULL);
     wpm_archive_set_repository_url(NULL);
     return result;
@@ -4557,6 +4856,35 @@ int wpm_repo_upgrade(const char **package_names, int package_count, int all,
             }
             continue;
         }
+        if (!wpm_operation_active()) {
+            /* Legacy execution mutates retained state during this pass. A
+             * previous parent's graph may already have upgraded this root. */
+            installed_entry live[MAX_INSTALLED];
+            int live_count, already_done = 0;
+            if (!load_installed(live, &live_count)) {
+                return 0;
+            }
+            for (int n = 0; n < live_count; n++) {
+                if (!_stricmp(live[n].name, selected->name) &&
+                    !_stricmp(live[n].arch, selected->arch) &&
+                    !strcmp(live[n].version, selected->version)) {
+                    already_done = 1;
+                }
+            }
+            if (already_done) {
+                continue;
+            }
+        }
+        char planned[64];
+        if (wpm_operation_dependency(selected->name, selected->arch, planned,
+                                     sizeof(planned), 1)) {
+            if (strcmp(planned, selected->version)) {
+                dependency_error(selected->name,
+                                 "earlier operation selects another version");
+                failures++;
+            }
+            continue;
+        }
         is_self = _stricmp(selected->name, "wpm") == 0;
         wpm_archive_set_progress(++progress_current, progress_total);
         if (!obtain(repositories, selected, offline, cached, sizeof(cached))) {
@@ -4573,6 +4901,14 @@ int wpm_repo_upgrade(const char **package_names, int package_count, int all,
         if (!package_source(repositories[selected->order].url, selected->url,
                             selected_source_path,
                             sizeof(selected_source_path))) {
+            failures++;
+            continue;
+        }
+        wpm_package_info dependency_info;
+        if (!wpm_archive_inspect(cached, &dependency_info) ||
+            (*dependency_info.dependencies &&
+             !install_dependency_graph(cached, selected, repositories, offline,
+                                       allow_unsigned, 1))) {
             failures++;
             continue;
         }

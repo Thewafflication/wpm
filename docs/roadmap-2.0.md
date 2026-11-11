@@ -212,7 +212,8 @@ Completion criteria:
 
 ## Non-goals for 2.0
 
-- Dependency solving and package relationship resolution.
+- General range/SAT solving and relationships beyond the minimum-version
+  `depends` resolution delivered in 1.4.0.
 - A graphical user interface.
 - Automatic trust of repository-distributed signing keys.
 

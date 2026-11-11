@@ -9,6 +9,7 @@
 #include <wcrt/thread_pool.h>
 
 #include "archive.h"
+#include "repository.h"
 #include "logging.h"
 #include "capability.h"
 #include "progress.h"
@@ -50,6 +51,7 @@ typedef struct wpm_package_metadata {
     char version[64];
     char arch[64];
     int debug;
+    char dependencies[1024];
 } wpm_package_metadata;
 
 /* A read-only minizip stream over a borrowed, already admitted native handle.
@@ -1135,6 +1137,24 @@ static int parse_bool_metadata_value(const char *value, int *result) {
     return 0;
 }
 
+/* Preserve repeated declarations in their authored order, with a hard bound. */
+static int append_dependency(wpm_package_metadata *metadata,
+                             const char *value) {
+    size_t used = strlen(metadata->dependencies), length = strlen(value);
+    if (!wpm_repo_dependency_is_valid(value) ||
+        used + length + 2 > sizeof(metadata->dependencies)) {
+        wpm_event_printf(WPM_EVENT_ERROR, "dependency.invalid", "dependency",
+                         "resolve",
+                         "Error: invalid or oversized dependency; "
+                         "expected depends=package>=1.0.0.\n");
+        return 0;
+    }
+    memcpy(metadata->dependencies + used, value, length);
+    metadata->dependencies[used + length] = '\n';
+    metadata->dependencies[used + length + 1] = 0;
+    return 1;
+}
+
 static int read_package_metadata(const char *source_dir,
                                  wpm_package_metadata *metadata) {
     char package_path[WPM_PATH_SIZE];
@@ -1145,6 +1165,7 @@ static int read_package_metadata(const char *source_dir,
     metadata->version[0] = '\0';
     metadata->arch[0] = '\0';
     metadata->debug = 0;
+    metadata->dependencies[0] = '\0';
 
     if (!join_path(package_path, sizeof(package_path), source_dir,
                    ".wpm\\package.txt")) {
@@ -1209,6 +1230,11 @@ static int read_package_metadata(const char *source_dir,
                 return 0;
             }
             strcpy_s(metadata->arch, sizeof(metadata->arch), value);
+        } else if (_stricmp(key, "depends") == 0) {
+            if (!append_dependency(metadata, value)) {
+                fclose(file);
+                return 0;
+            }
         } else if (_stricmp(key, "debug") == 0 &&
                    !parse_bool_metadata_value(value, &metadata->debug)) {
             wpm_event_printf(
@@ -1274,6 +1300,7 @@ static int read_archive_metadata_handle(const char *archive_path,
     metadata->version[0] = '\0';
     metadata->arch[0] = '\0';
     metadata->debug = 0;
+    metadata->dependencies[0] = '\0';
     current = text;
     while (*current) {
         char *line = current;
@@ -1321,6 +1348,10 @@ static int read_archive_metadata_handle(const char *archive_path,
                 goto cleanup;
             }
             strcpy_s(metadata->arch, sizeof(metadata->arch), value);
+        } else if (_stricmp(key, "depends") == 0) {
+            if (!append_dependency(metadata, value)) {
+                goto cleanup;
+            }
         } else if (_stricmp(key, "debug") == 0 &&
                    !parse_bool_metadata_value(value, &metadata->debug)) {
             goto cleanup;
@@ -3430,6 +3461,8 @@ int wpm_archive_inspect(const char *archive_path, wpm_package_info *info) {
         !read_archive_package_metadata(archive_path, &metadata)) {
         return 0;
     }
+    strcpy_s(info->dependencies, sizeof(info->dependencies),
+             metadata.dependencies);
     strcpy_s(info->name, sizeof(info->name), metadata.name);
     strcpy_s(info->version, sizeof(info->version), metadata.version);
     strcpy_s(info->arch, sizeof(info->arch), metadata.arch);
@@ -3444,6 +3477,8 @@ int wpm_archive_inspect_open(void *handle, wpm_package_info *info) {
         !read_archive_metadata_handle(NULL, &metadata, handle)) {
         return 0;
     }
+    strcpy_s(info->dependencies, sizeof(info->dependencies),
+             metadata.dependencies);
     strcpy_s(info->name, sizeof(info->name), metadata.name);
     strcpy_s(info->version, sizeof(info->version), metadata.version);
     strcpy_s(info->arch, sizeof(info->arch), metadata.arch);

@@ -378,6 +378,35 @@ and path lengths. It shall recheck the planned names/types after confirmation
 and fail if they changed. Actual copy errors shall remain authoritative;
 snapshot checks shall not imply protection against concurrent filesystem changes.
 
+### Required package dependencies
+
+**REQ-0013.044**
+WPM shall accept repeated `depends=package>=major.minor.patch` declarations
+in package metadata, validate their SemVer and safe package names at build
+and inspection, and reject unsupported syntax or more than 1023 aggregate
+bytes including declaration separators. Packages without declarations shall
+retain their existing behavior.
+
+**REQ-0013.045**
+Repository and ZIP installs and repository upgrades shall resolve transitive
+minimum-version requirements before parent deployment. Compatible retained
+installed metadata or an earlier planned operation may satisfy a requirement.
+Otherwise WPM shall select the highest eligible compatible catalog version,
+prefer the parent's specific architecture over `any`, honor prerelease policy
+and repository tie-breaking, and place dependencies before dependents in the
+existing immutable approval plan. An insufficient retained version shall use
+the upgrade lifecycle when its architecture matches the selected candidate.
+
+**REQ-0013.046**
+WPM shall validate and hold all selected graph archives before registering or
+executing graph items, deduplicate shared dependencies, reject cycles, missing
+or conflicting minimums and graphs exceeding 64 selected packages, and stop
+before the parent if a dependency fails. Dry-run, offline retrieval, unsigned
+policy and confirmation shall apply to the complete graph. WPM self-upgrade
+required by a dependency shall require a separate explicit operation. Generic
+rollback, upper-bound solving and reverse-dependency removal protection are
+outside this increment.
+
 ## Rationale
 
 Version-aware upgrades must distinguish installed package identities from the
@@ -398,7 +427,8 @@ recovery reporting are therefore enforceable, while universal rollback is not.
 
 **References:** TC-0013, `tests/tc-0013-*.ps1`, and
 `tests/file-processes-integration.py` (installer file-user companion test) and
-`tests/copy-integration.py` (confirmed recursive copy companion test)
+`tests/copy-integration.py` (confirmed recursive copy companion test), and
+`tests/dependency-integration.py` (dependency graph companion test)
 
 Verified by:
 

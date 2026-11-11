@@ -1798,7 +1798,8 @@ operation_dispatch:
                         "ZIP-path installation.\n");
                     return 1;
                 }
-                if (!wpm_archive_install(argv[i], allow_unsigned)) {
+                if (!wpm_repo_install_archive(argv[i], offline,
+                                              allow_unsigned)) {
                     return 1;
                 }
             } else if (!wpm_repo_install(argv[i], selected_arch,

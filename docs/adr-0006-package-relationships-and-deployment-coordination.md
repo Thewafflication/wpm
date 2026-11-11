@@ -33,6 +33,13 @@ Packages are deployment units rather than filesystem ownership units.
 WPM SHALL provide typed relationships and a deployment context using
 deterministic planning rather than a general SAT solver.
 
+## Implementation status (1.4.0)
+
+Required minimum-version `depends` relationships are implemented with bounded,
+deterministic graph planning as specified by ADR-0004 and REQ-0013.044 through
+REQ-0013.046. Recommendations, conflicts, bundles and deployment-context data
+exchange below remain design targets; they are not implemented by this release.
+
 ## Core Principle
 
 WPM SHALL coordinate package deployments.
@@ -53,7 +60,7 @@ Indicates a required package.
 
 Example:
 
-depends=dotnet-runtime>=8.0
+depends=dotnet-runtime>=8.0.0
 
 The dependency must be installed before deployment continues.
 
