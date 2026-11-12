@@ -8,6 +8,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import threading
+import time
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--wpm", required=True)
@@ -19,6 +20,7 @@ with tempfile.TemporaryDirectory(prefix="wpm-http-length-") as directory:
     data = root / "data"
     state = {"mode": "normal"}
     requests = []
+    bulk_marker = "bulk-" + "0123456789abcdef" * (16 * 1024)
 
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
@@ -30,7 +32,7 @@ with tempfile.TemporaryDirectory(prefix="wpm-http-length-") as directory:
                 {
                     "version": 1,
                     "packages": [],
-                    "marker": mode,
+                    "marker": bulk_marker if mode == "bulk" else mode,
                 }
             ).encode()
             self.send_response(200)
@@ -95,6 +97,18 @@ with tempfile.TemporaryDirectory(prefix="wpm-http-length-") as directory:
             run("update")
             assert json.loads(cached.read_text())["marker"] == mode
             assert not list((data / "cache").rglob("*.candidate*"))
+        # Exercise multiple 64-KiB writes; the small framing fixtures cannot
+        # expose byte-at-a-time output or corruption at buffer boundaries.
+        state["mode"] = "bulk"
+        started = time.perf_counter()
+        run("update")
+        elapsed = time.perf_counter() - started
+        assert json.loads(cached.read_text())["marker"] == bulk_marker
+        assert not list((data / "cache").rglob("*.candidate*"))
+        print(
+            f"HTTP bulk fixture: {len(bulk_marker)} marker bytes "
+            f"in {elapsed:.3f}s"
+        )
         for mode in (
             "short",
             "large",

@@ -16,10 +16,22 @@ before closing handles or finishing progress so cleanup cannot obscure it.
 
 `tests/http-length-integration.py` uses a real loopback HTTP/1.1 server with
 normal, omitted, chunked, repeated, short, greater-than-4-GiB declared, malformed,
-overflowing, conflicting, and zero length responses. It sends small bodies;
-large framing is tested without allocating or downloading multi-GiB data.
-Fixtures verify exact cached bytes and modification-time preservation,
+overflowing, conflicting, and zero length responses. Large declared lengths
+are tested without allocating or downloading multi-GiB data.
+An additional 256-KiB marker fixture exercises multiple download-buffer writes
+and verifies the complete cached payload. It reports elapsed update time without
+a machine-dependent timing assertion. Fixtures verify cached contents and
+modification-time preservation,
 candidate cleanup, 64-bit verbose totals, and a successful later retry.
+
+HTTP output now uses bulk `WriteFile` calls rather than `fwrite`: WCRT's
+byte-at-a-time `fwrite` implementation can make disk output dominate download
+time, whereas bundled HTTPS already writes whole blocks. Short writes and close
+failures abort publication, and length checking and temporary cleanup remain
+in place. In a local x64 Debug/WCRT 1.4.0 comparison, the bulk fixture's update
+took 1.145 seconds before the change and 0.234 seconds after it. These timings
+include process startup and index handling; they are not a remote-network
+throughput guarantee.
 
 This is an additive 1.x transport correction. Physical/managed SMB evidence,
 interruptions across the platform matrix, and remaining I-05 obligations stay

@@ -1088,7 +1088,7 @@ static int http_download(const char *url, const char *destination,
     char temporary[PATH_SIZE] = "";
     char location[PATH_SIZE];
     unsigned char buffer[64 * 1024];
-    FILE *output = NULL;
+    HANDLE output = INVALID_HANDLE_VALUE;
     wpm_progress progress;
     unsigned long long received = 0;
     DWORD status = 0;
@@ -1183,17 +1183,29 @@ static int http_download(const char *url, const char *destination,
         goto cleanup;
     }
     DeleteFileA(temporary);
-    output = wpm_fopen(temporary, "wb");
-    if (!output) {
+    output = CreateFileA(temporary, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS,
+                         FILE_ATTRIBUTE_NORMAL, NULL);
+    if (output == INVALID_HANDLE_VALUE) {
         goto cleanup;
     }
     wpm_progress_start(&progress, "Downloading", "Download", "Downloaded",
                        label, content_length);
     progress_started = 1;
     do {
-        if (!read_file(request, buffer, sizeof(buffer), &read) ||
-            (read && fwrite(buffer, 1, read, output) != read)) {
+        DWORD written;
+        if (!read_file(request, buffer, sizeof(buffer), &read)) {
             goto cleanup;
+        }
+        /* WCRT fwrite can issue one native write per byte. Keep HTTP output
+           in bulk blocks, as the bundled HTTPS downloader does. */
+        if (read) {
+            if (!WriteFile(output, buffer, read, &written, NULL)) {
+                goto cleanup;
+            }
+            if (written != read) {
+                SetLastError(ERROR_WRITE_FAULT);
+                goto cleanup;
+            }
         }
         if (received > ULLONG_MAX - read) {
             SetLastError(ERROR_INVALID_DATA);
@@ -1211,16 +1223,15 @@ static int http_download(const char *url, const char *destination,
         SetLastError(ERROR_HANDLE_EOF);
         goto cleanup;
     }
-    if (fclose(output)) {
-        output = NULL;
+    if (!CloseHandle(output)) {
         goto cleanup;
     }
-    output = NULL;
+    output = INVALID_HANDLE_VALUE;
     succeeded = MoveFileExA(temporary, destination, MOVEFILE_REPLACE_EXISTING);
 cleanup:
     failure = GetLastError();
-    if (output) {
-        fclose(output);
+    if (output != INVALID_HANDLE_VALUE) {
+        CloseHandle(output);
     }
     if (request && close_handle) {
         close_handle(request);
