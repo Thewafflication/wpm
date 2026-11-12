@@ -402,6 +402,14 @@ Refreshes configured repository indexes, then reports installed package
 identities for which a newer eligible version is available. It does not
 download or install those packages.
 
+Install and upgrade reuse valid cached web indexes even after they age; run
+`wpm update` when you want fresh package metadata. A missing or invalid web
+index may be fetched on first use. Local indexes are read directly. Latest WPM
+resolution skips previous-release links; `--version` on a WPM install/upgrade
+enables historical lookup. General-purpose linked package repositories remain
+available. Explicit update refreshes current metadata without walking WPM-only
+release history.
+
 Repositories may be secure HTTPS URLs or local directory paths:
 
 ```text

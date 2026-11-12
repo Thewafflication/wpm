@@ -28,6 +28,10 @@
 #define MAX_REPOSITORIES 32
 #define MAX_PACKAGES 96
 #define MAX_INSTALLED 256
+/* WPM-only catalogs link previous releases, not independent package roots. */
+#define REPO_LINKS_NONE 0
+#define REPO_LINKS_GENERAL 1
+#define REPO_LINKS_HISTORY 2
 #define INDEX_FRESH_MS (60ULL * 60ULL * 1000ULL)
 /* URLMon status omitted by TinyCC's compact Windows headers. */
 #define WPM_BINDSTATUS_64BIT_PROGRESS 56UL
@@ -1490,8 +1494,9 @@ static int refresh(repository *repo, int offline, int required,
         }
         return GetFileAttributesA(cached) != INVALID_FILE_ATTRIBUTES;
     }
-    if (!required && is_web_repository(repo->url) && index_is_fresh(cached)) {
-        REPO_VERBOSE("using fresh cached index");
+    if (!required && is_web_repository(repo->url) &&
+        index_file_supported(cached, 0)) {
+        REPO_VERBOSE("using cached index; explicit update refreshes metadata");
         return 1;
     }
     length = snprintf(candidate, sizeof(candidate), "%s.candidate", cached);
@@ -1592,12 +1597,14 @@ static int append_repository_link_mode(repository *repositories, int *count,
                                        const char *link, int quiet);
 static int parse_index(const char *path, repository *repo,
                        package_entry *packages, int *count,
-                       repository *repositories, int *repository_count) {
+                       repository *repositories, int *repository_count,
+                       int links) {
     FILE *f = wpm_fopen(path, "rb");
     long size;
     char *text;
     const char *p;
     int version_ok = 0, before = *count, complete = 1;
+    int has_wpm = 0, has_other = 0;
     if (!f) {
         return 0;
     }
@@ -1697,6 +1704,11 @@ static int parse_index(const char *path, repository *repo,
             p++;
         }
         if (name[0] && version[0] && arch[0] && url[0]) {
+            if (!_stricmp(name, "wpm")) {
+                has_wpm = 1;
+            } else {
+                has_other = 1;
+            }
             if (*count < MAX_PACKAGES) {
                 package_entry *e = &packages[(*count)++];
                 strcpy_s(e->name, sizeof(e->name), name);
@@ -1723,8 +1735,10 @@ static int parse_index(const char *path, repository *repo,
             "reading %s; later entries or repositories may be unavailable.\n",
             MAX_PACKAGES, repo->url);
     }
-    /* Optional schema-1 links are repository roots, not package URLs. */
-    p = wpm_json_field(text, "repositories");
+    /* Previous WPM releases are needed only for exact WPM selectors. */
+    int expand = links == REPO_LINKS_HISTORY ||
+                 (links == REPO_LINKS_GENERAL && !(has_wpm && !has_other));
+    p = expand ? wpm_json_field(text, "repositories") : NULL;
     if (p && *p == '[') {
         p++;
         while (*(p = wpm_json_space(p)) && *p != ']') {
@@ -3422,7 +3436,7 @@ int wpm_config_prerelease_unset(const char *package_name) {
 
 static int load_entries(repository *repositories, int *repository_count,
                         package_entry *entries, int *entry_count, int offline,
-                        int force_refresh) {
+                        int force_refresh, int links) {
     char cached[PATH_SIZE];
     int usable = 0, updated = 0, cached_count = 0, unavailable = 0;
     *entry_count = 0;
@@ -3451,7 +3465,7 @@ static int load_entries(repository *repositories, int *repository_count,
                     int length;
                     if (!is_web_repository(repositories[j].url) ||
                         !cache_path(repositories[j].url, path, sizeof(path)) ||
-                        (!force_refresh && index_is_fresh(path))) {
+                        (!force_refresh && index_file_supported(path, 0))) {
                         continue;
                     }
                     length = snprintf(job->candidate, sizeof(job->candidate),
@@ -3485,9 +3499,9 @@ static int load_entries(repository *repositories, int *repository_count,
             }
             batch_end = end;
         }
-        if (wpm_is_readonly() || (wpm_operation_active() &&
-                                  (!is_web_repository(repositories[i].url) ||
-                                   !wpm_operation_collecting()))) {
+        if (wpm_is_readonly() ||
+            (!force_refresh && !is_web_repository(repositories[i].url)) ||
+            (wpm_operation_active() && !wpm_operation_collecting())) {
             int available =
                 is_web_repository(repositories[i].url)
                     ? cache_path(repositories[i].url, cached, sizeof(cached))
@@ -3495,8 +3509,17 @@ static int load_entries(repository *repositories, int *repository_count,
             if (available &&
                 GetFileAttributesA(cached) != INVALID_FILE_ATTRIBUTES &&
                 parse_index(cached, &repositories[i], entries, entry_count,
-                            repositories, repository_count)) {
+                            repositories, repository_count, links)) {
                 usable = 1;
+            } else if (!is_web_repository(repositories[i].url)) {
+                wpm_event_printf(
+                    WPM_EVENT_ERROR, "repository.source.unavailable",
+                    "repository", "resolve",
+                    "Error: could not read a valid local repository index: "
+                    "%s\n  Retry: reconnect the original repository media at "
+                    "the configured path, check read access, and rerun the "
+                    "command. The previous cache was retained.\n",
+                    repositories[i].url);
             } else {
                 wpm_event_printf(
                     WPM_EVENT_WARNING, "plan.source.unavailable", "plan",
@@ -3515,7 +3538,7 @@ static int load_entries(repository *repositories, int *repository_count,
         if (refreshed &&
             cache_path(repositories[i].url, cached, sizeof(cached))) {
             if (parse_index(cached, &repositories[i], entries, entry_count,
-                            repositories, repository_count)) {
+                            repositories, repository_count, links)) {
                 usable = 1;
                 if (refreshed == 2) {
                     updated++;
@@ -4410,7 +4433,8 @@ static int dependency_resolve(dependency_graph *graph,
     }
     if (!graph->loaded) {
         if (!load_entries(graph->repositories, &repositories, graph->entries,
-                          &graph->entry_count, graph->offline, 0)) {
+                          &graph->entry_count, graph->offline, 0,
+                          REPO_LINKS_GENERAL)) {
             return 0;
         }
         graph->loaded = 1;
@@ -4612,7 +4636,10 @@ int wpm_repo_install(const char *package_name, const char *arch,
                          arch);
         return 0;
     }
-    if (!load_entries(repositories, &rc, entries, &ec, offline, 0)) {
+    int links = !_stricmp(package_name, "wpm")
+                    ? (version ? REPO_LINKS_HISTORY : REPO_LINKS_NONE)
+                    : REPO_LINKS_GENERAL;
+    if (!load_entries(repositories, &rc, entries, &ec, offline, 0, links)) {
         return 0;
     }
     selected = select_candidate(entries, ec, package_name, arch, version, 1);
@@ -4808,7 +4835,8 @@ static int report_available_updates(int offline) {
     installed_entry installed[MAX_INSTALLED];
     int rc, ec, ic, count;
     if (!load_installed(installed, &ic) ||
-        !load_entries(repositories, &rc, entries, &ec, offline, 1)) {
+        !load_entries(repositories, &rc, entries, &ec, offline, 1,
+                      REPO_LINKS_GENERAL)) {
         return 0;
     }
     count = print_upgrade_plan(installed, ic, entries, ec, NULL);
@@ -4840,8 +4868,15 @@ int wpm_repo_upgrade(const char **package_names, int package_count, int all,
                          "Error: --version requires valid SemVer.\n");
         return 0;
     }
+    int only_wpm =
+        !all && package_count == 1 && !_stricmp(package_names[0], "wpm");
+    int links =
+        version && (all || requested("wpm", package_names, package_count))
+            ? REPO_LINKS_HISTORY
+        : only_wpm ? REPO_LINKS_NONE
+                   : REPO_LINKS_GENERAL;
     if (!load_installed(installed, &ic) ||
-        !load_entries(repositories, &rc, entries, &ec, offline, 0)) {
+        !load_entries(repositories, &rc, entries, &ec, offline, 0, links)) {
         return 0;
     }
     progress_total =

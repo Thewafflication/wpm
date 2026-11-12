@@ -797,6 +797,19 @@ if(BUILD_TESTING)
         120
   )
   add_test(
+    NAME resolution-cache-integration
+    COMMAND
+      "${Python3_EXECUTABLE}"
+      "${CMAKE_SOURCE_DIR}/tests/resolution-cache-integration.py" --wpm
+      $<TARGET_FILE:wpm>
+  )
+  set_tests_properties(
+    resolution-cache-integration
+    PROPERTIES
+      TIMEOUT
+        120
+  )
+  add_test(
     NAME optional-metadata-integration
     COMMAND
       "${Python3_EXECUTABLE}"
@@ -1377,6 +1390,7 @@ if(BUILD_TESTING)
       "admitted-input-integration|"
       "linked-repository-integration|repository-health-integration|"
       "http-length-integration|optional-metadata-integration|"
+      "resolution-cache-integration|"
       "repository-init-integration|"
       "repository-verify-integration|"
       "repository-publish-integration|"

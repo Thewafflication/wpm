@@ -407,6 +407,17 @@ required by a dependency shall require a separate explicit operation. Generic
 rollback, upper-bound solving and reverse-dependency removal protection are
 outside this increment.
 
+**REQ-0013.047**
+Install and upgrade shall reuse valid cached web repository indexes regardless
+of age; explicit update shall refresh current repository metadata. Missing or
+invalid indexes may be obtained on first use, subject to offline and planning
+rules. Local resolution shall read source indexes without redundant cache
+publication. Latest-WPM resolution shall not traverse linked release history;
+an explicit WPM version selector shall enable historical lookup. General
+linked package resolution and read-only inventory shall remain available.
+`tests/resolution-cache-integration.py` verifies network requests, aged-cache
+preservation, exact WPM lookup, explicit refresh, and general linked packages.
+
 ## Rationale
 
 Version-aware upgrades must distinguish installed package identities from the

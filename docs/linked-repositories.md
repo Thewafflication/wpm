@@ -30,8 +30,19 @@ Package signatures and trust decisions remain independent of repository links.
 Linked roots inherit the parent priority and are appended after configured roots.
 Roots are deduplicated, including cycles, before access. The graph is bounded by
 32 total roots and 96 package entries; capacity exhaustion emits a warning.
-A missing linked index leaves readable roots available. `wpm update` refreshes every discovered linked web index, even inside the
-normal cache freshness window. Web indexes download in batches of up to four,
+A missing linked index leaves readable roots available. WPM-only catalogs use
+links as previous-release history: install/upgrade follows that history only
+when selecting an explicit WPM version. Latest-WPM install/upgrade reads the
+configured roots without traversing their links. Ordinary package resolution
+still follows general-purpose linked repositories, excluding WPM-only history.
+Metadata inventory and explicit linked-health queries retain their full graph.
+
+Install/upgrade reuses valid cached web indexes regardless of age. Missing or
+invalid web indexes may be fetched on first use; use `wpm update` to refresh
+existing metadata. Local sources are read directly during resolution without
+rewriting the repository cache. `wpm update` refreshes every discovered general
+linked web index, skipping WPM-only release history. Web indexes download in
+batches of up to four,
 including newly discovered linked roots. Parsing and cache publication follow
 repository order to preserve package selection. Failed downloads retain the
 existing cache fallback. Active deployment approval flows refresh serially so
@@ -60,7 +71,7 @@ open; breaking defaults or schemas stay reserved for 2.x.
 
 `tests/linked-repository-integration.py` exercises a real loopback HTTP server
 with repository-scoped opt-in. It verifies nested root refresh during both
-`update` and `repo update`, fresh-cache reuse for ordinary resolution, no
+`update` and `repo update`, cache reuse for ordinary resolution, no
 requests for offline/dry-run resolution, cycles and duplicate roots, failed
 linked refresh fallback, and the bounded 32-root graph. Unsafe traversal and
 cross-origin HTTP links are rejected. The fixture disables the built-in HTTPS
@@ -69,6 +80,11 @@ backend to keep its network traffic confined to the loopback server.
 This compatible fix makes an explicit update visit each root once; previously
 linked roots could remain stale until their normal freshness period expired.
 Package verification and trust rules are unchanged.
+
+`tests/resolution-cache-integration.py` verifies first-use index retrieval,
+two-hour-old cache reuse during installs and upgrades, unchanged cache bytes
+and timestamps, explicit update requests, on-demand exact WPM versions, and
+continued general-purpose linked package resolution against a loopback server.
 
 ## Index schema recognition (1.2.15)
 
