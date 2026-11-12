@@ -28,6 +28,13 @@ function Set-PackageMetadata {
         'version=2.4.6+build.5'
         'arch=x64'
         "debug=$($Debug.ToString().ToLowerInvariant())"
+        'description=Optional metadata naming fixture'
+        'tags=tests,metadata'
+        'repo=https://example.invalid/fixture.git'
+        'homepage='
+        'license=MIT'
+        'maintainer=Test Maintainer'
+        'build_date='
     )
 }
 

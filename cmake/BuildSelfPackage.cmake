@@ -152,6 +152,9 @@ file(
   "arch=${WPM_PACKAGE_ARCH}\n"
   "debug=${WPM_PACKAGE_DEBUG}\n"
   "description=Waughtal Package Manager\n"
+  "tags=package-manager,cli,windows\n"
+  "repo=https://github.com/Thewafflication/wpm\n"
+  "homepage=https://github.com/Thewafflication/wpm\n"
   "repository=https://github.com/Thewafflication/wpm\n"
   "license=GPL-3.0-or-later\n"
 )

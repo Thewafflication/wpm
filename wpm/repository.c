@@ -2213,9 +2213,15 @@ int wpm_repo_version_is_valid(const char *version) {
 
 /* Author verification is stricter than the compatibility resolver: no entry
  * may be silently skipped and every required identity field occurs once. */
-static int author_entry(const char **source, package_entry *entry) {
+static int author_entry(const char **source, package_entry *entry,
+                        wpm_optional_metadata *optional) {
     const char *p = wpm_json_space(*source);
-    unsigned fields = 0;
+    unsigned fields = 0, optional_fields = 0;
+    wpm_optional_metadata ignored;
+    if (!optional) {
+        optional = &ignored;
+    }
+    memset(optional, 0, sizeof(*optional));
     memset(entry, 0, sizeof(*entry));
     if (*p++ != '{') {
         return 0;
@@ -2258,6 +2264,16 @@ static int author_entry(const char **source, package_entry *entry) {
                 return 0;
             }
             fields |= field;
+        } else if (wpm_metadata_field(key) >= 0) {
+            int index = wpm_metadata_field(key);
+            char text[WPM_METADATA_SIZE];
+            unsigned bit = 1u << index;
+            if ((optional_fields & bit) ||
+                !wpm_json_read_string(&p, text, sizeof(text)) ||
+                !wpm_metadata_set(optional, index, text)) {
+                return 0;
+            }
+            optional_fields |= bit;
         } else if (!wpm_json_value_end(&p)) {
             return 0;
         }
@@ -2380,7 +2396,8 @@ static int author_read_catalog(const char *root, HANDLE *catalog, char **text,
         return 0;
     }
     while (*(p = wpm_json_space(p)) != ']') {
-        if (*count == MAX_PACKAGES || !author_entry(&p, &entries[*count])) {
+        if (*count == MAX_PACKAGES ||
+            !author_entry(&p, &entries[*count], NULL)) {
             return 0;
         }
         for (int i = 0; i < *count; i++) {
@@ -2946,7 +2963,15 @@ int wpm_repo_index(const char *directory, int allow_unsigned, int dry_run) {
     used = prefix;
     for (int i = 0; i < count; i++) {
         char name[1024], version[512], arch[256], url[2048];
+        char optional_json[WPM_METADATA_JSON_SIZE];
+        wpm_package_info info;
         int length;
+        if (!join_path(path, sizeof(path), root, entries[i].url) ||
+            !wpm_archive_inspect(path, &info) ||
+            !wpm_metadata_json(&info.optional, optional_json,
+                               sizeof(optional_json))) {
+            goto done;
+        }
         if (!author_json_string(name, sizeof(name), entries[i].name) ||
             !author_json_string(version, sizeof(version), entries[i].version) ||
             !author_json_string(arch, sizeof(arch), entries[i].arch) ||
@@ -2955,8 +2980,8 @@ int wpm_repo_index(const char *directory, int allow_unsigned, int dry_run) {
         }
         length =
             snprintf(updated + used, capacity - used,
-                     "%s{\"name\":%s,\"version\":%s,\"arch\":%s,\"url\":%s}",
-                     i ? "," : "", name, version, arch, url);
+                     "%s{\"name\":%s,\"version\":%s,\"arch\":%s,\"url\":%s%s}",
+                     i ? "," : "", name, version, arch, url, optional_json);
         if (length < 0 || (size_t)length >= capacity - used) {
             goto done;
         }
@@ -3037,7 +3062,9 @@ int wpm_repo_add_package(const char *directory, const char *source,
     char index[PATH_SIZE], candidate[PATH_SIZE], lock_path[PATH_SIZE];
     char artifact[PATH_SIZE], artifact_candidate[PATH_SIZE], item[96];
     char digest[65], existing_digest[65], signing_key[65];
-    char name[800], version[400], arch[120], entry[1600];
+    char name[800], version[400], arch[120];
+    char entry[WPM_METADATA_JSON_SIZE + 1600];
+    char optional_json[WPM_METADATA_JSON_SIZE];
     char *text = NULL, *updated = NULL;
     const char *array_end, *phase = "validate source and repository layout";
     package_entry *entries = calloc(MAX_PACKAGES, sizeof(*entries));
@@ -3119,13 +3146,16 @@ int wpm_repo_add_package(const char *directory, const char *source,
                  artifact) >= (int)sizeof(artifact_candidate) ||
         !author_json_string(name, sizeof(name), info.name) ||
         !author_json_string(version, sizeof(version), info.version) ||
-        !author_json_string(arch, sizeof(arch), info.arch)) {
+        !author_json_string(arch, sizeof(arch), info.arch) ||
+        !wpm_metadata_json(&info.optional, optional_json,
+                           sizeof(optional_json))) {
         goto done;
     }
     entry_size = (size_t)snprintf(entry, sizeof(entry),
                                   "%s{\"name\":%s,\"version\":%s,\"arch\":%s,"
-                                  "\"url\":\"%s\"}",
-                                  count ? "," : "", name, version, arch, item);
+                                  "\"url\":\"%s\"%s}",
+                                  count ? "," : "", name, version, arch, item,
+                                  optional_json);
     text_size = strlen(text);
     prefix = (size_t)(array_end - text);
     if (entry_size >= sizeof(entry) ||
@@ -3545,11 +3575,34 @@ static int query_json_identity(const char *name, const char *arch,
     return issues;
 }
 
+static int query_optional_metadata(const wpm_optional_metadata *metadata,
+                                   int json) {
+    int issues = 0;
+    for (int i = 0; i < WPM_METADATA_FIELDS; i++) {
+        if (!*metadata->values[i]) {
+            continue;
+        }
+        if (json) {
+            fprintf(stdout, ",\"%s\":", wpm_metadata_names[i]);
+            issues += !wpm_json_string(metadata->values[i]);
+        } else {
+            wpm_event_printf(WPM_EVENT_INFO, "query.metadata", "show", "query",
+                             "    %s: %s\n", wpm_metadata_names[i],
+                             metadata->values[i]);
+        }
+    }
+    return issues;
+}
+
 static int query_available_records(const char *name, const char *arch,
                                    const char *version, unsigned ordinal,
                                    int *matches, int json) {
     repository *roots = calloc(MAX_REPOSITORIES, sizeof(*roots));
-    package_entry *records = calloc(MAX_PACKAGES, sizeof(*records));
+    typedef struct {
+        package_entry identity;
+        wpm_optional_metadata optional;
+    } catalog_record;
+    catalog_record *records = calloc(MAX_PACKAGES, sizeof(*records));
     int parents[MAX_REPOSITORIES] = {0}, stale[MAX_REPOSITORIES] = {0};
     char path[PATH_SIZE], source[PATH_SIZE];
     int root_count = 0, configured = 0, count = 0, issues = 0, limited = 0;
@@ -3593,14 +3646,16 @@ static int query_available_records(const char *name, const char *arch,
             issues++;
         }
         while (*(p = wpm_json_space(p)) != ']') {
-            package_entry record;
+            catalog_record item;
+            package_entry *record = &item.identity;
             const char *start = p;
             if (count == MAX_PACKAGES) {
                 limited = 1;
                 break;
             }
-            if (!author_entry(&p, &record) || strpbrk(record.name, "\\/:*") ||
-                !package_source(roots[i].url, record.url, source,
+            if (!author_entry(&p, record, &item.optional) ||
+                strpbrk(record->name, "\\/:*") ||
+                !package_source(roots[i].url, record->url, source,
                                 sizeof(source))) {
                 issues++;
                 p = start;
@@ -3608,9 +3663,9 @@ static int query_available_records(const char *name, const char *arch,
                     break;
                 }
             } else {
-                record.priority = roots[i].priority;
-                record.order = i;
-                records[count++] = record;
+                record->priority = roots[i].priority;
+                record->order = i;
+                records[count++] = item;
             }
             p = wpm_json_space(p);
             if (*p == ',') {
@@ -3645,7 +3700,7 @@ static int query_available_records(const char *name, const char *arch,
                          "not verified.\n");
     }
     for (int i = 0; i < count; i++) {
-        package_entry *record = &records[i];
+        package_entry *record = &records[i].identity;
         const char *policy;
         if ((ordinal && (unsigned)(record->order + 1) != ordinal) ||
             (name && _stricmp(record->name, name)) ||
@@ -3663,6 +3718,7 @@ static int query_available_records(const char *name, const char *arch,
             fputs(matched > 1 ? ",{" : "{", stdout);
             encoding_issues += query_json_identity(record->name, record->arch,
                                                    record->version);
+            encoding_issues += query_optional_metadata(&records[i].optional, 1);
             fprintf(stdout,
                     ",\"repository\":%d,\"priority\":%d,"
                     "\"policy\":\"%s\",\"stale\":%s,\"parent\":",
@@ -3684,6 +3740,7 @@ static int query_available_records(const char *name, const char *arch,
                          record->name, record->arch, record->version,
                          record->order + 1, record->priority, policy,
                          stale[record->order] ? "; stale cache" : "");
+        query_optional_metadata(&records[i].optional, 0);
         if (parents[record->order]) {
             wpm_event_printf(WPM_EVENT_INFO, "query.available.parent", "list",
                              "query", "    Linked from repository %d\n",
@@ -3793,6 +3850,7 @@ static int load_installed(installed_entry *result, int *count) {
 }
 typedef struct {
     installed_entry identity;
+    wpm_optional_metadata optional;
     char file[MAX_PATH];
 } installed_record;
 
@@ -3887,6 +3945,7 @@ static int query_installed_records(const char *name, const char *arch,
             continue;
         }
         installed_record *record = &records[count++];
+        record->optional = info.optional;
         strcpy_s(record->identity.name, sizeof(record->identity.name),
                  info.name);
         strcpy_s(record->identity.version, sizeof(record->identity.version),
@@ -3923,6 +3982,7 @@ report:
                 identity->name, identity->arch, identity->version);
             fputs(",\"archive\":", stdout);
             encoding_issues += !wpm_json_string(records[i].file);
+            encoding_issues += query_optional_metadata(&records[i].optional, 1);
             fputc('}', stdout);
             continue;
         }
@@ -3930,6 +3990,7 @@ report:
                          "query", "  %s %s %s\n    Archive: %s\n",
                          identity->name, identity->arch, identity->version,
                          records[i].file);
+        query_optional_metadata(&records[i].optional, 0);
     }
     if (!json) {
         wpm_event_printf(WPM_EVENT_RESULT, "query.installed.summary", "list",

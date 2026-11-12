@@ -595,6 +595,11 @@ jobs:
               version = $Matches[2]
               arch = $Matches[1]
               url = $_.Name
+              description = 'Waughtal Package Manager'
+              tags = 'package-manager,cli,windows'
+              repo = 'https://github.com/Thewafflication/wpm'
+              homepage = 'https://github.com/Thewafflication/wpm'
+              license = 'GPL-3.0-or-later'
             }
           }
           if ($packages.Count -ne 3) { throw (

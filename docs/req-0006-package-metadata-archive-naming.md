@@ -29,6 +29,20 @@ When building a package, the application shall:
 The `wpm init` command shall create package metadata with default `version`,
 `arch`, and `debug` fields.
 
+**REQ-0006.004**
+WPM shall accept optional single-line UTF-8 `description`, `tags`, `repo`,
+`homepage`, `license`, `maintainer`, and `build_date` metadata, each bounded to
+1023 bytes. Missing or empty fields shall preserve existing package behavior.
+Nonempty fields shall survive archive inspection, repository publication and
+rebuilding, and retained/catalog text and JSON queries. Tags shall be an
+informational comma-separated string, and repo shall identify upstream source.
+Control characters and oversized or invalid UTF-8 values shall be rejected;
+catalog fields shall be unique JSON strings. These fields shall not change
+identity, dependency resolution, trust, or script execution.
+
+Verification additionally uses `tests/optional-metadata-integration.py` for
+signed round trips, compatibility, query immutability, and invalid values.
+
 ## Rationale
 
 Package consumers need archive names that identify the package version,

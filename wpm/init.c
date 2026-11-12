@@ -53,6 +53,7 @@ static int create_package_txt(const char *name) {
                          "arch=any\n"
                          "debug=false\n"
                          "description=\n"
+                         "tags=\n"
                          "license=\n"
                          "build_date=\n"
                          "repo=\n"

@@ -2,7 +2,10 @@
 
 `wpm list [package] [--arch <arch>] [--version <semver>] [--offline]` reads
 metadata from retained archives beneath the active data root's packages store.
-It reports name, architecture, version, and archive filename. Package and
+It reports name, architecture, version, archive filename, and any nonempty
+description, tags, repo, homepage, license, maintainer, and build_date fields.
+These optional fields also appear in catalog queries and JSON records.
+Package and
 architecture selectors are exact and case-insensitive; version selectors are
 exact. No matches is a successful empty query.
 

@@ -55,6 +55,8 @@ set(
   "progress.h"
   "archive.c"
   "archive.h"
+  "metadata.c"
+  "metadata.h"
   "init.c"
   "init.h"
   "helpers.c"
@@ -795,6 +797,19 @@ if(BUILD_TESTING)
         120
   )
   add_test(
+    NAME optional-metadata-integration
+    COMMAND
+      "${Python3_EXECUTABLE}"
+      "${CMAKE_SOURCE_DIR}/tests/optional-metadata-integration.py" --wpm
+      $<TARGET_FILE:wpm>
+  )
+  set_tests_properties(
+    optional-metadata-integration
+    PROPERTIES
+      TIMEOUT
+        120
+  )
+  add_test(
     NAME http-length-integration
     COMMAND
       "${Python3_EXECUTABLE}"
@@ -1361,7 +1376,8 @@ if(BUILD_TESTING)
       "copy-default-integration|copy-legacy-integration|"
       "admitted-input-integration|"
       "linked-repository-integration|repository-health-integration|"
-      "http-length-integration|repository-init-integration|"
+      "http-length-integration|optional-metadata-integration|"
+      "repository-init-integration|"
       "repository-verify-integration|"
       "repository-publish-integration|"
       "recovery-integration|recovery-record-integration|"

@@ -52,6 +52,7 @@ typedef struct wpm_package_metadata {
     char arch[64];
     int debug;
     char dependencies[1024];
+    wpm_optional_metadata optional;
 } wpm_package_metadata;
 
 /* A read-only minizip stream over a borrowed, already admitted native handle.
@@ -1166,6 +1167,7 @@ static int read_package_metadata(const char *source_dir,
     metadata->arch[0] = '\0';
     metadata->debug = 0;
     metadata->dependencies[0] = '\0';
+    memset(&metadata->optional, 0, sizeof(metadata->optional));
 
     if (!join_path(package_path, sizeof(package_path), source_dir,
                    ".wpm\\package.txt")) {
@@ -1203,7 +1205,16 @@ static int read_package_metadata(const char *source_dir,
         trim_line(key);
         trim_line(value);
 
-        if (_stricmp(key, "name") == 0) {
+        int optional_field = wpm_metadata_field(key);
+        if (optional_field >= 0) {
+            if (!wpm_metadata_set(&metadata->optional, optional_field, value)) {
+                wpm_event_printf(WPM_EVENT_ERROR, "metadata.invalid", "archive",
+                                 "metadata",
+                                 "Error: invalid optional metadata: %s\n", key);
+                fclose(file);
+                return 0;
+            }
+        } else if (_stricmp(key, "name") == 0) {
             if (strlen(value) >= sizeof(metadata->name)) {
                 wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive",
                                  "command",
@@ -1301,6 +1312,7 @@ static int read_archive_metadata_handle(const char *archive_path,
     metadata->arch[0] = '\0';
     metadata->debug = 0;
     metadata->dependencies[0] = '\0';
+    memset(&metadata->optional, 0, sizeof(metadata->optional));
     current = text;
     while (*current) {
         char *line = current;
@@ -1333,7 +1345,12 @@ static int read_archive_metadata_handle(const char *archive_path,
         trim_line(key);
         trim_line(value);
 
-        if (_stricmp(key, "name") == 0) {
+        int optional_field = wpm_metadata_field(key);
+        if (optional_field >= 0) {
+            if (!wpm_metadata_set(&metadata->optional, optional_field, value)) {
+                goto cleanup;
+            }
+        } else if (_stricmp(key, "name") == 0) {
             if (strlen(value) >= sizeof(metadata->name)) {
                 goto cleanup;
             }
@@ -3461,6 +3478,7 @@ int wpm_archive_inspect(const char *archive_path, wpm_package_info *info) {
         !read_archive_package_metadata(archive_path, &metadata)) {
         return 0;
     }
+    info->optional = metadata.optional;
     strcpy_s(info->dependencies, sizeof(info->dependencies),
              metadata.dependencies);
     strcpy_s(info->name, sizeof(info->name), metadata.name);
@@ -3477,6 +3495,7 @@ int wpm_archive_inspect_open(void *handle, wpm_package_info *info) {
         !read_archive_metadata_handle(NULL, &metadata, handle)) {
         return 0;
     }
+    info->optional = metadata.optional;
     strcpy_s(info->dependencies, sizeof(info->dependencies),
              metadata.dependencies);
     strcpy_s(info->name, sizeof(info->name), metadata.name);

@@ -3,15 +3,17 @@
 #define WPM_ARCHIVE_H
 
 #include <stddef.h>
+#include "metadata.h"
 
 /** Metadata read from a WPM package archive. */
 typedef struct wpm_package_info {
-    char name[128];          /**< Package identity. */
-    char version[64];        /**< Semantic package version. */
-    char arch[16];           /**< Target architecture. */
-    char dependencies[1024]; /**< Newline-separated minimum-version
-                                requirements. */
-    char archive_name[4096]; /**< Original archive filename. */
+    char name[128];                 /**< Package identity. */
+    char version[64];               /**< Semantic package version. */
+    char arch[16];                  /**< Target architecture. */
+    char dependencies[1024];        /**< Newline-separated minimum-version
+                                       requirements. */
+    char archive_name[4096];        /**< Original archive filename. */
+    wpm_optional_metadata optional; /**< Descriptive fields, if supplied. */
 } wpm_package_info;
 
 /**

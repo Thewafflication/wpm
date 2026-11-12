@@ -510,12 +510,39 @@ version=0.1.0
 arch=any
 debug=false
 description=
+tags=
 license=
 build_date=
 repo=
 homepage=
 maintainer=
 ```
+
+Only `name`, `version`, and `arch` are required. Descriptive fields may be
+omitted or left blank. WPM supports these optional informational fields:
+
+| Field | Meaning | Example |
+| --- | --- | --- |
+| `description` | Short package summary | `Command-line image converter` |
+| `tags` | Comma-separated discovery labels | `cli,images,windows` |
+| `repo` | Upstream source or Git repository URL | `https://example.org/app.git` |
+| `homepage` | Project website or documentation | `https://example.org/app` |
+| `license` | License name or SPDX expression | `MIT OR Apache-2.0` |
+| `maintainer` | Package maintainer name/contact | `Example Team` |
+| `build_date` | Author-supplied build date | `2026-11-12` |
+
+Each value is a single UTF-8 line of at most 1023 bytes; control characters
+are rejected. Leading/trailing whitespace is trimmed in `package.txt`.
+Tags use the same string representation in `package.txt` and catalog JSON.
+WPM preserves authored tag spelling/order and does not interpret tags as
+dependencies or version selectors. Links are displayed as metadata and are
+never fetched or executed. Unknown extension fields remain uninterpreted.
+
+`wpm repo add-package` and `wpm repo index` copy nonempty descriptive fields
+from validated archives into schema-1 catalog entries. `wpm show`, `wpm list`,
+and `wpm list --available` display them, including in their `--json` records.
+Absent/blank fields are omitted from query JSON and generated catalog entries.
+Catalog metadata is informational; queries do not certify archive signatures.
 
 ### `index.csv`
 
