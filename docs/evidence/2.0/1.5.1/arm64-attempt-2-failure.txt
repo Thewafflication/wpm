@@ -1,0 +1,11 @@
+Original conclusion: failure
+Source: 998ce8913b371749eff9e82ee2f641c6753aa8c3
+Attempt: 2
+Job: https://github.com/Thewafflication/wpm/actions/runs/43245758524/job/131645061531
+Verify arm64 Debug	Run verification suite	2026-11-13T02:29:12.6806222Z       Start  8: documentation-installation
+Verify arm64 Debug	Run verification suite	2026-11-13T02:29:12.6806720Z  8/33 Test  #8: documentation-installation ..........***Exception: SegFault  2.56 sec
+Verify arm64 Debug	Run verification suite	2026-11-13T02:29:12.6807456Z Fatal error.
+Verify arm64 Debug	Run verification suite	2026-11-13T02:29:12.6807708Z Internal CLR error. (0x80131506)
+Verify arm64 Debug	Run verification suite	2026-11-13T02:29:12.6807876Z 
+Verify arm64 Debug	Run verification suite	2026-11-13T02:29:12.6815250Z       Start  9: available-list-integration
+Verify arm64 Debug	Run verification suite	2026-11-13T02:29:12.6816163Z  9/33 Test  #9: available-list-integration ..........   Passed    2.69 sec

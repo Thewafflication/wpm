@@ -1,0 +1,109 @@
+{
+  "purpose": "Release foundation evidence; not composite 2.0 acceptance",
+  "source_revision": "998ce8913b371749eff9e82ee2f641c6753aa8c3",
+  "tag": "1.5.1",
+  "wsp_revision": "c2dc862e22ccd251be2e32ffba9401496091e598",
+  "workflow_run": "https://github.com/Thewafflication/wpm/actions/runs/43245758524",
+  "final_attempt": 3,
+  "conclusion": "success",
+  "native_verification": {
+    "x86": {
+      "job_id": 131647031699,
+      "job_url": "https://github.com/Thewafflication/wpm/actions/runs/43245758524/job/131647031699",
+      "started_at": "2026-11-12T15:17:47Z",
+      "completed_at": "2026-11-12T15:24:01Z",
+      "conclusion": "success",
+      "full_suite_passed": 65,
+      "debug_binary_sha256": "7c8ee9e634ca4a0358d84f5f6949b7db309ad515b212fcecae517cb6fb9288bc",
+      "static_report": "x86/tc-0023-execution-evidence.tex"
+    },
+    "x64": {
+      "job_id": 131647031808,
+      "job_url": "https://github.com/Thewafflication/wpm/actions/runs/43245758524/job/131647031808",
+      "started_at": "2026-11-12T15:17:35Z",
+      "completed_at": "2026-11-12T15:23:35Z",
+      "conclusion": "success",
+      "full_suite_passed": 64,
+      "debug_binary_sha256": "3cb207cf856d77e53462ea98865904bdf6fe019937906f989b30b138d2c9cdc6",
+      "static_report": "x64/tc-0023-execution-evidence.tex"
+    },
+    "arm64": {
+      "job_id": 131647029887,
+      "job_url": "https://github.com/Thewafflication/wpm/actions/runs/43245758524/job/131647029887",
+      "started_at": "2026-11-13T02:30:14Z",
+      "completed_at": "2026-11-13T02:35:21Z",
+      "conclusion": "success",
+      "full_suite_passed": 63,
+      "debug_binary_sha256": "fa997581cf0fd69c7dbe8e7e23385be908485352715b41852f703521ad8f44f4",
+      "static_report": "arm64/tc-0023-execution-evidence.tex"
+    }
+  },
+  "original_arm64_failures": [
+    {
+      "attempt": 1,
+      "conclusion": "failure",
+      "job_url": "https://github.com/Thewafflication/wpm/actions/runs/43245758524/job/131278576800",
+      "excerpt": "arm64-attempt-1-failure.txt"
+    },
+    {
+      "attempt": 2,
+      "conclusion": "failure",
+      "job_url": "https://github.com/Thewafflication/wpm/actions/runs/43245758524/job/131645061531",
+      "excerpt": "arm64-attempt-2-failure.txt"
+    }
+  ],
+  "candidate_gate": {
+    "name": "Require complete 2.0 candidate evidence",
+    "conclusion": "skipped"
+  },
+  "release_url": "https://github.com/Thewafflication/wpm/releases/tag/1.5.1",
+  "assets": [
+    {
+      "name": "index.json",
+      "size": 1220,
+      "digest": "sha256:910212d5160ae5d646a984a6bb979abd1f10cbef61cd18e887573c268554efb1"
+    },
+    {
+      "name": "install.cmd",
+      "size": 4755,
+      "digest": "sha256:1f30da1b7f61850243e6b8c1e031ca5f3a949fa2ef9ebd28ad2c5fbfd9e62d23"
+    },
+    {
+      "name": "install.ps1",
+      "size": 7441,
+      "digest": "sha256:477ae7efb01771958196ff325b4c2bab8ebc25ac30a9604f8e4c59bc9c1c3262"
+    },
+    {
+      "name": "SHA256SUMS",
+      "size": 101,
+      "digest": "sha256:c333133bd121d976bee08b466ab02b151d4620e1abe8239a61bdeebb698ed5cc"
+    },
+    {
+      "name": "wpm-arm64-1.5.1.zip",
+      "size": 1200449,
+      "digest": "sha256:8141b552ad30c256b6b289e086a2a7fddf4f5bdc4756fbf8471813e501416ec9"
+    },
+    {
+      "name": "wpm-engineering-documentation.pdf",
+      "size": 2002628,
+      "digest": "sha256:3c23bebaff33ddf2f67029cc7901121dd12d2726cc8707b52970105510f095e9"
+    },
+    {
+      "name": "wpm-release.public",
+      "size": 95,
+      "digest": "sha256:e141a5f383b8d2e7096080beb2920b37a007de727d1c8ff47a520453460f23a6"
+    },
+    {
+      "name": "wpm-x64-1.5.1.zip",
+      "size": 1199374,
+      "digest": "sha256:a701899e42561bdb659e4a8a4881b2d4e5dd220133a443ae0e14c194b60f915d"
+    },
+    {
+      "name": "wpm-x86-1.5.1.zip",
+      "size": 1172221,
+      "digest": "sha256:7d33e96f642410646fb916733a3faf0b42a2af259fe44f7d83b5236d9601b4d1"
+    }
+  ],
+  "remaining_runtime_obligations": 71,
+  "verified_static_obligations": 6
+}

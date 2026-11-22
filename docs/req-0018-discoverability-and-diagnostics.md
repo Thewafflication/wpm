@@ -129,9 +129,10 @@ baseline.
 
 ## Envelope implementation allocation
 
-The next compatible slice supplies `--output json` with the ADR-0010
+The implemented compatible slice supplies `--output json` with the ADR-0010
 `wpm.output.v1` envelope for runtime diagnose, installed/available list, show,
-repository diagnose, and recovery list. It nests existing versioned query
+repository diagnose, recovery list, recovery records and current-input
+recovery inspect. It nests existing versioned query
 results without changing their `--json` contracts. Shared typed events become
 ordered redacted diagnostics; handled parse/unsupported-command errors use the
 same envelope with a null result and nonzero exitCode before initialization.

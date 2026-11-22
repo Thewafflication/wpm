@@ -4,6 +4,17 @@ The [implementation work plan](work-plan-2.0.md#61-increment-delivery-plan)
 breaks this roadmap into ordered increments, dependencies, and exit evidence.
 The sequence is proposed; it does not assign release dates or mark features complete.
 
+## Current delivery snapshot
+
+The [1.5.1 reconciliation](reconciliation-2.0-1.5.1.md) maps each
+milestone and all 77 obligations to shipped foundations, retained
+native evidence and remaining closure. Six static obligations are
+Verified; 71 runtime obligations remain Planned pending full controlled
+acceptance. This is not an implementation percentage or a 2.0 release
+date. Recovery inventory/retry/cleanup/restore and 2.0 safe defaults
+are major remaining development areas; real media, quality, portability
+and final readiness evidence also remain open.
+
 ## Goal
 
 Make WPM easier to understand, safer to operate, and quicker to recover when a

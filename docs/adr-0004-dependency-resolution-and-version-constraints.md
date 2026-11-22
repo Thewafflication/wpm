@@ -104,6 +104,14 @@ existing immutable confirmation plan. ZIP installs and repository upgrades
 use the same resolver. Required WPM upgrades must be performed explicitly
 before deploying their dependents. See REQ-0013.044 through REQ-0013.046.
 
+Starting with 1.6.0, declarations may append `;repo=locator`. If no compatible
+package is found, normal execution offers to add the hinted repository, refresh
+indexes and retry once; `-y` accepts automatically. Offline and dry-run only
+report the hint. Repository hints do not confer signing trust or insecure-HTTP
+authority. Earlier graph selections retain their identities and source locators
+across catalog reloads. Old clients reject the new suffix, so packages using it
+require WPM 1.6.0 or newer. The existing aggregate metadata bound includes hints.
+
 WPM SHALL select the highest compatible version.
 
 Resolution SHALL be deterministic.

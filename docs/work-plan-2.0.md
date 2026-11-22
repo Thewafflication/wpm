@@ -8,7 +8,11 @@
 
 **Planning baseline:** WPM `1.2.8` at `485501cd940c186aa21498f182dbd499073c360f`
 
-**WSP baseline:** `1.4.0` at `f009399dd1406219571ac978bfee85e85bbdfeac`
+**Planning WSP baseline (historical):** `1.4.0` at `f009399dd1406219571ac978bfee85e85bbdfeac`
+
+**Current product reconciliation:** [1.5.1](reconciliation-2.0-1.5.1.md) at `998ce89`; current WSP pin
+`c2dc862e22ccd251be2e32ffba9401496091e598`. The planning baselines above are historical;
+no runtime acceptance status is promoted by this inventory.
 
 **Increment planning revision:** 2026-10-11; proposed sequence, without calendar commitments.
 
@@ -957,9 +961,9 @@ mandatory local checks and the native release gates for the new exact tag.
 
 ## 2.0 closure continuation after 1.3.0
 
-The current 77-obligation reconciliation is in reconciliation-2.0-1.3.0.md;
-retain the historical I-00 baseline. Six Accepted static consistency obligations
-have retained native TC-0023 Pass reports. Runtime closure remains Planned
+The current 77-obligation reconciliation is in reconciliation-2.0-1.5.1.md;
+retain the historical I-00 and 1.3.0 baselines. Six Accepted static
+consistency obligations have retained native 1.5.1 TC-0023 Pass reports. Runtime closure remains Planned
 where the full controlled profiles are incomplete. The common --output json
 slice advances REQ-0018.008/.009 through the shared legacy query serializers
 and typed redacted event diagnostics, preserving legacy --json and all product
@@ -1157,3 +1161,21 @@ filesystem probe checks disappearance on close, repeated-disposition rejection,
 and preservation of superseded and unrelated files. This is a low-level owned
 temporary primitive; no recovery evidence is automatically discarded and the
 supported staging inventory/cleanup policy remains open.
+
+
+## Current closure priorities at 1.5.1
+
+Use the [current obligation inventory and bounded next results](
+reconciliation-2.0-1.5.1.md#recommended-remaining-delivery-sequence) rather than
+reimplementing the common JSON envelope, retained-input inspection, deterministic
+repository indexing or candidate validator: those foundations already exist.
+Next scope I-11's complete phase/artifact inventory, followed by newly confirmed
+retry and I-12's conservative cleanup/restore. Finish 2.0 confirmation defaults
+and full health/selection context, authoring/media evidence, actual quality
+producers, portability/reference gates, then exact candidate readiness.
+Earlier incomplete increment gates and controlled dependencies remain binding.
+The 1.5.1 native suites passed 65 x86, 64 x64 and 63 ARM64 tests; their complete
+2.0 candidate gate was Skipped because this is a 1.x release. Those counts do not
+promote the 71 Planned runtime rows. Retain the ARM64 CLR failures from attempts
+1/2 separately from successful attempt 3; their root cause/finding review remains
+open. No fixed schedule or newly assigned implementation owner is asserted.

@@ -1,0 +1,5 @@
+160000 commit 77e1ce5d6dee871c49ef211222ba18ef0c486bda	third_party/libsodium
+160000 commit 068ff080b369adfac81509f9b57b2afabaf82dc5	third_party/mbedtls
+160000 commit 7b2387161c542fa9f427352dcdef76097d0d692b	third_party/minizip-ng
+160000 commit 12731092979c6d07f42da27da673a9f6c7b13586	third_party/zlib-ng
+160000 commit c2dc862e22ccd251be2e32ffba9401496091e598	wsp

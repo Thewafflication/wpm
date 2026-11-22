@@ -1,0 +1,11 @@
+Original conclusion: failure
+Source: 998ce8913b371749eff9e82ee2f641c6753aa8c3
+Attempt: 1
+Job: https://github.com/Thewafflication/wpm/actions/runs/43245758524/job/131278576800
+Verify arm64 Debug	UNKNOWN STEP	2026-11-12T15:23:25.7307365Z       Start 52: TC-0026
+Verify arm64 Debug	UNKNOWN STEP	2026-11-12T15:23:28.3756833Z 52/63 Test #52: TC-0026 .............................***Exception: SegFault  2.64 sec
+Verify arm64 Debug	UNKNOWN STEP	2026-11-12T15:23:28.3757273Z Fatal error.
+Verify arm64 Debug	UNKNOWN STEP	2026-11-12T15:23:28.3757515Z Internal CLR error. (0x80131506)
+Verify arm64 Debug	UNKNOWN STEP	2026-11-12T15:23:28.3757678Z 
+Verify arm64 Debug	UNKNOWN STEP	2026-11-12T15:23:28.3761843Z       Start 53: TC-0027
+Verify arm64 Debug	UNKNOWN STEP	2026-11-12T15:23:29.4743824Z 53/63 Test #53: TC-0027 .............................   Passed    1.10 sec

@@ -385,7 +385,9 @@ WPM shall accept repeated `depends=package>=major.minor.patch` declarations
 in package metadata, validate their SemVer and safe package names at build
 and inspection, and reject unsupported syntax or more than 1023 aggregate
 bytes including declaration separators. Packages without declarations shall
-retain their existing behavior.
+retain their existing behavior. A declaration may append `;repo=locator`;
+the locator shall pass normal repository validation and count toward the same
+aggregate metadata limit. Existing declarations remain valid.
 
 **REQ-0013.045**
 Repository and ZIP installs and repository upgrades shall resolve transitive
@@ -405,7 +407,13 @@ before the parent if a dependency fails. Dry-run, offline retrieval, unsigned
 policy and confirmation shall apply to the complete graph. WPM self-upgrade
 required by a dependency shall require a separate explicit operation. Generic
 rollback, upper-bound solving and reverse-dependency removal protection are
-outside this increment.
+outside this increment. If no compatible package is found and the declaration
+has a repository hint, WPM shall prompt to add that repository, refresh indexes
+and retry once. `-y` / `--yes` shall accept this fallback automatically.
+Decline or EOF shall fail resolution before graph scripts run. Offline and
+dry-run shall report the hint without adding or refreshing repositories.
+Existing package trust and insecure-HTTP authorization remain required.
+Catalog reloads shall preserve previously selected graph identities and sources.
 
 **REQ-0013.047**
 Install and upgrade shall reuse valid cached web repository indexes regardless
