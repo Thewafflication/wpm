@@ -86,6 +86,11 @@ struct download_callback {
 };
 
 static int repository_verbose = 0;
+static int repository_assume_yes = 0;
+
+void wpm_repo_set_assume_yes(int enabled) {
+    repository_assume_yes = enabled != 0;
+}
 
 void wpm_repo_set_verbose(int enabled) { repository_verbose = enabled != 0; }
 
@@ -4354,11 +4359,31 @@ static int parse_dependency(const char *text, char *name, size_t capacity,
     return 1;
 }
 
+/* Keep the locator separate from the SemVer constraint. */
+static int split_dependency(const char *declaration, char *constraint,
+                            size_t capacity, const char **repo) {
+    const char *suffix = strstr(declaration, ";repo=");
+    size_t length =
+        suffix ? (size_t)(suffix - declaration) : strlen(declaration);
+    char normalized[PATH_SIZE];
+    if (!length || length >= capacity) {
+        return 0;
+    }
+    memcpy(constraint, declaration, length);
+    constraint[length] = 0;
+    *repo = suffix ? suffix + 6 : NULL;
+    return !*repo ||
+           (**repo && !strpbrk(*repo, "\t\r\n") &&
+            repository_normalize(*repo, normalized, sizeof(normalized), 0));
+}
+
 int wpm_repo_dependency_is_valid(const char *declaration) {
-    char name[128];
-    const char *minimum;
+    char name[128], constraint[1024];
+    const char *minimum, *repo;
     return declaration &&
-           parse_dependency(declaration, name, sizeof(name), &minimum);
+           split_dependency(declaration, constraint, sizeof(constraint),
+                            &repo) &&
+           parse_dependency(constraint, name, sizeof(name), &minimum);
 }
 
 #define DEPENDENCY_LIMIT 64
@@ -4367,6 +4392,8 @@ typedef struct {
     char path[PATH_SIZE];
     wpm_package_info info;
     package_entry *entry;
+    package_entry selected_entry;
+    char repository_url[PATH_SIZE];
     HANDLE input;
     int state;
 } dependency_node;
@@ -4397,11 +4424,13 @@ static int dependency_visit(dependency_graph *graph, int index);
 
 static int dependency_resolve(dependency_graph *graph,
                               const char *declaration) {
-    char name[128], planned[64];
-    const char *minimum;
+    char name[128], planned[64], constraint[1024];
+    const char *minimum, *repo;
+    int retried = 0;
     package_entry *selected;
     int repositories;
-    if (!parse_dependency(declaration, name, sizeof(name), &minimum)) {
+    if (!split_dependency(declaration, constraint, sizeof(constraint), &repo) ||
+        !parse_dependency(constraint, name, sizeof(name), &minimum)) {
         return dependency_error(declaration,
                                 "invalid minimum-version requirement");
     }
@@ -4435,10 +4464,13 @@ static int dependency_resolve(dependency_graph *graph,
         if (!load_entries(graph->repositories, &repositories, graph->entries,
                           &graph->entry_count, graph->offline, 0,
                           REPO_LINKS_GENERAL)) {
-            return 0;
+            if (!repo) {
+                return 0;
+            }
         }
         graph->loaded = 1;
     }
+retry_selection:
     selected = NULL;
     for (int i = 0; i < graph->entry_count; i++) {
         package_entry *candidate = &graph->entries[i];
@@ -4459,6 +4491,45 @@ static int dependency_resolve(dependency_graph *graph,
         }
     }
     if (!selected || !dependency_at_least(selected->version, minimum)) {
+        if (repo && !retried) {
+            char answer[32];
+            wpm_event_printf(WPM_EVENT_INFO, "dependency.repository",
+                             "dependency", "resolve",
+                             "Dependency %s suggests repository: %s\n", name,
+                             repo);
+            if (graph->offline || wpm_is_readonly() ||
+                (wpm_operation_active() && !wpm_operation_collecting())) {
+                return dependency_error(
+                    name, "add the suggested repository and update before "
+                          "offline or read-only resolution");
+            }
+            if (!repository_assume_yes) {
+                wpm_event_printf(WPM_EVENT_PROMPT,
+                                 "dependency.repository.confirm", "dependency",
+                                 "resolve",
+                                 "Add this repository, update indexes and "
+                                 "search again? [y/N]: ");
+                fflush(stdout);
+                if (!fgets(answer, sizeof(answer), stdin)) {
+                    return dependency_error(name,
+                                            "repository addition declined");
+                }
+                answer[strcspn(answer, "\r\n")] = 0;
+                if (_stricmp(answer, "y") && _stricmp(answer, "yes")) {
+                    return dependency_error(name,
+                                            "repository addition declined");
+                }
+            }
+            if (!wpm_repo_add(repo, 0, 0) ||
+                !load_entries(graph->repositories, &repositories,
+                              graph->entries, &graph->entry_count, 0, 1,
+                              REPO_LINKS_GENERAL)) {
+                return dependency_error(name,
+                                        "suggested repository refresh failed");
+            }
+            retried = 1;
+            goto retry_selection;
+        }
         return dependency_error(declaration, "no compatible catalog version");
     }
     if (!_stricmp(name, "wpm")) {
@@ -4470,7 +4541,10 @@ static int dependency_resolve(dependency_graph *graph,
     }
     int index = graph->count++;
     dependency_node *node = &graph->nodes[index];
-    node->entry = selected;
+    node->selected_entry = *selected;
+    node->entry = &node->selected_entry;
+    strcpy_s(node->repository_url, sizeof(node->repository_url),
+             graph->repositories[selected->order].url);
     if (!obtain(graph->repositories, selected, graph->offline, node->path,
                 sizeof(node->path)) ||
         !candidate_matches(node->path, selected)) {
@@ -4554,16 +4628,18 @@ static int install_dependency_graph(const char *archive,
         dependency_node *node = &graph->nodes[index];
         package_entry *entry = index ? node->entry : root_entry;
         repository *repos = index ? graph->repositories : root_repositories;
+        const char *repo_url = index ? node->repository_url
+                                     : (entry ? repos[entry->order].url : NULL);
         char source[PATH_SIZE];
         if (!index && dependencies_only) {
             continue;
         }
-        if (entry && !package_source(repos[entry->order].url, entry->url,
-                                     source, sizeof(source))) {
+        if (entry &&
+            !package_source(repo_url, entry->url, source, sizeof(source))) {
             goto cleanup;
         }
         wpm_operation_set_source(entry ? source : NULL);
-        wpm_archive_set_repository_url(entry ? repos[entry->order].url : NULL);
+        wpm_archive_set_repository_url(repo_url);
         const char *old_version = NULL;
         if (index) {
             for (int n = 0; n < graph->installed_count; n++) {

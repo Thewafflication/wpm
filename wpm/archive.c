@@ -1147,7 +1147,7 @@ static int append_dependency(wpm_package_metadata *metadata,
         wpm_event_printf(WPM_EVENT_ERROR, "dependency.invalid", "dependency",
                          "resolve",
                          "Error: invalid or oversized dependency; "
-                         "expected depends=package>=1.0.0.\n");
+                         "expected depends=package>=1.0.0[;repo=locator].\n");
         return 0;
     }
     memcpy(metadata->dependencies + used, value, length);

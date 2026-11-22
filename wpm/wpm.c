@@ -1634,6 +1634,7 @@ int main(int argc, char *argv[]) {
             wpm_set_readonly(1);
         }
     }
+    wpm_repo_set_assume_yes(plan_yes);
     wpm_set_verbose(verbose);
     if (cmd == CMD_RECOVERY || cmd == CMD_LIST || cmd == CMD_SHOW) {
         wpm_set_readonly(1);

@@ -768,6 +768,22 @@ depends=libfoo>=1.0.0
 depends=libbar>=2.1.0
 ```
 
+A requirement may include an optional repository hint:
+
+```ini
+depends=libfoo>=1.0.0;repo=https://example.org/packages
+```
+
+If installed packages and configured catalogs cannot satisfy the requirement,
+WPM offers to add the hinted repository, refresh indexes, and search again.
+`-y` / `--yes` accepts this automatically; declining or end-of-input fails the
+requirement before package scripts run. The repository remains configured even
+if the retry fails. Existing compatible packages do not trigger the hint.
+HTTPS and filesystem repository locators use the normal repository rules;
+plain HTTP still requires explicit repository configuration with
+`--allow-insecure-http`. Offline and dry-run resolution only report the hint:
+add the repository and update separately before retrying those modes.
+
 Versions must use complete SemVer. Repeated declarations are combined; upper
 bounds, comma ranges and alternative providers are rejected. The combined
 metadata is limited to 1023 bytes including newline separators.

@@ -17,7 +17,7 @@ with tempfile.TemporaryDirectory(prefix="wpm-dependencies-") as directory:
     data, repo = root / "data", root / "repository"
     repo.mkdir()
     marker = root / "order.txt"
-    env = dict(os.environ, WPM_DATA_DIR=str(data))
+    env = dict(os.environ, WPM_DATA_DIR=str(data), WPM_HTTPS_BACKEND="invalid")
     for key in ("WPM_LOG_FILE", "WPM_LOG_DIR", "WPM_LOG_LEVEL"):
         env.pop(key, None)
 
@@ -240,6 +240,82 @@ with tempfile.TemporaryDirectory(prefix="wpm-dependencies-") as directory:
     assert "exceeds 64" in output, output
     assert order() == before, order()
 
+    # Missing dependencies may suggest a repository, but only on demand.
+    extra = root / "extra repository"
+    extra.mkdir()
+    hinted = package("hinted-leaf")
+    hinted_row = rows.pop()
+    hinted.replace(extra / hinted.name)
+    (extra / "index.json").write_text(
+        json.dumps(dict(version=1, packages=[hinted_row]))
+    )
+    package("before-hint")
+    parent = package(
+        "hinted-parent",
+        dependencies=("before-hint>=1.0.0", f"hinted-leaf>=1.0.0;repo={extra}"),
+    )
+    publish()
+    before = order()
+    configured = run("repo", "list")
+    for flags in (("--dry-run",), ("--offline", "-y")):
+        output = run("install", parent, *flags, ok=False)
+        assert str(extra) in output, output
+        assert run("repo", "list") == configured
+    output = run("install", parent, answer="", ok=False)
+    assert "repository addition declined" in output, output
+    output = run("install", parent, answer="n\n", ok=False)
+    assert "repository addition declined" in output, output
+    assert run("repo", "list") == configured
+    assert order() == before
+    output = run("install", parent, "-y")
+    assert "Repository indexes:" in output, output
+    assert order()[-3:] == [
+        "before-hint-1.0.0-install",
+        "hinted-leaf-1.0.0-install",
+        "hinted-parent-1.0.0-install",
+    ]
+    assert str(extra) in run("repo", "list")
+    # Interactive acceptance also retries; an empty catalog fails once.
+    interactive = root / "interactive repository"
+    interactive.mkdir()
+    leaf = package("interactive-leaf")
+    row = rows.pop()
+    leaf.replace(interactive / leaf.name)
+    (interactive / "index.json").write_text(
+        json.dumps(dict(version=1, packages=[row]))
+    )
+    app = package(
+        "interactive-parent",
+        dependencies=(f"interactive-leaf>=1.0.0;repo={interactive}",),
+    )
+    publish()
+    output = run("install", app, answer="y\n")
+    assert "search again?" in output, output
+    assert order()[-2:] == [
+        "interactive-leaf-1.0.0-install",
+        "interactive-parent-1.0.0-install",
+    ]
+    empty = root / "empty repository"
+    empty.mkdir()
+    (empty / "index.json").write_text(json.dumps(dict(version=1, packages=[])))
+    missing = package(
+        "still-missing", dependencies=(f"absent>=1.0.0;repo={empty}",)
+    )
+    before = order()
+    output = run("install", missing, "-y", ok=False)
+    assert "no compatible catalog version" in output, output
+    assert output.count("suggests repository:") == 1, output
+    assert order() == before
+    # An already installed dependency never consults its unused hint.
+    unused = package(
+        "unused-hint",
+        dependencies=(
+            "hinted-leaf>=1.0.0;repo=https://unused.invalid/packages",
+        ),
+    )
+    output = run("install", unused, "--offline", "-y")
+    assert "suggests repository" not in output, output
+
     # An invalid declaration must fail at package construction, not be ignored.
     source = root / "invalid"
     meta = source / ".wpm"
@@ -252,6 +328,8 @@ with tempfile.TemporaryDirectory(prefix="wpm-dependencies-") as directory:
         "../leaf>=1.0.0",
         "leaf>=01.0.0",
         "leaf>1.0.0",
+        "leaf>=1.0.0;repo=",
+        "leaf>=1.0.0;repo=ftp://example.org/packages",
     ):
         (meta / "package.txt").write_text(
             f"name=invalid\nversion=1.0.0\narch=any\ndepends={declaration}\n"

@@ -12,6 +12,8 @@ int wpm_repo_dependency_is_valid(const char *declaration);
 int wpm_repo_install_archive(const char *archive, int offline,
                              int allow_unsigned);
 
+/** Accept suggested dependency repositories without prompting. */
+void wpm_repo_set_assume_yes(int enabled);
 /** Enable or disable detailed repository diagnostics. */
 void wpm_repo_set_verbose(int enabled);
 /** Create a fresh schema-1 filesystem repository without replacing an index.
