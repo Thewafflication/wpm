@@ -23,8 +23,16 @@ runs:
               'install.cmd'
           ) `
           -OutFile $bootstrap
-        & $bootstrap
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        # Let Windows PowerShell discover its own compatible Archive module.
+        $modulePath = $env:PSModulePath
+        try {
+          $env:PSModulePath = $null
+          & $bootstrap
+          $bootstrapExit = $LASTEXITCODE
+        } finally {
+          $env:PSModulePath = $modulePath
+        }
+        if ($bootstrapExit -ne 0) { exit $bootstrapExit }
 
         $wpm = Join-Path $env:ProgramFiles 'WPM\wpm.exe'
         if (-not (Test-Path -LiteralPath $wpm)) {
