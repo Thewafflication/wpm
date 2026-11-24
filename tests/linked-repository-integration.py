@@ -57,6 +57,8 @@ with tempfile.TemporaryDirectory(prefix="wpm-linked-refresh-") as directory:
     for variable in ("WPM_LOG_FILE", "WPM_LOG_DIR", "WPM_LOG_LEVEL"):
         env.pop(variable, None)
 
+    # Online updates fail because the built-in HTTPS root is unavailable.
+    # The local graph must still refresh and preserve caches as asserted below.
     def run(*arguments, succeeds=True):
         result = subprocess.run(
             [wpm, *map(str, arguments)],
@@ -94,7 +96,7 @@ with tempfile.TemporaryDirectory(prefix="wpm-linked-refresh-") as directory:
         index(previous / "index.json", ["grandchild", url], "old")
         index(grandchild / "index.json", [url], "nested-old")
         run("repo", "add", url, "--allow-insecure-http")
-        output = run("update")
+        output = run("update", succeeds=False)
         assert "Repository indexes:" in output, output
         assert "Download progress:" not in output, output
         assert "Downloaded repository index:" not in output, output
@@ -147,7 +149,7 @@ with tempfile.TemporaryDirectory(prefix="wpm-linked-refresh-") as directory:
         index(repository / "index.json", ["previous"], "replacement")
         requests.clear()
         try:
-            text = run("update")
+            text = run("update", succeeds=False)
             assert "cache publication failed" in text, text
             assert "close programs locking" in text, text
             assert requests == expected, requests
@@ -159,7 +161,7 @@ with tempfile.TemporaryDirectory(prefix="wpm-linked-refresh-") as directory:
         finally:
             kernel.CloseHandle(handle)
         requests.clear()
-        run("update")
+        run("update", succeeds=False)
         assert requests == expected, requests
         assert (
             json.loads(publication_cache.read_text())["marker"] == "replacement"
@@ -178,7 +180,7 @@ with tempfile.TemporaryDirectory(prefix="wpm-linked-refresh-") as directory:
         assert not requests, requests
 
         # Explicit update refreshes all linked roots even inside freshness TTL.
-        run("repo", "update")
+        run("repo", "update", succeeds=False)
         assert requests == expected, requests
         assert json.loads(child_cache.read_text())["marker"] == "new"
         assert json.loads(nested_cache.read_text())["marker"] == "nested-new"
@@ -188,7 +190,7 @@ with tempfile.TemporaryDirectory(prefix="wpm-linked-refresh-") as directory:
         before = child_cache.read_bytes()
         unavailable.add("/previous/index.json")
         requests.clear()
-        text = run("update")
+        text = run("update", succeeds=False)
         assert requests == expected, requests
         assert "using cached index" in text, text
         assert child_cache.read_bytes() == before
@@ -203,7 +205,7 @@ with tempfile.TemporaryDirectory(prefix="wpm-linked-refresh-") as directory:
             links.append(node.name)
         index(repository / "index.json", links, "bounded-root")
         requests.clear()
-        text = run("update")
+        text = run("update", succeeds=False)
         # Two configured roots (including the built-in HTTPS root) leave thirty
         # slots for linked roots. The root's self-link consumes no extra slot.
         assert requests[0] == "/index.json", requests
@@ -239,7 +241,7 @@ with tempfile.TemporaryDirectory(prefix="wpm-linked-refresh-") as directory:
         for contents in valid_indexes:
             (repository / "index.json").write_text(contents, encoding="utf-8")
             requests.clear()
-            run("update")
+            run("update", succeeds=False)
             assert requests == expected, (contents, requests)
         # Valid JSON escapes in both keys and links must decode before lookup
         # and containment checks. Unknown Unicode fields remain skippable.
@@ -255,7 +257,7 @@ with tempfile.TemporaryDirectory(prefix="wpm-linked-refresh-") as directory:
         for contents in escaped_indexes:
             (repository / "index.json").write_text(contents)
             requests.clear()
-            run("update")
+            run("update", succeeds=False)
             assert requests == expected, (contents, requests)
         # A retrieved catalog must pass schema admission before publication.
         # Rejection preserves exact cache bytes and mtime, then uses the known
@@ -272,7 +274,7 @@ with tempfile.TemporaryDirectory(prefix="wpm-linked-refresh-") as directory:
             )
         )
         requests.clear()
-        text = run("update")
+        text = run("update", succeeds=False)
         assert requests == expected, requests
         assert "previous cache was retained" in text, text
         assert (
@@ -287,7 +289,7 @@ with tempfile.TemporaryDirectory(prefix="wpm-linked-refresh-") as directory:
         ):
             (repository / "index.json").write_text(contents)
             requests.clear()
-            text = run("update")
+            text = run("update", succeeds=False)
             assert requests == expected, requests
             assert "incomplete document" in text, text
             assert (
@@ -317,7 +319,7 @@ with tempfile.TemporaryDirectory(prefix="wpm-linked-refresh-") as directory:
         for contents in malformed:
             (repository / "index.json").write_bytes(contents.encode())
             requests.clear()
-            text = run("update")
+            text = run("update", succeeds=False)
             assert requests == expected, (contents, requests)
             assert "previous cache was retained" in text, text
             assert (
@@ -349,7 +351,7 @@ with tempfile.TemporaryDirectory(prefix="wpm-linked-refresh-") as directory:
         ):
             (repository / "index.json").write_text(contents)
             requests.clear()
-            run("update")
+            run("update", succeeds=False)
             assert requests == expected, requests
         before = (root_cache.read_bytes(), root_cache.stat().st_mtime_ns)
         # Schema equality must be decimal-exact, not rounded through double.
@@ -369,7 +371,7 @@ with tempfile.TemporaryDirectory(prefix="wpm-linked-refresh-") as directory:
             )
             (repository / "index.json").write_text(contents)
             requests.clear()
-            run("update")
+            run("update", succeeds=False)
             assert requests == expected, (number, requests)
         before = (root_cache.read_bytes(), root_cache.stat().st_mtime_ns)
         for number in (
@@ -384,7 +386,7 @@ with tempfile.TemporaryDirectory(prefix="wpm-linked-refresh-") as directory:
                 '{"version":' + number + ',"packages":[]}'
             )
             requests.clear()
-            text = run("update")
+            text = run("update", succeeds=False)
             assert requests == expected, (number, requests)
             assert "unsupported schema" in text, text
             assert (

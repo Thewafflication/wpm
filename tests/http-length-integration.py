@@ -74,7 +74,7 @@ with tempfile.TemporaryDirectory(prefix="wpm-http-length-") as directory:
     for variable in ("WPM_LOG_FILE", "WPM_LOG_DIR", "WPM_LOG_LEVEL"):
         env.pop(variable, None)
 
-    def run(*arguments):
+    def run(*arguments, succeeds=True):
         result = subprocess.run(
             [wpm, *map(str, arguments)],
             env=env,
@@ -83,9 +83,10 @@ with tempfile.TemporaryDirectory(prefix="wpm-http-length-") as directory:
             capture_output=True,
             timeout=30,
         )
-        assert result.returncode == 0, result.stdout
+        assert (result.returncode == 0) == succeeds, result.stdout
         return result.stdout
 
+    # Online updates report the deliberately unavailable built-in HTTPS root.
     try:
         run("repo", "add", url, "--allow-insecure-http")
         value = 2166136261
@@ -94,14 +95,14 @@ with tempfile.TemporaryDirectory(prefix="wpm-http-length-") as directory:
         cached = data / "cache" / "repositories" / f"{value:08x}.json"
         for mode in ("normal", "unknown", "chunked", "duplicate"):
             state["mode"] = mode
-            run("update")
+            run("update", succeeds=False)
             assert json.loads(cached.read_text())["marker"] == mode
             assert not list((data / "cache").rglob("*.candidate*"))
         # Exercise multiple 64-KiB writes; the small framing fixtures cannot
         # expose byte-at-a-time output or corruption at buffer boundaries.
         state["mode"] = "bulk"
         started = time.perf_counter()
-        run("update")
+        run("update", succeeds=False)
         elapsed = time.perf_counter() - started
         assert json.loads(cached.read_text())["marker"] == bulk_marker
         assert not list((data / "cache").rglob("*.candidate*"))
@@ -119,7 +120,7 @@ with tempfile.TemporaryDirectory(prefix="wpm-http-length-") as directory:
         ):
             state["mode"] = mode
             before = (cached.read_bytes(), cached.stat().st_mtime_ns)
-            text = run("--verbose", "update")
+            text = run("--verbose", "update", succeeds=False)
             assert "using cached index" in text, text
             assert (cached.read_bytes(), cached.stat().st_mtime_ns) == before
             assert not list((data / "cache").rglob("*.candidate*"))
@@ -138,7 +139,7 @@ with tempfile.TemporaryDirectory(prefix="wpm-http-length-") as directory:
                 # WinInet may reject malformed framing before WPM receives it.
                 assert "insecure HTTP read failed" in text, text
         state["mode"] = "normal"
-        run("update")
+        run("update", succeeds=False)
         assert json.loads(cached.read_text())["marker"] == "normal"
         assert requests and all(path == "/index.json" for path in requests)
     finally:

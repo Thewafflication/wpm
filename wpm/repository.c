@@ -12,6 +12,7 @@
 #include <urlmon.h>
 #endif
 #include "archive.h"
+#include "installed.h"
 #include "helpers.h"
 #include "hashing.h"
 #include "https.h"
@@ -1550,7 +1551,7 @@ static int report_available_updates(int offline);
 int wpm_repo_update(int offline) {
     wpm_event_printf(WPM_EVENT_INFO, "repository.info", "repository", "command",
                      "Updating repositories...\n");
-    if (!report_available_updates(offline)) {
+    if (!wpm_installed_migrate() || !report_available_updates(offline)) {
         return 0;
     }
     wpm_event_printf(WPM_EVENT_RESULT, "repository.result", "repository",
@@ -3441,7 +3442,7 @@ int wpm_config_prerelease_unset(const char *package_name) {
 
 static int load_entries(repository *repositories, int *repository_count,
                         package_entry *entries, int *entry_count, int offline,
-                        int force_refresh, int links) {
+                        int force_refresh, int links, int require_fresh) {
     char cached[PATH_SIZE];
     int usable = 0, updated = 0, cached_count = 0, unavailable = 0;
     *entry_count = 0;
@@ -3568,6 +3569,15 @@ static int load_entries(repository *repositories, int *repository_count,
     }
     REPO_VERBOSE("resolver loaded %d entries from %d repositories",
                  *entry_count, *repository_count);
+    if (require_fresh && !offline && (cached_count || unavailable)) {
+        wpm_event_printf(
+            WPM_EVENT_ERROR, "repository.refresh.incomplete", "repository",
+            "refresh",
+            "Error: repository refresh incomplete; available updates could "
+            "not be verified. Resolve the warnings above and rerun "
+            "'wpm update'.\n");
+        return 0;
+    }
     return usable;
 }
 static int available_record_order(const void *left, const void *right) {
@@ -3828,52 +3838,42 @@ int wpm_repo_list_available_from(const char *name, const char *arch,
 }
 
 static int load_installed(installed_entry *result, int *count) {
-    char root[PATH_SIZE], store[PATH_SIZE], search[PATH_SIZE], path[PATH_SIZE];
-    WIN32_FIND_DATAA item;
-    HANDLE find;
+    wpm_package_info *items = calloc(MAX_INSTALLED, sizeof(*items));
+    int issues, limited, total, ok;
     *count = 0;
-    if (!wpm_get_data_root(root, sizeof(root)) ||
-        !join_path(store, sizeof(store), root, "packages") ||
-        !join_path(search, sizeof(search), store, "*.zip")) {
+    if (!items) {
         return 0;
     }
-    find = FindFirstFileA(search, &item);
-    if (find == INVALID_HANDLE_VALUE) {
-        return GetLastError() == ERROR_FILE_NOT_FOUND;
+    ok = wpm_installed_read(items, MAX_INSTALLED, &total, &issues, &limited);
+    if (ok) {
+        for (int i = 0; i < total; i++) {
+            if (!wpm_repo_version_is_valid(items[i].version)) {
+                char root[PATH_SIZE];
+                if (wpm_get_data_root(root, sizeof(root))) {
+                    wpm_event_printf(WPM_EVENT_WARNING, "repository.warning",
+                                     "repository", "command",
+                                     "Warning: installed package record has "
+                                     "non-SemVer version "
+                                     "'%s': %s\\packages\\%s\n  This record is "
+                                     "ignored for update selection.\n",
+                                     items[i].version, root,
+                                     items[i].archive_name);
+                }
+                continue;
+            }
+            installed_entry *entry = &result[(*count)++];
+            strcpy_s(entry->name, sizeof(entry->name), items[i].name);
+            strcpy_s(entry->version, sizeof(entry->version), items[i].version);
+            strcpy_s(entry->arch, sizeof(entry->arch), items[i].arch);
+        }
     }
-    do {
-        wpm_package_info info;
-        semver parsed;
-        if (*count >= MAX_INSTALLED ||
-            !join_path(path, sizeof(path), store, item.cFileName)) {
-            continue;
-        }
-        if (!wpm_archive_inspect(path, &info)) {
-            wpm_event_printf(
-                WPM_EVENT_WARNING, "repository.warning", "repository",
-                "command",
-                "Warning: unreadable installed package record: %s\n  Path: "
-                "%s\n",
-                item.cFileName, path);
-            continue;
-        }
-        if (!semver_parse(info.version, &parsed)) {
-            wpm_event_printf(
-                WPM_EVENT_WARNING, "repository.warning", "repository",
-                "command",
-                "Warning: installed package record has non-SemVer version "
-                "'%s': %s\n  Path: %s\n  This legacy record is ignored for "
-                "update selection; review the archive before deciding "
-                "whether it is obsolete.\n",
-                info.version, item.cFileName, path);
-            continue;
-        }
-        installed_entry *e = &result[(*count)++];
-        strcpy_s(e->name, sizeof(e->name), info.name);
-        strcpy_s(e->version, sizeof(e->version), info.version);
-        strcpy_s(e->arch, sizeof(e->arch), info.arch);
-    } while (FindNextFileA(find, &item));
-    FindClose(find);
+    free(items);
+    if (!ok || issues || limited) {
+        wpm_event_printf(
+            WPM_EVENT_ERROR, "installed.read.failed", "installed", "read",
+            "Error: installation records are incomplete or unreadable.\n");
+        return 0;
+    }
     return 1;
 }
 typedef struct {
@@ -3901,12 +3901,9 @@ static int installed_record_order(const void *left, const void *right) {
 static int query_installed_records(const char *name, const char *arch,
                                    const char *version, int *matches,
                                    int json) {
-    char root[PATH_SIZE], store[PATH_SIZE], path[PATH_SIZE];
     installed_record *records = calloc(MAX_INSTALLED, sizeof(*records));
-    WIN32_FIND_DATAA found;
-    HANDLE search = INVALID_HANDLE_VALUE;
-    DWORD attributes, failure;
-    int count = 0, scanned = 0, issues = 0, limited = 0, matched = 0;
+    wpm_package_info *items = calloc(MAX_INSTALLED, sizeof(*items));
+    int count = 0, issues = 0, limited = 0, matched = 0;
     int success = 0, readable = 0, encoding_issues = 0;
     if (json) {
         fputs("{\"records\":[", stdout);
@@ -3915,78 +3912,28 @@ static int query_installed_records(const char *name, const char *arch,
         *matches = 0;
     }
     wpm_set_readonly(1);
-    if (!records || !wpm_get_data_root(root, sizeof(root)) || !*root ||
-        !join_path(store, sizeof(store), root, "packages")) {
+    if (!records || !items ||
+        !wpm_installed_read(items, MAX_INSTALLED, &count, &issues, &limited)) {
         goto done;
     }
-    attributes = GetFileAttributesA(store);
-    if (attributes == INVALID_FILE_ATTRIBUTES) {
-        failure = GetLastError();
-        if (failure == ERROR_FILE_NOT_FOUND ||
-            failure == ERROR_PATH_NOT_FOUND) {
-            success = 1;
-            goto report;
-        }
-        goto done;
-    }
-    if (!(attributes & FILE_ATTRIBUTE_DIRECTORY) ||
-        (attributes & FILE_ATTRIBUTE_REPARSE_POINT) ||
-        !join_path(path, sizeof(path), store, "*.zip")) {
-        goto done;
-    }
-    search = FindFirstFileA(path, &found);
-    if (search == INVALID_HANDLE_VALUE) {
-        if (GetLastError() == ERROR_FILE_NOT_FOUND) {
-            success = 1;
-            goto report;
-        }
-        goto done;
-    }
-    do {
-        wpm_package_info info;
-        HANDLE input;
-        int valid;
-        if (scanned == MAX_INSTALLED) {
-            limited = 1;
-            break;
-        }
-        scanned++;
-        if ((found.dwFileAttributes &
-             (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) ||
-            !join_path(path, sizeof(path), store, found.cFileName)) {
+    int admitted = 0;
+    for (int i = 0; i < count; i++) {
+        if (!wpm_repo_version_is_valid(items[i].version)) {
             issues++;
             continue;
         }
-        input = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, NULL,
-                            OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-        if (input == INVALID_HANDLE_VALUE) {
-            issues++;
-            continue;
-        }
-        valid = wpm_archive_inspect(path, &info) && info.name[0] &&
-                wpm_repo_version_is_valid(info.version) &&
-                (!_stricmp(info.arch, "any") || !_stricmp(info.arch, "x86") ||
-                 !_stricmp(info.arch, "x64") || !_stricmp(info.arch, "arm64"));
-        CloseHandle(input);
-        if (!valid) {
-            issues++;
-            continue;
-        }
-        installed_record *record = &records[count++];
-        record->optional = info.optional;
+        installed_record *record = &records[admitted++];
+        record->optional = items[i].optional;
         strcpy_s(record->identity.name, sizeof(record->identity.name),
-                 info.name);
+                 items[i].name);
         strcpy_s(record->identity.version, sizeof(record->identity.version),
-                 info.version);
+                 items[i].version);
         strcpy_s(record->identity.arch, sizeof(record->identity.arch),
-                 info.arch);
-        strcpy_s(record->file, sizeof(record->file), found.cFileName);
-    } while (FindNextFileA(search, &found));
-    if (!limited && GetLastError() != ERROR_NO_MORE_FILES) {
-        issues++;
+                 items[i].arch);
+        strcpy_s(record->file, sizeof(record->file), items[i].archive_name);
     }
+    count = admitted;
     success = !issues && !limited;
-report:
     readable = 1;
     qsort(records, (size_t)count, sizeof(*records), installed_record_order);
     if (!json) {
@@ -4035,15 +3982,14 @@ report:
             "partial and does not delete or repair state.\n");
     }
 done:
-    if (search != INVALID_HANDLE_VALUE) {
-        FindClose(search);
-    }
+    free(items);
     free(records);
     if (!json && !success && !issues && !limited) {
         wpm_event_printf(WPM_EVENT_ERROR, "query.installed.failed", "list",
                          "query",
                          "Error: package records could not be read. "
-                         "Check data-root/packages access and layout.\n");
+                         "Check the installed and packages directories under "
+                         "the WPM data root.\n");
     }
     if (matches) {
         *matches = matched;
@@ -4463,7 +4409,7 @@ static int dependency_resolve(dependency_graph *graph,
     if (!graph->loaded) {
         if (!load_entries(graph->repositories, &repositories, graph->entries,
                           &graph->entry_count, graph->offline, 0,
-                          REPO_LINKS_GENERAL)) {
+                          REPO_LINKS_GENERAL, 0)) {
             if (!repo) {
                 return 0;
             }
@@ -4523,7 +4469,7 @@ retry_selection:
             if (!wpm_repo_add(repo, 0, 0) ||
                 !load_entries(graph->repositories, &repositories,
                               graph->entries, &graph->entry_count, 0, 1,
-                              REPO_LINKS_GENERAL)) {
+                              REPO_LINKS_GENERAL, 0)) {
                 return dependency_error(name,
                                         "suggested repository refresh failed");
             }
@@ -4715,7 +4661,7 @@ int wpm_repo_install(const char *package_name, const char *arch,
     int links = !_stricmp(package_name, "wpm")
                     ? (version ? REPO_LINKS_HISTORY : REPO_LINKS_NONE)
                     : REPO_LINKS_GENERAL;
-    if (!load_entries(repositories, &rc, entries, &ec, offline, 0, links)) {
+    if (!load_entries(repositories, &rc, entries, &ec, offline, 0, links, 0)) {
         return 0;
     }
     selected = select_candidate(entries, ec, package_name, arch, version, 1);
@@ -4912,11 +4858,15 @@ static int report_available_updates(int offline) {
     int rc, ec, ic, count;
     if (!load_installed(installed, &ic) ||
         !load_entries(repositories, &rc, entries, &ec, offline, 1,
-                      REPO_LINKS_GENERAL)) {
+                      REPO_LINKS_GENERAL, 1)) {
         return 0;
     }
     count = print_upgrade_plan(installed, ic, entries, ec, NULL);
-    if (!count) {
+    if (!ic) {
+        wpm_event_printf(
+            WPM_EVENT_INFO, "repository.info", "repository", "command",
+            "No installed package records found in this data directory.\n");
+    } else if (!count) {
         wpm_event_printf(WPM_EVENT_INFO, "repository.info", "repository",
                          "command", "All installed packages are current.\n");
     } else {
@@ -4952,7 +4902,7 @@ int wpm_repo_upgrade(const char **package_names, int package_count, int all,
         : only_wpm ? REPO_LINKS_NONE
                    : REPO_LINKS_GENERAL;
     if (!load_installed(installed, &ic) ||
-        !load_entries(repositories, &rc, entries, &ec, offline, 0, links)) {
+        !load_entries(repositories, &rc, entries, &ec, offline, 0, links, 0)) {
         return 0;
     }
     progress_total =

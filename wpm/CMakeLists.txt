@@ -53,6 +53,8 @@ set(
   "path_guard.h"
   "progress.c"
   "progress.h"
+  "installed.c"
+  "installed.h"
   "archive.c"
   "archive.h"
   "metadata.c"

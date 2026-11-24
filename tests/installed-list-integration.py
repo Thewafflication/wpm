@@ -94,6 +94,7 @@ with tempfile.TemporaryDirectory(prefix="wpm-installed-list-") as directory:
     meta = source / ".wpm"
     meta.mkdir(parents=True)
     (meta / "install.cmd").write_text("@echo off\nexit /b 0\n")
+    (meta / "remove.cmd").write_text("@echo off\nexit /b 0\n")
     (source / "payload").write_text("listed package payload")
     archives = root / "archives"
     archives.mkdir()
@@ -157,6 +158,8 @@ with tempfile.TemporaryDirectory(prefix="wpm-installed-list-") as directory:
     bad.unlink()
     before = snapshot(root)
     with read_lock(store / original.name, share=0):
+        run("list")
+    with read_lock(store / archive.name, share=0):
         run("list", succeeds=False)
     assert snapshot(root) == before
     secret = "DO_NOT_LEAK_QUERY_CREDENTIAL"
@@ -204,5 +207,13 @@ with tempfile.TemporaryDirectory(prefix="wpm-installed-list-") as directory:
     saved.rename(store)
     run("list", readonly=True)
     assert not marker.exists()
+
+    run("remove", original.name)
+    assert (
+        machine("list", "listed-check", "--version", "1.0.0")["retained"][
+            "records"
+        ]
+        == []
+    )
 
 print("PASS: retained installed metadata queries without writes or scripts")

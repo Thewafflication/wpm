@@ -21,7 +21,8 @@ mutable data root; use an explicit `WPM_DATA_DIR` for isolated portable state.
 | State | Role and backup expectation |
 | --- | --- |
 | Installation directory | WPM executable, runtime, and distribution documents; retain the matching release separately |
-| `packages` | Retained archives used for identity and package removal; include in the whole-state backup |
+| `installed` | Durable package identity and metadata for inventory and upgrades; preserve with its Windows permissions |
+| `packages` | Retained archives used for package removal and legacy migration; include in the whole-state backup |
 | `config` | Repository/prerelease settings and optional default signing-key reference; include |
 | `trust` | Public trust records and revocation markers; preserve together and reconcile current revocations before reuse |
 | `cache` | Repository/package inputs and self-upgrade handoff files; preserve pending inputs and provenance |
@@ -30,8 +31,11 @@ mutable data root; use an explicit `WPM_DATA_DIR` for isolated portable state.
 | `logs` | Operational/script evidence when stored here; preserve required incident history |
 | External state | Deployed software, script-created files/registry values, external logs, sources, and signing keys need separate backup |
 
-An archive inventory describes retained metadata, not proof of current deployed
-software or archive trust. A default signing-key configuration refers to a
+The installed inventory describes recorded metadata. Use a separate check to
+verify the deployed software or archive trust. Run `wpm update` to migrate
+readable legacy archives into `installed`. Losing an archive after migration
+does not erase its installation record. Removal still requires the original
+verified archive. A default signing-key configuration refers to a
 private key by path; it does not embed that key in the data root. Back up needed
 external private keys separately with appropriate access protection. Repository
 configuration and logs may also contain support-sensitive information. Preserve

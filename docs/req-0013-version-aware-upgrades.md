@@ -21,10 +21,11 @@ HTTPS repositories, and Semantic Versioning 2.0 precedence.
 ### Package identity and installed-state discovery
 
 **REQ-0013.002**
-The retained ZIP archives beneath `%ProgramData%\WPM\packages` (or the
-equivalent directory beneath `WPM_DATA_DIR`) shall be the authoritative local
-records of installed packages. WPM shall read each retained archive's
-`.wpm\package.txt` rather than infer package identity from its file name.
+WPM shall store installation metadata in `installed` beneath the active WPM
+data directory. Installation records shall survive loss of repository caches or
+retained package archives. For legacy installations, WPM shall read identity
+from `.wpm\package.txt` inside each retained archive and migrate readable records
+on update. The archive filename alone shall not establish package identity.
 
 **REQ-0013.003**
 An installed package identity consists of its case-insensitive package name and

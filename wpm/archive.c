@@ -9,6 +9,7 @@
 #include <wcrt/thread_pool.h>
 
 #include "archive.h"
+#include "installed.h"
 #include "repository.h"
 #include "logging.h"
 #include "capability.h"
@@ -3634,41 +3635,45 @@ cleanup:
 
 static int
 installed_architecture_is_compatible(const wpm_package_metadata *candidate) {
-    char root[WPM_PATH_SIZE], store[WPM_PATH_SIZE], search[WPM_PATH_SIZE],
-        archive[WPM_PATH_SIZE];
-    WIN32_FIND_DATAA entry;
-    HANDLE find;
-    int candidate_any = _stricmp(candidate->arch, "any") == 0;
-    if (!wpm_get_data_root(root, sizeof(root)) ||
-        !join_path(store, sizeof(store), root, "packages") ||
-        !join_path(search, sizeof(search), store, "*.zip")) {
+    wpm_package_info *items = calloc(256, sizeof(*items));
+    int count, issues, limited, ok = 0;
+    if (!items) {
         return 0;
     }
-    find = FindFirstFileA(search, &entry);
-    if (find == INVALID_HANDLE_VALUE) {
-        return GetLastError() == ERROR_FILE_NOT_FOUND;
+    if (!wpm_installed_read(items, 256, &count, &issues, &limited) || issues ||
+        limited) {
+        goto done;
     }
-    do {
-        wpm_package_info installed;
-        int installed_any;
-        if (!join_path(archive, sizeof(archive), store, entry.cFileName) ||
-            !wpm_archive_inspect(archive, &installed) ||
-            _stricmp(installed.name, candidate->name) != 0) {
-            continue;
-        }
-        installed_any = _stricmp(installed.arch, "any") == 0;
-        if (candidate_any != installed_any) {
+    ok = 1;
+    for (int i = 0; i < count; i++) {
+        if (!_stricmp(items[i].name, candidate->name) &&
+            (!_stricmp(candidate->arch, "any") !=
+             !_stricmp(items[i].arch, "any"))) {
             wpm_event_printf(
                 WPM_EVENT_ERROR, "archive.error", "archive", "command",
-                "Error: package architecture conflicts with installed %s "
-                "%s; remove the conflicting installation first.\n",
-                installed.name, installed.arch);
-            FindClose(find);
-            return 0;
+                "Error: package architecture conflicts with installed %s %s; "
+                "remove the conflicting installation first.\n",
+                items[i].name, items[i].arch);
+            ok = 0;
+            break;
         }
-    } while (FindNextFileA(find, &entry));
-    FindClose(find);
-    return 1;
+    }
+done:
+    free(items);
+    return ok;
+}
+
+static int save_installation_record(const wpm_package_metadata *metadata,
+                                    const char *archive) {
+    wpm_package_info info;
+    memset(&info, 0, sizeof(info));
+    strcpy_s(info.name, sizeof(info.name), metadata->name);
+    strcpy_s(info.version, sizeof(info.version), metadata->version);
+    strcpy_s(info.arch, sizeof(info.arch), metadata->arch);
+    strcpy_s(info.archive_name, sizeof(info.archive_name),
+             path_basename(archive));
+    info.optional = metadata->optional;
+    return wpm_installed_save(&info);
 }
 
 int wpm_archive_install(const char *archive_path, int allow_unsigned) {
@@ -3804,6 +3809,9 @@ int wpm_archive_install(const char *archive_path, int allow_unsigned) {
         wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
                          "Error: could not store package archive: %s\n",
                          stored_archive_path);
+        goto cleanup;
+    }
+    if (!save_installation_record(&metadata, stored_archive_path)) {
         goto cleanup;
     }
     if (!wpm_operation_phase_finish("retain-archive") ||
@@ -4228,6 +4236,9 @@ int wpm_archive_upgrade(const char *archive_path, int allow_unsigned,
             "recovery is required.\n");
         goto cleanup;
     }
+    if (!save_installation_record(&metadata, stored)) {
+        goto cleanup;
+    }
     if (!wpm_operation_phase_finish("retain-archive") ||
         !wpm_operation_phase_start("audit")) {
         goto cleanup;
@@ -4320,9 +4331,11 @@ int wpm_archive_remove(const char *package_name) {
         return 0;
     }
     if (!file_exists_at_path(stored_archive_path)) {
-        wpm_event_printf(WPM_EVENT_ERROR, "archive.error", "archive", "command",
-                         "Error: stored package archive not found: %s\n",
-                         stored_archive_path);
+        wpm_event_printf(
+            WPM_EVENT_ERROR, "archive.error", "archive", "command",
+            "Error: stored package archive not found: %s\n"
+            "Restore the original verified archive before retrying removal.\n",
+            stored_archive_path);
         return 0;
     }
     if (!wpm_operation_archive("remove", stored_archive_path, NULL, NULL, 1)) {
@@ -4389,7 +4402,8 @@ int wpm_archive_remove(const char *package_name) {
                                sizeof(repository_url))) {
         DeleteFileA(repository_url);
     }
-    if (!wpm_operation_phase_finish("remove-record")) {
+    if (!wpm_installed_forget(stored_archive_name) ||
+        !wpm_operation_phase_finish("remove-record")) {
         goto cleanup;
     }
     success = 1;

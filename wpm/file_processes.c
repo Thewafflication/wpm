@@ -357,6 +357,8 @@ static DWORD legacy_list(WCHAR **paths, UINT path_count, file_user **users,
     legacy_target *targets = calloc(path_count, sizeof(*targets));
     void *table = NULL;
     HANDLE processes = INVALID_HANDLE_VALUE;
+    /* Windows reports the full system table even for a single target file. */
+    const ULONG max_table_bytes = 128UL * 1024 * 1024;
     ULONG bytes = 65536, required = 0;
     ULONG_PTR handle_count = 0;
     USHORT file_type = 0;
@@ -401,11 +403,18 @@ static DWORD legacy_list(WCHAR **paths, UINT path_count, file_user **users,
         if (status >= 0) {
             break;
         }
-        if (status != (LONG)0xc0000004 || bytes >= 64 * 1024 * 1024) {
+        if (status != (LONG)0xc0000004 || bytes >= max_table_bytes ||
+            required > max_table_bytes) {
             error = ERROR_NOT_SUPPORTED;
             goto done;
         }
         bytes *= 2;
+        if (bytes < required) {
+            bytes = required;
+        }
+        if (bytes > max_table_bytes) {
+            bytes = max_table_bytes;
+        }
     }
     handle_count = extended ? ((extended_handles *)table)->count
                             : ((old_handles *)table)->count;
@@ -434,6 +443,24 @@ static DWORD legacy_list(WCHAR **paths, UINT path_count, file_user **users,
         error = ERROR_INVALID_DATA;
         goto done;
     }
+    /* Compact the snapshot before scanning it once per accessible process. */
+    ULONG_PTR file_count = 0;
+    if (extended) {
+        extended_handle *entries = ((extended_handles *)table)->entries;
+        for (ULONG_PTR i = 0; i < handle_count; i++) {
+            if (entries[i].type == file_type && entries[i].pid > 4) {
+                entries[file_count++] = entries[i];
+            }
+        }
+    } else {
+        old_handle *entries = ((old_handles *)table)->entries;
+        for (ULONG_PTR i = 0; i < handle_count; i++) {
+            if (entries[i].type == file_type && entries[i].pid > 4) {
+                entries[file_count++] = entries[i];
+            }
+        }
+    }
+    handle_count = file_count;
     processes = snapshot(2, 0);
     if (processes == INVALID_HANDLE_VALUE) {
         error = GetLastError();
@@ -468,11 +495,11 @@ static DWORD legacy_list(WCHAR **paths, UINT path_count, file_user **users,
             ULONG_PTR value =
                 extended ? ((extended_handles *)table)->entries[i].handle
                          : ((old_handles *)table)->entries[i].handle;
-            USHORT type = extended
-                              ? ((extended_handles *)table)->entries[i].type
-                              : ((old_handles *)table)->entries[i].type;
             HANDLE duplicate;
             int own_target = 0;
+            if (pid != entry.th32ProcessID) {
+                continue;
+            }
             if (pid == GetCurrentProcessId()) {
                 for (UINT j = 0; j < path_count; j++) {
                     if (value == (ULONG_PTR)targets[j].handle) {
@@ -480,7 +507,7 @@ static DWORD legacy_list(WCHAR **paths, UINT path_count, file_user **users,
                     }
                 }
             }
-            if (pid != entry.th32ProcessID || type != file_type || own_target) {
+            if (own_target) {
                 continue;
             }
             if (DuplicateHandle(process, (HANDLE)value, GetCurrentProcess(),

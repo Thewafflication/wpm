@@ -389,8 +389,9 @@ wpm remove my-project-any-1.2.3.zip
 The argument identifies a retained archive in
 `%ProgramData%\WPM\packages`; use the archive name to remove one exact package
 version. WPM stages and verifies that archive, runs `.wpm\remove.cmd`, then
-deletes the retained archive only if removal succeeds. The staging directory
-is removed after every attempt.
+deletes the retained archive and its installation record after the removal
+script succeeds. If the archive is missing, restore a verified copy before
+retrying removal. The staging directory is removed after every attempt.
 
 ### Update the package index
 
@@ -399,8 +400,10 @@ wpm update
 ```
 
 Refreshes configured repository indexes, then reports installed package
-identities for which a newer eligible version is available. It does not
-download or install those packages.
+identities for which a newer eligible version is available. Installation
+records live under `installed` in the WPM data directory. `update` migrates
+readable legacy archives into that directory, and those records survive loss of
+the archive. Use `upgrade` to download, verify, and install a newer package.
 
 Install and upgrade reuse valid cached web indexes even after they age; run
 `wpm update` when you want fresh package metadata. A missing or invalid web

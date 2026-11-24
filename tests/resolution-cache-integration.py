@@ -5,6 +5,7 @@ from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
+import stat
 from pathlib import Path
 import subprocess
 import tempfile
@@ -123,17 +124,56 @@ with tempfile.TemporaryDirectory(prefix="wpm-resolution-cache-") as directory:
         ], requests
 
         # Explicit update refreshes current WPM metadata, not its history.
+        # The default HTTPS root is deliberately unreachable in this fixture:
+        # a partial refresh must not claim success from its retained cache.
         requests.clear()
-        run("update")
+        output = run("update", succeeds=False)
+        assert "repository refresh incomplete" in output
+        assert "All installed packages are current" not in output
+        assert "Result: repositories updated" not in output
         assert requests == ["/index.json"], requests
         assert cache(url).stat().st_mtime_ns != before[1]
+
+        # Windows refuses atomic replacement of a read-only cached index.
+        # Preserve the previous catalog and report failure, not 'current'.
+        retained = cache(url).read_bytes()
+        index(repository / "index.json", [dict(current, version="1.6.1")], [])
+        cache(url).chmod(stat.S_IREAD)
+        try:
+            output = run("update", succeeds=False)
+            assert "repository cache publication failed" in output
+            assert "repository refresh incomplete" in output
+            assert "All installed packages are current" not in output
+            assert "Result: repositories updated" not in output
+            assert cache(url).read_bytes() == retained
+        finally:
+            cache(url).chmod(stat.S_IREAD | stat.S_IWRITE)
+        assert "Result: repositories updated" in run("update", "--offline")
+
+        # A quarantined retained ZIP must not erase the installed version.
+        retained_zip = data / "packages" / "wpm-any-1.0.0.zip"
+        (durable_record,) = (
+            record
+            for record in (data / "installed").glob("*.json")
+            if json.loads(record.read_text())["archive"] == retained_zip.name
+        )
+        assert durable_record.is_file()
+        durable_record.unlink()  # Simulate an installation predating the store.
+        run("update", "--offline")
+        assert durable_record.is_file()
+        retained_zip.unlink()
+        assert "wpm any 1.0.0" in run("list", "wpm")
+        index(repository / "index.json", [dict(current, version="1.6.1")], [])
+        run("update", succeeds=False)
+        output = run("update", "--offline")
+        assert "wpm any: 1.0.0 -> 1.6.1" in output, output
 
         # General-purpose linked package roots still resolve dependencies.
         current_tool = package("tool", "1.0.0", repository)
         linked_tool = package("linked-tool", "1.0.0", previous)
         index(repository / "index.json", [current_tool], ["previous"])
         index(previous / "index.json", [linked_tool], [])
-        run("update")
+        run("update", succeeds=False)
         for path in (cache(url), cache(url + "/previous")):
             os.utime(path, (aged, aged))
         requests.clear()

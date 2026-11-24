@@ -133,7 +133,8 @@ def console_child(root):
             raise AssertionError(screen)
         download_screen = screen
         release.set()
-        assert process.wait(timeout=15) == 0
+        # The built-in HTTPS root is deliberately unavailable in this fixture.
+        assert process.wait(timeout=15) == 1
         screen = read_screen()
         assert (
             len(re.findall(r"\[\d{2}:\d{2}:\d{2}\] Downloaded index", screen))

@@ -528,7 +528,7 @@ done:
 }
 
 static int state_digest(unsigned char digest[32]) {
-    const char *roots[] = {"packages", "trust", "config"};
+    const char *roots[] = {"packages", "installed", "trust", "config"};
     char root[PLAN_PATH], path[PLAN_PATH];
     crypto_generichash_state hash;
     if (!wpm_get_data_root(root, sizeof(root)) || sodium_init() < 0 ||
